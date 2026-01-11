@@ -9,8 +9,16 @@ const MOCK_DATA = {
         id: 'demo_fitness_app',
         title: '智能健身APP创意验证',
         createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2小时前
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1小时前
+        conversationStep: 13,
         isPinned: true,
         analysisCompleted: true,  // 已完成分析
+
+        // 标签系统
+        tags: {
+            auto: ['AI工具', '健康运动'],  // AI自动生成的标签
+            user: ['待融资']                // 用户手动添加的标签
+        },
 
         // 用户数据（用于报告生成）
         userData: {
@@ -85,8 +93,14 @@ const MOCK_DATA = {
             id: 'chat_001',
             title: '在线教育平台创意讨论',
             createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            conversationStep: 2,
             isPinned: false,
             analysisCompleted: false,  // 未完成分析
+            tags: {
+                auto: ['教育', 'SaaS'],
+                user: []
+            },
             messages: [
                 { role: 'assistant', content: '你好！请描述一下你的创意想法：' },
                 { role: 'user', content: '我想做一个针对K12的在线编程教育平台' }
@@ -97,8 +111,14 @@ const MOCK_DATA = {
             id: 'chat_002',
             title: '宠物社交APP验证',
             createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            conversationStep: 2,
             isPinned: false,
             analysisCompleted: false,  // 未完成分析
+            tags: {
+                auto: ['社交', '宠物'],
+                user: ['B端']
+            },
             messages: [
                 { role: 'assistant', content: '你好！请描述一下你的创意想法：' },
                 { role: 'user', content: '宠物主人之间的社交平台，可以预约遛狗、分享萌宠日常' }

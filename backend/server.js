@@ -5,9 +5,19 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import chatRouter from './routes/chat.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
+import businessPlanRouter from './routes/business-plan.js';
+import pdfExportRouter from './routes/pdf-export.js';
+import shareRouter from './routes/share.js';
+import demoGeneratorRouter from './routes/demo-generator.js';
+import agentsRouter from './routes/agents.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -22,13 +32,43 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 // 1. 请求日志
 app.use(logger);
 
-// 2. CORS 跨域配置
-app.use(cors({
-    origin: FRONTEND_URL,
-    credentials: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// 2. CORS 跨域配置（开发环境允许所有来源）
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+if (isDevelopment) {
+    // 开发环境：宽松的CORS配置（包括file://协议）
+    app.use((req, res, next) => {
+        const origin = req.headers.origin;
+
+        // 设置允许的源
+        if (origin && origin !== 'null') {
+            // 有明确的origin（http/https协议）
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Access-Control-Allow-Credentials', 'true');
+        } else {
+            // 无origin或origin是null（file://协议）
+            res.header('Access-Control-Allow-Origin', '*');
+        }
+
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+        // 处理预检请求
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(204);
+        }
+
+        next();
+    });
+} else {
+    // 生产环境：严格的CORS配置
+    app.use(cors({
+        origin: FRONTEND_URL,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization']
+    }));
+}
 
 // 3. JSON 解析
 app.use(express.json({ limit: '10mb' }));
@@ -51,8 +91,26 @@ app.use('/api/chat', chatRouter);
 // 报告生成接口
 app.use('/api/report', reportRouter);
 
+// 商业计划书生成接口
+app.use('/api/business-plan', businessPlanRouter);
+
 // 视觉分析接口
 app.use('/api/vision', visionRouter);
+
+// PDF导出接口
+app.use('/api/pdf-export', pdfExportRouter);
+
+// 分享链接接口
+app.use('/api/share', shareRouter);
+
+// Demo代码生成接口
+app.use('/api/demo-generator', demoGeneratorRouter);
+
+// 数字员工Agent接口
+app.use('/api/agents', agentsRouter);
+
+// 静态文件服务（Demo预览）
+app.use('/demos', express.static(path.join(__dirname, 'demos')));
 
 // 404 处理
 app.use((req, res) => {
@@ -74,10 +132,15 @@ app.listen(PORT, () => {
     console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🤖 API: DeepSeek Chat`);
     console.log('='.repeat(50));
-    console.log(`\n健康检查: http://localhost:${PORT}/api/health`);
-    console.log(`对话接口:   http://localhost:${PORT}/api/chat`);
-    console.log(`报告生成:   http://localhost:${PORT}/api/report/generate`);
-    console.log(`视觉分析:   http://localhost:${PORT}/api/vision/analyze\n`);
+    console.log(`\n健康检查:       http://localhost:${PORT}/api/health`);
+    console.log(`对话接口:       http://localhost:${PORT}/api/chat`);
+    console.log(`报告生成:       http://localhost:${PORT}/api/report/generate`);
+    console.log(`商业计划书:     http://localhost:${PORT}/api/business-plan/generate-batch`);
+    console.log(`视觉分析:       http://localhost:${PORT}/api/vision/analyze`);
+    console.log(`PDF导出:        http://localhost:${PORT}/api/pdf-export/report`);
+    console.log(`分享链接:       http://localhost:${PORT}/api/share/create`);
+    console.log(`Demo生成:       http://localhost:${PORT}/api/demo-generator/generate`);
+    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types\n`);
 });
 
 // 优雅关闭
