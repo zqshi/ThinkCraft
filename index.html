@@ -20,58 +20,11 @@
     <meta name="description" content="快速捕捉灵感，通过苏格拉底式提问深化思维，AI辅助生成商业计划书">
     <meta name="keywords" content="AI助手,思维工具,灵感记录,商业计划,创意分析">
 
-    <style>
-        /* 关键CSS：确保移动端侧边栏默认隐藏（在外部CSS加载前生效） */
-        @media (max-width: 640px) {
-            .sidebar {
-                position: absolute !important;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                z-index: 100;
-                width: 100%;
-                transform: translateX(-100%) !important;
-                transition: transform 0.3s ease;
-            }
-            .sidebar.active {
-                transform: translateX(0) !important;
-            }
-            .menu-toggle {
-                display: block !important;
-            }
-            .main-content {
-                width: 100% !important;
-                margin-left: 0 !important;
-            }
-
-            /* 移动端悬浮输入区：固定在底部 */
-            .input-container {
-                position: fixed !important;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                z-index: 50; /* 降低z-index，允许sidebar覆盖 */
-                background: white;
-                box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
-                padding: 12px;
-                /* 支持iOS安全区域 */
-                padding-bottom: calc(12px + env(safe-area-inset-bottom));
-            }
-
-            /* 调整聊天容器底部边距，为悬浮输入区留出空间 */
-            .chat-container {
-                padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
-            }
-        }
-        /* 桌面端：菜单按钮默认隐藏 */
-        .menu-toggle {
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="frontend/css/inline.css">
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
-    <script src="js/core/device-detector.js"></script>
-    <script src="js/core/gesture-handler.js"></script>
+    <script src="frontend/js/core/device-detector.js"></script>
+    <script src="frontend/js/core/gesture-handler.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -1059,12 +1012,29 @@
             </div>
 
             <div class="modal-body">
-                <div style="text-align: center; padding: 16px; background: #eff6ff; border-radius: 8px; margin-bottom: 24px;">
-                    <p style="font-size: 14px; color: #1e40af; margin: 0;">💼 选择数字员工加入项目团队，他们将为项目提供专业支持</p>
+                <!-- Tab切换 -->
+                <div class="report-tabs" style="margin-bottom: 24px;">
+                    <button class="report-tab active" onclick="switchAddMemberTab('market')">雇佣市场</button>
+                    <button class="report-tab" onclick="switchAddMemberTab('hired')">已雇佣</button>
                 </div>
 
-                <!-- 员工列表 -->
-                <div class="agent-market-grid" id="projectAgentList"></div>
+                <!-- 雇佣市场Tab -->
+                <div id="addMemberMarketTab" class="add-member-tab-content">
+                    <div style="text-align: center; padding: 16px; background: #eff6ff; border-radius: 8px; margin-bottom: 24px;">
+                        <p style="font-size: 14px; color: #1e40af; margin: 0;">💼 选择数字员工加入项目团队，他们将为项目提供专业支持</p>
+                    </div>
+                    <!-- 员工列表 -->
+                    <div class="agent-market-grid" id="projectAgentList"></div>
+                </div>
+
+                <!-- 已雇佣Tab -->
+                <div id="addMemberHiredTab" class="add-member-tab-content" style="display: none;">
+                    <div style="text-align: center; padding: 16px; background: #f0fdf4; border-radius: 8px; margin-bottom: 24px;">
+                        <p style="font-size: 14px; color: #166534; margin: 0;">👥 当前项目已雇佣的数字员工，点击解雇可以移除成员</p>
+                    </div>
+                    <!-- 已雇佣员工列表 -->
+                    <div class="agent-market-grid" id="projectHiredAgentList"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1108,16 +1078,16 @@
     <script src="config/mock-data.js"></script>
 
     <!-- 核心模块 -->
-    <script src="js/core/state-manager.js"></script>
-    <script src="js/core/api-client.js"></script>
-    <script src="js/core/storage-manager.js"></script>
+    <script src="frontend/js/core/state-manager.js"></script>
+    <script src="frontend/js/core/api-client.js"></script>
+    <script src="frontend/js/core/storage-manager.js"></script>
 
     <!-- 组件模块 -->
-    <script src="js/components/modal-manager.js"></script>
-    <script src="js/components/agent-progress.js"></script>
+    <script src="frontend/js/components/modal-manager.js"></script>
+    <script src="frontend/js/components/agent-progress.js"></script>
 
     <!-- 功能模块 -->
-    <script src="js/modules/business-plan-generator.js"></script>
+    <script src="frontend/js/modules/business-plan-generator.js"></script>
 
     <script>
         const state = {
@@ -1729,15 +1699,17 @@
                 const item = document.createElement('div');
                 item.className = 'chat-item' + (chat.isPinned ? ' pinned' : '') + (state.currentChat == chat.id ? ' active' : '');
 
-                // 渲染标签
-                const autoTags = chat.tags?.auto || [];
-                const userTags = chat.tags?.user || [];
-                const tagsHTML = (autoTags.length > 0 || userTags.length > 0) ? `
-                    <div class="chat-item-tags">
-                        ${autoTags.map(tag => `<span class="tag tag-auto">${tag}</span>`).join('')}
-                        ${userTags.map(tag => `<span class="tag tag-user">${tag}</span>`).join('')}
-                    </div>
-                ` : '';
+                // 渲染标签 - 已禁用
+                // const autoTags = chat.tags?.auto || [];
+                // const userTags = chat.tags?.user || [];
+                // const tagsHTML = (autoTags.length > 0 || userTags.length > 0) ? `
+                //     <div class="chat-item-tags">
+                //         ${autoTags.map(tag => `<span class="tag tag-auto">${tag}</span>`).join('')}
+                //         ${userTags.map(tag => `<span class="tag tag-user">${tag}</span>`).join('')}
+                //     </div>
+                // ` : '';
+                const tagsHTML = ''; // 不显示标签
+
 
                 item.innerHTML = `
                     <svg class="chat-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4947,8 +4919,10 @@
                             description: '基于AI的个性化健身指导应用',
                             createdAt: new Date().toISOString(),
                             updatedAt: new Date().toISOString(),
+                            members: [],
                             assignedAgents: [],
                             linkedIdeas: [],
+                            ideas: [],
                             tasks: [],
                             files: [],
                             status: 'active'
@@ -4960,8 +4934,10 @@
                             description: '互动式在线学习平台',
                             createdAt: new Date().toISOString(),
                             updatedAt: new Date().toISOString(),
+                            members: [],
                             assignedAgents: [],
                             linkedIdeas: [],
+                            ideas: [],
                             tasks: [],
                             files: [],
                             status: 'active'
@@ -4973,8 +4949,10 @@
                             description: '基于社区的电商解决方案',
                             createdAt: new Date().toISOString(),
                             updatedAt: new Date().toISOString(),
+                            members: [],
                             assignedAgents: [],
                             linkedIdeas: [],
+                            ideas: [],
                             tasks: [],
                             files: [],
                             status: 'active'
@@ -5005,8 +4983,10 @@
                 description: '',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
+                members: [],         // 团队成员列表
                 assignedAgents: [],  // 分配的员工ID列表
                 linkedIdeas: [],     // 关联的创意ID列表（来自对话）
+                ideas: [],           // 关联的创意列表
                 tasks: [],           // 任务列表
                 files: [],           // 文件列表
                 status: 'active'     // active, archived
@@ -5540,9 +5520,17 @@
             await loadKnowledgeData(mode, projectId);
 
             // 隐藏聊天容器和输入框，显示知识库面板
-            document.getElementById('chatContainer').style.display = 'none';
-            document.getElementById('knowledgePanel').style.display = 'flex';
+            const chatContainer = document.getElementById('chatContainer');
+            const knowledgePanel = document.getElementById('knowledgePanel');
             const inputContainer = document.getElementById('inputContainer');
+
+            if (!knowledgePanel) {
+                console.error('[知识库] knowledgePanel 元素不存在，请检查 DOM 结构');
+                return;
+            }
+
+            if (chatContainer) chatContainer.style.display = 'none';
+            knowledgePanel.style.display = 'flex';
             if (inputContainer) inputContainer.style.display = 'none';
         }
 
@@ -6172,6 +6160,53 @@
                     <div id="messageList" style="display: none;"></div>
                 </div>
 
+                <!-- 知识库面板（右侧切换面板）-->
+                <div class="knowledge-panel" id="knowledgePanel" style="display: none;">
+                    <div class="knowledge-panel-content">
+                        <!-- 左侧：组织树 -->
+                        <div class="knowledge-sidebar">
+                            <div class="knowledge-org-switcher">
+                                <button class="active" data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
+                                <button data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
+                                <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
+                                <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
+                            </div>
+                            <div id="knowledgeOrgTree" class="knowledge-org-tree"></div>
+                        </div>
+
+                        <!-- 右侧：知识列表 -->
+                        <div class="knowledge-main">
+                            <div class="knowledge-toolbar">
+                                <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
+                                <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
+                                    <option value="">所有类型</option>
+                                    <option value="prd">PRD</option>
+                                    <option value="tech">技术方案</option>
+                                    <option value="analysis">市场分析</option>
+                                    <option value="research">调研报告</option>
+                                    <option value="design">设计文档</option>
+                                    <option value="other">其他</option>
+                                </select>
+                                <button class="btn-primary" onclick="createKnowledge()">
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    新建
+                                </button>
+                            </div>
+                            <div id="knowledgeList" class="knowledge-grid"></div>
+                            <div id="knowledgeEmpty" class="empty-state" style="display: none;">
+                                <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                </svg>
+                                <div class="empty-title">暂无知识沉淀</div>
+                                <div class="empty-subtitle">创建第一个知识条目</div>
+                                <button class="btn-primary" onclick="createKnowledge()" style="margin-top: 16px;">新建知识</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="input-container" id="inputContainer">
                     <div class="input-wrapper">
                         <!-- 移动端：语音模式（默认） -->
@@ -6557,8 +6592,8 @@
 
             // 更新项目概览
             document.getElementById('projectStatus').textContent = project.status;
-            document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
-            document.getElementById('projectIdeaCount').textContent = project.ideas.length;
+            document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+            document.getElementById('projectIdeaCount').textContent = project.ideas?.length || 0;
 
             // 渲染成员列表
             renderProjectMembers(project);
@@ -6576,12 +6611,12 @@
 
         function renderProjectMembers(project) {
             const container = document.getElementById('projectMembersList');
-            const allMembers = [...project.members];
+            const allMembers = [...(project.members || [])];
 
             // 添加已雇佣的数字员工
-            if (project.agents && project.agents.length > 0) {
+            if (project.assignedAgents && project.assignedAgents.length > 0) {
                 const agentMarket = getAgentMarket();
-                project.agents.forEach(agentId => {
+                project.assignedAgents.forEach(agentId => {
                     const agent = agentMarket.find(a => a.id === agentId);
                     if (agent) {
                         allMembers.push({
@@ -6613,7 +6648,14 @@
 
         function renderProjectIdeas(project) {
             const container = document.getElementById('projectIdeasList');
-            container.innerHTML = project.ideas.map(idea => `
+            const ideas = project.ideas || [];
+
+            if (ideas.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-tertiary);">暂无关联创意</div>';
+                return;
+            }
+
+            container.innerHTML = ideas.map(idea => `
                 <div class="project-idea-card">
                     <div class="idea-icon">${idea.icon}</div>
                     <div class="idea-info">
@@ -6629,19 +6671,106 @@
             const modal = document.getElementById('addMemberModal');
             modal.style.display = 'flex';
 
-            // 渲染可雇佣的数字员工列表
-            renderAvailableAgents();
+            // 默认显示雇佣市场Tab
+            switchAddMemberTab('market');
         }
 
         function closeAddMember() {
             document.getElementById('addMemberModal').style.display = 'none';
         }
 
+        // 切换添加成员弹窗的Tab
+        function switchAddMemberTab(tab) {
+            // 更新Tab按钮状态
+            const tabs = document.querySelectorAll('#addMemberModal .report-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+
+            if (tab === 'market') {
+                tabs[0].classList.add('active');
+                document.getElementById('addMemberMarketTab').style.display = 'block';
+                document.getElementById('addMemberHiredTab').style.display = 'none';
+
+                // 渲染可雇佣的数字员工列表
+                renderAvailableAgents();
+            } else {
+                tabs[1].classList.add('active');
+                document.getElementById('addMemberMarketTab').style.display = 'none';
+                document.getElementById('addMemberHiredTab').style.display = 'block';
+
+                // 渲染已雇佣的数字员工列表
+                renderProjectHiredAgents();
+            }
+        }
+
+        // 渲染项目已雇佣的员工列表（带解雇按钮）
+        function renderProjectHiredAgents() {
+            const container = document.getElementById('projectHiredAgentList');
+            const project = window.currentProject;
+            const hiredAgentIds = project.assignedAgents || [];
+            const agentMarket = getAgentMarket();
+
+            // 过滤出已雇佣的员工
+            const hiredAgents = agentMarket.filter(agent => hiredAgentIds.includes(agent.id));
+
+            if (hiredAgents.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-tertiary);">暂无雇佣的数字员工</div>';
+                return;
+            }
+
+            container.innerHTML = hiredAgents.map(agent => {
+                return `
+                    <div class="agent-card hired">
+                        <div class="agent-card-header">
+                            <div class="agent-card-avatar">${agent.avatar}</div>
+                            <div class="agent-card-info">
+                                <div class="agent-card-name">${agent.name}</div>
+                                <div class="agent-card-role">${agent.role}</div>
+                            </div>
+                        </div>
+                        <div class="agent-card-desc">${agent.desc}</div>
+                        <div class="agent-card-skills">
+                            ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                        </div>
+                        <div class="agent-card-actions">
+                            <button class="btn-secondary" onclick="fireAgentFromModal('${agent.id}')">
+                                🗑️ 解雇
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 从弹窗中解雇员工
+        function fireAgentFromModal(agentId) {
+            if (!confirm('确定要将该数字员工从项目中移除吗？')) {
+                return;
+            }
+
+            const project = window.currentProject;
+            const index = project.assignedAgents.indexOf(agentId);
+            if (index > -1) {
+                project.assignedAgents.splice(index, 1);
+                console.log(`[项目] 解雇员工: ${agentId}`);
+
+                // 保存到 localStorage
+                saveTeamSpace();
+
+                // 刷新两个tab的内容
+                renderProjectHiredAgents(); // 刷新已雇佣列表
+                renderAvailableAgents(); // 刷新雇佣市场列表
+
+                // 更新项目成员显示
+                renderProjectMembers(project);
+                document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+            }
+        }
+
         function renderAvailableAgents() {
             const container = document.getElementById('projectAgentList');
             const agentMarket = getAgentMarket();
             const project = window.currentProject;
-            const hiredAgents = project.agents || [];
+            const hiredAgents = project.assignedAgents || [];
 
             container.innerHTML = agentMarket.map(agent => {
                 const isHired = hiredAgents.includes(agent.id);
@@ -6672,7 +6801,7 @@
 
         function toggleAgentHire(agentId) {
             const project = window.currentProject;
-            const hiredAgents = project.agents || [];
+            const hiredAgents = project.assignedAgents || [];
             const index = hiredAgents.indexOf(agentId);
 
             if (index > -1) {
@@ -6685,12 +6814,15 @@
                 console.log(`[项目] 雇佣员工: ${agentId}`);
             }
 
-            project.agents = hiredAgents;
+            project.assignedAgents = hiredAgents;
+
+            // 保存到 localStorage
+            saveTeamSpace();
 
             // 重新渲染
             renderAvailableAgents();
             renderProjectMembers(project);
-            document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
+            document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
         }
 
         function fireAgent(agentId) {
@@ -6699,14 +6831,17 @@
             }
 
             const project = window.currentProject;
-            const index = project.agents.indexOf(agentId);
+            const index = project.assignedAgents.indexOf(agentId);
             if (index > -1) {
-                project.agents.splice(index, 1);
+                project.assignedAgents.splice(index, 1);
                 console.log(`[项目] 解雇员工: ${agentId}`);
+
+                // 保存到 localStorage
+                saveTeamSpace();
 
                 // 重新渲染
                 renderProjectMembers(project);
-                document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
+                document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
             }
         }
 
