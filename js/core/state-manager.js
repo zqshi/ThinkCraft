@@ -68,6 +68,27 @@ class StateManager {
         }
       },
 
+      // 知识库状态（Phase 4新增）
+      knowledge: {
+        viewMode: 'project', // 'project' | 'global' | 'aggregated'
+        currentProjectId: null, // 当前查看的项目ID
+        organizationType: 'byProject', // 'byProject' | 'byType' | 'byTimeline' | 'byTags'
+        selectedTags: [], // 选中的标签
+        items: [], // 知识条目列表
+        filter: {
+          type: null, // 文档类型过滤
+          projectId: null, // 项目过滤
+          tags: [] // 标签过滤
+        },
+        searchKeyword: '', // 搜索关键词
+        stats: {
+          total: 0,
+          byProject: {},
+          byType: {},
+          byTag: {}
+        }
+      },
+
       // 设置
       settings: {
         darkMode: false,
@@ -590,6 +611,249 @@ class StateManager {
       status: 'completed',
       linkedChatId: chatId
     });
+  }
+
+  // ========== 知识库管理方法（Phase 4新增） ==========
+
+  /**
+   * 设置知识库视图模式
+   * @param {String} mode - 'project' | 'global' | 'aggregated'
+   */
+  setKnowledgeViewMode(mode) {
+    this.state.knowledge.viewMode = mode;
+    this.notify();
+    console.log(`[StateManager] 知识库视图模式: ${mode}`);
+  }
+
+  /**
+   * 设置知识库组织方式
+   * @param {String} type - 'byProject' | 'byType' | 'byTimeline' | 'byTags'
+   */
+  setKnowledgeOrganization(type) {
+    this.state.knowledge.organizationType = type;
+    this.notify();
+    console.log(`[StateManager] 知识库组织方式: ${type}`);
+  }
+
+  /**
+   * 设置项目过滤
+   * @param {String} projectId - 项目ID
+   */
+  setKnowledgeProjectFilter(projectId) {
+    this.state.knowledge.currentProjectId = projectId;
+    this.state.knowledge.filter.projectId = projectId;
+    this.notify();
+    console.log(`[StateManager] 知识库项目过滤: ${projectId}`);
+  }
+
+  /**
+   * 添加知识条目
+   * @param {Object} item - 知识条目
+   * @returns {Object} 添加的知识条目
+   */
+  addKnowledgeItem(item) {
+    this.state.knowledge.items.unshift(item);
+    this.updateKnowledgeStats();
+    this.notify();
+    console.log(`[StateManager] 新增知识: ${item.id}`);
+    return item;
+  }
+
+  /**
+   * 更新知识条目
+   * @param {String} id - 知识ID
+   * @param {Object} updates - 更新内容
+   * @returns {Object|null} 更新后的知识条目
+   */
+  updateKnowledgeItem(id, updates) {
+    const item = this.state.knowledge.items.find(i => i.id === id);
+    if (item) {
+      Object.assign(item, updates, { updatedAt: Date.now() });
+      this.updateKnowledgeStats();
+      this.notify();
+      console.log(`[StateManager] 更新知识: ${id}`);
+      return item;
+    }
+    console.warn(`[StateManager] 知识不存在: ${id}`);
+    return null;
+  }
+
+  /**
+   * 删除知识条目
+   * @param {String} id - 知识ID
+   * @returns {Boolean} 是否删除成功
+   */
+  deleteKnowledgeItem(id) {
+    const index = this.state.knowledge.items.findIndex(i => i.id === id);
+    if (index > -1) {
+      this.state.knowledge.items.splice(index, 1);
+      this.updateKnowledgeStats();
+      this.notify();
+      console.log(`[StateManager] 删除知识: ${id}`);
+      return true;
+    }
+    console.warn(`[StateManager] 知识不存在: ${id}`);
+    return false;
+  }
+
+  /**
+   * 加载知识条目列表
+   * @param {Array} items - 知识条目数组
+   */
+  loadKnowledgeItems(items) {
+    this.state.knowledge.items = items || [];
+    this.updateKnowledgeStats();
+    this.notify();
+    console.log(`[StateManager] 加载 ${items.length} 条知识`);
+  }
+
+  /**
+   * 根据标签筛选知识
+   * @param {Array} tags - 标签数组
+   * @returns {Array} 筛选后的知识列表
+   */
+  filterKnowledgeByTags(tags) {
+    if (!tags || tags.length === 0) {
+      return this.state.knowledge.items;
+    }
+
+    return this.state.knowledge.items.filter(item => {
+      return tags.some(tag => item.tags.includes(tag));
+    });
+  }
+
+  /**
+   * 搜索知识
+   * @param {String} keyword - 搜索关键词
+   * @returns {Array} 匹配的知识列表
+   */
+  searchKnowledgeItems(keyword) {
+    if (!keyword) return this.state.knowledge.items;
+
+    const lowerKeyword = keyword.toLowerCase();
+    return this.state.knowledge.items.filter(item => {
+      return item.title.toLowerCase().includes(lowerKeyword) ||
+             item.content.toLowerCase().includes(lowerKeyword) ||
+             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+    });
+  }
+
+  /**
+   * 设置搜索关键词
+   * @param {String} keyword - 搜索关键词
+   */
+  setKnowledgeSearchKeyword(keyword) {
+    this.state.knowledge.searchKeyword = keyword;
+    this.notify();
+  }
+
+  /**
+   * 设置知识类型过滤
+   * @param {String} type - 文档类型
+   */
+  setKnowledgeTypeFilter(type) {
+    this.state.knowledge.filter.type = type;
+    this.notify();
+  }
+
+  /**
+   * 设置知识标签过滤
+   * @param {Array} tags - 标签数组
+   */
+  setKnowledgeTagsFilter(tags) {
+    this.state.knowledge.filter.tags = tags;
+    this.state.knowledge.selectedTags = tags;
+    this.notify();
+  }
+
+  /**
+   * 更新知识库统计信息
+   * @private
+   */
+  updateKnowledgeStats() {
+    const items = this.state.knowledge.items;
+    const stats = {
+      total: items.length,
+      byProject: {},
+      byType: {},
+      byTag: {}
+    };
+
+    items.forEach(item => {
+      // 按项目统计
+      const projectId = item.projectId || 'global';
+      stats.byProject[projectId] = (stats.byProject[projectId] || 0) + 1;
+
+      // 按类型统计
+      const type = item.type || 'other';
+      stats.byType[type] = (stats.byType[type] || 0) + 1;
+
+      // 按标签统计
+      item.tags.forEach(tag => {
+        stats.byTag[tag] = (stats.byTag[tag] || 0) + 1;
+      });
+    });
+
+    this.state.knowledge.stats = stats;
+  }
+
+  /**
+   * 根据ID获取知识条目
+   * @param {String} id - 知识ID
+   * @returns {Object|null} 知识条目
+   */
+  getKnowledgeItemById(id) {
+    return this.state.knowledge.items.find(i => i.id === id) || null;
+  }
+
+  /**
+   * 获取当前筛选后的知识列表
+   * @returns {Array} 筛选后的知识列表
+   */
+  getFilteredKnowledgeItems() {
+    let items = this.state.knowledge.items;
+
+    // 应用项目过滤
+    if (this.state.knowledge.filter.projectId) {
+      items = items.filter(i => i.projectId === this.state.knowledge.filter.projectId);
+    }
+
+    // 应用类型过滤
+    if (this.state.knowledge.filter.type) {
+      items = items.filter(i => i.type === this.state.knowledge.filter.type);
+    }
+
+    // 应用标签过滤
+    if (this.state.knowledge.filter.tags.length > 0) {
+      items = this.filterKnowledgeByTags(this.state.knowledge.filter.tags);
+    }
+
+    // 应用搜索过滤
+    if (this.state.knowledge.searchKeyword) {
+      const keyword = this.state.knowledge.searchKeyword.toLowerCase();
+      items = items.filter(item => {
+        return item.title.toLowerCase().includes(keyword) ||
+               item.content.toLowerCase().includes(keyword) ||
+               item.tags.some(tag => tag.toLowerCase().includes(keyword));
+      });
+    }
+
+    return items;
+  }
+
+  /**
+   * 重置知识库过滤条件
+   */
+  resetKnowledgeFilters() {
+    this.state.knowledge.filter = {
+      type: null,
+      projectId: null,
+      tags: []
+    };
+    this.state.knowledge.searchKeyword = '';
+    this.state.knowledge.selectedTags = [];
+    this.notify();
+    console.log(`[StateManager] 重置知识库过滤条件`);
   }
 
   // ========== 设置管理 ==========

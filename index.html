@@ -50,7 +50,7 @@
                 bottom: 0;
                 left: 0;
                 right: 0;
-                z-index: 999;
+                z-index: 50; /* 降低z-index，允许sidebar覆盖 */
                 background: white;
                 box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
                 padding: 12px;
@@ -85,43 +85,73 @@
                     新建对话
                 </button>
             </div>
-            <div class="chat-history" id="chatHistory"></div>
 
-            <!-- 第三阶段功能入口 -->
-            <div style="padding: 16px; border-top: 1px solid var(--border); background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);">
-                <div style="background: white; border-radius: 12px; padding: 16px; border: 2px solid var(--primary); cursor: pointer; transition: all 0.3s;"
-                     onclick="showAgentManagement()"
-                     onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 12px rgba(79,70,229,0.2)';"
-                     onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                        <div style="font-size: 24px;">👥</div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">
-                                数字员工团队
-                            </div>
-                            <div id="agentTeamSummary" style="font-size: 11px; color: var(--primary);">
-                                点击管理你的AI员工团队
-                            </div>
-                        </div>
-                        <div style="color: var(--primary); font-size: 20px;">→</div>
+            <!-- Sidebar切换Tab -->
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" data-tab="chats" onclick="switchSidebarTab('chats')">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    <span>对话</span>
+                </button>
+                <button class="sidebar-tab" data-tab="team" onclick="switchSidebarTab('team')" id="teamTab" style="display: none;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    <span>团队</span>
+                </button>
+            </div>
+
+            <!-- 对话列表视图 -->
+            <div class="sidebar-view" id="chatsView">
+                <div class="chat-history" id="chatHistory"></div>
+            </div>
+
+            <!-- 团队空间视图 -->
+            <div class="sidebar-view" id="teamView" style="display: none;">
+                <!-- 动态渲染，初始为空 -->
+            </div>
+
+            <!-- Sidebar底部：用户信息区 -->
+            <div class="sidebar-footer">
+                <div class="user-info" onclick="openBottomSettings()">
+                    <div class="user-avatar">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                            <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                        </svg>
                     </div>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0; line-height: 1.5;">
-                        雇佣AI员工，辅助全流程经营
-                    </p>
+                    <div class="user-name" id="userName">ThinkCraft 用户</div>
+                    <button class="settings-icon" onclick="event.stopPropagation(); openBottomSettings()" aria-label="设置">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </aside>
 
         <main class="main-content">
             <header class="main-header">
-                <button class="menu-toggle" onclick="toggleSidebar()">
+                <!-- 移动端：左侧汉堡菜单 -->
+                <button class="menu-toggle" onclick="toggleSidebar()" aria-label="打开菜单">
                     <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
                 </button>
+
                 <div class="main-title" id="mainTitle">ThinkCraft AI</div>
+
                 <div class="header-actions">
-                    <button class="icon-btn" onclick="showSettings()" title="设置">
+                    <!-- 移动端：新建对话按钮 -->
+                    <button class="mobile-new-chat-btn" onclick="startNewChat()" title="新建对话" aria-label="新建对话">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </button>
+                    <!-- 桌面端：设置按钮 -->
+                    <button class="icon-btn desktop-only" onclick="showSettings()" title="设置">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -142,44 +172,176 @@
                 <div id="messageList" style="display: none;"></div>
             </div>
 
-            <div class="input-container">
-                <div class="input-wrapper">
-                    <div class="input-tools">
-                        <button class="tool-btn" onclick="handleVoice()" title="语音输入">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+            <!-- 知识库面板（右侧切换面板）-->
+            <div class="knowledge-panel" id="knowledgePanel" style="display: none;">
+                <div class="knowledge-panel-content">
+                    <!-- 左侧：组织树 -->
+                    <div class="knowledge-sidebar">
+                        <div class="knowledge-org-switcher">
+                            <button class="active" data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
+                            <button data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
+                            <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
+                            <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
+                        </div>
+                        <div id="knowledgeOrgTree" class="knowledge-org-tree"></div>
+                    </div>
+
+                    <!-- 右侧：知识列表 -->
+                    <div class="knowledge-main">
+                        <div class="knowledge-toolbar">
+                            <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
+                            <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
+                                <option value="">所有类型</option>
+                                <option value="prd">PRD</option>
+                                <option value="tech">技术方案</option>
+                                <option value="analysis">市场分析</option>
+                                <option value="research">调研报告</option>
+                                <option value="design">设计文档</option>
+                                <option value="other">其他</option>
+                            </select>
+                            <button class="btn-primary" onclick="createKnowledge()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                新建
+                            </button>
+                        </div>
+                        <div id="knowledgeList" class="knowledge-grid"></div>
+                        <div id="knowledgeEmpty" class="empty-state" style="display: none;">
+                            <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                             </svg>
-                            语音
-                        </button>
-                        <button class="tool-btn" onclick="handleCamera()" title="拍照">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="empty-title">暂无知识沉淀</div>
+                            <div class="empty-subtitle">创建第一个知识条目</div>
+                            <button class="btn-primary" onclick="createKnowledge()" style="margin-top: 16px;">新建知识</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container" id="inputContainer">
+                <div class="input-wrapper">
+                    <!-- 移动端：语音模式（默认） -->
+                    <div class="mobile-voice-mode" id="mobileVoiceMode">
+                        <button class="mobile-tool-btn" onclick="handleCamera()" title="拍照" aria-label="拍照">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
                             </svg>
-                            拍照
                         </button>
-                        <button class="tool-btn" onclick="handleImageUpload()" title="上传图片">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                        <button class="mobile-voice-btn" id="mobileVoiceBtn">
+                            <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                            </svg>
+                            <span>按住说话</span>
+                        </button>
+
+                        <button class="mobile-tool-btn" onclick="handleImageUpload()" title="图片" aria-label="上传图片">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                             </svg>
-                            图片
+                        </button>
+
+                        <button class="mobile-tool-btn" onclick="switchToTextMode()" title="切换文字输入" aria-label="切换文字输入">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
                         </button>
                     </div>
-                    <div class="input-box">
+
+                    <!-- 移动端：文本模式 -->
+                    <div class="mobile-text-mode" id="mobileTextMode" style="display: none;">
+                        <button class="mobile-tool-btn-small" onclick="switchToVoiceMode()" title="切换语音输入" aria-label="切换语音输入">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                            </svg>
+                        </button>
+                        <button class="mobile-tool-btn-small" onclick="handleCamera()" title="拍照" aria-label="拍照">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </button>
+                        <button class="mobile-tool-btn-small" onclick="handleImageUpload()" title="图片" aria-label="上传图片">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </button>
                         <textarea
-                            class="main-input"
-                            id="mainInput"
-                            placeholder="分享你的创意想法，让我们通过深度对话来探索它的可能性..."
+                            class="mobile-text-input"
+                            id="mobileTextInput"
+                            placeholder="输入消息..."
                             rows="1"
                             onkeydown="handleKeyDown(event)"
-                            onkeyup="handleKeyUp(event)"
                             oninput="autoResize(this)"
                         ></textarea>
-                        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button class="mobile-send-btn" onclick="sendMessage()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                             </svg>
                         </button>
+                    </div>
+
+                    <!-- 桌面端：文本模式（默认） -->
+                    <div class="desktop-text-mode" id="desktopTextMode">
+                        <div class="desktop-input-tools">
+                            <button class="desktop-tool-btn" onclick="switchDesktopToVoice()" title="切换语音输入" aria-label="切换语音输入">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                </svg>
+                            </button>
+                            <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="desktop-input-box">
+                            <textarea
+                                class="desktop-text-input"
+                                id="mainInput"
+                                placeholder="分享你的创意想法，让我们通过深度对话来探索它的可能性..."
+                                rows="1"
+                                onkeydown="handleKeyDown(event)"
+                                onkeyup="handleKeyUp(event)"
+                                oninput="autoResize(this)"
+                            ></textarea>
+                            <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 桌面端：语音模式 -->
+                    <div class="desktop-voice-mode" id="desktopVoiceMode" style="display: none;">
+                        <div class="desktop-input-tools">
+                            <button class="desktop-tool-btn" onclick="switchDesktopToText()" title="切换文字输入" aria-label="切换文字输入">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </button>
+                            <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="desktop-input-box">
+                            <button class="desktop-voice-btn" id="desktopVoiceBtn" onclick="handleVoice()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                </svg>
+                                <span id="desktopVoiceText">点击语音输入</span>
+                            </button>
+                            <button class="desktop-send-btn" id="sendBtn2" onclick="sendMessage()" style="display: none;">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -591,6 +753,78 @@
         </div>
     </div>
 
+    <!-- 知识库模态框 -->
+    <!-- 知识库Modal - 新版双栏布局 -->
+    <div class="modal" id="knowledgeModal">
+        <div class="modal-content knowledge-modal-wide">
+            <!-- Header -->
+            <div class="modal-header" style="border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <div class="knowledge-breadcrumb" id="knowledgeBreadcrumb">
+                    <span>📚 全局知识库</span>
+                </div>
+                <button class="close-btn" onclick="closeKnowledgeBase()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 主体：双栏布局 -->
+            <div style="display: flex; flex: 1; overflow: hidden;">
+                <!-- 左侧边栏：组织树 -->
+                <div class="knowledge-sidebar">
+                    <!-- 组织方式切换器 -->
+                    <div class="knowledge-org-switcher">
+                        <button class="active" data-org="byProject" onclick="switchKnowledgeOrganization('byProject')">按项目</button>
+                        <button data-org="byType" onclick="switchKnowledgeOrganization('byType')">按类型</button>
+                        <button data-org="byTimeline" onclick="switchKnowledgeOrganization('byTimeline')">时间线</button>
+                        <button data-org="byTags" onclick="switchKnowledgeOrganization('byTags')">标签</button>
+                    </div>
+
+                    <!-- 动态组织树 -->
+                    <div id="knowledgeOrgTree" class="knowledge-org-tree">
+                        <!-- 由JS动态渲染 -->
+                    </div>
+                </div>
+
+                <!-- 右侧主内容区 -->
+                <div class="knowledge-main">
+                    <!-- 工具栏 -->
+                    <div class="knowledge-toolbar">
+                        <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
+                        <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
+                            <option value="">所有类型</option>
+                            <option value="prd">PRD</option>
+                            <option value="tech">技术方案</option>
+                            <option value="analysis">市场分析</option>
+                            <option value="research">用户调研</option>
+                            <option value="design">设计稿</option>
+                            <option value="other">其他</option>
+                        </select>
+                        <button class="btn-primary" onclick="createKnowledge()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            新建
+                        </button>
+                    </div>
+
+                    <!-- 知识卡片列表 -->
+                    <div id="knowledgeList" class="knowledge-grid">
+                        <!-- 由JS动态渲染 -->
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div id="knowledgeEmpty" class="empty-state" style="display: none;">
+                        <div class="empty-icon">📚</div>
+                        <div class="empty-text">暂无知识沉淀</div>
+                        <button class="btn-primary" onclick="createKnowledge()">创建第一个</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 设置模态框 -->
     <div class="modal" id="settingsModal">
         <div class="modal-content" style="max-width: 600px;">
@@ -636,6 +870,20 @@
                 </div>
 
                 <div class="settings-section">
+                    <div class="settings-section-title">功能</div>
+                    <div class="settings-item">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">数字员工团队</div>
+                            <div class="settings-item-desc">启用AI团队协作功能，可在侧边栏切换查看</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="enableTeamToggle" onchange="toggleTeamFeature()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
                     <div class="settings-section-title">关于</div>
                     <div class="settings-item">
                         <div class="settings-item-info">
@@ -643,6 +891,211 @@
                             <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部上滑设置面板（移动端专用） -->
+    <div class="bottom-sheet" id="bottomSettingsSheet">
+        <div class="bottom-sheet-overlay" onclick="closeBottomSettings()"></div>
+        <div class="bottom-sheet-content">
+            <!-- 拖动指示条 -->
+            <div class="bottom-sheet-handle"></div>
+
+            <!-- 设置内容 -->
+            <div class="bottom-sheet-header">
+                <h3>设置</h3>
+                <button class="close-btn" onclick="closeBottomSettings()" aria-label="关闭">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="bottom-sheet-body">
+                <!-- 用户信息 -->
+                <div class="settings-section">
+                    <div class="user-profile">
+                        <div class="user-avatar-large">
+                            <svg width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                                <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                            </svg>
+                        </div>
+                        <div class="user-profile-info">
+                            <div class="user-profile-name">ThinkCraft 用户</div>
+                            <div class="user-profile-desc">探索思维的边界</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主题设置 -->
+                <div class="settings-section">
+                    <div class="settings-section-title">外观</div>
+                    <div class="settings-item">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">深色模式</div>
+                            <div class="settings-item-desc">切换为深色主题</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle2" onchange="toggleDarkMode()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 数据管理 -->
+                <div class="settings-section">
+                    <div class="settings-section-title">数据管理</div>
+                    <div class="settings-item">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">保存历史记录</div>
+                            <div class="settings-item-desc">自动保存对话到本地</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="saveHistoryToggle2" checked onchange="toggleSaveHistory()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
+                    </div>
+                </div>
+
+                <!-- 功能 -->
+                <div class="settings-section">
+                    <div class="settings-section-title">功能</div>
+                    <div class="settings-item">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">数字员工团队</div>
+                            <div class="settings-item-desc">启用AI团队协作功能，可在侧边栏切换查看</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="enableTeamToggle2" onchange="toggleTeamFeature()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 关于 -->
+                <div class="settings-section">
+                    <div class="settings-section-title">关于</div>
+                    <div class="settings-item">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">ThinkCraft v2.0</div>
+                            <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目详情模态框 -->
+    <div class="modal" id="projectModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <div class="modal-title" id="projectModalTitle">项目详情</div>
+                <button class="close-btn" onclick="closeProjectModal()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- 项目概览 -->
+                <div class="project-overview" id="projectOverview">
+                    <div class="overview-card">
+                        <div class="overview-label">状态</div>
+                        <div class="overview-value" id="projectStatus" style="font-size: 16px;">-</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-label">团队成员</div>
+                        <div class="overview-value" id="projectMemberCount">0</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-label">创意数</div>
+                        <div class="overview-value" id="projectIdeaCount">0</div>
+                    </div>
+                </div>
+
+                <!-- 团队成员 -->
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h3>👥 团队成员</h3>
+                        <button class="btn-primary" onclick="showAddMember()" style="padding: 8px 16px; font-size: 14px;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            添加成员
+                        </button>
+                    </div>
+                    <div class="project-members-grid" id="projectMembersList"></div>
+                </div>
+
+                <!-- 关联创意 -->
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h3>💡 关联创意</h3>
+                    </div>
+                    <div class="project-ideas-grid" id="projectIdeasList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加成员模态框（数字员工雇佣）-->
+    <div class="modal" id="addMemberModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <div class="modal-title">添加团队成员</div>
+                <button class="close-btn" onclick="closeAddMember()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div style="text-align: center; padding: 16px; background: #eff6ff; border-radius: 8px; margin-bottom: 24px;">
+                    <p style="font-size: 14px; color: #1e40af; margin: 0;">💼 选择数字员工加入项目团队，他们将为项目提供专业支持</p>
+                </div>
+
+                <!-- 员工列表 -->
+                <div class="agent-market-grid" id="projectAgentList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 员工市场模态框 -->
+    <div class="modal" id="agentMarketModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <div class="modal-title">🏪 数字员工市场</div>
+                <button class="close-btn" onclick="closeAgentMarket()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Tab切换 -->
+                <div class="report-tabs" style="margin-bottom: 24px;">
+                    <button class="report-tab active" onclick="switchMarketTab('market')">可雇佣</button>
+                    <button class="report-tab" onclick="switchMarketTab('hired')">已雇佣</button>
+                </div>
+
+                <!-- 可雇佣员工列表 -->
+                <div id="marketTab" class="market-tab-content">
+                    <div id="agentMarketGrid" class="agent-market-grid"></div>
+                </div>
+
+                <!-- 已雇佣员工列表 -->
+                <div id="hiredTab" class="market-tab-content" style="display: none;">
+                    <div id="hiredAgentsGrid" class="agent-market-grid"></div>
                 </div>
             </div>
         </div>
@@ -676,9 +1129,12 @@
             isTyping: false,
             isLoading: false,
             analysisCompleted: false,  // 防止重复显示报告按钮
+            currentProject: null,  // 当前打开的项目ID
+            teamSpace: null,  // 团队空间数据（延迟初始化）
             settings: {
                 darkMode: false,
                 saveHistory: true,
+                enableTeam: false,  // 数字员工团队功能开关
                 apiUrl: 'http://localhost:3000'
             }
         };
@@ -712,6 +1168,25 @@
 
 
         document.addEventListener('DOMContentLoaded', () => {
+            // 一次性清理：只保留mock数据
+            const saved = localStorage.getItem('thinkcraft_chats');
+            if (saved && saved !== '[]') {
+                try {
+                    const allChats = JSON.parse(saved);
+                    const mockChatIds = ['demo_fitness_app', 'chat_001', 'chat_002'];
+                    const filteredChats = allChats.filter(chat => mockChatIds.includes(chat.id));
+
+                    // 如果过滤后为空或数量不足，重新加载mock数据
+                    if (filteredChats.length < 3) {
+                        localStorage.removeItem('thinkcraft_chats');
+                    } else {
+                        localStorage.setItem('thinkcraft_chats', JSON.stringify(filteredChats));
+                    }
+                } catch (e) {
+                    localStorage.removeItem('thinkcraft_chats');
+                }
+            }
+
             loadChats();
             loadSettings();
             focusInput();
@@ -815,7 +1290,10 @@
         }
 
         async function sendMessage() {
-            const input = document.getElementById('mainInput');
+            // 兼容桌面端和移动端输入框
+            const desktopInput = document.getElementById('mainInput');
+            const mobileInput = document.getElementById('mobileTextInput');
+            const input = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
             const message = input.value.trim();
 
             if (!message || state.isTyping || state.isLoading) return;
@@ -832,6 +1310,11 @@
             addMessage('user', message, null, false, false, true);
             input.value = '';
             input.style.height = 'auto';
+
+            // 移动端文本模式发送后自动切回语音模式
+            if (input === mobileInput) {
+                setTimeout(() => switchToVoiceMode(), 200);
+            }
 
             // 将消息添加到state.messages
             state.messages.push({
@@ -1209,45 +1692,20 @@
 
         function loadChats() {
             const saved = localStorage.getItem('thinkcraft_chats');
-            if (saved) {
+
+            if (!saved || saved === '[]') {
+                // localStorage为空，加载mock数据
+                if (window.MOCK_DATA) {
+                    const demoChat = JSON.parse(JSON.stringify(window.MOCK_DATA.chat));
+                    const otherChats = JSON.parse(JSON.stringify(window.MOCK_DATA.otherChats));
+                    state.chats = [demoChat, ...otherChats];
+                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                } else {
+                    state.chats = [];
+                }
+            } else {
+                // 加载已保存的数据
                 state.chats = JSON.parse(saved);
-                // 修复旧数据：为缺少字段的对话添加默认值
-                state.chats = state.chats.map(chat => {
-                    const fixed = {...chat};
-
-                    // 修复analysisCompleted
-                    if (fixed.analysisCompleted === undefined) {
-                        const lastMsg = chat.messages && chat.messages.length > 0
-                            ? chat.messages[chat.messages.length - 1]
-                            : null;
-                        fixed.analysisCompleted = lastMsg && lastMsg.content && lastMsg.content.includes('[ANALYSIS_COMPLETE]');
-                    }
-
-                    // 修复userData
-                    if (!fixed.userData) {
-                        fixed.userData = {};
-                    }
-
-                    // 修复updatedAt
-                    if (!fixed.updatedAt) {
-                        fixed.updatedAt = fixed.createdAt;
-                    }
-
-                    // 修复conversationStep
-                    if (!fixed.conversationStep) {
-                        fixed.conversationStep = fixed.messages?.length || 0;
-                    }
-
-                    return fixed;
-                });
-                // 保存修复后的数据
-                localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-            } else if (window.MOCK_DATA && state.chats.length === 0) {
-                // 首次打开，自动加载示例数据
-                const demoChat = JSON.parse(JSON.stringify(window.MOCK_DATA.chat));
-                const otherChats = JSON.parse(JSON.stringify(window.MOCK_DATA.otherChats));
-                state.chats = [demoChat, ...otherChats];
-                localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
             }
 
             // 排序：置顶的在前，然后按更新时间倒序
@@ -1285,9 +1743,9 @@
                     <svg class="chat-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                     </svg>
-                    <div style="flex: 1;">
+                    <div style="flex: 1; min-width: 0; overflow: hidden;">
                         ${tagsHTML}
-                        <span class="chat-item-content" onclick="loadChat('${chat.id}')" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${chat.title}</span>
+                        <span class="chat-item-content" onclick="loadChat('${chat.id}')">${chat.title}</span>
                     </div>
                     <div class="chat-item-actions">
                         <button class="chat-item-more" onclick="toggleChatMenu(event, '${chat.id}')">
@@ -1331,45 +1789,88 @@
             e.stopPropagation();
             const menu = document.getElementById(`menu-${chatId}`);
             const button = e.currentTarget;
+            const chatItem = button.closest('.chat-item');
 
-            // 关闭所有其他菜单
+            // 关闭所有其他菜单，并移除 menu-open 类
             document.querySelectorAll('.chat-item-menu').forEach(m => {
                 if (m.id !== `menu-${chatId}`) {
                     m.classList.remove('active');
                 }
+            });
+            document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                item.classList.remove('menu-open');
             });
 
             // 切换当前菜单
             const isOpen = menu.classList.contains('active');
             menu.classList.toggle('active');
 
-            // 如果打开菜单，动态计算位置
+            // 如果打开菜单
             if (!isOpen) {
-                const rect = button.getBoundingClientRect();
-                const menuWidth = 140;
-                const menuHeight = menu.offsetHeight || 180; // 预估高度
+                // 给当前对话项添加 menu-open 类，提升 z-index
+                chatItem.classList.add('menu-open');
 
-                // 计算位置（优先显示在按钮下方右侧）
-                let left = rect.right - menuWidth;
-                let top = rect.bottom + 4;
+                // 双重 requestAnimationFrame 确保菜单完全渲染
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        // 获取按钮位置（相对于视口）
+                        const buttonRect = button.getBoundingClientRect();
 
-                // 边界检测：如果右侧空间不足，显示在左侧
-                if (left < 8) {
-                    left = rect.left;
-                }
+                        // 获取菜单实际尺寸
+                        const menuWidth = menu.offsetWidth || 140;
+                        const menuHeight = menu.offsetHeight;
 
-                // 边界检测：如果下方空间不足，显示在上方
-                if (top + menuHeight > window.innerHeight - 8) {
-                    top = rect.top - menuHeight - 4;
-                }
+                        // 垂直位置：按钮底部下方 2px
+                        let top = buttonRect.bottom + 2;
 
-                // 确保不超出屏幕边界
-                left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
-                top = Math.max(8, top);
+                        // 如果下方空间不足，显示在按钮上方
+                        if (top + menuHeight > window.innerHeight - 8) {
+                            top = buttonRect.top - menuHeight - 2;
+                        }
 
-                menu.style.left = `${left}px`;
-                menu.style.top = `${top}px`;
+                        // 水平位置：菜单左边缘对齐按钮左边缘（更自然的下拉菜单效果）
+                        let left = buttonRect.left;
+
+                        // 获取侧边栏实际宽度
+                        const sidebar = document.querySelector('.sidebar');
+                        const sidebarWidth = sidebar ? sidebar.offsetWidth : 280;
+
+                        // 如果菜单超出侧边栏右边界，调整为右对齐（留8px边距）
+                        if (left + menuWidth > sidebarWidth - 8) {
+                            left = sidebarWidth - menuWidth - 8;
+                        }
+
+                        // 确保不超出视口左边界
+                        left = Math.max(8, left);
+
+                        // 最终限制在视口内
+                        top = Math.max(8, top);
+
+                        console.log('按钮位置:', buttonRect);
+                        console.log('菜单尺寸:', { width: menuWidth, height: menuHeight });
+                        console.log('最终位置:', { left, top });
+
+                        // 应用位置
+                        menu.style.left = `${left}px`;
+                        menu.style.top = `${top}px`;
+                    });
+                });
+            } else {
+                // 关闭菜单时移除 menu-open 类
+                chatItem.classList.remove('menu-open');
             }
+        }
+
+        // 辅助函数：关闭指定的聊天菜单
+        function closeChatMenu(chatId) {
+            const menu = document.getElementById(`menu-${chatId}`);
+            if (menu) {
+                menu.classList.remove('active');
+            }
+            // 移除所有 menu-open 类
+            document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                item.classList.remove('menu-open');
+            });
         }
 
         function renameChat(e, chatId) {
@@ -1384,7 +1885,7 @@
                 loadChats();
             }
 
-            document.getElementById(`menu-${chatId}`).classList.remove('active');
+            closeChatMenu(chatId);
         }
 
         function togglePinChat(e, chatId) {
@@ -1396,7 +1897,7 @@
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
             loadChats();
 
-            document.getElementById(`menu-${chatId}`).classList.remove('active');
+            closeChatMenu(chatId);
         }
 
         // 管理标签
@@ -1432,14 +1933,14 @@
                 loadChats();
             }
 
-            document.getElementById(`menu-${chatId}`).classList.remove('active');
+            closeChatMenu(chatId);
         }
 
         function deleteChat(e, chatId) {
             e.stopPropagation();
 
             if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
-                document.getElementById(`menu-${chatId}`).classList.remove('active');
+                closeChatMenu(chatId);
                 return;
             }
 
@@ -1458,12 +1959,17 @@
             }
 
             loadChats();
+            closeChatMenu(chatId);
         }
 
         // 点击页面其他地方关闭所有菜单
         document.addEventListener('click', () => {
             document.querySelectorAll('.chat-item-menu').forEach(menu => {
                 menu.classList.remove('active');
+            });
+            // 移除所有 menu-open 类
+            document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                item.classList.remove('menu-open');
             });
         });
 
@@ -1474,12 +1980,20 @@
                 document.querySelectorAll('.chat-item-menu').forEach(menu => {
                     menu.classList.remove('active');
                 });
+                // 移除所有 menu-open 类
+                document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                    item.classList.remove('menu-open');
+                });
             });
         }
 
         window.addEventListener('resize', () => {
             document.querySelectorAll('.chat-item-menu').forEach(menu => {
                 menu.classList.remove('active');
+            });
+            // 移除所有 menu-open 类
+            document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                item.classList.remove('menu-open');
             });
         });
 
@@ -1498,6 +2012,15 @@
             if (state.currentChat && state.currentChat != targetId && state.messages.length > 0) {
                 saveCurrentChat();
             }
+
+            // 🔧 确保显示聊天容器，隐藏知识库面板，显示输入框
+            const chatContainer = document.getElementById('chatContainer');
+            const knowledgePanel = document.getElementById('knowledgePanel');
+            const inputContainer = document.getElementById('inputContainer');
+
+            if (chatContainer) chatContainer.style.display = 'flex';
+            if (knowledgePanel) knowledgePanel.style.display = 'none';
+            if (inputContainer) inputContainer.style.display = 'block'; // 显示输入框
 
             // 恢复完整state
             state.currentChat = chat.id;  // 使用原始ID
@@ -4177,13 +4700,1733 @@
             document.getElementById('settingsModal').classList.remove('active');
         }
 
+        // 底部上滑设置面板（移动端）
+        function openBottomSettings() {
+            const sheet = document.getElementById('bottomSettingsSheet');
+            sheet.classList.add('active');
+            // 防止背景滚动
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeBottomSettings() {
+            const sheet = document.getElementById('bottomSettingsSheet');
+            sheet.classList.remove('active');
+            // 恢复背景滚动
+            document.body.style.overflow = '';
+        }
+
+        // 侧边栏Tab切换
+        function switchSidebarTab(tab) {
+            // 更新Tab激活状态
+            document.querySelectorAll('.sidebar-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            // 获取输入框元素
+            const inputContainer = document.getElementById('inputContainer');
+
+            // 切换视图
+            if (tab === 'chats') {
+                document.getElementById('chatsView').style.display = 'flex';
+                document.getElementById('teamView').style.display = 'none';
+
+                // 显示输入框
+                if (inputContainer) inputContainer.style.display = 'block';
+
+                // ⚠️ 关键修复：检查主内容区是否显示的是项目详情页
+                const chatContainer = document.getElementById('chatContainer');
+                const isShowingProjectDetail = chatContainer && chatContainer.querySelector('.project-overview');
+
+                if (!chatContainer || isShowingProjectDetail) {
+                    // 清除当前项目状态
+                    state.currentProject = null;
+                    // 恢复对话界面
+                    restoreChatInterface();
+
+                    // 恢复后，如果有当前对话就加载它
+                    if (state.currentChat) {
+                        loadChat(state.currentChat);
+                    }
+                } else {
+                    // chatContainer存在且显示的是聊天内容，确保隐藏知识库面板
+                    const knowledgePanel = document.getElementById('knowledgePanel');
+                    if (knowledgePanel) knowledgePanel.style.display = 'none';
+                    if (chatContainer) chatContainer.style.display = 'flex';
+                }
+            } else if (tab === 'team') {
+                document.getElementById('chatsView').style.display = 'none';
+                document.getElementById('teamView').style.display = 'flex';
+
+                // 隐藏输入框
+                if (inputContainer) inputContainer.style.display = 'none';
+
+                // 加载团队空间内容
+                loadTeamSpace();
+            }
+        }
+
+        // 加载团队空间内容
+        function loadTeamSpace() {
+            const teamView = document.getElementById('teamView');
+            const isEnabled = state.settings.enableTeam || false;
+
+            if (!isEnabled) {
+                // 显示未启用状态
+                teamView.innerHTML = `
+                    <div class="team-space-preview">
+                        <div class="team-space-empty">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <div>数字员工团队空间</div>
+                            <div>请在设置中开启此功能</div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // 检测设备类型
+            const isMobile = window.innerWidth <= 640;
+
+            if (isMobile) {
+                // 移动端：只读预览模式
+                teamView.innerHTML = `
+                    <div class="team-space-preview">
+                        <div class="team-space-empty">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <div>移动端预览模式</div>
+                            <div>请在桌面端进行完整操作</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 桌面端：显示项目列表
+                renderProjectList();
+            }
+        }
+
+        // 渲染项目列表（侧边栏）
+        function renderProjectList() {
+            const teamView = document.getElementById('teamView');
+
+            // 初始化项目数据（如果没有）
+            if (!state.teamSpace) {
+                state.teamSpace = {
+                    projects: [],
+                    agents: [],
+                    knowledge: []
+                };
+            }
+
+            const projects = state.teamSpace.projects || [];
+
+            // 按状态分组项目
+            const activeProjects = projects.filter(p => p.status === 'active');
+            const archivedProjects = projects.filter(p => p.status === 'archived');
+
+            // 构建项目组HTML
+            const renderProjectGroup = (title, projectList, isCollapsible = false) => {
+                if (projectList.length === 0) return '';
+
+                const projectsHTML = projectList.map(project => {
+                    const memberCount = (project.assignedAgents || []).length;
+                    const ideaCount = (project.linkedIdeas || []).length;
+
+                    return `
+                        <div class="project-item ${project.id === state.currentProject ? 'active' : ''}"
+                             onclick="openProject('${project.id}')">
+                            <div class="project-icon">${project.icon || '📁'}</div>
+                            <div class="project-info">
+                                <div class="project-name">${project.name}</div>
+                                <div class="project-meta">
+                                    <span class="project-stat">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-3-3v0a3 3 0 00-3 3v2zm-3-7a3 3 0 100-6 3 3 0 000 6z"/>
+                                        </svg>
+                                        ${memberCount}
+                                    </span>
+                                    <span class="project-stat">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707"/>
+                                        </svg>
+                                        ${ideaCount}
+                                    </span>
+                                </div>
+                            </div>
+                            <button class="project-knowledge-btn"
+                                    onclick="event.stopPropagation(); showKnowledgeBase('project', '${project.id}')"
+                                    title="项目知识库"
+                                    aria-label="打开项目知识库">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="project-group">
+                        <div class="project-group-header">
+                            <span class="project-group-title">${title}</span>
+                            <span class="project-group-count">${projectList.length}</span>
+                        </div>
+                        <div class="project-group-list">
+                            ${projectsHTML}
+                        </div>
+                    </div>
+                `;
+            };
+
+            // 构建空状态
+            const emptyState = projects.length === 0 ? `
+                <div class="team-empty-state">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div class="team-empty-title">还没有项目</div>
+                    <div class="team-empty-desc">创建第一个项目开始协作</div>
+                    <button class="team-empty-action" onclick="createNewProject()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                        </svg>
+                        创建项目
+                    </button>
+                </div>
+            ` : '';
+
+            // 渲染完整结构
+            teamView.innerHTML = `
+                <div class="team-space-full">
+                    <!-- 顶部操作栏 -->
+                    <div class="team-header">
+                        <div class="team-header-title">团队空间</div>
+                        <div class="team-header-actions">
+                            <button class="team-action-btn" onclick="showKnowledgeBase('global')" title="全局知识库">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                            </button>
+                            <button class="team-action-btn primary" onclick="createNewProject()" title="新建项目">
+                                <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 项目列表区域 -->
+                    <div class="team-content">
+                        ${emptyState}
+                        ${renderProjectGroup('进行中', activeProjects)}
+                        ${renderProjectGroup('已归档', archivedProjects, true)}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== 项目管理功能 ====================
+
+        // 初始化团队空间数据
+        function initTeamSpace() {
+            const saved = localStorage.getItem('thinkcraft_teamspace');
+            if (saved) {
+                state.teamSpace = JSON.parse(saved);
+            } else {
+                // 创建初始mock数据
+                state.teamSpace = {
+                    projects: [
+                        {
+                            id: 'project_001',
+                            name: '智能健身APP项目',
+                            icon: '🚀',
+                            description: '基于AI的个性化健身指导应用',
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            assignedAgents: [],
+                            linkedIdeas: [],
+                            tasks: [],
+                            files: [],
+                            status: 'active'
+                        },
+                        {
+                            id: 'project_002',
+                            name: '在线教育平台',
+                            icon: '📚',
+                            description: '互动式在线学习平台',
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            assignedAgents: [],
+                            linkedIdeas: [],
+                            tasks: [],
+                            files: [],
+                            status: 'active'
+                        },
+                        {
+                            id: 'project_003',
+                            name: '社区电商平台',
+                            icon: '🛒',
+                            description: '基于社区的电商解决方案',
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            assignedAgents: [],
+                            linkedIdeas: [],
+                            tasks: [],
+                            files: [],
+                            status: 'active'
+                        }
+                    ],
+                    agents: [],
+                    knowledge: []
+                };
+                // 保存初始数据
+                saveTeamSpace();
+            }
+        }
+
+        // 保存团队空间数据
+        function saveTeamSpace() {
+            localStorage.setItem('thinkcraft_teamspace', JSON.stringify(state.teamSpace));
+        }
+
+        // 创建新项目
+        function createNewProject() {
+            const projectName = prompt('请输入项目名称：');
+            if (!projectName || !projectName.trim()) return;
+
+            const project = {
+                id: 'proj_' + Date.now(),
+                name: projectName.trim(),
+                icon: '📁',  // 默认图标
+                description: '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                assignedAgents: [],  // 分配的员工ID列表
+                linkedIdeas: [],     // 关联的创意ID列表（来自对话）
+                tasks: [],           // 任务列表
+                files: [],           // 文件列表
+                status: 'active'     // active, archived
+            };
+
+            state.teamSpace.projects.unshift(project);
+            saveTeamSpace();
+            renderProjectList();
+
+            // 自动打开新建的项目
+            openProject(project.id);
+        }
+
+        // 打开项目详情
+        function openProject(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            state.currentProject = projectId;
+            renderProjectList();  // 更新侧边栏激活状态
+            renderProjectDetail(project);  // 在主内容区显示项目详情
+        }
+
+        // 渲染项目详情页（主内容区）- 修复版本：不破坏DOM结构
+        function renderProjectDetail(project) {
+            // 确保显示chatContainer，隐藏knowledgePanel
+            const chatContainer = document.getElementById('chatContainer');
+            const knowledgePanel = document.getElementById('knowledgePanel');
+            const inputContainer = document.getElementById('inputContainer');
+
+            if (chatContainer) chatContainer.style.display = 'flex';
+            if (knowledgePanel) knowledgePanel.style.display = 'none';
+            if (inputContainer) inputContainer.style.display = 'none'; // 隐藏输入框
+
+            const memberCount = project.assignedAgents.length;
+            const ideaCount = project.linkedIdeas.length;
+
+            // 构建成员列表HTML
+            let membersHTML = '';
+            if (memberCount === 0) {
+                membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
+            } else {
+                membersHTML = project.assignedAgents.map(agentId => {
+                    const agent = state.teamSpace.agents.find(a => a.id === agentId);
+                    if (!agent) return '';
+                    return `
+                        <div class="project-member-card">
+                            <div class="member-avatar">${agent.avatar}</div>
+                            <div class="member-info">
+                                <div class="member-name">${agent.name}</div>
+                                <div class="member-role">${agent.role}</div>
+                            </div>
+                            <button class="icon-btn" onclick="removeAgentFromProject('${project.id}', '${agent.id}')" title="移除">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 构建创意列表HTML
+            let ideasHTML = '';
+            if (ideaCount === 0) {
+                ideasHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未引入创意</div>';
+            } else {
+                ideasHTML = project.linkedIdeas.map(ideaId => {
+                    const chat = state.chats.find(c => c.id === ideaId);
+                    if (!chat) return '';
+                    return `
+                        <div class="project-idea-card" onclick="loadChatFromProject('${chat.id}')">
+                            <div class="idea-icon">💡</div>
+                            <div class="idea-info">
+                                <div class="idea-title">${chat.title}</div>
+                                <div class="idea-date">${new Date(chat.createdAt).toLocaleDateString('zh-CN')}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 找到或创建header
+            let mainHeader = document.querySelector('.main-header');
+            if (!mainHeader) {
+                mainHeader = document.createElement('div');
+                mainHeader.className = 'main-header';
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    mainContent.insertBefore(mainHeader, mainContent.firstChild);
+                }
+            }
+
+            // 更新header内容
+            mainHeader.innerHTML = `
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <div class="main-title">📁 ${project.name}</div>
+                <div class="header-actions">
+                    <button class="icon-btn" onclick="showKnowledgeBase('project', '${project.id}')" title="项目知识库">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" onclick="editProjectInfo('${project.id}')" title="编辑项目">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn desktop-only" onclick="showSettings()" title="设置">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+
+            // 更新chatContainer内容（保留其他元素不变）
+            chatContainer.innerHTML = `
+                <div class="project-detail-wrapper">
+                    <!-- 项目概览卡片 -->
+                    <div class="project-overview">
+                    <div class="overview-card">
+                        <div class="overview-label">团队成员</div>
+                        <div class="overview-value">${memberCount}</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-label">关联创意</div>
+                        <div class="overview-value">${ideaCount}</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-label">任务</div>
+                        <div class="overview-value">${project.tasks.length}</div>
+                    </div>
+                </div>
+
+                <!-- 团队成员 -->
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h3>👥 团队成员</h3>
+                        <button class="btn-secondary" onclick="window.currentProjectId='${project.id}'; window.currentProject=state.teamSpace.projects.find(p=>p.id==='${project.id}'); showAddMember()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                            </svg>
+                            添加成员
+                        </button>
+                    </div>
+                    <div class="project-members-grid">
+                        ${membersHTML}
+                    </div>
+                </div>
+
+                <!-- 关联创意 -->
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h3>💡 关联创意</h3>
+                        <button class="btn-secondary" onclick="linkIdeaToProject('${project.id}')">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                            </svg>
+                            引入创意
+                        </button>
+                    </div>
+                    <div class="project-ideas-grid">
+                        ${ideasHTML}
+                    </div>
+                </div>
+
+                <!-- 协同任务 -->
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h3>🤖 AI协同任务</h3>
+                        <button class="btn-primary" onclick="startTeamCollaboration('${project.id}')">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                            </svg>
+                            启动协同
+                        </button>
+                    </div>
+                    <div class="collaboration-placeholder">
+                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        <div>添加团队成员和创意后，即可启动AI协同</div>
+                    </div>
+                </div>
+                </div><!-- .project-detail-wrapper -->
+            `;
+        }
+
+        // ==================== 员工市场功能 ====================
+
+        // 可雇佣员工列表（模拟数据）
+        const AVAILABLE_AGENTS = [
+            {
+                id: 'agent_001',
+                name: 'Alex 产品经理',
+                avatar: '👨‍💼',
+                role: '产品经理',
+                description: '擅长产品规划、需求分析和用户研究，帮助你将创意转化为可落地的产品方案',
+                skills: ['需求分析', 'PRD撰写', '用户研究', '竞品分析']
+            },
+            {
+                id: 'agent_002',
+                name: 'Maya 设计师',
+                avatar: '🎨',
+                role: 'UI/UX设计师',
+                description: '专注用户体验设计和视觉设计，为你的产品打造精美的用户界面',
+                skills: ['UI设计', 'UX设计', '交互设计', '原型设计']
+            },
+            {
+                id: 'agent_003',
+                name: 'Leo 全栈工程师',
+                avatar: '👨‍💻',
+                role: '全栈工程师',
+                description: '精通前后端开发，能够快速实现你的产品原型和MVP',
+                skills: ['前端开发', '后端开发', '数据库', 'API设计']
+            },
+            {
+                id: 'agent_004',
+                name: 'Sophia 运营专家',
+                avatar: '📊',
+                role: '运营专家',
+                description: '擅长增长黑客、用户运营和数据分析，助力产品快速增长',
+                skills: ['增长黑客', '数据分析', '内容营销', '用户运营']
+            },
+            {
+                id: 'agent_005',
+                name: 'David 市场顾问',
+                avatar: '📈',
+                role: '市场顾问',
+                description: '专注市场调研、品牌策略和商业模式设计',
+                skills: ['市场调研', '品牌策划', '商业模式', '营销策略']
+            },
+            {
+                id: 'agent_006',
+                name: 'Emma 文案专家',
+                avatar: '✍️',
+                role: '文案专家',
+                description: '精通文案策划、内容创作，帮助你打造有影响力的品牌故事',
+                skills: ['文案策划', '内容创作', '品牌故事', 'SEO优化']
+            }
+        ];
+
+        // 显示员工市场
+        function showAgentMarket() {
+            document.getElementById('agentMarketModal').classList.add('active');
+            renderAgentMarket();
+        }
+
+        // 关闭员工市场
+        function closeAgentMarket() {
+            document.getElementById('agentMarketModal').classList.remove('active');
+        }
+
+        // 切换市场Tab
+        function switchMarketTab(tab) {
+            // 更新Tab激活状态
+            document.querySelectorAll('#agentMarketModal .report-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 切换内容
+            if (tab === 'market') {
+                document.getElementById('marketTab').style.display = 'block';
+                document.getElementById('hiredTab').style.display = 'none';
+                renderAgentMarket();
+            } else if (tab === 'hired') {
+                document.getElementById('marketTab').style.display = 'none';
+                document.getElementById('hiredTab').style.display = 'block';
+                renderHiredAgents();
+            }
+        }
+
+        // 渲染员工市场
+        function renderAgentMarket() {
+            const grid = document.getElementById('agentMarketGrid');
+            const hiredIds = state.teamSpace.agents.map(a => a.id);
+
+            const agentsHTML = AVAILABLE_AGENTS.map(agent => {
+                const isHired = hiredIds.includes(agent.id);
+                const skillsHTML = agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
+
+                return `
+                    <div class="agent-card ${isHired ? 'hired' : ''}">
+                        <div class="agent-card-header">
+                            <div class="agent-card-avatar">${agent.avatar}</div>
+                            <div class="agent-card-info">
+                                <div class="agent-card-name">${agent.name}</div>
+                                <div class="agent-card-role">${agent.role}</div>
+                            </div>
+                        </div>
+                        <div class="agent-card-desc">${agent.description}</div>
+                        <div class="agent-card-skills">${skillsHTML}</div>
+                        <div class="agent-card-actions">
+                            <button class="hire-btn ${isHired ? 'hired' : ''}"
+                                    onclick="hireAgent('${agent.id}')"
+                                    ${isHired ? 'disabled' : ''}>
+                                ${isHired ? '✓ 已雇佣' : '雇佣'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = agentsHTML;
+        }
+
+        // 渲染已雇佣员工
+        function renderHiredAgents() {
+            const grid = document.getElementById('hiredAgentsGrid');
+            const hiredAgents = state.teamSpace.agents;
+
+            if (hiredAgents.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 48px 24px; color: var(--text-tertiary);">
+                        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.5;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        <div style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+                            还没有雇佣员工
+                        </div>
+                        <div style="font-size: 13px;">
+                            去"可雇佣"标签页雇佣你的第一个数字员工
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const agentsHTML = hiredAgents.map(agent => {
+                const skillsHTML = agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
+
+                return `
+                    <div class="agent-card hired">
+                        <div class="agent-card-header">
+                            <div class="agent-card-avatar">${agent.avatar}</div>
+                            <div class="agent-card-info">
+                                <div class="agent-card-name">${agent.name}</div>
+                                <div class="agent-card-role">${agent.role}</div>
+                            </div>
+                        </div>
+                        <div class="agent-card-desc">${agent.description}</div>
+                        <div class="agent-card-skills">${skillsHTML}</div>
+                        <div class="agent-card-actions">
+                            <button class="btn-secondary" onclick="fireAgent('${agent.id}')">
+                                解雇
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = agentsHTML;
+        }
+
+        // 雇佣员工
+        function hireAgent(agentId) {
+            const agent = AVAILABLE_AGENTS.find(a => a.id === agentId);
+            if (!agent) return;
+
+            // 检查是否已经雇佣
+            if (state.teamSpace.agents.find(a => a.id === agentId)) {
+                alert('该员工已经被雇佣');
+                return;
+            }
+
+            // 添加到已雇佣列表
+            state.teamSpace.agents.push({
+                ...agent,
+                hiredAt: new Date().toISOString()
+            });
+
+            saveTeamSpace();
+            renderAgentMarket();
+            alert(`✅ 成功雇佣 ${agent.name}`);
+        }
+
+        // 解雇员工
+        function fireAgent(agentId) {
+            const agent = state.teamSpace.agents.find(a => a.id === agentId);
+            if (!agent) return;
+
+            if (!confirm(`确定要解雇 ${agent.name} 吗？`)) return;
+
+            // 从所有项目中移除该员工
+            state.teamSpace.projects.forEach(project => {
+                project.assignedAgents = project.assignedAgents.filter(id => id !== agentId);
+            });
+
+            // 从已雇佣列表中移除
+            state.teamSpace.agents = state.teamSpace.agents.filter(a => a.id !== agentId);
+
+            saveTeamSpace();
+            renderHiredAgents();
+            renderProjectList();  // 刷新项目列表
+            alert(`${agent.name} 已被解雇`);
+        }
+
+        // 分配员工到项目
+        function assignAgentToProject(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const availableAgents = state.teamSpace.agents.filter(
+                agent => !project.assignedAgents.includes(agent.id)
+            );
+
+            if (availableAgents.length === 0) {
+                alert('没有可分配的员工，请先去雇佣员工');
+                showAgentMarket();
+                return;
+            }
+
+            // 简单的选择界面（实际项目中可以用更好的UI）
+            const agentList = availableAgents.map((agent, index) =>
+                `${index + 1}. ${agent.name} (${agent.role})`
+            ).join('\n');
+
+            const selection = prompt(`选择要添加的员工（输入序号）：\n\n${agentList}`);
+            if (!selection) return;
+
+            const index = parseInt(selection) - 1;
+            if (index < 0 || index >= availableAgents.length) {
+                alert('无效的选择');
+                return;
+            }
+
+            const selectedAgent = availableAgents[index];
+            project.assignedAgents.push(selectedAgent.id);
+            project.updatedAt = new Date().toISOString();
+
+            saveTeamSpace();
+            renderProjectDetail(project);
+            alert(`✅ 已将 ${selectedAgent.name} 添加到项目`);
+        }
+
+        // 从项目移除员工
+        function removeAgentFromProject(projectId, agentId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const agent = state.teamSpace.agents.find(a => a.id === agentId);
+            if (!confirm(`确定要将 ${agent.name} 从项目中移除吗？`)) return;
+
+            project.assignedAgents = project.assignedAgents.filter(id => id !== agentId);
+            project.updatedAt = new Date().toISOString();
+
+            saveTeamSpace();
+            renderProjectDetail(project);
+        }
+
+        // 引入创意到项目
+        function linkIdeaToProject(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            // 找到已完成分析的对话
+            const availableChats = state.chats.filter(
+                chat => !project.linkedIdeas.includes(chat.id) &&
+                       chat.messages && chat.messages.length > 0
+            );
+
+            if (availableChats.length === 0) {
+                alert('没有可引入的创意，请先在对话中完成创意分析');
+                switchSidebarTab('chats');
+                return;
+            }
+
+            const chatList = availableChats.map((chat, index) =>
+                `${index + 1}. ${chat.title}`
+            ).join('\n');
+
+            const selection = prompt(`选择要引入的创意（输入序号）：\n\n${chatList}`);
+            if (!selection) return;
+
+            const index = parseInt(selection) - 1;
+            if (index < 0 || index >= availableChats.length) {
+                alert('无效的选择');
+                return;
+            }
+
+            const selectedChat = availableChats[index];
+            project.linkedIdeas.push(selectedChat.id);
+            project.updatedAt = new Date().toISOString();
+
+            saveTeamSpace();
+            renderProjectDetail(project);
+            alert(`✅ 已将创意"${selectedChat.title}"引入项目`);
+        }
+
+        // 编辑项目信息
+        function editProjectInfo(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const newName = prompt('修改项目名称：', project.name);
+            if (!newName || !newName.trim()) return;
+
+            project.name = newName.trim();
+            project.updatedAt = new Date().toISOString();
+
+            saveTeamSpace();
+            renderProjectList();
+            renderProjectDetail(project);
+        }
+
+        // 知识库
+        // ========== 知识库核心函数 ==========
+
+        async function showKnowledgeBase(mode = 'global', projectId = null) {
+            // mode: 'global' | 'project'
+
+            console.log(`[知识库] 打开 ${mode} 模式`, projectId);
+
+            // 设置视图模式
+            if (mode === 'project' && projectId) {
+                stateManager.setKnowledgeViewMode('project');
+                stateManager.setKnowledgeProjectFilter(projectId);
+            } else {
+                stateManager.setKnowledgeViewMode('global');
+                stateManager.state.knowledge.currentProjectId = null;
+            }
+
+            // 加载知识数据
+            await loadKnowledgeData(mode, projectId);
+
+            // 隐藏聊天容器和输入框，显示知识库面板
+            document.getElementById('chatContainer').style.display = 'none';
+            document.getElementById('knowledgePanel').style.display = 'flex';
+            const inputContainer = document.getElementById('inputContainer');
+            if (inputContainer) inputContainer.style.display = 'none';
+        }
+
+        function closeKnowledgePanel() {
+            // 隐藏知识库面板，显示聊天容器和输入框
+            document.getElementById('knowledgePanel').style.display = 'none';
+            document.getElementById('chatContainer').style.display = 'flex';
+            const inputContainer = document.getElementById('inputContainer');
+            if (inputContainer) inputContainer.style.display = 'block';
+            console.log('[知识库] 关闭知识库面板');
+        }
+
+        function closeKnowledgeBase() {
+            const modal = document.getElementById('knowledgeModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            console.log('[知识库] 关闭知识库modal');
+        }
+
+        async function loadKnowledgeData(mode, projectId) {
+            let items = [];
+
+            try {
+                if (mode === 'project' && projectId) {
+                    // 加载项目知识
+                    items = await storageManager.getKnowledgeByProject(projectId);
+                    console.log(`[知识库] 加载项目 ${projectId} 知识: ${items.length} 条`);
+                } else {
+                    // 加载全局+所有项目知识
+                    items = await storageManager.getAllKnowledge();
+                    console.log(`[知识库] 加载全局知识: ${items.length} 条`);
+                }
+
+                // 更新状态
+                stateManager.loadKnowledgeItems(items);
+
+                // 渲染UI
+                renderKnowledgeList();
+                renderKnowledgeOrgTree();
+            } catch (error) {
+                console.error('[知识库] 加载失败:', error);
+                alert('加载知识库失败: ' + error.message);
+            }
+        }
+
+        function updateKnowledgeBreadcrumb(mode, projectId) {
+            const breadcrumb = document.getElementById('knowledgeBreadcrumb');
+
+            if (mode === 'project' && projectId) {
+                const projectName = getProjectName(projectId);
+                breadcrumb.innerHTML = `<span>📁 ${projectName} · 知识库</span>`;
+            } else {
+                breadcrumb.innerHTML = `<span>📚 全局知识库</span>`;
+            }
+        }
+
+        function getProjectName(projectId) {
+            const projectNames = {
+                'project_001': '智能健身APP项目',
+                'project_002': '在线教育平台',
+                'project_003': '智能家居控制系统'
+            };
+            return projectNames[projectId] || '未知项目';
+        }
+
+        function switchKnowledgeOrg(orgType) {
+            // orgType: 'byProject' | 'byType' | 'byTimeline' | 'byTags'
+            console.log(`[知识库] 切换组织方式: ${orgType}`);
+
+            // 更新状态
+            stateManager.setKnowledgeOrganization(orgType);
+
+            // 更新按钮状态
+            const buttons = document.querySelectorAll('.knowledge-org-switcher button');
+            buttons.forEach(btn => {
+                if (btn.dataset.org === orgType) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // 重新渲染组织树
+            renderKnowledgeOrgTree();
+        }
+
+        function onKnowledgeSearch(keyword) {
+            console.log(`[知识库] 搜索: ${keyword}`);
+            stateManager.setKnowledgeSearchKeyword(keyword);
+            renderKnowledgeList();
+        }
+
+        function onKnowledgeTypeFilter(type) {
+            console.log(`[知识库] 类型过滤: ${type}`);
+            stateManager.setKnowledgeTypeFilter(type);
+            renderKnowledgeList();
+        }
+
+        function createKnowledge() {
+            alert('创建知识功能待实现');
+            // TODO: 打开创建知识的Modal或面板
+        }
+
+        function renderKnowledgeList() {
+            const items = stateManager.getFilteredKnowledgeItems();
+            const listContainer = document.getElementById('knowledgeList');
+            const emptyState = document.getElementById('knowledgeEmpty');
+
+            if (items.length === 0) {
+                listContainer.style.display = 'none';
+                emptyState.style.display = 'flex';
+                return;
+            }
+
+            listContainer.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            listContainer.innerHTML = items.map(item => `
+                <div class="knowledge-card" onclick="viewKnowledge('${item.id}')">
+                    <div class="knowledge-card-header">
+                        <div class="knowledge-icon" style="background: ${getTypeColor(item.type)}">
+                            ${item.icon}
+                        </div>
+                        <div class="knowledge-card-title">${item.title}</div>
+                    </div>
+                    <div class="knowledge-card-content">
+                        <p>${item.content.substring(0, 80)}...</p>
+                        <div class="knowledge-card-meta">
+                            <span class="badge" style="background: ${getTypeBadgeColor(item.type)}; color: ${getTypeBadgeTextColor(item.type)};">${getTypeLabel(item.type)}</span>
+                            ${item.scope === 'global' ? '<span class="badge" style="background: #fef3c7; color: #92400e;">全局</span>' : ''}
+                            <span class="badge time">${formatTime(item.createdAt)}</span>
+                        </div>
+                        ${item.tags.length > 0 ? `
+                            <div class="knowledge-tags">
+                                ${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderKnowledgeOrgTree() {
+            const orgType = stateManager.state.knowledge.organizationType;
+            const items = stateManager.state.knowledge.items;
+            const container = document.getElementById('knowledgeOrgTree');
+
+            // 更新组织切换器按钮状态
+            document.querySelectorAll('.knowledge-org-switcher button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-org') === orgType) {
+                    btn.classList.add('active');
+                }
+            });
+
+            switch (orgType) {
+                case 'byProject':
+                    renderByProject(container, items);
+                    break;
+                case 'byType':
+                    renderByType(container, items);
+                    break;
+                case 'byTimeline':
+                    renderByTimeline(container, items);
+                    break;
+                case 'byTags':
+                    renderByTags(container, items);
+                    break;
+            }
+        }
+
+        function renderByProject(container, items) {
+            const grouped = groupBy(items, item => item.projectId || 'global');
+            const html = [];
+
+            // 全局知识
+            if (grouped.global && grouped.global.length > 0) {
+                html.push(`
+                    <div class="org-group">
+                        <div class="org-group-header" onclick="toggleOrgGroup('global')">
+                            <span>🌍 全局知识库 (${grouped.global.length})</span>
+                        </div>
+                        <div class="org-group-content" id="org-global">
+                            ${grouped.global.map(item => `
+                                <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                                    ${item.icon} ${item.title}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            }
+
+            // 项目知识
+            Object.keys(grouped).forEach(projectId => {
+                if (projectId === 'global') return;
+                const projectName = getProjectName(projectId);
+                const projectItems = grouped[projectId];
+
+                html.push(`
+                    <div class="org-group">
+                        <div class="org-group-header" onclick="toggleOrgGroup('${projectId}')">
+                            <span>📁 ${projectName} (${projectItems.length})</span>
+                        </div>
+                        <div class="org-group-content" id="org-${projectId}">
+                            ${projectItems.map(item => `
+                                <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                                    ${item.icon} ${item.title}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            });
+
+            container.innerHTML = html.join('');
+        }
+
+        function renderByType(container, items) {
+            const grouped = groupBy(items, 'type');
+            const typeLabels = {
+                'prd': { label: 'PRD文档', icon: '📄' },
+                'tech': { label: '技术方案', icon: '🤖' },
+                'analysis': { label: '市场分析', icon: '📊' },
+                'research': { label: '用户调研', icon: '👥' },
+                'design': { label: '设计稿', icon: '🎨' },
+                'other': { label: '其他', icon: '📋' }
+            };
+
+            const html = [];
+            Object.keys(grouped).forEach(type => {
+                const typeInfo = typeLabels[type] || { label: '其他', icon: '📋' };
+                const typeItems = grouped[type];
+
+                html.push(`
+                    <div class="org-group">
+                        <div class="org-group-header" onclick="toggleOrgGroup('type-${type}')">
+                            <span>${typeInfo.icon} ${typeInfo.label} (${typeItems.length})</span>
+                        </div>
+                        <div class="org-group-content" id="org-type-${type}">
+                            ${typeItems.map(item => `
+                                <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                                    ${item.icon} ${item.title}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            });
+
+            container.innerHTML = html.join('');
+        }
+
+        function renderByTimeline(container, items) {
+            const now = Date.now();
+            const day = 24 * 60 * 60 * 1000;
+
+            const timelines = {
+                today: { label: '今天', items: [] },
+                week: { label: '本周', items: [] },
+                month: { label: '本月', items: [] },
+                older: { label: '更早', items: [] }
+            };
+
+            items.forEach(item => {
+                const diff = now - item.createdAt;
+                if (diff < day) {
+                    timelines.today.items.push(item);
+                } else if (diff < 7 * day) {
+                    timelines.week.items.push(item);
+                } else if (diff < 30 * day) {
+                    timelines.month.items.push(item);
+                } else {
+                    timelines.older.items.push(item);
+                }
+            });
+
+            const html = [];
+            Object.keys(timelines).forEach(key => {
+                const timeline = timelines[key];
+                if (timeline.items.length === 0) return;
+
+                html.push(`
+                    <div class="org-group">
+                        <div class="org-group-header" onclick="toggleOrgGroup('time-${key}')">
+                            <span>📅 ${timeline.label} (${timeline.items.length})</span>
+                        </div>
+                        <div class="org-group-content" id="org-time-${key}">
+                            ${timeline.items.map(item => `
+                                <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                                    ${item.icon} ${item.title}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            });
+
+            container.innerHTML = html.join('');
+        }
+
+        function renderByTags(container, items) {
+            const stats = stateManager.state.knowledge.stats;
+            const tags = Object.keys(stats.byTag).sort((a, b) => stats.byTag[b] - stats.byTag[a]);
+
+            if (tags.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">暂无标签</div>';
+                return;
+            }
+
+            const html = tags.map(tag => {
+                const count = stats.byTag[tag];
+                return `
+                    <div class="org-group">
+                        <div class="org-group-header" onclick="filterByTag('${tag}')">
+                            <span>🏷️ ${tag} (${count})</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function toggleOrgGroup(groupId) {
+            const content = document.getElementById(`org-${groupId}`);
+            if (content) {
+                const isCollapsed = content.classList.contains('collapsed');
+                if (isCollapsed) {
+                    content.classList.remove('collapsed');
+                } else {
+                    content.classList.add('collapsed');
+                }
+            }
+        }
+
+        function selectKnowledge(id) {
+            viewKnowledge(id);
+        }
+
+        function filterByTag(tag) {
+            stateManager.setKnowledgeTagsFilter([tag]);
+            renderKnowledgeList();
+        }
+
+        function switchKnowledgeOrganization(type) {
+            stateManager.setKnowledgeOrganization(type);
+            renderKnowledgeOrgTree();
+        }
+
+        function onKnowledgeSearch(keyword) {
+            stateManager.setKnowledgeSearchKeyword(keyword);
+            renderKnowledgeList();
+        }
+
+        function onKnowledgeTypeFilter(type) {
+            stateManager.setKnowledgeTypeFilter(type);
+            renderKnowledgeList();
+        }
+
+        async function viewKnowledge(id) {
+            const item = await storageManager.getKnowledge(id);
+            if (!item) {
+                alert('知识不存在');
+                return;
+            }
+
+            // 增加浏览次数
+            item.viewCount = (item.viewCount || 0) + 1;
+            await storageManager.saveKnowledge(item);
+
+            // 简单展示（实际应该用一个详情Modal）
+            alert(`${item.title}\n\n${item.content}\n\n类型: ${getTypeLabel(item.type)}\n标签: ${item.tags.join(', ')}\n创建时间: ${formatTime(item.createdAt)}\n浏览次数: ${item.viewCount}`);
+        }
+
+        function createKnowledge() {
+            alert('创建知识功能开发中...\n\n未来将支持：\n• 富文本编辑器\n• 文件附件上传\n• Markdown支持\n• AI辅助生成');
+        }
+
+        // 工具函数
+        function groupBy(array, key) {
+            return array.reduce((result, item) => {
+                const groupKey = typeof key === 'function' ? key(item) : item[key];
+                (result[groupKey] = result[groupKey] || []).push(item);
+                return result;
+            }, {});
+        }
+
+        function getTypeLabel(type) {
+            const labels = {
+                'prd': 'PRD',
+                'tech': '技术',
+                'analysis': '分析',
+                'research': '调研',
+                'design': '设计',
+                'other': '其他'
+            };
+            return labels[type] || '未知';
+        }
+
+        function getTypeColor(type) {
+            const colors = {
+                'prd': '#3b82f6',
+                'tech': '#10b981',
+                'analysis': '#f59e0b',
+                'research': '#8b5cf6',
+                'design': '#ec4899',
+                'other': '#6b7280'
+            };
+            return colors[type] || '#6b7280';
+        }
+
+        function getTypeBadgeColor(type) {
+            const colors = {
+                'prd': '#eff6ff',
+                'tech': '#f0fdf4',
+                'analysis': '#fef3c7',
+                'research': '#f5f3ff',
+                'design': '#fce7f3',
+                'other': '#f3f4f6'
+            };
+            return colors[type] || '#f3f4f6';
+        }
+
+        function getTypeBadgeTextColor(type) {
+            const colors = {
+                'prd': '#1d4ed8',
+                'tech': '#059669',
+                'analysis': '#92400e',
+                'research': '#6d28d9',
+                'design': '#be185d',
+                'other': '#374151'
+            };
+            return colors[type] || '#374151';
+        }
+
+        function formatTime(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const minute = 60 * 1000;
+            const hour = 60 * minute;
+            const day = 24 * hour;
+            const week = 7 * day;
+
+            if (diff < minute) return '刚刚';
+            if (diff < hour) return `${Math.floor(diff / minute)}分钟前`;
+            if (diff < day) return `${Math.floor(diff / hour)}小时前`;
+            if (diff < week) return `${Math.floor(diff / day)}天前`;
+            if (diff < 4 * week) return `${Math.floor(diff / week)}周前`;
+
+            const date = new Date(timestamp);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        // 旧的tab切换函数（已废弃，保留以防兼容）
+        function switchKnowledgeTab(tabName) {
+            console.log('[知识库] switchKnowledgeTab 已废弃');
+        }
+
+        // 知识库初始化和Mock数据迁移
+        async function initKnowledgeBase() {
+            console.log('[知识库] 开始初始化...');
+
+            try {
+                // 检查是否已迁移
+                const migrated = await storageManager.getSetting('knowledge_migrated');
+                if (migrated) {
+                    console.log('[知识库] 数据已迁移，跳过');
+                    return;
+                }
+
+                console.log('[知识库] 执行Mock数据迁移...');
+
+                // Mock数据
+                const mockData = [
+                    {
+                        title: '智能健身APP产品需求文档',
+                        content: '包含完整的PRD文档，包括用户画像、功能清单、技术架构等。目标用户为18-35岁的健身爱好者，通过AI动作识别技术提供个性化训练方案，支持iOS和Android平台。',
+                        type: 'prd',
+                        scope: 'project',
+                        projectId: 'project_001',
+                        tags: ['PRD', '产品', '健身'],
+                        icon: '📄'
+                    },
+                    {
+                        title: 'AI动作识别技术方案',
+                        content: '基于TensorFlow的姿态识别技术实现方案和代码示例。采用MoveNet模型进行实时人体关键点检测，支持17个关键点识别，帧率达到30fps。',
+                        type: 'tech',
+                        scope: 'project',
+                        projectId: 'project_001',
+                        tags: ['技术', 'AI', 'TensorFlow'],
+                        icon: '🤖'
+                    },
+                    {
+                        title: '市场竞品分析报告',
+                        content: 'Keep、FitTime等5款竞品的功能对比和用户评价分析。Keep用户量最大但内容同质化严重，FitTime社交功能突出，我们需要在AI个性化方面寻求差异化。',
+                        type: 'analysis',
+                        scope: 'project',
+                        projectId: 'project_001',
+                        tags: ['分析', '竞品', '市场'],
+                        icon: '📊'
+                    },
+                    {
+                        title: '用户调研报告',
+                        content: '针对200名目标用户的问卷调研和深度访谈结果。78%用户希望有AI教练指导，65%愿意为个性化方案付费，平均可接受月费为68元。',
+                        type: 'research',
+                        scope: 'project',
+                        projectId: 'project_001',
+                        tags: ['调研', '用户', '数据'],
+                        icon: '👥'
+                    },
+                    {
+                        title: '产品设计最佳实践',
+                        content: '跨项目沉淀的产品设计方法论和最佳实践。包含用户研究、需求分析、原型设计、可用性测试等完整流程，以及常见问题的解决方案。',
+                        type: 'other',
+                        scope: 'global',
+                        projectId: null,
+                        tags: ['产品', '方法论', '最佳实践'],
+                        icon: '💡'
+                    },
+                    {
+                        title: 'K12编程教育课程体系',
+                        content: '面向6-18岁青少年的编程教育课程体系设计。分为图形化编程、Python基础、算法竞赛三个阶段，每阶段包含80课时内容。',
+                        type: 'prd',
+                        scope: 'project',
+                        projectId: 'project_002',
+                        tags: ['教育', 'K12', '编程'],
+                        icon: '📚'
+                    },
+                    {
+                        title: '在线教育平台技术架构',
+                        content: '基于微服务架构的在线教育平台技术方案。采用SpringCloud+Vue3技术栈，支持百万级并发，包含直播、点播、作业系统、考试系统等核心模块。',
+                        type: 'tech',
+                        scope: 'project',
+                        projectId: 'project_002',
+                        tags: ['技术', '架构', '微服务'],
+                        icon: '⚙️'
+                    }
+                ];
+
+                // 批量创建知识条目
+                for (const data of mockData) {
+                    const item = {
+                        id: `knowledge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        ...data,
+                        createdAt: Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000, // 随机过去30天
+                        updatedAt: Date.now(),
+                        createdBy: 'system',
+                        linkedChatId: null,
+                        attachments: [],
+                        viewCount: Math.floor(Math.random() * 50),
+                        usageCount: Math.floor(Math.random() * 20)
+                    };
+
+                    await storageManager.saveKnowledge(item);
+                    // 添加小延迟，避免ID冲突
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+
+                // 标记迁移完成
+                await storageManager.saveSetting('knowledge_migrated', true);
+
+                console.log('[知识库] Mock数据迁移完成，共 ' + mockData.length + ' 条');
+            } catch (error) {
+                console.error('[知识库] 初始化失败:', error);
+            }
+        }
+
+        // 启动团队协同（占位符）
+        function startTeamCollaboration(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            if (project.assignedAgents.length === 0) {
+                alert('请先添加团队成员');
+                return;
+            }
+
+            if (project.linkedIdeas.length === 0) {
+                alert('请先引入创意');
+                return;
+            }
+
+            alert('AI协同功能开发中...\n\n未来将支持：\n• 多员工智能协同完成任务\n• 自动分配工作和生成文档\n• 实时协作和进度跟踪\n• AI辅助决策和优化');
+        }
+
+        // 恢复对话界面的HTML结构
+        function restoreChatInterface() {
+            const mainContent = document.querySelector('.main-content');
+            mainContent.innerHTML = `
+                <header class="main-header">
+                    <!-- 移动端：左侧汉堡菜单 -->
+                    <button class="menu-toggle" onclick="toggleSidebar()" aria-label="打开菜单">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+
+                    <div class="main-title" id="mainTitle">ThinkCraft AI</div>
+
+                    <div class="header-actions">
+                        <!-- 移动端：新建对话按钮 -->
+                        <button class="mobile-new-chat-btn" onclick="startNewChat()" title="新建对话" aria-label="新建对话">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                        <!-- 桌面端：设置按钮 -->
+                        <button class="icon-btn desktop-only" onclick="showSettings()" title="设置">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </header>
+
+                <div class="chat-container" id="chatContainer">
+                    <div class="empty-state" id="emptyState">
+                        <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        <div class="empty-title">苏格拉底式思维引导</div>
+                        <div class="empty-subtitle">通过深度提问，帮助你理清创意思路、发现盲点、形成结构化洞察</div>
+                    </div>
+                    <div id="messageList" style="display: none;"></div>
+                </div>
+
+                <div class="input-container" id="inputContainer">
+                    <div class="input-wrapper">
+                        <!-- 移动端：语音模式（默认） -->
+                        <div class="mobile-voice-mode" id="mobileVoiceMode">
+                            <button class="mobile-tool-btn" onclick="handleCamera()" title="拍照" aria-label="拍照">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </button>
+
+                            <button class="mobile-voice-btn" id="mobileVoiceBtn">
+                                <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                </svg>
+                                <span>按住说话</span>
+                            </button>
+
+                            <button class="mobile-tool-btn" onclick="handleImageUpload()" title="图片" aria-label="上传图片">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+
+                            <button class="mobile-tool-btn" onclick="switchToTextMode()" title="切换文字输入" aria-label="切换文字输入">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- 移动端：文本模式 -->
+                        <div class="mobile-text-mode" id="mobileTextMode" style="display: none;">
+                            <button class="mobile-tool-btn-small" onclick="switchToVoiceMode()" title="切换语音输入" aria-label="切换语音输入">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                </svg>
+                            </button>
+                            <button class="mobile-tool-btn-small" onclick="handleCamera()" title="拍照" aria-label="拍照">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </button>
+                            <button class="mobile-tool-btn-small" onclick="handleImageUpload()" title="图片" aria-label="上传图片">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+                            <textarea
+                                class="mobile-text-input"
+                                id="mobileTextInput"
+                                placeholder="输入消息..."
+                                rows="1"
+                                onkeydown="handleKeyDown(event)"
+                                oninput="autoResize(this)"
+                            ></textarea>
+                            <button class="mobile-send-btn" onclick="sendMessage()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- 桌面端：文本模式（默认） -->
+                        <div class="desktop-text-mode" id="desktopTextMode">
+                            <div class="desktop-input-tools">
+                                <button class="desktop-tool-btn" onclick="switchDesktopToVoice()" title="切换语音输入" aria-label="切换语音输入">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                    </svg>
+                                </button>
+                                <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="desktop-input-box">
+                                <textarea
+                                    class="desktop-text-input"
+                                    id="mainInput"
+                                    placeholder="分享你的创意想法，让我们通过深度对话来探索它的可能性..."
+                                    rows="1"
+                                    onkeydown="handleKeyDown(event)"
+                                    onkeyup="handleKeyUp(event)"
+                                    oninput="autoResize(this)"
+                                ></textarea>
+                                <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 桌面端：语音模式 -->
+                        <div class="desktop-voice-mode" id="desktopVoiceMode" style="display: none;">
+                            <div class="desktop-input-tools">
+                                <button class="desktop-tool-btn" onclick="switchDesktopToText()" title="切换文字输入" aria-label="切换文字输入">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                                <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="desktop-input-box">
+                                <button class="desktop-voice-btn" id="desktopVoiceBtn">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                    </svg>
+                                    <span>点击录音</span>
+                                </button>
+                                <button class="desktop-send-btn" id="sendBtn2" onclick="sendMessage()" style="display: none;">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 重新初始化语音输入功能
+            initVoiceInput();
+        }
+
+        // 从项目中加载对话
+        function loadChatFromProject(chatId) {
+            // 清除当前项目状态
+            state.currentProject = null;
+
+            // 切换到对话Tab
+            switchSidebarTab('chats');
+
+            // 恢复对话界面的HTML结构
+            restoreChatInterface();
+
+            // 加载对话
+            loadChat(chatId);
+        }
+
+        // 移动端输入模式切换
+        function switchToTextMode() {
+            document.getElementById('mobileVoiceMode').style.display = 'none';
+            document.getElementById('mobileTextMode').style.display = 'flex';
+            // 聚焦文本输入框
+            setTimeout(() => {
+                const input = document.getElementById('mobileTextInput');
+                input.focus();
+            }, 100);
+        }
+
+        function switchToVoiceMode() {
+            document.getElementById('mobileTextMode').style.display = 'none';
+            document.getElementById('mobileVoiceMode').style.display = 'flex';
+        }
+
+        // 初始化语音输入功能（用于恢复界面后重新绑定事件）
+        function initVoiceInput() {
+            const mobileVoiceBtn = document.getElementById('mobileVoiceBtn');
+            if (mobileVoiceBtn) {
+                // 移除旧的事件监听器（如果存在）
+                const newBtn = mobileVoiceBtn.cloneNode(true);
+                mobileVoiceBtn.parentNode.replaceChild(newBtn, mobileVoiceBtn);
+
+                // 按下开始录音
+                newBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleVoice();
+                    newBtn.classList.add('recording');
+                });
+
+                // 松开停止录音
+                newBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    if (isRecording) {
+                        handleVoice();
+                    }
+                    newBtn.classList.remove('recording');
+                });
+
+                // 取消录音（手指移出按钮）
+                newBtn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    if (isRecording) {
+                        handleVoice();
+                    }
+                    newBtn.classList.remove('recording');
+                });
+            }
+
+            const desktopVoiceBtn = document.getElementById('desktopVoiceBtn');
+            if (desktopVoiceBtn) {
+                const newBtn = desktopVoiceBtn.cloneNode(true);
+                desktopVoiceBtn.parentNode.replaceChild(newBtn, desktopVoiceBtn);
+
+                newBtn.addEventListener('click', () => {
+                    handleVoice();
+                });
+            }
+        }
+
+        // 桌面端输入模式切换
+        function switchDesktopToVoice() {
+            document.getElementById('desktopTextMode').style.display = 'none';
+            document.getElementById('desktopVoiceMode').style.display = 'flex';
+
+            // ⭐ 确保语音模式下的发送按钮隐藏
+            const sendBtn2 = document.getElementById('sendBtn2');
+            if (sendBtn2) {
+                sendBtn2.style.display = 'none';
+            }
+        }
+
+        function switchDesktopToText() {
+            document.getElementById('desktopVoiceMode').style.display = 'none';
+            document.getElementById('desktopTextMode').style.display = 'flex';
+            // 聚焦文本输入框
+            setTimeout(() => {
+                const input = document.getElementById('mainInput');
+                input.focus();
+            }, 100);
+        }
+
         function loadSettings() {
             const saved = localStorage.getItem('thinkcraft_settings');
             if (saved) {
                 state.settings = JSON.parse(saved);
             }
+
+            // 如果没有保存过enableTeam设置，默认启用
+            if (state.settings.enableTeam === undefined) {
+                state.settings.enableTeam = true;
+                localStorage.setItem('thinkcraft_settings', JSON.stringify(state.settings));
+            }
+
             document.getElementById('darkModeToggle').checked = state.settings.darkMode;
             document.getElementById('saveHistoryToggle').checked = state.settings.saveHistory;
+
+            // 初始化团队空间数据
+            initTeamSpace();
+
+            // 同步团队功能开关状态
+            const enableTeam = state.settings.enableTeam || false;
+            document.getElementById('enableTeamToggle').checked = enableTeam;
+            document.getElementById('enableTeamToggle2').checked = enableTeam;
+
+            // 根据设置显示/隐藏团队Tab
+            updateTeamTabVisibility();
         }
 
         function saveSettings() {
@@ -4201,6 +6444,326 @@
             saveSettings();
         }
 
+        function toggleTeamFeature() {
+            // 获取任意一个checkbox的状态（两个保持同步）
+            const enabled = document.getElementById('enableTeamToggle').checked;
+
+            // 更新state和同步两个checkbox
+            state.settings.enableTeam = enabled;
+            document.getElementById('enableTeamToggle').checked = enabled;
+            document.getElementById('enableTeamToggle2').checked = enabled;
+
+            // 保存设置
+            saveSettings();
+
+            // 更新团队Tab的可见性
+            updateTeamTabVisibility();
+
+            // 如果禁用了团队功能且当前在团队Tab，切换回对话Tab
+            if (!enabled) {
+                const teamTab = document.querySelector('[data-tab="team"]');
+                if (teamTab && teamTab.classList.contains('active')) {
+                    switchSidebarTab('chats');
+                }
+            }
+        }
+
+        function updateTeamTabVisibility() {
+            const teamTab = document.getElementById('teamTab');
+            const sidebarTabs = document.querySelector('.sidebar-tabs');
+            const enabled = state.settings.enableTeam || false;
+
+            if (sidebarTabs) {
+                // 控制整个Tab区域的显示/隐藏
+                if (enabled) {
+                    sidebarTabs.classList.add('active');
+                } else {
+                    sidebarTabs.classList.remove('active');
+                }
+            }
+
+            if (teamTab) {
+                // 控制团队Tab的显示/隐藏
+                teamTab.style.display = enabled ? 'flex' : 'none';
+            }
+        }
+
+        function loadTeamProject(projectId) {
+            console.log('[团队] 加载项目:', projectId);
+
+            // Mock项目数据
+            const projects = {
+                project_001: {
+                    id: 'project_001',
+                    name: '智能健身APP项目',
+                    icon: '🚀',
+                    status: '进行中',
+                    members: [
+                        { id: 'member_1', name: '张三', role: '产品经理', avatar: '👨‍💼', type: 'human' },
+                        { id: 'member_2', name: '李四', role: '技术负责人', avatar: '👨‍💻', type: 'human' },
+                        { id: 'member_3', name: '王五', role: 'UI设计师', avatar: '👩‍🎨', type: 'human' }
+                    ],
+                    ideas: [
+                        { title: '智能健身APP创意验证', icon: '💡', date: '2天前' },
+                        { title: 'AI动作识别技术方案', icon: '🤖', date: '1周前' }
+                    ],
+                    agents: [] // 已雇佣的数字员工ID列表
+                },
+                project_002: {
+                    id: 'project_002',
+                    name: '在线教育平台',
+                    icon: '📚',
+                    status: '规划中',
+                    members: [
+                        { id: 'member_4', name: '赵六', role: '产品经理', avatar: '👨‍💼', type: 'human' },
+                        { id: 'member_5', name: '钱七', role: '开发工程师', avatar: '👩‍💻', type: 'human' }
+                    ],
+                    ideas: [
+                        { title: 'K12编程教育平台', icon: '🎓', date: '3天前' }
+                    ],
+                    agents: []
+                },
+                project_003: {
+                    id: 'project_003',
+                    name: '智能家居控制系统',
+                    icon: '🏠',
+                    status: '已完成',
+                    members: [
+                        { id: 'member_6', name: '孙八', role: '项目经理', avatar: '👨‍💼', type: 'human' },
+                        { id: 'member_7', name: '周九', role: '前端开发', avatar: '👨‍💻', type: 'human' },
+                        { id: 'member_8', name: '吴十', role: '后端开发', avatar: '👩‍💻', type: 'human' },
+                        { id: 'member_9', name: '郑十一', role: '运营专员', avatar: '👩‍💼', type: 'human' }
+                    ],
+                    ideas: [
+                        { title: '社区拼团功能设计', icon: '🎁', date: '1个月前' },
+                        { title: '智能推荐算法优化', icon: '🔮', date: '2个月前' }
+                    ],
+                    agents: ['agent_003'] // 示例：已雇佣市场营销专家
+                }
+            };
+
+            const project = projects[projectId];
+            if (!project) {
+                alert('项目不存在');
+                return;
+            }
+
+            // 保存当前项目ID到全局
+            window.currentProjectId = projectId;
+            window.currentProject = project;
+
+            // 更新Modal标题
+            document.getElementById('projectModalTitle').textContent = `${project.icon} ${project.name}`;
+
+            // 更新项目概览
+            document.getElementById('projectStatus').textContent = project.status;
+            document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
+            document.getElementById('projectIdeaCount').textContent = project.ideas.length;
+
+            // 渲染成员列表
+            renderProjectMembers(project);
+
+            // 渲染创意列表
+            renderProjectIdeas(project);
+
+            // 显示Modal
+            document.getElementById('projectModal').style.display = 'flex';
+        }
+
+        function closeProjectModal() {
+            document.getElementById('projectModal').style.display = 'none';
+        }
+
+        function renderProjectMembers(project) {
+            const container = document.getElementById('projectMembersList');
+            const allMembers = [...project.members];
+
+            // 添加已雇佣的数字员工
+            if (project.agents && project.agents.length > 0) {
+                const agentMarket = getAgentMarket();
+                project.agents.forEach(agentId => {
+                    const agent = agentMarket.find(a => a.id === agentId);
+                    if (agent) {
+                        allMembers.push({
+                            id: agent.id,
+                            name: agent.name,
+                            role: agent.role,
+                            avatar: agent.avatar,
+                            type: 'agent'
+                        });
+                    }
+                });
+            }
+
+            container.innerHTML = allMembers.map(member => `
+                <div class="project-member-card">
+                    <div class="member-avatar">${member.avatar}</div>
+                    <div class="member-info">
+                        <div class="member-name">${member.name}${member.type === 'agent' ? ' 🤖' : ''}</div>
+                        <div class="member-role">${member.role}</div>
+                    </div>
+                    ${member.type === 'agent' ? `
+                        <button class="btn-secondary" onclick="fireAgent('${member.id}')" style="padding: 6px 12px; font-size: 13px; margin-left: auto;">
+                            解雇
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderProjectIdeas(project) {
+            const container = document.getElementById('projectIdeasList');
+            container.innerHTML = project.ideas.map(idea => `
+                <div class="project-idea-card">
+                    <div class="idea-icon">${idea.icon}</div>
+                    <div class="idea-info">
+                        <div class="idea-title">${idea.title}</div>
+                        <div class="idea-date">${idea.date}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddMember() {
+            // 显示添加成员Modal
+            const modal = document.getElementById('addMemberModal');
+            modal.style.display = 'flex';
+
+            // 渲染可雇佣的数字员工列表
+            renderAvailableAgents();
+        }
+
+        function closeAddMember() {
+            document.getElementById('addMemberModal').style.display = 'none';
+        }
+
+        function renderAvailableAgents() {
+            const container = document.getElementById('projectAgentList');
+            const agentMarket = getAgentMarket();
+            const project = window.currentProject;
+            const hiredAgents = project.agents || [];
+
+            container.innerHTML = agentMarket.map(agent => {
+                const isHired = hiredAgents.includes(agent.id);
+                return `
+                    <div class="agent-card ${isHired ? 'hired' : ''}">
+                        <div class="agent-card-header">
+                            <div class="agent-card-avatar">${agent.avatar}</div>
+                            <div class="agent-card-info">
+                                <div class="agent-card-name">${agent.name}</div>
+                                <div class="agent-card-role">${agent.role}</div>
+                            </div>
+                        </div>
+                        <div class="agent-card-desc">${agent.desc}</div>
+                        <div class="agent-card-skills">
+                            ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                        </div>
+                        <div class="agent-card-actions">
+                            <button class="hire-btn ${isHired ? 'hired' : ''}"
+                                    onclick="toggleAgentHire('${agent.id}')"
+                                    ${isHired ? '' : ''}>
+                                ${isHired ? '✓ 已加入' : '加入团队'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAgentHire(agentId) {
+            const project = window.currentProject;
+            const hiredAgents = project.agents || [];
+            const index = hiredAgents.indexOf(agentId);
+
+            if (index > -1) {
+                // 已雇佣，执行解雇
+                hiredAgents.splice(index, 1);
+                console.log(`[项目] 解雇员工: ${agentId}`);
+            } else {
+                // 未雇佣，执行雇佣
+                hiredAgents.push(agentId);
+                console.log(`[项目] 雇佣员工: ${agentId}`);
+            }
+
+            project.agents = hiredAgents;
+
+            // 重新渲染
+            renderAvailableAgents();
+            renderProjectMembers(project);
+            document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
+        }
+
+        function fireAgent(agentId) {
+            if (!confirm('确定要将该数字员工从项目中移除吗？')) {
+                return;
+            }
+
+            const project = window.currentProject;
+            const index = project.agents.indexOf(agentId);
+            if (index > -1) {
+                project.agents.splice(index, 1);
+                console.log(`[项目] 解雇员工: ${agentId}`);
+
+                // 重新渲染
+                renderProjectMembers(project);
+                document.getElementById('projectMemberCount').textContent = project.members.length + project.agents.length;
+            }
+        }
+
+        function getAgentMarket() {
+            // 数字员工市场数据
+            return [
+                {
+                    id: 'agent_001',
+                    name: 'Alex',
+                    role: '产品经理',
+                    avatar: '👨‍💼',
+                    desc: '擅长需求分析和产品规划，帮助你梳理产品思路',
+                    skills: ['需求分析', 'PRD撰写', '竞品分析']
+                },
+                {
+                    id: 'agent_002',
+                    name: 'Sophia',
+                    role: '技术架构师',
+                    avatar: '👩‍💻',
+                    desc: '精通系统架构设计，为你的产品提供技术方案',
+                    skills: ['架构设计', '技术选型', '性能优化']
+                },
+                {
+                    id: 'agent_003',
+                    name: 'Emma',
+                    role: '市场营销专家',
+                    avatar: '👩‍💼',
+                    desc: '深谙市场营销策略，帮助产品找到目标用户',
+                    skills: ['市场调研', '营销策划', '用户增长']
+                },
+                {
+                    id: 'agent_004',
+                    name: 'Oliver',
+                    role: 'UI/UX设计师',
+                    avatar: '👨‍🎨',
+                    desc: '注重用户体验，为产品打造精美界面',
+                    skills: ['界面设计', '交互设计', '用户研究']
+                },
+                {
+                    id: 'agent_005',
+                    name: 'Liam',
+                    role: '数据分析师',
+                    avatar: '👨‍🔬',
+                    desc: '善于从数据中发现洞察，驱动产品决策',
+                    skills: ['数据分析', '用户画像', 'A/B测试']
+                },
+                {
+                    id: 'agent_006',
+                    name: 'Ava',
+                    role: '内容运营专家',
+                    avatar: '👩‍🏫',
+                    desc: '精通内容策划和运营，提升品牌影响力',
+                    skills: ['内容策划', '社群运营', 'SEO优化']
+                }
+            ];
+        }
+
         function clearAllHistory() {
             if (confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
                 localStorage.removeItem('thinkcraft_chats');
@@ -4213,6 +6776,114 @@
         // 语音输入
         let recognition = null;
         let isRecording = false;
+
+        // 快速语音记录（移动端顶部按钮专用）
+        function handleQuickVoice() {
+            // 触觉反馈（支持的设备）
+            if ('vibrate' in navigator) {
+                navigator.vibrate(10);
+            }
+
+            // 自动聚焦输入框（确保用户能看到识别结果）
+            const input = document.getElementById('mainInput');
+            if (input) {
+                input.focus();
+            }
+
+            // 调用主语音处理函数
+            handleVoice();
+        }
+
+        // 智能检测最佳输入方式
+        function getSmartInputMode() {
+            const hour = new Date().getHours();
+            const device = window.deviceDetector;
+
+            // 1. 深夜/清晨时段（22:00 - 7:00）→ 文本模式
+            if (hour >= 22 || hour <= 7) {
+                return {
+                    mode: 'text',
+                    reason: '深夜时段，建议使用文字输入',
+                    icon: '🌙'
+                };
+            }
+
+            // 2. 弱网或省流量模式 → 文本模式
+            if (navigator.connection) {
+                const effectiveType = navigator.connection.effectiveType;
+                const saveData = navigator.connection.saveData;
+
+                if (effectiveType === 'slow-2g' || effectiveType === '2g' || saveData) {
+                    return {
+                        mode: 'text',
+                        reason: '网络较慢，建议使用文字输入',
+                        icon: '📶'
+                    };
+                }
+            }
+
+            // 3. 桌面端 → 文本模式（键盘更高效）
+            if (device && device.deviceType && device.deviceType.isDesktop) {
+                return {
+                    mode: 'text',
+                    reason: '桌面端，键盘输入更高效',
+                    icon: '⌨️'
+                };
+            }
+
+            // 4. 移动端 + 白天 + 良好网络 → 语音模式
+            if (device && device.deviceType && device.deviceType.isMobile) {
+                // 检查是否支持语音识别
+                const supportsSpeech = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+
+                if (supportsSpeech) {
+                    return {
+                        mode: 'voice',
+                        reason: '点击左上角话筒，快速语音记录',
+                        icon: '🎤'
+                    };
+                }
+            }
+
+            // 5. 默认：文本模式
+            return {
+                mode: 'text',
+                reason: '开始输入你的创意想法',
+                icon: '✍️'
+            };
+        }
+
+        // 应用智能输入提示
+        function applySmartInputHint() {
+            const inputMode = getSmartInputMode();
+            const mainInput = document.getElementById('mainInput');
+            const quickVoiceBtn = document.querySelector('.quick-voice-btn');
+
+            if (!mainInput) return;
+
+            // 更新输入框提示文字
+            if (inputMode.mode === 'voice') {
+                mainInput.placeholder = `${inputMode.icon} ${inputMode.reason}`;
+
+                // 移动端语音模式：添加脉冲动画提示
+                if (quickVoiceBtn && window.deviceDetector?.deviceType?.isMobile) {
+                    quickVoiceBtn.style.animation = 'pulse 2s ease-in-out 3';
+
+                    // 3次脉冲后移除动画
+                    setTimeout(() => {
+                        quickVoiceBtn.style.animation = '';
+                    }, 6000);
+                }
+            } else {
+                mainInput.placeholder = `${inputMode.icon} ${inputMode.reason}`;
+                // 文本模式：自动聚焦输入框
+                if (!state.currentChat) {
+                    setTimeout(() => {
+                        mainInput.focus();
+                    }, 300);
+                }
+            }
+        }
 
         function handleVoice() {
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -4236,16 +6907,44 @@
 
             recognition.onstart = () => {
                 isRecording = true;
+
+                // 更新桌面端语音按钮状态
+                const desktopVoiceBtn = document.getElementById('desktopVoiceBtn');
+                const desktopVoiceText = document.getElementById('desktopVoiceText');
+                if (desktopVoiceBtn && desktopVoiceBtn.offsetParent !== null) {
+                    desktopVoiceBtn.classList.add('recording');
+                    desktopVoiceText.textContent = '正在录音...';
+                }
+
+                // 更新桌面端文本输入框状态（如果可见）
                 const input = document.getElementById('mainInput');
-                input.placeholder = '🎤 正在录音...（再次点击停止）';
-                input.style.borderColor = '#ef4444';
+                if (input && input.offsetParent !== null) {
+                    input.placeholder = '🎤 正在录音...（再次点击停止）';
+                    input.style.borderColor = '#ef4444';
+                }
             };
 
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
-                const input = document.getElementById('mainInput');
-                input.value = (input.value + ' ' + transcript).trim();
-                autoResize(input);
+
+                // 移动端：直接发送语音识别结果
+                const mobileVoiceBtn = document.getElementById('mobileVoiceBtn');
+                if (mobileVoiceBtn && mobileVoiceBtn.offsetParent !== null) {
+                    // 移动端语音模式：直接发送
+                    const input = document.getElementById('mainInput');
+                    input.value = transcript;
+                    sendMessage();
+                } else {
+                    // 桌面端：填充到输入框
+                    const input = document.getElementById('mainInput');
+                    input.value = (input.value + ' ' + transcript).trim();
+                    autoResize(input);
+                }
+
+                // 触觉反馈
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(20);
+                }
             };
 
             recognition.onerror = (event) => {
@@ -4263,9 +6962,23 @@
 
         function resetVoiceInput() {
             isRecording = false;
+
+            // 重置桌面端语音按钮状态
+            const desktopVoiceBtn = document.getElementById('desktopVoiceBtn');
+            const desktopVoiceText = document.getElementById('desktopVoiceText');
+            if (desktopVoiceBtn) {
+                desktopVoiceBtn.classList.remove('recording');
+            }
+            if (desktopVoiceText) {
+                desktopVoiceText.textContent = '点击语音输入';
+            }
+
+            // 重置桌面端文本输入框状态
             const input = document.getElementById('mainInput');
-            input.placeholder = '分享你的创意想法，让我们通过深度对话来探索它的可能性...';
-            input.style.borderColor = '';
+            if (input) {
+                input.placeholder = '分享你的创意想法，让我们通过深度对话来探索它的可能性...';
+                input.style.borderColor = '';
+            }
         }
 
         // 拍照功能
@@ -4496,25 +7209,43 @@
             handleResponsiveSidebar();
             handleLaunchParams();  // 处理PWA启动参数
 
-            // ==================== 移动端自动聚焦输入框 ====================
-            // 移动端打开时自动聚焦输入框，减少操作步骤
-            if (window.deviceDetector?.deviceType?.isMobile) {
-                const mainInput = document.getElementById('mainInput');
-                if (mainInput && !state.currentChat) {
-                    setTimeout(() => {
-                        mainInput.focus();
-                        // iOS需要额外处理（需要用户手势触发）
-                        if (window.deviceDetector?.deviceType?.isIOS) {
-                            // iOS在用户首次交互后才能真正聚焦
-                            document.addEventListener('touchstart', function iosFocusHandler() {
-                                mainInput.focus();
-                                document.removeEventListener('touchstart', iosFocusHandler);
-                            }, { once: true });
-                        }
-                        console.log('[自动聚焦] 移动端输入框已聚焦');
-                    }, 300);
-                }
+            // 知识库Mock数据迁移
+            initKnowledgeBase();
+
+            // 应用智能输入提示
+            setTimeout(() => {
+                applySmartInputHint();
+            }, 500);
+
+            // ==================== 移动端语音按钮初始化 ====================
+            const mobileVoiceBtn = document.getElementById('mobileVoiceBtn');
+            if (mobileVoiceBtn) {
+                // 按下开始录音
+                mobileVoiceBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleVoice();
+                    mobileVoiceBtn.classList.add('recording');
+                });
+
+                // 松开停止录音
+                mobileVoiceBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    if (isRecording) {
+                        handleVoice(); // 再次调用以停止
+                    }
+                    mobileVoiceBtn.classList.remove('recording');
+                });
+
+                // 取消录音（手指移出按钮）
+                mobileVoiceBtn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    if (isRecording) {
+                        handleVoice();
+                    }
+                    mobileVoiceBtn.classList.remove('recording');
+                });
             }
+
         });
 
         // ==================== 处理PWA快捷方式和Web Share Target ====================
@@ -4599,11 +7330,13 @@
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
+            initFloatingBallDrag();  // 初始化悬浮球拖拽
         });
         if (window.deviceDetector?.initialized) {
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
+            initFloatingBallDrag();  // 初始化悬浮球拖拽
         }
 
         // ==================== 输入框手势快捷操作 ====================

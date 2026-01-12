@@ -7,7 +7,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this.dbName = 'ThinkCraft';
-    this.dbVersion = 3; // 升级到v3支持灵感收件箱
+    this.dbVersion = 4; // 升级到v4支持知识库
     this.ready = false;
 
     // 初始化数据库
@@ -72,6 +72,17 @@ class StorageManager {
           inspirationsStore.createIndex('category', 'category', { unique: false });
           inspirationsStore.createIndex('linkedChatId', 'linkedChatId', { unique: false });
           console.log('[StorageManager] 创建 inspirations 存储');
+        }
+
+        // 知识库存储（v4新增）
+        if (!db.objectStoreNames.contains('knowledge')) {
+          const knowledgeStore = db.createObjectStore('knowledge', { keyPath: 'id' });
+          knowledgeStore.createIndex('type', 'type', { unique: false });
+          knowledgeStore.createIndex('scope', 'scope', { unique: false });
+          knowledgeStore.createIndex('projectId', 'projectId', { unique: false });
+          knowledgeStore.createIndex('createdAt', 'createdAt', { unique: false });
+          knowledgeStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
+          console.log('[StorageManager] 创建 knowledge 存储');
         }
       };
     });
@@ -782,6 +793,215 @@ class StorageManager {
    */
   async clearInspirations() {
     return this.clear('inspirations');
+  }
+
+  // ========== 知识库业务方法（v4新增） ==========
+
+  /**
+   * 保存知识条目
+   * @param {Object} item - 知识条目对象
+   * @returns {Promise<void>}
+   */
+  async saveKnowledge(item) {
+    if (!item.id) {
+      item.id = `knowledge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    item.updatedAt = Date.now();
+    await this.save('knowledge', item);
+    console.log(`[StorageManager] 保存知识: ${item.id}`);
+  }
+
+  /**
+   * 获取知识条目
+   * @param {String} id - 知识ID
+   * @returns {Promise<Object|null>}
+   */
+  async getKnowledge(id) {
+    return this.get('knowledge', id);
+  }
+
+  /**
+   * 获取所有知识条目
+   * @returns {Promise<Array>}
+   */
+  async getAllKnowledge() {
+    const items = await this.getAll('knowledge');
+    // 按创建时间倒序排序
+    return items.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据项目获取知识
+   * @param {String} projectId - 项目ID
+   * @returns {Promise<Array>}
+   */
+  async getKnowledgeByProject(projectId) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['knowledge'], 'readonly');
+      const store = transaction.objectStore('knowledge');
+      const index = store.index('projectId');
+      const request = index.getAll(projectId);
+
+      request.onsuccess = () => {
+        const items = request.result || [];
+        // 按创建时间倒序排序
+        resolve(items.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取项目知识失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据作用域获取知识
+   * @param {String} scope - 'project' | 'global'
+   * @returns {Promise<Array>}
+   */
+  async getKnowledgeByScope(scope) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['knowledge'], 'readonly');
+      const store = transaction.objectStore('knowledge');
+      const index = store.index('scope');
+      const request = index.getAll(scope);
+
+      request.onsuccess = () => {
+        const items = request.result || [];
+        resolve(items.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取作用域知识失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据文档类型获取知识
+   * @param {String} type - 文档类型
+   * @returns {Promise<Array>}
+   */
+  async getKnowledgeByType(type) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['knowledge'], 'readonly');
+      const store = transaction.objectStore('knowledge');
+      const index = store.index('type');
+      const request = index.getAll(type);
+
+      request.onsuccess = () => {
+        const items = request.result || [];
+        resolve(items.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取类型知识失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据标签获取知识
+   * @param {String} tag - 标签
+   * @returns {Promise<Array>}
+   */
+  async getKnowledgeByTag(tag) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['knowledge'], 'readonly');
+      const store = transaction.objectStore('knowledge');
+      const index = store.index('tags');
+      const request = index.getAll(tag);
+
+      request.onsuccess = () => {
+        const items = request.result || [];
+        resolve(items.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取标签知识失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 删除知识条目
+   * @param {String} id - 知识ID
+   * @returns {Promise<void>}
+   */
+  async deleteKnowledge(id) {
+    return this.delete('knowledge', id);
+  }
+
+  /**
+   * 搜索知识条目
+   * @param {String} keyword - 搜索关键词
+   * @returns {Promise<Array>}
+   */
+  async searchKnowledge(keyword) {
+    if (!keyword) return this.getAllKnowledge();
+
+    const allItems = await this.getAllKnowledge();
+    const lowerKeyword = keyword.toLowerCase();
+
+    return allItems.filter(item => {
+      return item.title.toLowerCase().includes(lowerKeyword) ||
+             item.content.toLowerCase().includes(lowerKeyword) ||
+             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+    });
+  }
+
+  /**
+   * 批量保存知识条目
+   * @param {Array} items - 知识条目数组
+   * @returns {Promise<void>}
+   */
+  async saveKnowledgeItems(items) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['knowledge'], 'readwrite');
+      const store = transaction.objectStore('knowledge');
+
+      let completed = 0;
+      const total = items.length;
+
+      items.forEach(item => {
+        const request = store.put(item);
+
+        request.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            console.log(`[StorageManager] 批量保存 ${total} 条知识`);
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error('[StorageManager] 批量保存失败:', request.error);
+          reject(request.error);
+        };
+      });
+    });
+  }
+
+  /**
+   * 清空知识库
+   * @returns {Promise<void>}
+   */
+  async clearKnowledge() {
+    return this.clear('knowledge');
   }
 }
 
