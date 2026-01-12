@@ -52,6 +52,22 @@ class StateManager {
         error: null
       },
 
+      // 灵感收件箱状态（Phase 3新增）
+      inspiration: {
+        mode: 'full', // 'full' | 'quick' (快速捕捉模式)
+        items: [], // 灵感列表
+        currentEdit: null, // 当前编辑的灵感ID
+        filter: 'unprocessed', // 'all' | 'unprocessed' | 'processing' | 'completed'
+        autoSaveDelay: 2000, // 自动保存延迟（ms）
+        lastSync: null, // 最后同步时间
+        totalCount: 0, // 总数统计
+        stats: {
+          unprocessed: 0,
+          processing: 0,
+          completed: 0
+        }
+      },
+
       // 设置
       settings: {
         darkMode: false,
@@ -363,6 +379,217 @@ class StateManager {
       error: null
     };
     this.notify();
+  }
+
+  // ========== 灵感收件箱管理方法（Phase 3新增） ==========
+
+  /**
+   * 添加新灵感
+   * @param {Object} inspiration - { content, type, attachments }
+   * @returns {Object} 创建的灵感对象
+   */
+  addInspiration(inspiration) {
+    const item = {
+      id: `inspiration-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content: inspiration.content,
+      type: inspiration.type || 'text', // 'text' | 'voice' | 'image' | 'sketch'
+      status: 'unprocessed', // 'unprocessed' | 'processing' | 'completed'
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      tags: inspiration.tags || [],
+      attachments: inspiration.attachments || [], // 图片/语音文件
+      linkedChatId: null, // 关联的对话ID
+      category: null, // AI分类结果
+      priority: 0 // 优先级评分(0-5)
+    };
+
+    this.state.inspiration.items.unshift(item);
+    this.state.inspiration.totalCount = this.state.inspiration.items.length;
+    this.updateInspirationStats();
+    this.notify();
+
+    console.log(`[StateManager] 新增灵感: ${item.id}`);
+    return item;
+  }
+
+  /**
+   * 更新灵感
+   * @param {String} id - 灵感ID
+   * @param {Object} updates - 更新内容
+   */
+  updateInspiration(id, updates) {
+    const item = this.state.inspiration.items.find(i => i.id === id);
+    if (item) {
+      Object.assign(item, updates, { updatedAt: Date.now() });
+      this.updateInspirationStats();
+      this.notify();
+      console.log(`[StateManager] 更新灵感: ${id}`);
+      return item;
+    }
+    console.warn(`[StateManager] 灵感不存在: ${id}`);
+    return null;
+  }
+
+  /**
+   * 删除灵感
+   * @param {String} id - 灵感ID
+   * @returns {Boolean} 是否删除成功
+   */
+  deleteInspiration(id) {
+    const index = this.state.inspiration.items.findIndex(i => i.id === id);
+    if (index > -1) {
+      this.state.inspiration.items.splice(index, 1);
+      this.state.inspiration.totalCount = this.state.inspiration.items.length;
+      this.updateInspirationStats();
+      this.notify();
+      console.log(`[StateManager] 删除灵感: ${id}`);
+      return true;
+    }
+    console.warn(`[StateManager] 灵感不存在: ${id}`);
+    return false;
+  }
+
+  /**
+   * 批量删除灵感
+   * @param {Array} ids - 灵感ID数组
+   * @returns {Number} 删除数量
+   */
+  deleteInspirations(ids) {
+    let count = 0;
+    ids.forEach(id => {
+      if (this.deleteInspiration(id)) {
+        count++;
+      }
+    });
+    return count;
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Array} 灵感列表
+   */
+  getInspirations() {
+    return [...this.state.inspiration.items];
+  }
+
+  /**
+   * 根据状态筛选灵感
+   * @param {String} status - 'all' | 'unprocessed' | 'processing' | 'completed'
+   * @returns {Array} 筛选后的灵感列表
+   */
+  getInspirationsByStatus(status) {
+    if (status === 'all') {
+      return this.getInspirations();
+    }
+    return this.state.inspiration.items.filter(i => i.status === status);
+  }
+
+  /**
+   * 根据ID获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Object|null} 灵感对象
+   */
+  getInspirationById(id) {
+    return this.state.inspiration.items.find(i => i.id === id) || null;
+  }
+
+  /**
+   * 设置灵感过滤器
+   * @param {String} filter - 'all' | 'unprocessed' | 'processing' | 'completed'
+   */
+  setInspirationFilter(filter) {
+    this.state.inspiration.filter = filter;
+    this.notify();
+  }
+
+  /**
+   * 切换灵感模式
+   * @param {String} mode - 'full' | 'quick'
+   */
+  setInspirationMode(mode) {
+    this.state.inspiration.mode = mode;
+    this.notify();
+    console.log(`[StateManager] 灵感模式: ${mode}`);
+  }
+
+  /**
+   * 展开灵感为完整对话
+   * @param {String} inspirationId - 灵感ID
+   * @returns {Boolean} 是否成功
+   */
+  expandToChat(inspirationId) {
+    const inspiration = this.getInspirationById(inspirationId);
+    if (!inspiration) {
+      console.warn(`[StateManager] 灵感不存在: ${inspirationId}`);
+      return false;
+    }
+
+    // 标记为处理中
+    this.updateInspiration(inspirationId, {
+      status: 'processing'
+    });
+
+    console.log(`[StateManager] 展开灵感为对话: ${inspirationId}`);
+    return true;
+  }
+
+  /**
+   * 更新灵感统计信息
+   * @private
+   */
+  updateInspirationStats() {
+    const stats = {
+      unprocessed: 0,
+      processing: 0,
+      completed: 0
+    };
+
+    this.state.inspiration.items.forEach(item => {
+      if (stats[item.status] !== undefined) {
+        stats[item.status]++;
+      }
+    });
+
+    this.state.inspiration.stats = stats;
+  }
+
+  /**
+   * 加载灵感列表（从存储）
+   * @param {Array} items - 灵感数组
+   */
+  loadInspirations(items) {
+    this.state.inspiration.items = items || [];
+    this.state.inspiration.totalCount = this.state.inspiration.items.length;
+    this.updateInspirationStats();
+    this.notify();
+    console.log(`[StateManager] 加载 ${items.length} 条灵感`);
+  }
+
+  /**
+   * 搜索灵感
+   * @param {String} keyword - 搜索关键词
+   * @returns {Array} 匹配的灵感列表
+   */
+  searchInspirations(keyword) {
+    if (!keyword) return this.getInspirations();
+
+    const lowerKeyword = keyword.toLowerCase();
+    return this.state.inspiration.items.filter(item => {
+      return item.content.toLowerCase().includes(lowerKeyword) ||
+             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+    });
+  }
+
+  /**
+   * 标记灵感为已完成
+   * @param {String} id - 灵感ID
+   * @param {String} chatId - 关联的对话ID
+   */
+  completeInspiration(id, chatId = null) {
+    return this.updateInspiration(id, {
+      status: 'completed',
+      linkedChatId: chatId
+    });
   }
 
   // ========== 设置管理 ==========

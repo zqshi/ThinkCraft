@@ -7,7 +7,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this.dbName = 'ThinkCraft';
-    this.dbVersion = 2;
+    this.dbVersion = 3; // 升级到v3支持灵感收件箱
     this.ready = false;
 
     // 初始化数据库
@@ -61,6 +61,17 @@ class StorageManager {
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
           console.log('[StorageManager] 创建 settings 存储');
+        }
+
+        // Phase 3：灵感收件箱存储（v3新增）
+        if (!db.objectStoreNames.contains('inspirations')) {
+          const inspirationsStore = db.createObjectStore('inspirations', { keyPath: 'id' });
+          inspirationsStore.createIndex('status', 'status', { unique: false });
+          inspirationsStore.createIndex('type', 'type', { unique: false });
+          inspirationsStore.createIndex('createdAt', 'createdAt', { unique: false });
+          inspirationsStore.createIndex('category', 'category', { unique: false });
+          inspirationsStore.createIndex('linkedChatId', 'linkedChatId', { unique: false });
+          console.log('[StorageManager] 创建 inspirations 存储');
         }
       };
     });
@@ -450,6 +461,327 @@ class StorageManager {
     }
 
     console.log('[StorageManager] 数据导入完成');
+  }
+
+  // ========== 灵感收件箱业务方法（Phase 3新增） ==========
+
+  /**
+   * 保存灵感
+   * @param {Object} inspiration - 灵感对象
+   * @returns {Promise<void>}
+   */
+  async saveInspiration(inspiration) {
+    await this.save('inspirations', inspiration);
+  }
+
+  /**
+   * 获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<Object|null>}
+   */
+  async getInspiration(id) {
+    return this.get('inspirations', id);
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Promise<Array>}
+   */
+  async getAllInspirations() {
+    const inspirations = await this.getAll('inspirations');
+    // 按创建时间倒序排列（最新的在前）
+    return inspirations.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据状态获取灵感
+   * @param {String} status - 'unprocessed' | 'processing' | 'completed'
+   * @returns {Promise<Array>}
+   */
+  async getInspirationsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readonly');
+      const store = transaction.objectStore('inspirations');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        console.error(`[StorageManager] 获取灵感失败:`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 保存灵感
+   * @param {Object} inspiration - 灵感对象
+   * @returns {Promise<void>}
+   */
+  async saveInspiration(inspiration) {
+    if (!inspiration.id) {
+      inspiration.id = `inspiration-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    inspiration.updatedAt = Date.now();
+    await this.save('inspirations', inspiration);
+    console.log(`[StorageManager] 保存灵感: ${inspiration.id}`);
+  }
+
+  /**
+   * 获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<Object|null>}
+   */
+  async getInspiration(id) {
+    return this.get('inspirations', id);
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Promise<Array>}
+   */
+  async getAllInspirations() {
+    const inspirations = await this.getAll('inspirations');
+    // 按创建时间倒序排序
+    return inspirations.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据状态获取灵感
+   * @param {String} status - 'unprocessed' | 'processing' | 'completed'
+   * @returns {Promise<Array>}
+   */
+  async getInspirationsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readonly');
+      const store = transaction.objectStore('inspirations');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        console.error(`[StorageManager] 获取灵感失败:`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 保存灵感
+   * @param {Object} inspiration - 灵感对象
+   * @returns {Promise<void>}
+   */
+  async saveInspiration(inspiration) {
+    return this.save('inspirations', inspiration);
+  }
+
+  /**
+   * 获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<Object|null>}
+   */
+  async getInspiration(id) {
+    return this.get('inspirations', id);
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Promise<Array>}
+   */
+  async getAllInspirations() {
+    const inspirations = await this.getAll('inspirations');
+    // 按创建时间倒序排列（最新的在前）
+    return inspirations.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据状态获取灵感
+   * @param {String} status - 'unprocessed' | 'processing' | 'completed'
+   * @returns {Promise<Array>}
+   */
+  async getInspirationsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readonly');
+      const store = transaction.objectStore('inspirations');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        console.error(`[StorageManager] 获取灵感失败:`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 保存灵感
+   * @param {Object} inspiration - 灵感对象
+   * @returns {Promise<void>}
+   */
+  async saveInspiration(inspiration) {
+    return this.save('inspirations', inspiration);
+  }
+
+  /**
+   * 获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<Object|null>}
+   */
+  async getInspiration(id) {
+    return this.get('inspirations', id);
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Promise<Array>}
+   */
+  async getAllInspirations() {
+    const items = await this.getAll('inspirations');
+    // 按创建时间倒序排列（最新的在前）
+    return items.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据状态获取灵感
+   * @param {String} status - 'unprocessed' | 'processing' | 'completed'
+   * @returns {Promise<Array>}
+   */
+  async getInspirationsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readonly');
+      const store = transaction.objectStore('inspirations');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取灵感失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 保存灵感
+   * @param {Object} inspiration - 灵感对象
+   * @returns {Promise<void>}
+   */
+  async saveInspiration(inspiration) {
+    await this.save('inspirations', inspiration);
+  }
+
+  /**
+   * 获取灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<Object|null>}
+   */
+  async getInspiration(id) {
+    return this.get('inspirations', id);
+  }
+
+  /**
+   * 获取所有灵感
+   * @returns {Promise<Array>}
+   */
+  async getAllInspirations() {
+    return this.getAll('inspirations');
+  }
+
+  /**
+   * 根据状态获取灵感
+   * @param {String} status - 'unprocessed' | 'processing' | 'completed'
+   * @returns {Promise<Array>}
+   */
+  async getInspirationsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readonly');
+      const store = transaction.objectStore('inspirations');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取灵感失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 删除灵感
+   * @param {String} id - 灵感ID
+   * @returns {Promise<void>}
+   */
+  async deleteInspiration(id) {
+    return this.delete('inspirations', id);
+  }
+
+  /**
+   * 批量保存灵感
+   * @param {Array} inspirations - 灵感数组
+   * @returns {Promise<void>}
+   */
+  async saveInspirations(inspirations) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['inspirations'], 'readwrite');
+      const store = transaction.objectStore('inspirations');
+
+      let completed = 0;
+      const total = inspirations.length;
+
+      inspirations.forEach(inspiration => {
+        const request = store.put(inspiration);
+
+        request.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            console.log(`[StorageManager] 批量保存 ${total} 条灵感`);
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error('[StorageManager] 批量保存失败:', request.error);
+          reject(request.error);
+        };
+      });
+    });
+  }
+
+  /**
+   * 清空灵感收件箱
+   * @returns {Promise<void>}
+   */
+  async clearInspirations() {
+    return this.clear('inspirations');
   }
 }
 

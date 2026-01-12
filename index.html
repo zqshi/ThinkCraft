@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ThinkCraft - AI思维助手</title>
+
+    <!-- PWA配置 -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ThinkCraft">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192.png">
+
+    <!-- SEO优化 -->
+    <meta name="description" content="快速捕捉灵感，通过苏格拉底式提问深化思维，AI辅助生成商业计划书">
+    <meta name="keywords" content="AI助手,思维工具,灵感记录,商业计划,创意分析">
+
     <style>
         /* 关键CSS：确保移动端侧边栏默认隐藏（在外部CSS加载前生效） */
         @media (max-width: 640px) {
@@ -26,6 +42,25 @@
             .main-content {
                 width: 100% !important;
                 margin-left: 0 !important;
+            }
+
+            /* 移动端悬浮输入区：固定在底部 */
+            .input-container {
+                position: fixed !important;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 999;
+                background: white;
+                box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+                padding: 12px;
+                /* 支持iOS安全区域 */
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+
+            /* 调整聊天容器底部边距，为悬浮输入区留出空间 */
+            .chat-container {
+                padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
             }
         }
         /* 桌面端：菜单按钮默认隐藏 */
@@ -137,6 +172,7 @@
                             placeholder="分享你的创意想法，让我们通过深度对话来探索它的可能性..."
                             rows="1"
                             onkeydown="handleKeyDown(event)"
+                            onkeyup="handleKeyUp(event)"
                             oninput="autoResize(this)"
                         ></textarea>
                         <button class="send-btn" id="sendBtn" onclick="sendMessage()">
@@ -730,10 +766,40 @@
             textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
         }
 
+        // ==================== 长按空格键语音输入 ====================
+        let spaceHoldTimer = null;
+        let spaceHoldTriggered = false;
+
         function handleKeyDown(e) {
+            // Enter键发送消息
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
+                return;
+            }
+
+            // 长按空格键触发语音输入（类似微信）
+            if (e.code === 'Space' && !e.repeat && e.target.id === 'mainInput') {
+                spaceHoldTriggered = false;
+                spaceHoldTimer = setTimeout(() => {
+                    spaceHoldTriggered = true;
+                    e.preventDefault();
+                    handleVoice();  // 启动语音输入
+                    if (navigator.vibrate) navigator.vibrate(50);  // 震动反馈
+                    console.log('[长按空格] 触发语音输入');
+                }, 300);  // 300ms触发
+            }
+        }
+
+        function handleKeyUp(e) {
+            // 清除长按计时器
+            if (e.code === 'Space') {
+                clearTimeout(spaceHoldTimer);
+                // 如果已触发语音，阻止空格输入
+                if (spaceHoldTriggered) {
+                    e.preventDefault();
+                    spaceHoldTriggered = false;
+                }
             }
         }
 
@@ -4428,7 +4494,83 @@
         // 页面完全加载后再次确认（防止样式延迟加载）
         window.addEventListener('load', () => {
             handleResponsiveSidebar();
+            handleLaunchParams();  // 处理PWA启动参数
+
+            // ==================== 移动端自动聚焦输入框 ====================
+            // 移动端打开时自动聚焦输入框，减少操作步骤
+            if (window.deviceDetector?.deviceType?.isMobile) {
+                const mainInput = document.getElementById('mainInput');
+                if (mainInput && !state.currentChat) {
+                    setTimeout(() => {
+                        mainInput.focus();
+                        // iOS需要额外处理（需要用户手势触发）
+                        if (window.deviceDetector?.deviceType?.isIOS) {
+                            // iOS在用户首次交互后才能真正聚焦
+                            document.addEventListener('touchstart', function iosFocusHandler() {
+                                mainInput.focus();
+                                document.removeEventListener('touchstart', iosFocusHandler);
+                            }, { once: true });
+                        }
+                        console.log('[自动聚焦] 移动端输入框已聚焦');
+                    }, 300);
+                }
+            }
         });
+
+        // ==================== 处理PWA快捷方式和Web Share Target ====================
+        function handleLaunchParams() {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get('action');
+            const source = params.get('source');
+            const sharedText = params.get('text');
+            const sharedTitle = params.get('title');
+            const sharedUrl = params.get('url');
+
+            console.log('[PWA] 启动参数:', { action, source, sharedText, sharedTitle, sharedUrl });
+
+            // 1. 处理PWA快捷方式
+            if (action === 'voice') {
+                // 快捷方式：直接启动语音输入
+                setTimeout(() => {
+                    handleVoice();
+                    console.log('[PWA] 快捷方式触发：语音输入');
+                }, 500);
+            } else if (action === 'camera') {
+                // 快捷方式：直接启动相机
+                setTimeout(() => {
+                    handleCamera();
+                    console.log('[PWA] 快捷方式触发：拍照');
+                }, 500);
+            } else if (action === 'new') {
+                // 快捷方式：新建对话
+                startNewChat();
+                console.log('[PWA] 快捷方式触发：新建对话');
+            }
+
+            // 2. 处理Web Share Target（其他应用分享内容）
+            if (action === 'share' && (sharedText || sharedUrl || sharedTitle)) {
+                const mainInput = document.getElementById('mainInput');
+                if (mainInput) {
+                    // 组合分享内容
+                    let content = '';
+                    if (sharedTitle) content += `${sharedTitle}\n`;
+                    if (sharedText) content += `${sharedText}\n`;
+                    if (sharedUrl) content += `${sharedUrl}`;
+
+                    mainInput.value = content.trim();
+                    autoResize(mainInput);
+                    mainInput.focus();
+
+                    console.log('[PWA] Web Share Target接收内容:', content.trim());
+                }
+            }
+
+            // 清理URL参数（避免刷新重复触发）
+            if (action || sharedText || sharedUrl || sharedTitle || source) {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        }
 
         // ==================== 移动端遮罩点击关闭侧边栏 ====================
         document.addEventListener('click', (e) => {
@@ -4456,11 +4598,86 @@
         window.addEventListener('deviceDetectorReady', () => {
             initChatItemLongPress();
             initShareCardDoubleTap();
+            initInputGestures();  // 初始化输入框手势
         });
         if (window.deviceDetector?.initialized) {
             initChatItemLongPress();
             initShareCardDoubleTap();
+            initInputGestures();  // 初始化输入框手势
         }
+
+        // ==================== 输入框手势快捷操作 ====================
+        function initInputGestures() {
+            const mainInput = document.getElementById('mainInput');
+            if (!mainInput || !window.gestureHandler) {
+                console.warn('[手势] 输入框或gestureHandler未找到');
+                return;
+            }
+
+            // 1. 双击输入框发送消息
+            window.gestureHandler.registerDoubleTap(mainInput, () => {
+                const content = mainInput.value.trim();
+                if (content && !state.isTyping && !state.isLoading) {
+                    sendMessage();
+                    if (navigator.vibrate) navigator.vibrate(30);  // 震动反馈
+                    console.log('[手势] 双击发送消息');
+                }
+            });
+
+            // 2. 向上滑动输入框发送消息
+            window.gestureHandler.registerSwipe(mainInput, {
+                onSwipeUp: (distance) => {
+                    const content = mainInput.value.trim();
+                    if (distance > 50 && content && !state.isTyping && !state.isLoading) {
+                        sendMessage();
+                        if (navigator.vibrate) navigator.vibrate(30);  // 震动反馈
+                        console.log('[手势] 向上滑动发送消息');
+                    }
+                }
+            });
+
+            console.log('[手势] 输入框手势快捷操作已初始化');
+        }
+
+        // ==================== Service Worker注册 ====================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('✅ [PWA] Service Worker注册成功:', registration.scope);
+
+                        // 检查更新
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('[PWA] 发现Service Worker更新');
+
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // 新版本已安装，提示用户刷新
+                                    console.log('[PWA] 新版本就绪，建议刷新页面');
+                                    // 可以在这里显示更新提示UI
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('❌ [PWA] Service Worker注册失败:', error);
+                    });
+
+                // 监听Service Worker消息
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    console.log('[PWA] 收到Service Worker消息:', event.data);
+
+                    if (event.data && event.data.type === 'SYNC_START') {
+                        console.log('[PWA] 开始后台同步...');
+                        // 触发同步逻辑
+                    }
+                });
+            });
+        } else {
+            console.warn('⚠️ [PWA] 浏览器不支持Service Worker');
+        }
+
         console.log('✅ ThinkCraft 移动端优化已加载');
 
     </script>
