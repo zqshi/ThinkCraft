@@ -18,6 +18,7 @@ import pdfExportRouter from './routes/pdf-export.js';
 import shareRouter from './routes/share.js';
 import demoGeneratorRouter from './routes/demo-generator.js';
 import agentsRouter from './routes/agents.js';
+import collaborationRouter from './routes/collaboration.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -109,6 +110,9 @@ app.use('/api/demo-generator', demoGeneratorRouter);
 // 数字员工Agent接口
 app.use('/api/agents', agentsRouter);
 
+// 智能协同编排接口
+app.use('/api/collaboration', collaborationRouter);
+
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));
 
@@ -140,7 +144,8 @@ app.listen(PORT, () => {
     console.log(`PDF导出:        http://localhost:${PORT}/api/pdf-export/report`);
     console.log(`分享链接:       http://localhost:${PORT}/api/share/create`);
     console.log(`Demo生成:       http://localhost:${PORT}/api/demo-generator/generate`);
-    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types\n`);
+    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types`);
+    console.log(`智能协同:       http://localhost:${PORT}/api/collaboration/create\n`);
 });
 
 // 优雅关闭

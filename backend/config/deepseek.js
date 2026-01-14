@@ -47,7 +47,7 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
         temperature = 0.7,
         retry = 3,
         retryDelay = 1000,
-        timeout = 30000
+        timeout = 120000  // 默认120秒超时（AI分析需要较长时间）
     } = options;
 
     // 验证 API Key

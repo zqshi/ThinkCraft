@@ -1,3 +1,127 @@
+        // ==================== 登录系统 ====================
+
+        // 测试账号列表
+        const TEST_ACCOUNTS = [
+            { username: 'admin', password: 'admin123', name: '管理员' },
+            { username: 'demo', password: 'demo123', name: '演示用户' }
+        ];
+
+        // 检查登录状态
+        function checkLoginStatus() {
+            const isLoggedIn = localStorage.getItem('thinkcraft_logged_in') === 'true';
+            const loginModal = document.getElementById('loginModal');
+
+            if (!isLoggedIn) {
+                // 未登录，显示登录Modal
+                if (loginModal) {
+                    loginModal.classList.add('active');
+                }
+                return false;
+            } else {
+                // 已登录，隐藏登录Modal
+                if (loginModal) {
+                    loginModal.classList.remove('active');
+                }
+                // 更新用户名显示
+                const currentUser = localStorage.getItem('thinkcraft_username') || 'ThinkCraft 用户';
+                updateUserDisplay(currentUser);
+                return true;
+            }
+        }
+
+        // 更新用户名显示
+        function updateUserDisplay(username) {
+            const userNameEl = document.getElementById('userName');
+            if (userNameEl) {
+                const accountInfo = TEST_ACCOUNTS.find(acc => acc.username === username);
+                userNameEl.textContent = accountInfo ? accountInfo.name : username;
+            }
+        }
+
+        // 处理登录
+        function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+
+            // 验证账号密码
+            const account = TEST_ACCOUNTS.find(acc =>
+                acc.username === username && acc.password === password
+            );
+
+            if (account) {
+                // 登录成功
+                localStorage.setItem('thinkcraft_logged_in', 'true');
+                localStorage.setItem('thinkcraft_username', username);
+
+                // 隐藏登录Modal
+                document.getElementById('loginModal').classList.remove('active');
+
+                // 隐藏蒙层
+                const overlay = document.getElementById('logoutOverlay');
+                if (overlay) {
+                    overlay.style.display = 'none';
+                }
+
+                // 更新用户名显示
+                updateUserDisplay(username);
+
+                // 显示欢迎提示
+                setTimeout(() => {
+                    alert(`欢迎回来，${account.name}！`);
+                }, 300);
+            } else {
+                // 登录失败
+                alert('账号或密码错误，请重试！\n\n提示：可以点击下方的测试账号快速填充登录信息');
+            }
+        }
+
+        // 一键填充账号密码
+        function quickFillAccount(username, password) {
+            document.getElementById('loginUsername').value = username;
+            document.getElementById('loginPassword').value = password;
+
+            // 聚焦到登录按钮
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                const submitBtn = loginForm.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.focus();
+                }
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                // 清除登录状态
+                localStorage.removeItem('thinkcraft_logged_in');
+                localStorage.removeItem('thinkcraft_username');
+
+                // 关闭设置Modal
+                closeSettings();
+                closeBottomSettings();
+
+                // 显示蒙层，防止敏感信息泄漏
+                const overlay = document.getElementById('logoutOverlay');
+                if (overlay) {
+                    overlay.style.display = 'block';
+                }
+
+                // 显示登录Modal
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.add('active');
+                }
+
+                // 重置用户名显示
+                updateUserDisplay('ThinkCraft 用户');
+            }
+        }
+
+        // ==================== 状态管理 ====================
+
         const state = {
             currentChat: null,
             chats: [],
@@ -16,6 +140,9 @@
                 apiUrl: 'http://localhost:3000'
             }
         };
+
+        // 暴露state到全局（供其他模块使用）
+        window.state = state;
 
         // 系统提示词 - 从配置文件加载
         // 修改提示词：编辑 config/system-prompts.js 文件
@@ -43,9 +170,25 @@
 
 始终保持建设性态度，鼓励用户深度思考。`;
 
+        // 全局调试函数：检查管理器初始化状态
+        window.checkManagersStatus = function() {
+            console.log('=== 管理器状态检查 ===');
+            console.log('window.stateManager:', window.stateManager);
+            console.log('window.storageManager:', window.storageManager);
+            console.log('storageManager.ready:', window.storageManager?.ready);
+            console.log('=====================');
+        };
+
 
 
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('[App] DOMContentLoaded 事件触发');
+            console.log('[App] 当前 window.stateManager:', window.stateManager);
+            console.log('[App] 当前 window.storageManager:', window.storageManager);
+
+            // 检查登录状态（最优先）
+            checkLoginStatus();
+
             // 一次性清理：只保留mock数据
             const saved = localStorage.getItem('thinkcraft_chats');
             if (saved && saved !== '[]') {
@@ -69,31 +212,63 @@
             loadSettings();
             focusInput();
 
-            // 初始化新组件
+            // 初始化不依赖模块的组件
             window.modalManager = new ModalManager();
-            window.storageManager = new StorageManager();
             window.apiClient = new APIClient('http://localhost:3000');
-            window.stateManager = new StateManager();
             window.agentProgressManager = new AgentProgressManager(window.modalManager);
-            window.businessPlanGenerator = new BusinessPlanGenerator(
-                window.apiClient,
-                window.stateManager,
-                window.agentProgressManager
-            );
 
-            // 初始化存储管理器
-            window.storageManager.init().then(() => {
+            // 等待 stateManager 就绪后初始化依赖它的组件
+            const initDependentComponents = () => {
+                if (!window.stateManager) {
+                    console.warn('[App] StateManager 未就绪，等待中...');
+                    return;
+                }
+
+                // 初始化依赖 stateManager 的组件
+                window.businessPlanGenerator = new BusinessPlanGenerator(
+                    window.apiClient,
+                    window.stateManager,
+                    window.agentProgressManager
+                );
+
+                // 初始化智能协同Modal
+                window.collaborationModal = new CollaborationModal(
+                    window.apiClient,
+                    window.collaborationState,
+                    window.modalManager
+                );
+
+                // 监听状态变化，更新按钮UI
+                window.stateManager.subscribe((newState) => {
+                    updateGenerationButtonState(newState.generation);
+                });
+
+                console.log('[App] 所有组件初始化完成');
+                console.log('[App] CollaborationModal 已初始化');
+            };
+
+            // 监听 stateManager 就绪事件
+            window.addEventListener('stateManagerReady', initDependentComponents);
+
+            // 如果 stateManager 已经就绪（模块加载快于 DOMContentLoaded）
+            if (window.stateManager) {
+                initDependentComponents();
+            }
+
+            // 等待存储管理器初始化完成
+            window.addEventListener('storageReady', () => {
                 console.log('[App] 存储管理器初始化完成');
                 // 加载已保存的生成状态
                 loadGenerationStates();
-            }).catch(error => {
-                console.error('[App] 存储管理器初始化失败:', error);
+                // 初始化知识库Mock数据
+                initKnowledgeBase();
             });
 
-            // 监听状态变化，更新按钮UI
-            window.stateManager.subscribe((newState) => {
-                updateGenerationButtonState(newState.generation);
-            });
+            // 如果存储已经就绪，直接加载
+            if (window.storageManager && window.storageManager.ready) {
+                loadGenerationStates();
+                initKnowledgeBase();
+            }
 
             // 首次加载时，如果有demo对话且当前没有打开的对话，自动加载demo
             setTimeout(() => {
@@ -2862,10 +3037,30 @@
 
         /* ===== 数字员工管理系统 ===== */
 
-        // 存储当前用户ID和Agent数据
-        const USER_ID = 'user_' + Date.now(); // 生产环境应使用真实用户ID
+        // 使用全局统一的用户ID（由 init-modules.js 初始化）
+        // 注意：需要等待 init-modules.js 完成初始化后才能使用
+        let USER_ID = null;
+
         let myAgents = []; // 用户雇佣的Agent列表
         let availableAgentTypes = []; // 可雇佣的Agent类型
+
+        // 等待用户ID初始化完成后，再初始化Agent系统
+        function waitForUserIdAndInitialize() {
+            if (window.USER_ID) {
+                // 用户ID已初始化，直接使用
+                USER_ID = window.USER_ID;
+                console.log('[AgentSystem] 使用已初始化的用户ID:', USER_ID);
+                initAgentSystem();
+            } else {
+                // 等待 stateManagerReady 事件（init-modules.js完成后触发）
+                console.log('[AgentSystem] 等待用户ID初始化...');
+                window.addEventListener('stateManagerReady', () => {
+                    USER_ID = window.USER_ID;
+                    console.log('[AgentSystem] 用户ID初始化完成:', USER_ID);
+                    initAgentSystem();
+                }, { once: true });
+            }
+        }
 
         // 初始化Agent系统
         async function initAgentSystem() {
@@ -3522,13 +3717,9 @@
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error('团队协同失败');
-                }
-
                 const result = await response.json();
 
-                if (result.code !== 0) {
+                if (!response.ok || result.code !== 0) {
                     throw new Error(result.error || '团队协同失败');
                 }
 
@@ -3566,9 +3757,9 @@
             }
         }
 
-        // 页面加载时初始化Agent系统
+        // 页面加载时初始化Agent系统（等待USER_ID初始化完成）
         window.addEventListener('load', () => {
-            initAgentSystem();
+            waitForUserIdAndInitialize();
         });
 
         // 设置相关
@@ -3937,8 +4128,9 @@
             if (memberCount === 0) {
                 membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
             } else {
+                const agentMarket = getAgentMarket();
                 membersHTML = project.assignedAgents.map(agentId => {
-                    const agent = state.teamSpace.agents.find(a => a.id === agentId);
+                    const agent = agentMarket.find(a => a.id === agentId);
                     if (!agent) return '';
                     return `
                         <div class="project-member-card">
@@ -3997,11 +4189,6 @@
                 </button>
                 <div class="main-title">📁 ${project.name}</div>
                 <div class="header-actions">
-                    <button class="icon-btn" onclick="showKnowledgeBase('project', '${project.id}')" title="项目知识库">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                        </svg>
-                    </button>
                     <button class="icon-btn" onclick="editProjectInfo('${project.id}')" title="编辑项目">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -4070,20 +4257,62 @@
                 <!-- 协同任务 -->
                 <div class="project-section">
                     <div class="project-section-header">
-                        <h3>🤖 AI协同任务</h3>
-                        <button class="btn-primary" onclick="startTeamCollaboration('${project.id}')">
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                        <h3>🤖 智能协同编排</h3>
+                        <button class="btn-primary" onclick="startProjectCollaboration('${project.id}')">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                             </svg>
-                            启动协同
+                            🚀 启动智能协同
                         </button>
                     </div>
-                    <div class="collaboration-placeholder">
-                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                        </svg>
-                        <div>添加团队成员和创意后，即可启动AI协同</div>
-                    </div>
+                    ${(() => {
+                        // 检查是否有协同任务历史
+                        const collabs = project.collaborations || [];
+                        if (collabs.length === 0) {
+                            return `
+                                <div class="collaboration-placeholder">
+                                    <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                    </svg>
+                                    <div>添加团队成员和创意后，即可启动AI协同</div>
+                                </div>
+                            `;
+                        }
+
+                        // 显示协同任务历史
+                        return `
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                ${collabs.map((collab, idx) => `
+                                    <div class="agent-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                            <h4 style="margin: 0; font-size: 16px;">协同任务 #${collabs.length - idx}</h4>
+                                            <span style="font-size: 12px; opacity: 0.9;">
+                                                ${new Date(collab.timestamp).toLocaleString('zh-CN')}
+                                            </span>
+                                        </div>
+
+                                        <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px;">
+                                            <div style="margin-bottom: 8px;"><strong>任务：</strong>${collab.task}</div>
+                                            <div><strong>参与：</strong>${collab.teamMembers.map(m => m.name).join('、')}</div>
+                                        </div>
+
+                                        <details style="background: white; color: var(--text-primary); padding: 16px; border-radius: 8px;">
+                                            <summary style="cursor: pointer; font-weight: 500; margin-bottom: 12px;">
+                                                查看协同结果
+                                            </summary>
+                                            <div style="line-height: 1.8; white-space: pre-wrap; max-height: 400px; overflow-y: auto; padding-top: 12px; border-top: 1px solid var(--border);">
+                                                ${collab.result}
+                                            </div>
+                                            <button class="hire-btn" style="background: var(--primary); color: white; margin-top: 12px; width: 100%;"
+                                                    onclick="copyToClipboard(\`${collab.result.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">
+                                                📋 复制结果
+                                            </button>
+                                        </details>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    })()}
                 </div>
                 </div><!-- .project-detail-wrapper -->
             `;
@@ -4342,7 +4571,13 @@
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
-            const agent = state.teamSpace.agents.find(a => a.id === agentId);
+            const agentMarket = getAgentMarket();
+            const agent = agentMarket.find(a => a.id === agentId);
+            if (!agent) {
+                alert('找不到该员工');
+                return;
+            }
+
             if (!confirm(`确定要将 ${agent.name} 从项目中移除吗？`)) return;
 
             project.assignedAgents = project.assignedAgents.filter(id => id !== agentId);
@@ -4415,31 +4650,100 @@
 
             console.log(`[知识库] 打开 ${mode} 模式`, projectId);
 
-            // 设置视图模式
-            if (mode === 'project' && projectId) {
-                stateManager.setKnowledgeViewMode('project');
-                stateManager.setKnowledgeProjectFilter(projectId);
-            } else {
-                stateManager.setKnowledgeViewMode('global');
-                stateManager.state.knowledge.currentProjectId = null;
+            try {
+                // 等待管理器初始化完成
+                if (!window.stateManager) {
+                    console.log('[知识库] 等待 stateManager 初始化...');
+                    await new Promise((resolve) => {
+                        const checkInterval = setInterval(() => {
+                            if (window.stateManager) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 50);
+                        // 最多等待5秒
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }, 5000);
+                    });
+                }
+
+                if (!window.stateManager) {
+                    console.error('[知识库] stateManager 未初始化');
+                    alert('系统初始化失败，请刷新页面重试');
+                    return;
+                }
+
+                if (!window.storageManager || !window.storageManager.ready) {
+                    console.log('[知识库] 等待 storageManager 初始化...');
+                    await new Promise((resolve) => {
+                        const checkInterval = setInterval(() => {
+                            if (window.storageManager && window.storageManager.ready) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 50);
+                        // 最多等待5秒
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }, 5000);
+                    });
+                }
+
+                if (!window.storageManager || !window.storageManager.ready) {
+                    console.error('[知识库] storageManager 未初始化或未就绪');
+                    alert('存储系统初始化失败，请刷新页面重试');
+                    return;
+                }
+
+                console.log('[知识库] 管理器初始化检查通过');
+
+                // 设置视图模式
+                if (mode === 'project' && projectId) {
+                    window.stateManager.setKnowledgeViewMode('project');
+                    window.stateManager.setKnowledgeFilter({ projectId });
+                } else {
+                    window.stateManager.setKnowledgeViewMode('global');
+                    window.stateManager.setKnowledgeFilter({ projectId: null });
+                }
+
+                // 全局知识库：隐藏"按项目"按钮
+                const byProjectBtn = document.querySelector('.knowledge-org-switcher button[data-org="byProject"]');
+                if (byProjectBtn) {
+                    byProjectBtn.style.display = mode === 'global' ? 'none' : 'none'; // 项目知识库也隐藏
+                }
+
+                // 如果是项目知识库，默认组织方式改为"按类型"
+                if (mode === 'project') {
+                    window.stateManager.setKnowledgeOrganization('byType');
+                }
+
+                // 加载知识数据
+                await loadKnowledgeData(mode, projectId);
+
+                // 隐藏聊天容器和输入框，显示知识库面板
+                const chatContainer = document.getElementById('chatContainer');
+                const knowledgePanel = document.getElementById('knowledgePanel');
+                const inputContainer = document.getElementById('inputContainer');
+
+                if (!knowledgePanel) {
+                    console.error('[知识库] knowledgePanel 元素不存在，请检查 DOM 结构');
+                    alert('知识库面板未找到，请刷新页面重试');
+                    return;
+                }
+
+                console.log('[知识库] 显示知识库面板');
+                if (chatContainer) chatContainer.style.display = 'none';
+                knowledgePanel.style.display = 'flex';
+                if (inputContainer) inputContainer.style.display = 'none';
+
+                console.log('[知识库] 知识库面板已显示');
+            } catch (error) {
+                console.error('[知识库] 打开失败:', error);
+                alert('打开知识库失败: ' + error.message);
             }
-
-            // 加载知识数据
-            await loadKnowledgeData(mode, projectId);
-
-            // 隐藏聊天容器和输入框，显示知识库面板
-            const chatContainer = document.getElementById('chatContainer');
-            const knowledgePanel = document.getElementById('knowledgePanel');
-            const inputContainer = document.getElementById('inputContainer');
-
-            if (!knowledgePanel) {
-                console.error('[知识库] knowledgePanel 元素不存在，请检查 DOM 结构');
-                return;
-            }
-
-            if (chatContainer) chatContainer.style.display = 'none';
-            knowledgePanel.style.display = 'flex';
-            if (inputContainer) inputContainer.style.display = 'none';
         }
 
         function closeKnowledgePanel() {
@@ -4464,17 +4768,17 @@
 
             try {
                 if (mode === 'project' && projectId) {
-                    // 加载项目知识
-                    items = await storageManager.getKnowledgeByProject(projectId);
+                    // 加载项目知识（只加载该项目的知识）
+                    items = await window.storageManager.getKnowledgeByProject(projectId);
                     console.log(`[知识库] 加载项目 ${projectId} 知识: ${items.length} 条`);
                 } else {
-                    // 加载全局+所有项目知识
-                    items = await storageManager.getAllKnowledge();
-                    console.log(`[知识库] 加载全局知识: ${items.length} 条`);
+                    // 加载全局知识（只加载scope为'global'的通用知识，不包括项目知识）
+                    items = await window.storageManager.getKnowledgeByScope('global');
+                    console.log(`[知识库] 加载全局通用知识: ${items.length} 条`);
                 }
 
                 // 更新状态
-                stateManager.loadKnowledgeItems(items);
+                window.stateManager.setKnowledgeItems(items);
 
                 // 渲染UI
                 renderKnowledgeList();
@@ -4510,7 +4814,7 @@
             console.log(`[知识库] 切换组织方式: ${orgType}`);
 
             // 更新状态
-            stateManager.setKnowledgeOrganization(orgType);
+            window.stateManager.setKnowledgeOrganization(orgType);
 
             // 更新按钮状态
             const buttons = document.querySelectorAll('.knowledge-org-switcher button');
@@ -4528,23 +4832,18 @@
 
         function onKnowledgeSearch(keyword) {
             console.log(`[知识库] 搜索: ${keyword}`);
-            stateManager.setKnowledgeSearchKeyword(keyword);
+            window.stateManager.setKnowledgeSearchKeyword(keyword);
             renderKnowledgeList();
         }
 
         function onKnowledgeTypeFilter(type) {
             console.log(`[知识库] 类型过滤: ${type}`);
-            stateManager.setKnowledgeTypeFilter(type);
+            window.stateManager.setKnowledgeTypeFilter(type);
             renderKnowledgeList();
         }
 
-        function createKnowledge() {
-            alert('创建知识功能待实现');
-            // TODO: 打开创建知识的Modal或面板
-        }
-
         function renderKnowledgeList() {
-            const items = stateManager.getFilteredKnowledgeItems();
+            const items = window.stateManager.getFilteredKnowledgeItems();
             const listContainer = document.getElementById('knowledgeList');
             const emptyState = document.getElementById('knowledgeEmpty');
 
@@ -4583,17 +4882,15 @@
         }
 
         function renderKnowledgeOrgTree() {
-            const orgType = stateManager.state.knowledge.organizationType;
-            const items = stateManager.state.knowledge.items;
+            // 从状态管理器获取当前的组织类型
+            const orgType = window.stateManager.getKnowledgeOrganization();
+            const items = window.stateManager.getKnowledgeItems();
             const container = document.getElementById('knowledgeOrgTree');
 
-            // 更新组织切换器按钮状态
-            document.querySelectorAll('.knowledge-org-switcher button').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.getAttribute('data-org') === orgType) {
-                    btn.classList.add('active');
-                }
-            });
+            if (!container) {
+                console.warn('[知识库] knowledgeOrgTree 元素不存在');
+                return;
+            }
 
             switch (orgType) {
                 case 'byProject':
@@ -4612,50 +4909,44 @@
         }
 
         function renderByProject(container, items) {
-            const grouped = groupBy(items, item => item.projectId || 'global');
-            const html = [];
+            const viewMode = window.stateManager.getKnowledgeViewMode();
 
-            // 全局知识
-            if (grouped.global && grouped.global.length > 0) {
-                html.push(`
+            // 项目知识库：直接显示所有知识（已经按projectId过滤了）
+            if (viewMode === 'project') {
+                const html = `
                     <div class="org-group">
-                        <div class="org-group-header" onclick="toggleOrgGroup('global')">
-                            <span>🌍 全局知识库 (${grouped.global.length})</span>
+                        <div class="org-group-header" onclick="toggleOrgGroup('project-all')">
+                            <span>📁 项目知识 (${items.length})</span>
                         </div>
-                        <div class="org-group-content" id="org-global">
-                            ${grouped.global.map(item => `
+                        <div class="org-group-content" id="org-project-all">
+                            ${items.map(item => `
                                 <div class="org-item" onclick="selectKnowledge('${item.id}')">
-                                    ${item.icon} ${item.title}
+                                    ${item.icon || '📄'} ${item.title}
                                 </div>
                             `).join('')}
                         </div>
                     </div>
-                `);
+                `;
+                container.innerHTML = html;
+                return;
             }
 
-            // 项目知识
-            Object.keys(grouped).forEach(projectId => {
-                if (projectId === 'global') return;
-                const projectName = getProjectName(projectId);
-                const projectItems = grouped[projectId];
-
-                html.push(`
-                    <div class="org-group">
-                        <div class="org-group-header" onclick="toggleOrgGroup('${projectId}')">
-                            <span>📁 ${projectName} (${projectItems.length})</span>
-                        </div>
-                        <div class="org-group-content" id="org-${projectId}">
-                            ${projectItems.map(item => `
-                                <div class="org-item" onclick="selectKnowledge('${item.id}')">
-                                    ${item.icon} ${item.title}
-                                </div>
-                            `).join('')}
-                        </div>
+            // 全局知识库：显示为通用知识库（不按项目分组）
+            const html = `
+                <div class="org-group">
+                    <div class="org-group-header" onclick="toggleOrgGroup('global')">
+                        <span>🌍 通用知识库 (${items.length})</span>
                     </div>
-                `);
-            });
-
-            container.innerHTML = html.join('');
+                    <div class="org-group-content" id="org-global">
+                        ${items.map(item => `
+                            <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                                ${item.icon || '📄'} ${item.title}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
         }
 
         function renderByType(container, items) {
@@ -4666,12 +4957,19 @@
                 'analysis': { label: '市场分析', icon: '📊' },
                 'research': { label: '用户调研', icon: '👥' },
                 'design': { label: '设计稿', icon: '🎨' },
-                'other': { label: '其他', icon: '📋' }
+                'process': { label: '工作流程', icon: '⚙️' },
+                'standard': { label: '公司规范', icon: '📋' },
+                'practice': { label: '最佳实践', icon: '💡' },
+                'template': { label: '模板库', icon: '📑' },
+                'ontology': { label: '本体/语义', icon: '🔮' },
+                'guideline': { label: '指导手册', icon: '📖' },
+                'knowledge': { label: '知识沉淀', icon: '🧠' },
+                'other': { label: '其他', icon: '📁' }
             };
 
             const html = [];
             Object.keys(grouped).forEach(type => {
-                const typeInfo = typeLabels[type] || { label: '其他', icon: '📋' };
+                const typeInfo = typeLabels[type] || { label: '其他', icon: '📁' };
                 const typeItems = grouped[type];
 
                 html.push(`
@@ -4682,7 +4980,7 @@
                         <div class="org-group-content" id="org-type-${type}">
                             ${typeItems.map(item => `
                                 <div class="org-item" onclick="selectKnowledge('${item.id}')">
-                                    ${item.icon} ${item.title}
+                                    ${item.icon || '📄'} ${item.title}
                                 </div>
                             `).join('')}
                         </div>
@@ -4742,7 +5040,7 @@
         }
 
         function renderByTags(container, items) {
-            const stats = stateManager.state.knowledge.stats;
+            const stats = window.stateManager.getKnowledgeStats();
             const tags = Object.keys(stats.byTag).sort((a, b) => stats.byTag[b] - stats.byTag[a]);
 
             if (tags.length === 0) {
@@ -4781,27 +5079,27 @@
         }
 
         function filterByTag(tag) {
-            stateManager.setKnowledgeTagsFilter([tag]);
+            window.stateManager.setKnowledgeTagsFilter([tag]);
             renderKnowledgeList();
         }
 
         function switchKnowledgeOrganization(type) {
-            stateManager.setKnowledgeOrganization(type);
+            window.stateManager.setKnowledgeOrganization(type);
             renderKnowledgeOrgTree();
         }
 
         function onKnowledgeSearch(keyword) {
-            stateManager.setKnowledgeSearchKeyword(keyword);
+            window.stateManager.setKnowledgeSearchKeyword(keyword);
             renderKnowledgeList();
         }
 
         function onKnowledgeTypeFilter(type) {
-            stateManager.setKnowledgeTypeFilter(type);
+            window.stateManager.setKnowledgeTypeFilter(type);
             renderKnowledgeList();
         }
 
         async function viewKnowledge(id) {
-            const item = await storageManager.getKnowledge(id);
+            const item = await window.storageManager.getKnowledge(id);
             if (!item) {
                 alert('知识不存在');
                 return;
@@ -4809,14 +5107,151 @@
 
             // 增加浏览次数
             item.viewCount = (item.viewCount || 0) + 1;
-            await storageManager.saveKnowledge(item);
+            await window.storageManager.saveKnowledge(item);
 
-            // 简单展示（实际应该用一个详情Modal）
-            alert(`${item.title}\n\n${item.content}\n\n类型: ${getTypeLabel(item.type)}\n标签: ${item.tags.join(', ')}\n创建时间: ${formatTime(item.createdAt)}\n浏览次数: ${item.viewCount}`);
+            // 打开Modal并填充数据（只读模式）
+            document.getElementById('knowledgeModalTitle').textContent = '查看知识';
+            document.getElementById('knowledgeTitle').value = item.title;
+            document.getElementById('knowledgeType').value = item.type;
+            document.getElementById('knowledgeContent').value = item.content;
+            document.getElementById('knowledgeTags').value = item.tags.join(', ');
+            document.getElementById('knowledgeScope').value = item.scope || 'global';
+
+            // 设置为只读
+            document.getElementById('knowledgeTitle').readOnly = true;
+            document.getElementById('knowledgeType').disabled = true;
+            document.getElementById('knowledgeContent').readOnly = true;
+            document.getElementById('knowledgeTags').readOnly = true;
+            document.getElementById('knowledgeScope').disabled = true;
+
+            // 隐藏保存按钮，显示关闭按钮
+            document.querySelector('#knowledgeDetailModal .btn-primary').style.display = 'none';
+            document.querySelector('#knowledgeDetailModal .btn-secondary').textContent = '关闭';
+
+            // 存储当前知识ID（用于可能的编辑功能）
+            window.currentKnowledgeId = id;
+
+            // 显示Modal
+            document.getElementById('knowledgeDetailModal').classList.add('active');
         }
 
         function createKnowledge() {
-            alert('创建知识功能开发中...\n\n未来将支持：\n• 富文本编辑器\n• 文件附件上传\n• Markdown支持\n• AI辅助生成');
+            // 重置表单
+            document.getElementById('knowledgeForm').reset();
+            document.getElementById('knowledgeModalTitle').textContent = '新建知识';
+
+            // 设置为可编辑
+            document.getElementById('knowledgeTitle').readOnly = false;
+            document.getElementById('knowledgeType').disabled = false;
+            document.getElementById('knowledgeContent').readOnly = false;
+            document.getElementById('knowledgeTags').readOnly = false;
+            document.getElementById('knowledgeScope').disabled = false;
+
+            // 显示保存按钮
+            document.querySelector('#knowledgeDetailModal .btn-primary').style.display = 'inline-flex';
+            document.querySelector('#knowledgeDetailModal .btn-secondary').textContent = '取消';
+
+            // 根据当前模式设置默认scope
+            const viewMode = window.stateManager.getKnowledgeViewMode();
+            const filter = window.stateManager.getKnowledgeFilter();
+
+            if (viewMode === 'project' && filter.projectId) {
+                document.getElementById('knowledgeScope').value = 'project';
+            } else {
+                document.getElementById('knowledgeScope').value = 'global';
+            }
+
+            // 清除当前知识ID
+            window.currentKnowledgeId = null;
+
+            // 显示Modal
+            document.getElementById('knowledgeDetailModal').classList.add('active');
+        }
+
+        function closeKnowledgeModal() {
+            document.getElementById('knowledgeDetailModal').classList.remove('active');
+            window.currentKnowledgeId = null;
+        }
+
+        async function saveKnowledge() {
+            const form = document.getElementById('knowledgeForm');
+            if (!form.checkValidity()) {
+                alert('请填写所有必填项');
+                return;
+            }
+
+            const title = document.getElementById('knowledgeTitle').value.trim();
+            const type = document.getElementById('knowledgeType').value;
+            const content = document.getElementById('knowledgeContent').value.trim();
+            const tagsStr = document.getElementById('knowledgeTags').value.trim();
+            const scope = document.getElementById('knowledgeScope').value;
+
+            if (!title || !type || !content) {
+                alert('请填写标题、类型和内容');
+                return;
+            }
+
+            // 解析标签
+            const tags = tagsStr ? tagsStr.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+
+            // 获取当前projectId（如果是项目知识）
+            const viewMode = window.stateManager.getKnowledgeViewMode();
+            const filter = window.stateManager.getKnowledgeFilter();
+            const projectId = (scope === 'project' && filter.projectId) ? filter.projectId : null;
+
+            // 创建知识对象
+            const knowledge = {
+                id: window.currentKnowledgeId || `knowledge_${Date.now()}`,
+                title,
+                type,
+                content,
+                tags,
+                scope,
+                projectId,
+                icon: getTypeIcon(type),
+                createdAt: window.currentKnowledgeId ?
+                    (await window.storageManager.getKnowledge(window.currentKnowledgeId))?.createdAt || new Date().toISOString() :
+                    new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                viewCount: window.currentKnowledgeId ?
+                    (await window.storageManager.getKnowledge(window.currentKnowledgeId))?.viewCount || 0 :
+                    0
+            };
+
+            try {
+                // 保存到存储
+                await window.storageManager.saveKnowledge(knowledge);
+
+                // 关闭Modal
+                closeKnowledgeModal();
+
+                // 重新加载知识列表
+                await loadKnowledgeData(viewMode, projectId);
+
+                alert('知识保存成功！');
+            } catch (error) {
+                console.error('[知识库] 保存失败:', error);
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                'prd': '📄',
+                'tech': '🤖',
+                'analysis': '📊',
+                'research': '👥',
+                'design': '🎨',
+                'process': '⚙️',
+                'standard': '📋',
+                'practice': '💡',
+                'template': '📑',
+                'ontology': '🔮',
+                'guideline': '📖',
+                'knowledge': '🧠',
+                'other': '📁'
+            };
+            return icons[type] || '📄';
         }
 
         // 工具函数
@@ -4904,8 +5339,36 @@
             console.log('[知识库] 开始初始化...');
 
             try {
+                // 等待storageManager初始化完成
+                if (!window.storageManager || !window.storageManager.ready) {
+                    console.log('[知识库] 等待存储管理器初始化...');
+                    await new Promise(resolve => {
+                        const checkInterval = setInterval(() => {
+                            if (window.storageManager && window.storageManager.ready) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 100);
+                        // 超时保护
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }, 5000);
+                    });
+                }
+
+                // 超时后再次验证
+                if (!window.storageManager) {
+                    console.error('[知识库] storageManager 初始化超时，取消初始化');
+                    return;
+                }
+
+                if (!window.storageManager.ready) {
+                    console.warn('[知识库] storageManager 未完全就绪，但继续尝试');
+                }
+
                 // 检查是否已迁移
-                const migrated = await storageManager.getSetting('knowledge_migrated');
+                const migrated = await window.storageManager.getSetting('knowledge_migrated');
                 if (migrated) {
                     console.log('[知识库] 数据已迁移，跳过');
                     return;
@@ -4994,13 +5457,13 @@
                         usageCount: Math.floor(Math.random() * 20)
                     };
 
-                    await storageManager.saveKnowledge(item);
+                    await window.storageManager.saveKnowledge(item);
                     // 添加小延迟，避免ID冲突
                     await new Promise(resolve => setTimeout(resolve, 10));
                 }
 
                 // 标记迁移完成
-                await storageManager.saveSetting('knowledge_migrated', true);
+                await window.storageManager.setSetting('knowledge_migrated', true);
 
                 console.log('[知识库] Mock数据迁移完成，共 ' + mockData.length + ' 条');
             } catch (error) {
@@ -5008,10 +5471,30 @@
             }
         }
 
-        // 启动团队协同（占位符）
-        function startTeamCollaboration(projectId) {
+        // 启动项目智能协同编排
+        function startProjectCollaboration(projectId) {
             const project = state.teamSpace.projects.find(p => p.id === projectId);
-            if (!project) return;
+            if (!project) {
+                alert('项目不存在');
+                return;
+            }
+
+            // 启动智能协同Modal，传入项目上下文
+            if (window.collaborationModal) {
+                window.collaborationModal.showForProject(projectId, project);
+            } else {
+                console.error('[项目协同] CollaborationModal未初始化');
+                alert('系统初始化中，请稍后再试');
+            }
+        }
+
+        // 启动团队协同（旧版本，保留兼容）
+        async function startTeamCollaboration(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) {
+                alert('项目不存在');
+                return;
+            }
 
             if (project.assignedAgents.length === 0) {
                 alert('请先添加团队成员');
@@ -5023,7 +5506,158 @@
                 return;
             }
 
-            alert('AI协同功能开发中...\n\n未来将支持：\n• 多员工智能协同完成任务\n• 自动分配工作和生成文档\n• 实时协作和进度跟踪\n• AI辅助决策和优化');
+            // 检查项目中的agents是否存在（从员工市场中查找）
+            const agentMarket = getAgentMarket();
+            const validAgentIds = project.assignedAgents.filter(agentId => {
+                return agentMarket.some(agent => agent.id === agentId);
+            });
+
+            if (validAgentIds.length === 0) {
+                alert('项目中还没有添加员工！\n\n请先在项目详情中添加团队成员。');
+                return;
+            }
+
+            // 使用validAgentIds作为参与协同的员工
+            const hiredAgentIds = validAgentIds;
+
+            // 打开协同任务Modal
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.id = 'projectCollaborationModal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <div class="modal-title">🤖 启动AI协同任务</div>
+                        <button class="close-btn" onclick="closeProjectCollaborationModal()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div style="margin-bottom: 24px;">
+                            <h4 style="margin-bottom: 12px;">参与成员（${hiredAgentIds.length}人）</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                                ${hiredAgentIds.map(agentId => {
+                                    const agent = myAgents.find(a => a.id === agentId);
+                                    return agent ? `
+                                        <div class="badge" style="padding: 8px 12px; background: var(--primary-light); color: var(--primary); font-size: 14px;">
+                                            ${agent.emoji} ${agent.nickname}
+                                        </div>
+                                    ` : '';
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 24px;">
+                            <h4 style="margin-bottom: 12px;">项目创意</h4>
+                            <div style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary); max-height: 120px; overflow-y: auto;">
+                                ${project.linkedIdeas.map(ideaId => {
+                                    const chat = state.chats.find(c => c.id === ideaId);
+                                    return chat ? `<div style="margin-bottom: 4px;">• ${chat.title}</div>` : '';
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                                协同任务描述 <span style="color: #ef4444;">*</span>
+                            </label>
+                            <textarea
+                                id="projectTaskInput"
+                                required
+                                rows="5"
+                                style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; font-family: inherit;"
+                                placeholder="描述需要团队协作完成的任务，例如：\n• 设计完整的产品原型\n• 制定市场推广方案\n• 分析用户需求并输出PRD"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px;">
+                        <button class="btn-secondary" onclick="closeProjectCollaborationModal()">取消</button>
+                        <button class="btn-primary" onclick="executeProjectCollaboration('${projectId}', ${JSON.stringify(hiredAgentIds).replace(/"/g, '&quot;')})">
+                            🚀 开始协同工作
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+        }
+
+        function closeProjectCollaborationModal() {
+            const modal = document.getElementById('projectCollaborationModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function executeProjectCollaboration(projectId, hiredAgentIds) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            const task = document.getElementById('projectTaskInput')?.value.trim();
+
+            if (!task) {
+                alert('请输入任务描述');
+                return;
+            }
+
+            try {
+                // 关闭Modal
+                closeProjectCollaborationModal();
+
+                // 显示进度提示
+                alert('🤝 团队开始协同工作，请稍候...');
+
+                // 准备context：包含项目创意内容
+                const ideasContext = project.linkedIdeas.map(ideaId => {
+                    const chat = state.chats.find(c => c.id === ideaId);
+                    if (!chat) return '';
+                    return `创意：${chat.title}\n${chat.messages.map(m => m.content).join('\n')}`;
+                }).join('\n\n');
+
+                // 调用后端API（使用实际雇佣的agent IDs）
+                const response = await fetch(`${state.settings.apiUrl}/api/agents/team-collaboration`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: USER_ID,
+                        agentIds: hiredAgentIds, // 使用实际雇佣的agent IDs
+                        task: task,
+                        context: `项目: ${project.name}\n\n${ideasContext}`
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.code !== 0) {
+                    throw new Error(result.error || '团队协同失败');
+                }
+
+                // 保存协同结果到项目
+                const collabResult = result.data;
+                if (!project.collaborations) {
+                    project.collaborations = [];
+                }
+                project.collaborations.push({
+                    ...collabResult,
+                    task: task,
+                    timestamp: collabResult.completedAt
+                });
+                saveTeamSpace();
+
+                // 刷新项目详情显示
+                showProjectDetail(projectId);
+
+                // 显示成功提示
+                alert('✅ 团队协同任务完成！结果已保存到项目中');
+
+            } catch (error) {
+                console.error('[项目协同] 失败:', error);
+                alert('❌ 协同失败: ' + error.message);
+            }
         }
 
         // 恢复对话界面的HTML结构
@@ -5668,9 +6302,56 @@
                 renderProjectHiredAgents(); // 刷新已雇佣列表
                 renderAvailableAgents(); // 刷新雇佣市场列表
 
-                // 更新项目成员显示
-                renderProjectMembers(project);
-                document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+                // 更新项目详情页面（如果当前正在显示）
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer && chatContainer.querySelector('.project-detail-wrapper')) {
+                    // 当前正在显示项目详情，需要实时更新
+                    const membersGrid = chatContainer.querySelector('.project-members-grid');
+                    if (membersGrid) {
+                        // 构建成员列表HTML
+                        let membersHTML = '';
+                        if (project.assignedAgents.length === 0) {
+                            membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
+                        } else {
+                            const agentMarket = getAgentMarket();
+                            membersHTML = project.assignedAgents.map(agId => {
+                                const agent = agentMarket.find(a => a.id === agId);
+                                if (!agent) return '';
+                                return `
+                                    <div class="project-member-card">
+                                        <div class="member-avatar">${agent.avatar}</div>
+                                        <div class="member-info">
+                                            <div class="member-name">${agent.name}</div>
+                                            <div class="member-role">${agent.role}</div>
+                                        </div>
+                                        <button class="icon-btn" onclick="removeAgentFromProject('${project.id}', '${agent.id}')" title="移除">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                `;
+                            }).join('');
+                        }
+                        membersGrid.innerHTML = membersHTML;
+                    }
+
+                    // 更新成员数量显示
+                    const overviewCards = chatContainer.querySelectorAll('.overview-card');
+                    if (overviewCards.length > 0) {
+                        overviewCards[0].querySelector('.overview-value').textContent = project.assignedAgents.length;
+                    }
+                }
+
+                // 更新模态框中的成员列表（如果打开了）
+                const projectModal = document.getElementById('projectModal');
+                if (projectModal && projectModal.style.display === 'flex') {
+                    renderProjectMembers(project);
+                    document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+                }
+
+                // 更新侧边栏项目列表
+                renderProjectList();
             }
         }
 
@@ -5697,8 +6378,8 @@
                         </div>
                         <div class="agent-card-actions">
                             <button class="hire-btn ${isHired ? 'hired' : ''}"
-                                    onclick="toggleAgentHire('${agent.id}')"
-                                    ${isHired ? '' : ''}>
+                                    onclick="${isHired ? '' : `toggleAgentHire('${agent.id}')`}"
+                                    ${isHired ? 'disabled' : ''}>
                                 ${isHired ? '✓ 已加入' : '加入团队'}
                             </button>
                         </div>
@@ -5727,10 +6408,59 @@
             // 保存到 localStorage
             saveTeamSpace();
 
-            // 重新渲染
+            // 重新渲染雇佣市场列表
             renderAvailableAgents();
-            renderProjectMembers(project);
-            document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+
+            // 更新项目详情页面（如果当前正在显示）
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatContainer && chatContainer.querySelector('.project-detail-wrapper')) {
+                // 当前正在显示项目详情，需要实时更新
+                const membersGrid = chatContainer.querySelector('.project-members-grid');
+                if (membersGrid) {
+                    // 构建成员列表HTML
+                    let membersHTML = '';
+                    if (project.assignedAgents.length === 0) {
+                        membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
+                    } else {
+                        const agentMarket = getAgentMarket();
+                        membersHTML = project.assignedAgents.map(agId => {
+                            const agent = agentMarket.find(a => a.id === agId);
+                            if (!agent) return '';
+                            return `
+                                <div class="project-member-card">
+                                    <div class="member-avatar">${agent.avatar}</div>
+                                    <div class="member-info">
+                                        <div class="member-name">${agent.name}</div>
+                                        <div class="member-role">${agent.role}</div>
+                                    </div>
+                                    <button class="icon-btn" onclick="removeAgentFromProject('${project.id}', '${agent.id}')" title="移除">
+                                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                    membersGrid.innerHTML = membersHTML;
+                }
+
+                // 更新成员数量显示
+                const overviewCards = chatContainer.querySelectorAll('.overview-card');
+                if (overviewCards.length > 0) {
+                    overviewCards[0].querySelector('.overview-value').textContent = project.assignedAgents.length;
+                }
+            }
+
+            // 更新模态框中的成员列表（如果打开了）
+            const projectModal = document.getElementById('projectModal');
+            if (projectModal && projectModal.style.display === 'flex') {
+                renderProjectMembers(project);
+                document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+            }
+
+            // 更新侧边栏项目列表
+            renderProjectList();
         }
 
         function fireAgent(agentId) {
@@ -6251,9 +6981,6 @@
         window.addEventListener('load', () => {
             handleResponsiveSidebar();
             handleLaunchParams();  // 处理PWA启动参数
-
-            // 知识库Mock数据迁移
-            initKnowledgeBase();
 
             // 应用智能输入提示
             setTimeout(() => {

@@ -11,9 +11,9 @@ class APIClient {
 
     // 默认配置
     this.config = {
-      timeout: 30000, // 30秒超时
-      retry: 3, // 重试次数
-      retryDelay: 1000 // 重试延迟(ms)
+      timeout: 120000, // 120秒超时（AI分析需要较长时间）
+      retry: 2, // 重试次数（减少到2次，因为超时时间已增加）
+      retryDelay: 2000 // 重试延迟(ms)
     };
   }
 
@@ -291,6 +291,84 @@ class APIClient {
    */
   async health() {
     return this.get('/api/health');
+  }
+
+  // ========== 智能协同API ==========
+
+  /**
+   * 创建协同计划
+   * @param {String} userId - 用户ID
+   * @param {String} goal - 协同目标
+   * @param {String} projectId - 项目ID（可选）
+   * @returns {Promise<Object>} { planId, goal, projectId, status, createdAt }
+   */
+  async createCollaborationPlan(userId, goal, projectId = null) {
+    const response = await this.post('/api/collaboration/create', {
+      userId,
+      goal,
+      projectId
+    });
+    return response.data;
+  }
+
+  /**
+   * AI分析能力是否满足
+   * @param {String} planId - 协同计划ID
+   * @param {Array<String>} agentIds - 指定的Agent ID列表（可选，用于项目模式）
+   * @returns {Promise<Object>} { planId, analysis, nextStep }
+   */
+  async analyzeCollaborationCapability(planId, agentIds = null) {
+    const response = await this.post('/api/collaboration/analyze-capability', {
+      planId,
+      agentIds
+    });
+    return response.data;
+  }
+
+  /**
+   * 生成三种协同模式
+   * @param {String} planId - 协同计划ID
+   * @returns {Promise<Object>} { planId, modes, metadata }
+   */
+  async generateCollaborationModes(planId) {
+    const response = await this.post('/api/collaboration/generate-modes', {
+      planId
+    });
+    return response.data;
+  }
+
+  /**
+   * 执行协同计划
+   * @param {String} planId - 协同计划ID
+   * @param {String} executionMode - 执行模式 'workflow' | 'task_decomposition'
+   * @returns {Promise<Object>} { executionMode, totalSteps, stepResults, summary }
+   */
+  async executeCollaborationPlan(planId, executionMode = 'workflow') {
+    const response = await this.post('/api/collaboration/execute', {
+      planId,
+      executionMode
+    });
+    return response.data;
+  }
+
+  /**
+   * 获取协同计划详情
+   * @param {String} planId - 协同计划ID
+   * @returns {Promise<Object>} 完整的协同计划
+   */
+  async getCollaborationPlan(planId) {
+    const response = await this.get(`/api/collaboration/${planId}`);
+    return response.data;
+  }
+
+  /**
+   * 获取用户所有协同计划
+   * @param {String} userId - 用户ID
+   * @returns {Promise<Object>} { plans, total }
+   */
+  async getUserCollaborationPlans(userId) {
+    const response = await this.get(`/api/collaboration/user/${userId}`);
+    return response.data;
   }
 
   // ========== 工具方法 ==========

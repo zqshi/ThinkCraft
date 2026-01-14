@@ -326,6 +326,10 @@ class StateManager {
     return this.knowledge.getItems();
   }
 
+  setKnowledgeItems(items) {
+    this.knowledge.setItems(items);
+  }
+
   addKnowledgeItem(item) {
     this.knowledge.addItem(item);
   }
@@ -342,8 +346,36 @@ class StateManager {
     this.knowledge.setFilter(filter);
   }
 
+  getKnowledgeFilter() {
+    return this.knowledge.getFilter();
+  }
+
   getKnowledgeStats() {
     return this.knowledge.getStats();
+  }
+
+  getFilteredKnowledgeItems() {
+    return this.knowledge.getFilteredItems();
+  }
+
+  setKnowledgeOrganization(orgType) {
+    this.knowledge.setOrganizationType(orgType);
+  }
+
+  getKnowledgeOrganization() {
+    return this.knowledge.getOrganizationType();
+  }
+
+  setKnowledgeTagsFilter(tags) {
+    this.knowledge.setSelectedTags(tags);
+  }
+
+  setKnowledgeSearchKeyword(keyword) {
+    this.knowledge.setSearchKeyword(keyword);
+  }
+
+  setKnowledgeTypeFilter(type) {
+    this.knowledge.setFilter({ type });
   }
 
   // ========== Settings 兼容方法 ==========

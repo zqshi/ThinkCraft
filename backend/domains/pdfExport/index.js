@@ -2,6 +2,7 @@
  * PDFExport领域模块统一导出
  */
 
-export { PDFExportService, pdfExportService } from './services/PDFExportService.js';
+import { PDFExportService, pdfExportService } from './services/PDFExportService.js';
 
+export { PDFExportService, pdfExportService };
 export default { pdfExportService };

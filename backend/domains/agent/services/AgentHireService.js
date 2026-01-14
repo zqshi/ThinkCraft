@@ -4,7 +4,7 @@
  *
  * DDD 领域服务特点：
  * - 封装跨实体的业务逻辑
- * - 无状态（不保存数据，只处理逻辑）
+ * - 支持数据持久化（通过Repository）
  * - 协调实体和值对象
  */
 
@@ -17,12 +17,33 @@ import { AgentType } from '../models/valueObjects/AgentType.js';
 export class AgentHireService {
   /**
    * 构造函数
-   * @param {Object} agentRepository - Agent仓储（可选，用于持久化）
+   * @param {Object} agentRepository - Agent仓储（用于持久化）
    */
   constructor(agentRepository = null) {
     this.agentRepository = agentRepository;
-    // 内存存储（简化版，生产环境应使用Repository）
-    this.userAgents = new Map(); // userId -> Agent[]
+    // 内存缓存（提高性能，Map: userId -> Agent[]）
+    this.userAgents = new Map();
+
+    // 如果提供了Repository，从持久化数据初始化
+    if (this.agentRepository) {
+      this._loadFromRepository();
+    }
+  }
+
+  /**
+   * 从Repository加载数据到内存
+   * @private
+   */
+  _loadFromRepository() {
+    try {
+      const stats = this.agentRepository.getStats();
+      console.log('[AgentHireService] 从Repository加载数据:', stats);
+
+      // 注意：这里只是获取统计信息，实际数据按需加载（lazy loading）
+      // 避免一次性加载所有用户数据到内存
+    } catch (error) {
+      console.error('[AgentHireService] 加载数据失败:', error);
+    }
   }
 
   /**
@@ -126,7 +147,26 @@ export class AgentHireService {
    * @returns {Array<Agent>} Agent列表
    */
   getUserAgents(userId) {
-    return this.userAgents.get(userId) || [];
+    // 1. 先从内存缓存获取
+    if (this.userAgents.has(userId)) {
+      return this.userAgents.get(userId);
+    }
+
+    // 2. 如果有Repository，从持久化数据加载
+    if (this.agentRepository) {
+      const agentsData = this.agentRepository.getUserAgents(userId);
+
+      // 将JSON数据转换为Agent实例
+      const agents = agentsData.map(data => Agent.fromJSON(data));
+
+      // 缓存到内存
+      this.userAgents.set(userId, agents);
+
+      return agents;
+    }
+
+    // 3. 没有Repository，返回空数组
+    return [];
   }
 
   /**
@@ -165,6 +205,9 @@ export class AgentHireService {
 
     // 解雇Agent
     agent.fire();
+
+    // 同步到Repository
+    this._syncToRepository(userId);
 
     console.log(`[AgentHireService] 用户 ${userId} 解雇了 ${agent.nickname}`);
 
@@ -328,9 +371,21 @@ export class AgentHireService {
 
     this.userAgents.get(userId).push(agent);
 
-    // 如果有Repository，也保存到数据库
+    // 如果有Repository，保存到持久化存储
     if (this.agentRepository) {
-      this.agentRepository.save(agent);
+      this.agentRepository.saveAgent(userId, agent.toJSON());
+    }
+  }
+
+  /**
+   * 同步用户的所有Agent到Repository
+   * @private
+   */
+  _syncToRepository(userId) {
+    if (this.agentRepository && this.userAgents.has(userId)) {
+      const agents = this.userAgents.get(userId);
+      const agentsData = agents.map(agent => agent.toJSON());
+      this.agentRepository.saveUserAgents(userId, agentsData);
     }
   }
 
@@ -347,10 +402,11 @@ export class AgentHireService {
    */
   clearAll() {
     this.userAgents.clear();
+
+    if (this.agentRepository) {
+      this.agentRepository.clearAll();
+    }
   }
 }
-
-// 创建单例实例（便于在路由中使用）
-export const agentHireService = new AgentHireService();
 
 export default AgentHireService;

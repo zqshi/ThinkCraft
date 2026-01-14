@@ -817,9 +817,6 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-                    <div style="margin-top: 16px;">
-                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
-                    </div>
                 </div>
 
                 <div class="settings-section">
@@ -843,6 +840,13 @@
                             <div class="settings-item-title">ThinkCraft v2.0</div>
                             <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div style="margin-top: 0;">
+                        <button class="danger-btn" onclick="clearAllHistory()" style="width: 100%; margin-bottom: 12px;">清除所有历史记录</button>
+                        <button class="btn-secondary" onclick="logout()" style="width: 100%;">退出登录</button>
                     </div>
                 </div>
             </div>
@@ -911,9 +915,6 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-                    <div style="margin-top: 16px;">
-                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
-                    </div>
                 </div>
 
                 <!-- 功能 -->
@@ -939,6 +940,14 @@
                             <div class="settings-item-title">ThinkCraft v2.0</div>
                             <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 数据清理 -->
+                <div class="settings-section">
+                    <div style="margin-top: 0;">
+                        <button class="danger-btn" onclick="clearAllHistory()" style="width: 100%; margin-bottom: 12px;">清除所有历史记录</button>
+                        <button class="btn-secondary" onclick="logout()" style="width: 100%;">退出登录</button>
                     </div>
                 </div>
             </div>
@@ -1071,20 +1080,220 @@
         </div>
     </div>
 
+    <!-- 知识详情/编辑Modal -->
+    <div class="modal" id="knowledgeDetailModal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh;">
+            <div class="modal-header">
+                <div class="modal-title" id="knowledgeModalTitle">新建知识</div>
+                <button class="close-btn" onclick="closeKnowledgeModal()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body" style="max-height: calc(90vh - 180px); overflow-y: auto;">
+                <form id="knowledgeForm">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                            标题 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="knowledgeTitle"
+                            required
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;"
+                            placeholder="输入知识标题..."
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                            类型 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <select
+                            id="knowledgeType"
+                            required
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;"
+                        >
+                            <option value="">请选择类型</option>
+                            <option value="prd">PRD文档</option>
+                            <option value="tech">技术方案</option>
+                            <option value="analysis">市场分析</option>
+                            <option value="research">用户调研</option>
+                            <option value="design">设计文档</option>
+                            <option value="process">工作流程</option>
+                            <option value="standard">公司规范</option>
+                            <option value="practice">最佳实践</option>
+                            <option value="template">模板库</option>
+                            <option value="ontology">本体/语义</option>
+                            <option value="guideline">指导手册</option>
+                            <option value="knowledge">知识沉淀</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                            内容 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <textarea
+                            id="knowledgeContent"
+                            required
+                            rows="10"
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; font-family: inherit;"
+                            placeholder="输入知识内容，支持Markdown格式..."
+                        ></textarea>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                            标签
+                        </label>
+                        <input
+                            type="text"
+                            id="knowledgeTags"
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;"
+                            placeholder="用逗号分隔多个标签，如：用户研究,原型设计"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                            范围
+                        </label>
+                        <select
+                            id="knowledgeScope"
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;"
+                        >
+                            <option value="global">全局知识（所有项目可用）</option>
+                            <option value="project">项目知识（仅当前项目）</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn-secondary" onclick="closeKnowledgeModal()">取消</button>
+                <button class="btn-primary" onclick="saveKnowledge()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退出登录蒙层（防止敏感信息泄漏） -->
+    <div id="logoutOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 9999;"></div>
+
+    <!-- 登录Modal -->
+    <div class="modal active" id="loginModal" style="z-index: 10000;">
+        <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
+            <div class="modal-body" style="padding: 48px 40px;">
+                <!-- Logo和标题 -->
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">💡</div>
+                    <h2 style="font-size: 24px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">欢迎使用 ThinkCraft</h2>
+                    <p style="font-size: 14px; color: var(--text-secondary);">AI思维助手 · 将灵感转化为洞察</p>
+                </div>
+
+                <!-- 登录表单 -->
+                <form id="loginForm" onsubmit="handleLogin(event)" style="margin-bottom: 24px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">账号</label>
+                        <input
+                            type="text"
+                            id="loginUsername"
+                            required
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="请输入账号"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">密码</label>
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            required
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="请输入密码"
+                        />
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 15px; font-weight: 500; border-radius: 8px;">
+                        登录
+                    </button>
+                </form>
+
+                <!-- 测试账号 -->
+                <div style="background: var(--bg-secondary); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        测试账号
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button onclick="quickFillAccount('admin', 'admin123')" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                            <span>
+                                <strong>管理员账号</strong>
+                                <span style="color: var(--text-tertiary); font-size: 12px; margin-left: 8px;">admin / admin123</span>
+                            </span>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                        <button onclick="quickFillAccount('demo', 'demo123')" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                            <span>
+                                <strong>演示账号</strong>
+                                <span style="color: var(--text-tertiary); font-size: 12px; margin-left: 8px;">demo / demo123</span>
+                            </span>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 提示信息 -->
+                <div style="text-align: center; font-size: 12px; color: var(--text-tertiary);">
+                    点击测试账号可一键填充登录信息
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 智能协同编排Modal -->
+    <div class="modal" id="collaborationModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title">🤝 智能协同编排</h2>
+                <button class="close-btn" onclick="window.collaborationModal?.close()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="collaboration-content">
+                <!-- 动态内容由CollaborationModal组件渲染 -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- 系统提示词配置 -->
     <script src="config/system-prompts.js"></script>
     <!-- Mock 数据（用于演示） -->
     <script src="config/mock-data.js"></script>
 
+    <!-- 初始化 ES6 模块（必须最先加载） -->
+    <script type="module" src="frontend/js/init-modules.js"></script>
+
     <!-- 核心模块 -->
-    <script src="frontend/js/core/state-manager.js"></script>
     <script src="frontend/js/core/api-client.js"></script>
-    <script src="frontend/js/core/storage-manager.js"></script>
 
     <!-- 组件模块 -->
     <script src="frontend/js/components/modal-manager.js"></script>
     <script src="frontend/js/components/agent-progress.js"></script>
+    <script src="frontend/js/components/collaboration-modal.js"></script>
 
     <!-- 功能模块 -->
     <script src="frontend/js/modules/business-plan-generator.js"></script>

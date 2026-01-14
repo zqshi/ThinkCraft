@@ -9,17 +9,22 @@ export { AgentType, AGENT_TYPES } from './models/valueObjects/AgentType.js';
 // 实体
 export { Agent, AgentStatus } from './models/Agent.js';
 
+// Repository（持久化）
+export { AgentRepository, agentRepository } from './repositories/AgentRepository.js';
+
 // 领域服务
-export { AgentHireService, agentHireService } from './services/AgentHireService.js';
+export { AgentHireService } from './services/AgentHireService.js';
 export { TaskAssignmentService, AGENT_TASK_PROMPTS } from './services/TaskAssignmentService.js';
 export { SalaryService } from './services/SalaryService.js';
 
 // 创建服务实例（单例模式，便于在路由中使用）
-import { agentHireService } from './services/AgentHireService.js';
+import { AgentHireService } from './services/AgentHireService.js';
 import { TaskAssignmentService } from './services/TaskAssignmentService.js';
 import { SalaryService } from './services/SalaryService.js';
+import { agentRepository } from './repositories/AgentRepository.js';
 
-// 实例化服务（注入依赖）
+// 实例化服务（注入Repository依赖）
+export const agentHireService = new AgentHireService(agentRepository);
 export const taskAssignmentService = new TaskAssignmentService(agentHireService);
 export const salaryService = new SalaryService(agentHireService);
 
@@ -37,6 +42,9 @@ export const AgentDomain = {
   // 薪资服务
   salary: salaryService,
 
+  // Repository
+  repository: agentRepository,
+
   /**
    * 获取所有服务实例
    */
@@ -44,7 +52,8 @@ export const AgentDomain = {
     return {
       hireService: agentHireService,
       taskService: taskAssignmentService,
-      salaryService: salaryService
+      salaryService: salaryService,
+      repository: agentRepository
     };
   }
 };
