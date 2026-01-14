@@ -1,7 +1,10 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import { domainLoggers } from '../logging/domainLogger.js';
 
 dotenv.config();
+
+const dbLogger = domainLoggers.Database;
 
 /**
  * Sequelize配置
@@ -17,7 +20,7 @@ export const sequelize = new Sequelize({
   dialect: 'postgres',
 
   // 日志配置
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  logging: process.env.NODE_ENV === 'development' ? (msg) => dbLogger.debug(msg) : false,
 
   // 连接池配置
   pool: {
@@ -46,12 +49,13 @@ export const sequelize = new Sequelize({
 export async function testConnection() {
   try {
     await sequelize.authenticate();
-    console.log('[Database] PostgreSQL连接成功');
-    console.log(`[Database] 数据库: ${process.env.DB_NAME || 'thinkcraft'}`);
-    console.log(`[Database] 主机: ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}`);
+    dbLogger.info('PostgreSQL连接成功', {
+      database: process.env.DB_NAME || 'thinkcraft',
+      host: `${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}`
+    });
     return true;
   } catch (error) {
-    console.error('[Database] 连接失败:', error.message);
+    dbLogger.error('连接失败', error);
     return false;
   }
 }
@@ -69,10 +73,10 @@ export async function syncModels(options = {}) {
     }
 
     await sequelize.sync({ force, alter });
-    console.log('[Database] 模型同步成功');
+    dbLogger.info('模型同步成功');
     return true;
   } catch (error) {
-    console.error('[Database] 模型同步失败:', error.message);
+    dbLogger.error('模型同步失败', error);
     return false;
   }
 }
@@ -83,8 +87,8 @@ export async function syncModels(options = {}) {
 export async function closeConnection() {
   try {
     await sequelize.close();
-    console.log('[Database] 连接已关闭');
+    dbLogger.info('连接已关闭');
   } catch (error) {
-    console.error('[Database] 关闭连接失败:', error.message);
+    dbLogger.error('关闭连接失败', error);
   }
 }

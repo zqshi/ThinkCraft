@@ -7,9 +7,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { domainLoggers } from './infrastructure/logging/domainLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const serverLogger = domainLoggers.Server;
 import chatRouter from './routes/chat.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
@@ -129,32 +131,33 @@ app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log(`🚀 ThinkCraft 后端服务已启动`);
-    console.log(`📍 监听端口: ${PORT}`);
-    console.log(`🌐 前端地址: ${FRONTEND_URL}`);
-    console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🤖 API: DeepSeek Chat`);
-    console.log('='.repeat(50));
-    console.log(`\n健康检查:       http://localhost:${PORT}/api/health`);
-    console.log(`对话接口:       http://localhost:${PORT}/api/chat`);
-    console.log(`报告生成:       http://localhost:${PORT}/api/report/generate`);
-    console.log(`商业计划书:     http://localhost:${PORT}/api/business-plan/generate-batch`);
-    console.log(`视觉分析:       http://localhost:${PORT}/api/vision/analyze`);
-    console.log(`PDF导出:        http://localhost:${PORT}/api/pdf-export/report`);
-    console.log(`分享链接:       http://localhost:${PORT}/api/share/create`);
-    console.log(`Demo生成:       http://localhost:${PORT}/api/demo-generator/generate`);
-    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types`);
-    console.log(`智能协同:       http://localhost:${PORT}/api/collaboration/create\n`);
+    serverLogger.info('ThinkCraft后端服务已启动', {
+        port: PORT,
+        frontendUrl: FRONTEND_URL,
+        env: process.env.NODE_ENV || 'development',
+        api: 'DeepSeek Chat',
+        endpoints: {
+            health: `http://localhost:${PORT}/api/health`,
+            chat: `http://localhost:${PORT}/api/chat`,
+            report: `http://localhost:${PORT}/api/report/generate`,
+            businessPlan: `http://localhost:${PORT}/api/business-plan/generate-batch`,
+            vision: `http://localhost:${PORT}/api/vision/analyze`,
+            pdfExport: `http://localhost:${PORT}/api/pdf-export/report`,
+            share: `http://localhost:${PORT}/api/share/create`,
+            demo: `http://localhost:${PORT}/api/demo-generator/generate`,
+            agents: `http://localhost:${PORT}/api/agents/types`,
+            collaboration: `http://localhost:${PORT}/api/collaboration/create`
+        }
+    });
 });
 
 // 优雅关闭
 process.on('SIGTERM', () => {
-    console.log('\n收到 SIGTERM 信号，正在关闭服务器...');
+    serverLogger.info('收到SIGTERM信号，正在关闭服务器');
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
-    console.log('\n收到 SIGINT 信号，正在关闭服务器...');
+    serverLogger.info('收到SIGINT信号，正在关闭服务器');
     process.exit(0);
 });
