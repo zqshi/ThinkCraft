@@ -11,6 +11,7 @@ export { Agent, AgentStatus } from './models/Agent.js';
 
 // Repository（持久化）
 export { AgentRepository, agentRepository } from './repositories/AgentRepository.js';
+export { AgentPostgresRepository, agentPostgresRepository } from './repositories/AgentPostgresRepository.js';
 
 // 领域服务
 export { AgentHireService } from './services/AgentHireService.js';
@@ -22,9 +23,14 @@ import { AgentHireService } from './services/AgentHireService.js';
 import { TaskAssignmentService } from './services/TaskAssignmentService.js';
 import { SalaryService } from './services/SalaryService.js';
 import { agentRepository } from './repositories/AgentRepository.js';
+import { agentPostgresRepository } from './repositories/AgentPostgresRepository.js';
+
+// 选择使用的Repository（可通过环境变量控制）
+const USE_POSTGRES = process.env.USE_POSTGRES_AGENT === 'true' || true; // 默认使用PostgreSQL
+const selectedRepository = USE_POSTGRES ? agentPostgresRepository : agentRepository;
 
 // 实例化服务（注入Repository依赖）
-export const agentHireService = new AgentHireService(agentRepository);
+export const agentHireService = new AgentHireService(selectedRepository);
 export const taskAssignmentService = new TaskAssignmentService(agentHireService);
 export const salaryService = new SalaryService(agentHireService);
 
@@ -43,7 +49,7 @@ export const AgentDomain = {
   salary: salaryService,
 
   // Repository
-  repository: agentRepository,
+  repository: selectedRepository,
 
   /**
    * 获取所有服务实例
@@ -53,7 +59,7 @@ export const AgentDomain = {
       hireService: agentHireService,
       taskService: taskAssignmentService,
       salaryService: salaryService,
-      repository: agentRepository
+      repository: selectedRepository
     };
   }
 };

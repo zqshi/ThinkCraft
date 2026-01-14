@@ -15,6 +15,7 @@ import {
 
 import { CollaborationPlanningService } from './services/CollaborationPlanningService.js';
 import { CollaborationExecutionService } from './services/CollaborationExecutionService.js';
+import { CollaborationRepository, collaborationRepository } from './repositories/CollaborationRepository.js';
 
 // 导入现有的Agent和Task服务
 import { agentHireService } from '../agent/index.js';
@@ -50,7 +51,9 @@ export {
  */
 export {
   CollaborationPlanningService,
-  CollaborationExecutionService
+  CollaborationExecutionService,
+  CollaborationRepository,
+  collaborationRepository
 };
 
 /**
@@ -60,6 +63,9 @@ export default {
   // 服务
   planning: collaborationPlanningService,
   execution: collaborationExecutionService,
+
+  // Repository
+  repository: collaborationRepository,
 
   // 模型
   CollaborationPlan,
