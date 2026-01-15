@@ -9,8 +9,7 @@
  * 重构日期：2026-01-13
  */
 import express from 'express';
-import fs from 'fs';
-import { pdfExportService } from '../domains/pdfExport/index.js';
+import { pdfExportUseCases } from '../application/index.js';
 
 const router = express.Router();
 
@@ -30,14 +29,18 @@ router.post('/export', async (req, res) => {
     }
 
     // 导出PDF
-    const result = await pdfExportService.exportToPDF(title, chapters);
+    const result = await pdfExportUseCases.exportPdf({ title, chapters });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: {
-        filename: result.filename,
-        downloadUrl: `/api/pdf/download/${result.filename}`
-      }
+      data: result.data
     });
 
   } catch (error) {
@@ -55,25 +58,20 @@ router.post('/export', async (req, res) => {
 router.get('/download/:filename', (req, res) => {
   try {
     const { filename } = req.params;
-    const filepath = `./temp/${filename}`;
+    const result = pdfExportUseCases.getDownloadPath({ filename });
 
-    if (!fs.existsSync(filepath)) {
+    if (!result.success) {
       return res.status(404).json({
         code: -1,
-        error: 'PDF文件不存在'
+        error: result.error
       });
     }
 
-    res.download(filepath, filename, (err) => {
+    res.download(result.path, filename, (err) => {
       if (err) {
         console.error('[PDF] 下载失败:', err);
       }
-      // 下载后删除临时文件
-      setTimeout(() => {
-        if (fs.existsSync(filepath)) {
-          fs.unlinkSync(filepath);
-        }
-      }, 1000);
+      pdfExportUseCases.cleanupFile({ filepath: result.path });
     });
 
   } catch (error) {

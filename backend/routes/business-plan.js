@@ -10,8 +10,7 @@
  * 重构日期：2026-01-13
  */
 import express from 'express';
-import { getCostStats } from '../config/deepseek.js';
-import { businessPlanGenerationService } from '../domains/businessPlan/index.js';
+import { businessPlanUseCases } from '../application/index.js';
 
 const router = express.Router();
 
@@ -24,27 +23,21 @@ router.post('/generate-chapter', async (req, res) => {
     const { chapterId, conversationHistory } = req.body;
 
     // 参数验证
-    const validation = businessPlanGenerationService.validateGenerationParams(
+    const result = await businessPlanUseCases.generateChapter({
       chapterId,
       conversationHistory
-    );
+    });
 
-    if (!validation.valid) {
+    if (!result.success) {
       return res.status(400).json({
         code: -1,
-        error: validation.error
+        error: result.error
       });
     }
 
-    // 调用领域服务生成章节
-    const result = await businessPlanGenerationService.generateChapter(
-      chapterId,
-      conversationHistory
-    );
-
     res.json({
       code: 0,
-      data: result
+      data: result.data
     });
 
   } catch (error) {
@@ -78,15 +71,21 @@ router.post('/generate-batch', async (req, res) => {
       });
     }
 
-    // 调用领域服务批量生成
-    const result = await businessPlanGenerationService.generateBatchChapters(
+    const result = await businessPlanUseCases.generateBatch({
       chapterIds,
       conversationHistory
-    );
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: result
+      data: result.data
     });
 
   } catch (error) {
@@ -103,7 +102,7 @@ router.post('/generate-batch', async (req, res) => {
  */
 router.get('/chapters', (req, res) => {
   try {
-    const chapters = businessPlanGenerationService.getAvailableChapters();
+    const chapters = businessPlanUseCases.getChapters();
 
     res.json({
       code: 0,
@@ -125,7 +124,7 @@ router.get('/chapters/:chapterId', (req, res) => {
   try {
     const { chapterId } = req.params;
 
-    const chapterInfo = businessPlanGenerationService.getChapterInfo(chapterId);
+    const chapterInfo = businessPlanUseCases.getChapterInfo({ chapterId });
 
     if (!chapterInfo) {
       return res.status(404).json({
@@ -161,11 +160,18 @@ router.post('/estimate-cost', (req, res) => {
       });
     }
 
-    const estimate = businessPlanGenerationService.estimateGenerationCost(chapterIds);
+    const estimate = businessPlanUseCases.estimateCost({ chapterIds });
+
+    if (!estimate.success) {
+      return res.status(400).json({
+        code: -1,
+        error: estimate.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: estimate
+      data: estimate.data
     });
   } catch (error) {
     res.status(500).json({
@@ -181,7 +187,7 @@ router.post('/estimate-cost', (req, res) => {
  */
 router.get('/cost-stats', (req, res) => {
   try {
-    const stats = getCostStats();
+    const stats = businessPlanUseCases.getCostStats();
 
     res.json({
       code: 0,

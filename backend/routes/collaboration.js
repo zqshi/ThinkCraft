@@ -4,10 +4,7 @@
  */
 
 import express from 'express';
-import {
-  collaborationPlanningService,
-  collaborationExecutionService
-} from '../domains/collaboration/index.js';
+import { collaborationUseCases } from '../application/index.js';
 
 const router = express.Router();
 
@@ -52,16 +49,23 @@ router.post('/create', async (req, res) => {
     }
 
     // 创建协同计划（可选传入projectId）
-    const plan = collaborationPlanningService.createPlan(userId, goal, projectId);
+    const result = collaborationUseCases.createPlan({ userId, goal, projectId });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
       data: {
-        planId: plan.id,
-        goal: plan.goal,
-        projectId: plan.projectId,
-        status: plan.status,
-        createdAt: plan.createdAt
+        planId: result.data.id,
+        goal: result.data.goal,
+        projectId: result.data.projectId,
+        status: result.data.status,
+        createdAt: result.data.createdAt
       }
     });
 
@@ -115,11 +119,18 @@ router.post('/analyze-capability', async (req, res) => {
     }
 
     // 调用AI分析能力（可选传入agentIds）
-    const result = await collaborationPlanningService.analyzeCapability(planId, agentIds);
+    const result = await collaborationUseCases.analyzeCapability({ planId, agentIds });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: result
+      data: result.data
     });
 
   } catch (error) {
@@ -167,11 +178,18 @@ router.post('/generate-modes', async (req, res) => {
     }
 
     // 调用AI生成协同模式
-    const result = await collaborationPlanningService.generateCollaborationModes(planId);
+    const result = await collaborationUseCases.generateModes({ planId });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: result
+      data: result.data
     });
 
   } catch (error) {
@@ -208,18 +226,18 @@ router.get('/:planId', (req, res) => {
   try {
     const { planId } = req.params;
 
-    const plan = collaborationPlanningService.getPlan(planId);
+    const result = collaborationUseCases.getPlan({ planId });
 
-    if (!plan) {
+    if (!result.success) {
       return res.status(404).json({
         code: -1,
-        error: '协同计划不存在'
+        error: result.error
       });
     }
 
     res.json({
       code: 0,
-      data: plan
+      data: result.data
     });
 
   } catch (error) {
@@ -248,14 +266,11 @@ router.get('/user/:userId', (req, res) => {
   try {
     const { userId } = req.params;
 
-    const plans = collaborationPlanningService.getUserPlans(userId);
+    const result = collaborationUseCases.getUserPlans({ userId });
 
     res.json({
       code: 0,
-      data: {
-        plans,
-        total: plans.length
-      }
+      data: result.data
     });
 
   } catch (error) {
@@ -310,11 +325,18 @@ router.post('/execute', async (req, res) => {
     }
 
     // 执行协同计划
-    const result = await collaborationExecutionService.execute(planId, executionMode);
+    const result = await collaborationUseCases.executePlan({ planId, executionMode });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: result
+      data: result.data
     });
 
   } catch (error) {
@@ -342,20 +364,18 @@ router.delete('/:planId', (req, res) => {
   try {
     const { planId } = req.params;
 
-    const deleted = collaborationPlanningService.deletePlan(planId);
+    const result = collaborationUseCases.deletePlan({ planId });
 
-    if (!deleted) {
+    if (!result.success) {
       return res.status(404).json({
         code: -1,
-        error: '协同计划不存在'
+        error: result.error
       });
     }
 
     res.json({
       code: 0,
-      data: {
-        deleted: true
-      }
+      data: result.data
     });
 
   } catch (error) {

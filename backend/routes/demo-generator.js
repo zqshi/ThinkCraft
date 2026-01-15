@@ -9,8 +9,7 @@
  * 重构日期：2026-01-13
  */
 import express from 'express';
-import fs from 'fs';
-import { demoGenerationService } from '../domains/demo/index.js';
+import { demoUseCases } from '../application/index.js';
 
 const router = express.Router();
 
@@ -30,29 +29,22 @@ router.post('/generate', async (req, res) => {
     }
 
     // 生成Demo代码
-    const result = await demoGenerationService.generateDemoCode(
+    const result = await demoUseCases.generateDemo({
       demoType,
       conversationHistory,
-      features || []
-    );
+      features
+    });
 
-    // 保存文件
-    const demoId = `demo_${Date.now()}`;
-    const htmlPath = demoGenerationService.saveDemoFile(demoId, result.code);
-
-    // 创建ZIP
-    const zipPath = await demoGenerationService.createZipArchive(demoId, htmlPath);
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
 
     res.json({
       code: 0,
-      data: {
-        demoId,
-        demoType: result.demoType,
-        htmlPath,
-        zipPath,
-        tokens: result.tokens,
-        downloadUrl: `/api/demo/download/${demoId}`
-      }
+      data: result.data
     });
 
   } catch (error) {
@@ -69,7 +61,7 @@ router.post('/generate', async (req, res) => {
  */
 router.get('/types', (req, res) => {
   try {
-    const types = demoGenerationService.getDemoTypes();
+    const types = demoUseCases.getDemoTypes();
 
     res.json({
       code: 0,
@@ -90,16 +82,16 @@ router.get('/types', (req, res) => {
 router.get('/download/:demoId', (req, res) => {
   try {
     const { demoId } = req.params;
-    const zipPath = `./temp/${demoId}.zip`;
+    const result = demoUseCases.getDownloadPath({ demoId });
 
-    if (!fs.existsSync(zipPath)) {
+    if (!result.success) {
       return res.status(404).json({
         code: -1,
-        error: 'Demo文件不存在'
+        error: result.error
       });
     }
 
-    res.download(zipPath, `${demoId}.zip`, (err) => {
+    res.download(result.path, `${demoId}.zip`, (err) => {
       if (err) {
         console.error('[Demo] 下载失败:', err);
       }

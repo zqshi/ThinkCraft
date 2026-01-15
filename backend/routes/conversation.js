@@ -3,7 +3,7 @@
  * 使用Conversation Domain Service处理业务逻辑
  */
 import express from 'express';
-import { conversationService } from '../domains/conversation/index.js';
+import { conversationUseCases } from '../application/index.js';
 import { domainLoggers } from '../infrastructure/logging/domainLogger.js';
 
 const router = express.Router();
@@ -24,11 +24,11 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    const conversation = await conversationService.createConversation(
+    const conversation = await conversationUseCases.createConversation({
       userId,
       title,
       userData
-    );
+    });
 
     res.json({
       code: 0,
@@ -49,10 +49,10 @@ router.get('/:conversationId', async (req, res, next) => {
     const { conversationId } = req.params;
     const { includeMessages = 'false' } = req.query;
 
-    const conversation = await conversationService.getConversation(
+    const conversation = await conversationUseCases.getConversation({
       conversationId,
-      includeMessages === 'true'
-    );
+      includeMessages: includeMessages === 'true'
+    });
 
     if (!conversation) {
       return res.status(404).json({
@@ -89,10 +89,10 @@ router.get('/user/:userId', async (req, res, next) => {
       options.isPinned = isPinned === 'true';
     }
 
-    const conversations = await conversationService.getUserConversations(
+    const conversations = await conversationUseCases.getUserConversations({
       userId,
       options
-    );
+    });
 
     res.json({
       code: 0,
@@ -120,7 +120,7 @@ router.put('/:conversationId/title', async (req, res, next) => {
       });
     }
 
-    const success = await conversationService.updateTitle(conversationId, title);
+    const success = await conversationUseCases.updateTitle({ conversationId, title });
 
     if (!success) {
       return res.status(404).json({
@@ -155,10 +155,10 @@ router.put('/:conversationId/pin', async (req, res, next) => {
       });
     }
 
-    const success = await conversationService.pinConversation(
+    const success = await conversationUseCases.pinConversation({
       conversationId,
       isPinned
-    );
+    });
 
     if (!success) {
       return res.status(404).json({
@@ -193,10 +193,10 @@ router.delete('/:conversationId', async (req, res, next) => {
       });
     }
 
-    const success = await conversationService.deleteConversation(
+    const success = await conversationUseCases.deleteConversation({
       conversationId,
       userId
-    );
+    });
 
     if (!success) {
       return res.status(404).json({
@@ -231,11 +231,11 @@ router.post('/:conversationId/messages', async (req, res, next) => {
       });
     }
 
-    const message = await conversationService.addMessage(
+    const message = await conversationUseCases.addMessage({
       conversationId,
       role,
       content
-    );
+    });
 
     res.json({
       code: 0,
@@ -255,7 +255,7 @@ router.get('/:conversationId/messages', async (req, res, next) => {
   try {
     const { conversationId } = req.params;
 
-    const messages = await conversationService.getMessages(conversationId);
+    const messages = await conversationUseCases.getMessages({ conversationId });
 
     res.json({
       code: 0,
@@ -283,11 +283,11 @@ router.post('/:conversationId/send', async (req, res, next) => {
       });
     }
 
-    const result = await conversationService.sendMessage(
+    const result = await conversationUseCases.sendMessage({
       conversationId,
       message,
       options
-    );
+    });
 
     res.json({
       code: 0,
@@ -307,7 +307,7 @@ router.put('/:conversationId/step', async (req, res, next) => {
   try {
     const { conversationId } = req.params;
 
-    const newStep = await conversationService.advanceStep(conversationId);
+    const newStep = await conversationUseCases.advanceStep({ conversationId });
 
     res.json({
       code: 0,
@@ -327,7 +327,7 @@ router.put('/:conversationId/analysis-complete', async (req, res, next) => {
   try {
     const { conversationId } = req.params;
 
-    const success = await conversationService.markAnalysisCompleted(conversationId);
+    const success = await conversationUseCases.markAnalysisCompleted({ conversationId });
 
     if (!success) {
       return res.status(404).json({
@@ -352,7 +352,7 @@ router.put('/:conversationId/analysis-complete', async (req, res, next) => {
  */
 router.get('/stats/summary', async (req, res, next) => {
   try {
-    const stats = await conversationService.getStats();
+    const stats = await conversationUseCases.getStats();
 
     res.json({
       code: 0,
@@ -372,7 +372,7 @@ router.get('/stats/user/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const stats = await conversationService.getUserStats(userId);
+    const stats = await conversationUseCases.getUserStats({ userId });
 
     res.json({
       code: 0,

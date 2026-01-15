@@ -10,13 +10,7 @@
  * 重构日期：2026-01-13
  */
 import express from 'express';
-import { callDeepSeekAPI } from '../config/deepseek.js';
-import {
-  AgentDomain,
-  agentHireService,
-  taskAssignmentService,
-  salaryService
-} from '../domains/agent/index.js';
+import { agentUseCases } from '../application/index.js';
 
 const router = express.Router();
 
@@ -26,7 +20,7 @@ const router = express.Router();
  */
 router.get('/types', (req, res) => {
   try {
-    const types = agentHireService.getAvailableAgentTypes();
+    const types = agentUseCases.getAgentTypes();
 
     res.json({
       code: 0,
@@ -59,7 +53,7 @@ router.post('/hire', async (req, res) => {
     }
 
     // 调用领域服务
-    const result = agentHireService.hire(userId, agentType, nickname);
+    const result = agentUseCases.hireAgent({ userId, agentType, nickname });
 
     if (!result.success) {
       return res.status(400).json({
@@ -90,8 +84,7 @@ router.get('/my/:userId', (req, res) => {
     const { userId } = req.params;
 
     // 获取团队信息
-    const agents = agentHireService.getUserAgents(userId);
-    const stats = agentHireService.getTeamStats(userId);
+    const { agents, stats } = agentUseCases.getUserAgents({ userId });
 
     res.json({
       code: 0,
@@ -126,7 +119,7 @@ router.post('/assign-task', async (req, res) => {
     }
 
     // 调用领域服务
-    const result = await taskAssignmentService.assignTask(userId, agentId, task, context);
+    const result = await agentUseCases.assignTask({ userId, agentId, task, context });
 
     if (!result.success) {
       return res.status(400).json({
@@ -157,7 +150,7 @@ router.delete('/:userId/:agentId', (req, res) => {
     const { userId, agentId } = req.params;
 
     // 调用领域服务
-    const result = agentHireService.fire(userId, agentId);
+    const result = agentUseCases.fireAgent({ userId, agentId });
 
     if (!result.success) {
       return res.status(404).json({
@@ -190,18 +183,13 @@ router.put('/:userId/:agentId', (req, res) => {
     const { nickname } = req.body;
 
     // 获取Agent
-    const agent = agentHireService.getAgentById(userId, agentId);
+    const agent = agentUseCases.updateNickname({ userId, agentId, nickname });
 
     if (!agent) {
       return res.status(404).json({
         code: -1,
         error: 'Agent不存在'
       });
-    }
-
-    // 更新昵称
-    if (nickname) {
-      agent.nickname = nickname;
     }
 
     res.json({
@@ -232,96 +220,26 @@ router.post('/team-collaboration', async (req, res) => {
       });
     }
 
-    // 获取选中的Agent
-    const selectedAgents = agentIds
-      .map(id => agentHireService.getAgentById(userId, id))
-      .filter(agent => agent !== null);
+    const result = await agentUseCases.teamCollaboration({
+      userId,
+      agentIds,
+      task,
+      context
+    });
 
-    if (selectedAgents.length === 0) {
-      return res.status(404).json({
+    if (!result.success) {
+      return res.status(400).json({
         code: -1,
-        error: '未找到指定的Agent'
+        error: result.error
       });
     }
-
-    console.log(`[Agents] 团队协同: ${selectedAgents.map(a => a.nickname).join(', ')}`);
-
-    // 更新所有Agent状态为工作中
-    selectedAgents.forEach(agent => {
-      agent.assignTask({ description: task, context, type: 'team-collaboration' });
-    });
-
-    // 生成协同任务提示词
-    const agentRoles = selectedAgents.map(agent => {
-      const agentType = agent.getType();
-      return `${agentType.emoji} ${agent.nickname}（${agentType.name}）`;
-    }).join('、');
-
-    const prompt = `你现在是一个由多个专业人员组成的团队：${agentRoles}。
-
-请团队协作完成以下任务：
-${task}
-
-${context ? `背景信息：\n${context}` : ''}
-
-要求：
-- 每个角色从自己的专业角度贡献意见
-- 团队成员之间要有协作和讨论
-- 输出综合性的解决方案
-
-请用以下格式输出：
-1. 【团队讨论】各角色的初步想法
-2. 【方案整合】综合各方意见的最终方案
-3. 【分工协作】明确每个角色的具体任务`;
-
-    const result = await callDeepSeekAPI(
-      [{ role: 'user', content: prompt }],
-      null,
-      {
-        max_tokens: 3000,
-        temperature: 0.8
-      }
-    );
-
-    // 完成任务并更新Agent状态
-    selectedAgents.forEach(agent => {
-      agent.completeTask({
-        content: result.content,
-        tokens: result.usage.total_tokens / selectedAgents.length // 平均分配token
-      });
-    });
-
-    const collaborationResult = {
-      teamMembers: selectedAgents.map(agent => ({
-        id: agent.id,
-        name: agent.nickname,
-        type: agent.typeId
-      })),
-      task,
-      result: result.content,
-      tokens: result.usage.total_tokens,
-      completedAt: new Date().toISOString()
-    };
-
-    console.log(`[Agents] 团队协同完成，tokens: ${result.usage.total_tokens}`);
 
     res.json({
       code: 0,
-      data: collaborationResult
+      data: result.data
     });
 
   } catch (error) {
-    // 恢复所有Agent状态
-    const { userId, agentIds } = req.body;
-    if (userId && agentIds) {
-      agentIds.forEach(id => {
-        const agent = agentHireService.getAgentById(userId, id);
-        if (agent && agent.isWorking()) {
-          agent.failTask('团队协同失败');
-        }
-      });
-    }
-
     res.status(500).json({
       code: -1,
       error: error.message
@@ -337,7 +255,7 @@ router.get('/salary/:userId', (req, res) => {
   try {
     const { userId } = req.params;
 
-    const report = salaryService.getSalaryAnalysisReport(userId);
+    const report = agentUseCases.getSalaryReport({ userId });
 
     res.json({
       code: 0,
@@ -360,8 +278,10 @@ router.get('/tasks/:userId', (req, res) => {
     const { userId } = req.params;
     const { limit = 20 } = req.query;
 
-    const history = taskAssignmentService.getUserTaskHistory(userId, parseInt(limit));
-    const stats = taskAssignmentService.getTaskStats(userId);
+    const { history, stats } = agentUseCases.getTaskHistory({
+      userId,
+      limit: parseInt(limit)
+    });
 
     res.json({
       code: 0,

@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { domainLoggers } from './infrastructure/logging/domainLogger.js';
+import registerDefaultHandlers from './infrastructure/events/handlers/registerDefaultHandlers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// 领域事件订阅
+registerDefaultHandlers();
 
 // 中间件配置
 // 1. 请求日志

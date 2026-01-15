@@ -3,7 +3,7 @@
  * 使用Share Domain Service处理业务逻辑
  */
 import express from 'express';
-import { shareService } from '../domains/share/index.js';
+import { shareUseCases } from '../application/index.js';
 import { domainLoggers } from '../infrastructure/logging/domainLogger.js';
 
 const router = express.Router();
@@ -24,13 +24,13 @@ router.post('/create', async (req, res, next) => {
       });
     }
 
-    const result = await shareService.createShare(
+    const result = await shareUseCases.createShare({
       userId,
       type,
       data,
       title,
       options
-    );
+    });
 
     res.json({
       code: 0,
@@ -56,7 +56,7 @@ router.get('/:shareId', async (req, res, next) => {
       userAgent: req.get('user-agent')
     };
 
-    const shareData = await shareService.getShare(shareId, accessInfo);
+    const shareData = await shareUseCases.getShare({ shareId, accessInfo });
 
     if (!shareData) {
       return res.status(404).json({
@@ -93,7 +93,7 @@ router.get('/user/:userId', async (req, res, next) => {
       options.type = type;
     }
 
-    const shares = await shareService.getUserShares(userId, options);
+    const shares = await shareUseCases.getUserShares({ userId, options });
 
     res.json({
       code: 0,
@@ -121,7 +121,7 @@ router.delete('/:shareId', async (req, res, next) => {
       });
     }
 
-    const success = await shareService.deleteShare(shareId, userId);
+    const success = await shareUseCases.deleteShare({ shareId, userId });
 
     if (!success) {
       return res.status(404).json({
@@ -148,7 +148,7 @@ router.get('/qrcode/:shareId', async (req, res, next) => {
   try {
     const { shareId } = req.params;
 
-    const qrCodeUrl = shareService.generateQRCodeUrl(shareId);
+    const qrCodeUrl = shareUseCases.generateQRCodeUrl({ shareId });
 
     // 重定向到二维码图片
     res.redirect(qrCodeUrl);
@@ -172,7 +172,7 @@ router.get('/:shareId/logs', async (req, res, next) => {
       offset: parseInt(offset)
     };
 
-    const logs = await shareService.getAccessLogs(shareId, options);
+    const logs = await shareUseCases.getAccessLogs({ shareId, options });
 
     res.json({
       code: 0,
@@ -200,7 +200,7 @@ router.put('/:shareId/title', async (req, res, next) => {
       });
     }
 
-    const success = await shareService.updateShareTitle(shareId, title);
+    const success = await shareUseCases.updateShareTitle({ shareId, title });
 
     if (!success) {
       return res.status(404).json({
@@ -235,10 +235,10 @@ router.put('/:shareId/extend', async (req, res, next) => {
       });
     }
 
-    const success = await shareService.extendExpiration(
+    const success = await shareUseCases.extendExpiration({
       shareId,
-      parseInt(additionalDays)
-    );
+      additionalDays: parseInt(additionalDays)
+    });
 
     if (!success) {
       return res.status(404).json({
@@ -263,7 +263,7 @@ router.put('/:shareId/extend', async (req, res, next) => {
  */
 router.get('/stats/summary', async (req, res, next) => {
   try {
-    const stats = await shareService.getStats();
+    const stats = await shareUseCases.getStats();
 
     res.json({
       code: 0,
@@ -283,7 +283,7 @@ router.get('/stats/user/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const stats = await shareService.getUserStats(userId);
+    const stats = await shareUseCases.getUserStats({ userId });
 
     res.json({
       code: 0,

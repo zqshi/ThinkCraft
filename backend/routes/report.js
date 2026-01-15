@@ -3,7 +3,7 @@
  * 使用Report Domain Service处理业务逻辑
  */
 import express from 'express';
-import { reportGenerationService } from '../domains/report/index.js';
+import { reportUseCases } from '../application/index.js';
 import { domainLoggers } from '../infrastructure/logging/domainLogger.js';
 
 const router = express.Router();
@@ -33,11 +33,11 @@ router.post('/generate', async (req, res, next) => {
     }
 
     // 调用Service生成报告
-    const result = await reportGenerationService.generateReport(
+    const result = await reportUseCases.generateReport({
       conversationId,
       userId,
       messages
-    );
+    });
 
     res.json({
       code: 0,
@@ -57,7 +57,7 @@ router.get('/:reportId', async (req, res, next) => {
   try {
     const { reportId } = req.params;
 
-    const report = await reportGenerationService.getReport(reportId);
+    const report = await reportUseCases.getReport({ reportId });
 
     if (!report) {
       return res.status(404).json({
@@ -84,7 +84,7 @@ router.get('/conversation/:conversationId', async (req, res, next) => {
   try {
     const { conversationId } = req.params;
 
-    const report = await reportGenerationService.getReportByConversationId(conversationId);
+    const report = await reportUseCases.getReportByConversationId({ conversationId });
 
     if (!report) {
       return res.status(404).json({
@@ -121,7 +121,7 @@ router.get('/user/:userId', async (req, res, next) => {
       options.status = status;
     }
 
-    const reports = await reportGenerationService.getUserReports(userId, options);
+    const reports = await reportUseCases.getUserReports({ userId, options });
 
     res.json({
       code: 0,
@@ -149,7 +149,7 @@ router.put('/:reportId/status', async (req, res, next) => {
       });
     }
 
-    const success = await reportGenerationService.updateStatus(reportId, status);
+    const success = await reportUseCases.updateStatus({ reportId, status });
 
     if (!success) {
       return res.status(404).json({
@@ -184,10 +184,10 @@ router.put('/:reportId/data', async (req, res, next) => {
       });
     }
 
-    const success = await reportGenerationService.updateReportData(
+    const success = await reportUseCases.updateReportData({
       reportId,
       reportData
-    );
+    });
 
     if (!success) {
       return res.status(404).json({
@@ -222,7 +222,7 @@ router.delete('/:reportId', async (req, res, next) => {
       });
     }
 
-    const success = await reportGenerationService.deleteReport(reportId, userId);
+    const success = await reportUseCases.deleteReport({ reportId, userId });
 
     if (!success) {
       return res.status(404).json({
@@ -257,10 +257,10 @@ router.post('/:reportId/regenerate', async (req, res, next) => {
       });
     }
 
-    const result = await reportGenerationService.regenerateReport(
+    const result = await reportUseCases.regenerateReport({
       reportId,
       messages
-    );
+    });
 
     res.json({
       code: 0,
@@ -278,7 +278,7 @@ router.post('/:reportId/regenerate', async (req, res, next) => {
  */
 router.get('/stats/summary', async (req, res, next) => {
   try {
-    const stats = await reportGenerationService.getStats();
+    const stats = await reportUseCases.getStats();
 
     res.json({
       code: 0,
@@ -298,7 +298,7 @@ router.get('/stats/user/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const stats = await reportGenerationService.getUserStats(userId);
+    const stats = await reportUseCases.getUserStats({ userId });
 
     res.json({
       code: 0,

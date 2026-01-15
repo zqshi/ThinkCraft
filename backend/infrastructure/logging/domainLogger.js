@@ -75,6 +75,7 @@ export const domainLoggers = {
   Server: createDomainLogger('Server'),
   HTTP: createDomainLogger('HTTP'),
   Migration: createDomainLogger('Migration'),
+  Events: createDomainLogger('Events'),
 
   // 业务领域
   Agent: createDomainLogger('Agent'),
