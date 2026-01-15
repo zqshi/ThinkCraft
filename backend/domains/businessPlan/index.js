@@ -16,11 +16,19 @@ export {
   businessPlanGenerationService
 } from './services/BusinessPlanGenerationService.js';
 
+// Repository
+export {
+  BusinessPlanRepository,
+  businessPlanRepository
+} from './repositories/BusinessPlanRepository.js';
+
 // BusinessPlan领域门面
 import { businessPlanGenerationService } from './services/BusinessPlanGenerationService.js';
+import { businessPlanRepository } from './repositories/BusinessPlanRepository.js';
 
 export const BusinessPlanDomain = {
-  generation: businessPlanGenerationService
+  generation: businessPlanGenerationService,
+  repository: businessPlanRepository
 };
 
 export default BusinessPlanDomain;
