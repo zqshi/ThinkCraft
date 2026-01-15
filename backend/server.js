@@ -13,6 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const serverLogger = domainLoggers.Server;
 import chatRouter from './routes/chat.js';
+import conversationRouter from './routes/conversation.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
 import businessPlanRouter from './routes/business-plan.js';
@@ -91,6 +92,9 @@ app.get('/api/health', (req, res) => {
 // 对话接口
 app.use('/api/chat', chatRouter);
 
+// 对话管理接口（DDD）
+app.use('/api/conversations', conversationRouter);
+
 // 报告生成接口
 app.use('/api/report', reportRouter);
 
@@ -139,6 +143,7 @@ app.listen(PORT, () => {
         endpoints: {
             health: `http://localhost:${PORT}/api/health`,
             chat: `http://localhost:${PORT}/api/chat`,
+            conversations: `http://localhost:${PORT}/api/conversations`,
             report: `http://localhost:${PORT}/api/report/generate`,
             businessPlan: `http://localhost:${PORT}/api/business-plan/generate-batch`,
             vision: `http://localhost:${PORT}/api/vision/analyze`,
