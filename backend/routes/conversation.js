@@ -41,39 +41,9 @@ router.post('/', async (req, res, next) => {
 });
 
 /**
- * GET /api/conversations/:conversationId
- * 获取对话详情
- */
-router.get('/:conversationId', async (req, res, next) => {
-  try {
-    const { conversationId } = req.params;
-    const { includeMessages = 'false' } = req.query;
-
-    const conversation = await conversationUseCases.getConversation({
-      conversationId,
-      includeMessages: includeMessages === 'true'
-    });
-
-    if (!conversation) {
-      return res.status(404).json({
-        code: -1,
-        error: '对话不存在'
-      });
-    }
-
-    res.json({
-      code: 0,
-      data: conversation
-    });
-  } catch (error) {
-    logger.error('获取对话失败', error);
-    next(error);
-  }
-});
-
-/**
  * GET /api/conversations/user/:userId
  * 获取用户的对话列表
+ * 注意：此路由必须在 /:conversationId 之前，否则会被错误匹配
  */
 router.get('/user/:userId', async (req, res, next) => {
   try {
@@ -100,6 +70,75 @@ router.get('/user/:userId', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('获取用户对话列表失败', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/conversations/stats/summary
+ * 获取对话统计信息
+ */
+router.get('/stats/summary', async (req, res, next) => {
+  try {
+    const stats = await conversationUseCases.getStats();
+
+    res.json({
+      code: 0,
+      data: stats
+    });
+  } catch (error) {
+    logger.error('获取对话统计信息失败', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/conversations/stats/user/:userId
+ * 获取用户的对话统计
+ */
+router.get('/stats/user/:userId', async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const stats = await conversationUseCases.getUserStats({ userId });
+
+    res.json({
+      code: 0,
+      data: stats
+    });
+  } catch (error) {
+    logger.error('获取用户对话统计失败', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/conversations/:conversationId
+ * 获取对话详情
+ */
+router.get('/:conversationId', async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const { includeMessages = 'false' } = req.query;
+
+    const conversation = await conversationUseCases.getConversation({
+      conversationId,
+      includeMessages: includeMessages === 'true'
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        code: -1,
+        error: '对话不存在'
+      });
+    }
+
+    res.json({
+      code: 0,
+      data: conversation
+    });
+  } catch (error) {
+    logger.error('获取对话失败', error);
     next(error);
   }
 });
@@ -342,44 +381,6 @@ router.put('/:conversationId/analysis-complete', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('标记分析完成失败', error);
-    next(error);
-  }
-});
-
-/**
- * GET /api/conversations/stats/summary
- * 获取对话统计信息
- */
-router.get('/stats/summary', async (req, res, next) => {
-  try {
-    const stats = await conversationUseCases.getStats();
-
-    res.json({
-      code: 0,
-      data: stats
-    });
-  } catch (error) {
-    logger.error('获取对话统计信息失败', error);
-    next(error);
-  }
-});
-
-/**
- * GET /api/conversations/stats/user/:userId
- * 获取用户的对话统计
- */
-router.get('/stats/user/:userId', async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-
-    const stats = await conversationUseCases.getUserStats({ userId });
-
-    res.json({
-      code: 0,
-      data: stats
-    });
-  } catch (error) {
-    logger.error('获取用户对话统计失败', error);
     next(error);
   }
 });

@@ -58,8 +58,8 @@ export class ConversationRepository {
         limit,
         offset,
         order: [
-          ['isPinned', 'DESC'], // 置顶的在前
-          ['updatedAt', 'DESC']  // 最近更新的在前
+          ['is_pinned', 'DESC'], // 置顶的在前（使用数据库字段名）
+          ['updated_at', 'DESC']  // 最近更新的在前（使用数据库字段名）
         ]
       });
 

@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - ThinkCraft</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --secondary: #ec4899;
+            --accent: #8b5cf6;
+            --dark: #0a0e1a;
+            --dark-card: #0f1419;
+            --dark-light: #1a1f2e;
+            --text: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-dim: #64748b;
+            --border: rgba(99, 102, 241, 0.15);
+            --glow: rgba(99, 102, 241, 0.5);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--dark);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Advanced Animated Background */
+        .bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: radial-gradient(ellipse at top, #0f1419 0%, var(--dark) 50%);
+        }
+
+        .grid-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+            opacity: 0.5;
+        }
+
+        .gradient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            animation: float 25s infinite ease-in-out;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--primary), transparent 70%);
+            top: -15%;
+            left: -10%;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--secondary), transparent 70%);
+            top: 40%;
+            right: -8%;
+            animation-delay: -10s;
+        }
+
+        .orb-3 {
+            width: 550px;
+            height: 550px;
+            background: radial-gradient(circle, var(--accent), transparent 70%);
+            bottom: -12%;
+            left: 25%;
+            animation-delay: -20s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0) rotate(0deg) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translate(60px, -60px) rotate(90deg) scale(1.15);
+                opacity: 0.4;
+            }
+            50% {
+                transform: translate(-40px, 40px) rotate(180deg) scale(0.9);
+                opacity: 0.25;
+            }
+            75% {
+                transform: translate(40px, 60px) rotate(270deg) scale(1.08);
+                opacity: 0.35;
+            }
+        }
+
+        /* Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0;
+            animation: particleFloat 15s infinite;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.6;
+            }
+            90% {
+                opacity: 0.6;
+            }
+            100% {
+                transform: translateY(-100px) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        /* Back Button */
+        .back-button {
+            position: fixed;
+            top: 2.5rem;
+            left: 2.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.9rem 1.8rem;
+            background: rgba(15, 20, 25, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            backdrop-filter: blur(20px) saturate(180%);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--primary-light);
+            transform: translateX(-8px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+        }
+
+        /* Login Container */
+        .login-container {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            padding: 0 2rem;
+            z-index: 10;
+            animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Login Card */
+        .login-card {
+            position: relative;
+            background: rgba(15, 20, 25, 0.75);
+            border: 1px solid var(--border);
+            border-radius: 32px;
+            padding: 3.5rem 3rem;
+            backdrop-filter: blur(40px) saturate(180%);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+        }
+
+        /* Shimmer Effect */
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(99, 102, 241, 0.08),
+                transparent
+            );
+            animation: shimmer 8s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            50%, 100% { left: 100%; }
+        }
+
+        /* Top Glow Line */
+        .top-glow {
+            position: absolute;
+            top: 0;
+            left: 5%;
+            right: 5%;
+            height: 2px;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                var(--primary),
+                var(--secondary),
+                transparent
+            );
+            opacity: 0.6;
+            filter: blur(1px);
+        }
+
+        /* Logo Section */
+        .logo-section {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow:
+                0 10px 40px rgba(99, 102, 241, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            animation: logoFloat 6s ease-in-out infinite;
+        }
+
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(5deg); }
+        }
+
+        .logo-section h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(135deg, var(--text), var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-section p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
+
+        /* Test Account Banner */
+        .test-banner {
+            position: relative;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 16px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .test-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.4), transparent);
+        }
+
+        .test-info {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .test-info svg {
+            color: var(--primary-light);
+            flex-shrink: 0;
+        }
+
+        .test-credentials {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.6rem 1rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+        }
+
+        .test-label {
+            color: var(--text-dim);
+        }
+
+        .test-value {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            color: var(--primary-light);
+            font-weight: 500;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-demo-fill {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-demo-fill:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-demo-fill:active {
+            transform: translateY(0);
+        }
+
+        /* Form */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.8rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 1.1rem 1.4rem;
+            background: rgba(10, 14, 26, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            background: rgba(10, 14, 26, 0.8);
+            box-shadow:
+                0 0 0 4px rgba(99, 102, 241, 0.1),
+                0 8px 24px rgba(99, 102, 241, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        /* Password Toggle */
+        .password-toggle {
+            position: absolute;
+            right: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-light);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        /* Form Options */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .remember-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.3s;
+        }
+
+        .remember-checkbox:hover {
+            color: var(--text);
+        }
+
+        .remember-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .forgot-link {
+            color: var(--primary-light);
+            text-decoration: none;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .forgot-link:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            width: 100%;
+            padding: 1.3rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            border-radius: 14px;
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 10px 30px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-submit::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-submit:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-3px);
+            box-shadow:
+                0 15px 40px rgba(99, 102, 241, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-submit:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-submit.loading {
+            pointer-events: none;
+            color: transparent;
+        }
+
+        .btn-submit.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+        }
+
+        .divider span {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* Social Login */
+        .social-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn-social {
+            padding: 1.1rem;
+            background: rgba(15, 20, 25, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-social:hover {
+            background: rgba(99, 102, 241, 0.08);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--text);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Signup Link */
+        .signup-section {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(99, 102, 241, 0.1);
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .signup-section a {
+            color: var(--primary-light);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .signup-section a:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
+        /* Success Message */
+        .success-toast {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 1.2rem 1.8rem;
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 16px;
+            color: #86efac;
+            font-size: 0.95rem;
+            font-weight: 500;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 40px rgba(34, 197, 94, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .success-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .back-button {
+                top: 1.5rem;
+                left: 1.5rem;
+                padding: 0.7rem 1.4rem;
+                font-size: 0.85rem;
+            }
+
+            .login-container {
+                padding: 0 1.5rem;
+            }
+
+            .login-card {
+                padding: 2.5rem 2rem;
+                border-radius: 24px;
+            }
+
+            .logo-section h1 {
+                font-size: 1.8rem;
+            }
+
+            .logo-icon {
+                width: 56px;
+                height: 56px;
+                font-size: 1.6rem;
+            }
+
+            .test-credentials {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+
+            .social-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .success-toast {
+                top: 1rem;
+                right: 1rem;
+                left: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background -->
+    <div class="bg-canvas">
+        <div class="grid-overlay"></div>
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Particles -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Back Button -->
+    <a href="landing.html" class="back-button">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        返回首页
+    </a>
+
+    <!-- Success Toast -->
+    <div class="success-toast" id="successToast">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: inline-block; margin-right: 0.5rem; vertical-align: middle;">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+        </svg>
+        登录成功！正在跳转...
+    </div>
+
+    <!-- Login Container -->
+    <div class="login-container">
+        <div class="login-card">
+            <div class="top-glow"></div>
+
+            <!-- Logo Section -->
+            <div class="logo-section">
+                <div class="logo-icon">✦</div>
+                <h1>ThinkCraft</h1>
+                <p>创意验证操作系统</p>
+            </div>
+
+            <!-- Test Account Banner -->
+            <div class="test-banner">
+                <div class="test-info">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                    </svg>
+                    <span>测试账号信息</span>
+                </div>
+                <div class="test-credentials">
+                    <span class="test-label">邮箱:</span>
+                    <code class="test-value">demo@thinkcraft.ai</code>
+                    <span class="test-label">密码:</span>
+                    <code class="test-value">demo123</code>
+                </div>
+                <button type="button" class="btn-demo-fill" onclick="fillDemoAccount()">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                    </svg>
+                    一键填充测试账号
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form class="login-form" id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="email">邮箱地址</label>
+                    <div class="input-wrapper">
+                        <input
+                            type="email"
+                            id="email"
+                            class="form-input"
+                            placeholder="your@email.com"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">密码</label>
+                    <div class="input-wrapper">
+                        <input
+                            type="password"
+                            id="password"
+                            class="form-input"
+                            placeholder="输入您的密码"
+                            required
+                        >
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="eyeIcon">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-checkbox">
+                        <input type="checkbox" id="remember">
+                        <span>记住我</span>
+                    </label>
+                    <a href="#" class="forgot-link">忘记密码？</a>
+                </div>
+
+                <button type="submit" class="btn-submit">登录</button>
+            </form>
+
+            <div class="divider">
+                <span>或使用以下方式登录</span>
+            </div>
+
+            <div class="social-buttons">
+                <button class="btn-social" onclick="socialLogin('wechat')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.273c-.019.06-.029.123-.029.185 0 .213.173.386.387.386.064 0 .124-.015.178-.041l1.578-.798a.58.58 0 0 1 .305-.086c.106 0 .207.028.294.077 1.04.46 2.187.694 3.353.694 4.8 0 8.691-3.288 8.691-7.342 0-4.054-3.891-7.342-8.691-7.342z"/>
+                    </svg>
+                    微信
+                </button>
+                <button class="btn-social" onclick="socialLogin('github')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </button>
+            </div>
+
+            <div class="signup-section">
+                还没有账号？<a href="#" onclick="showSignup()">立即注册</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test Account Credentials
+        const DEMO_ACCOUNT = {
+            email: 'demo@thinkcraft.ai',
+            password: 'demo123'
+        };
+
+        // Initialize particles
+        function initParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 30;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Fill Demo Account with typing animation
+        function fillDemoAccount() {
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const fillBtn = document.querySelector('.btn-demo-fill');
+
+            fillBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => fillBtn.style.transform = 'scale(1)', 150);
+
+            emailInput.value = '';
+            passwordInput.value = '';
+            emailInput.focus();
+
+            let emailIndex = 0;
+            const emailInterval = setInterval(() => {
+                if (emailIndex < DEMO_ACCOUNT.email.length) {
+                    emailInput.value += DEMO_ACCOUNT.email[emailIndex];
+                    emailIndex++;
+                } else {
+                    clearInterval(emailInterval);
+                    passwordInput.focus();
+
+                    let passwordIndex = 0;
+                    const passwordInterval = setInterval(() => {
+                        if (passwordIndex < DEMO_ACCOUNT.password.length) {
+                            passwordInput.value += DEMO_ACCOUNT.password[passwordIndex];
+                            passwordIndex++;
+                        } else {
+                            clearInterval(passwordInterval);
+                        }
+                    }, 40);
+                }
+            }, 40);
+        }
+
+        // Toggle Password Visibility
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                `;
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                `;
+            }
+        }
+
+        // Form Submit
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            const submitBtn = e.target.querySelector('.btn-submit');
+            const successToast = document.getElementById('successToast');
+
+            submitBtn.classList.add('loading');
+
+            setTimeout(() => {
+                console.log('Login attempt:', { email, password, remember });
+
+                if (email === DEMO_ACCOUNT.email && password === DEMO_ACCOUNT.password) {
+                    console.log('✅ Demo account login successful');
+                } else {
+                    console.log('ℹ️ Regular account login');
+                }
+
+                submitBtn.classList.remove('loading');
+
+                // Set login state
+                sessionStorage.setItem('thinkcraft_logged_in', 'true');
+                sessionStorage.setItem('thinkcraft_user_email', email);
+
+                if (remember) {
+                    localStorage.setItem('thinkcraft_remember', 'true');
+                    localStorage.setItem('thinkcraft_email', email);
+                } else {
+                    localStorage.removeItem('thinkcraft_remember');
+                    localStorage.removeItem('thinkcraft_email');
+                }
+
+                successToast.classList.add('show');
+
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1800);
+            }, 1500);
+        });
+
+        // Social Login
+        function socialLogin(provider) {
+            console.log('Social login with:', provider);
+            alert(`${provider} 登录功能开发中...`);
+        }
+
+        // Show Signup
+        function showSignup() {
+            alert('注册功能开发中...');
+            return false;
+        }
+
+        // Auto-fill remembered email
+        window.addEventListener('DOMContentLoaded', () => {
+            initParticles();
+
+            const remembered = localStorage.getItem('thinkcraft_remember');
+            const savedEmail = localStorage.getItem('thinkcraft_email');
+
+            if (remembered === 'true' && savedEmail) {
+                document.getElementById('email').value = savedEmail;
+                document.getElementById('remember').checked = true;
+            }
+        });
+    </script>
+</body>
+</html>

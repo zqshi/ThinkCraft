@@ -1299,4 +1299,84 @@
     <script src="frontend/js/modules/business-plan-generator.js"></script>
 
 <script src="frontend/js/app-main.js"></script>
+
+<!-- 登录状态检查 -->
+<script>
+(function() {
+    // 检查登录状态
+    function checkLoginStatus() {
+        const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
+        const loginModal = document.getElementById('loginModal');
+
+        if (isLoggedIn && loginModal) {
+            // 已登录，隐藏登录弹窗
+            loginModal.classList.remove('active');
+            loginModal.style.display = 'none';
+            console.log('✅ User logged in, hiding login modal');
+        } else if (!isLoggedIn && loginModal) {
+            // 未登录，显示登录弹窗
+            loginModal.classList.add('active');
+            loginModal.style.display = '';
+            console.log('ℹ️ User not logged in, showing login modal');
+        }
+    }
+
+    // 页面加载时检查
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+    } else {
+        checkLoginStatus();
+    }
+
+    // 处理登录表单提交
+    window.handleLogin = function(event) {
+        event.preventDefault();
+
+        const username = document.getElementById('loginUsername').value;
+        const password = document.getElementById('loginPassword').value;
+
+        // 简单验证（实际项目中应该调用后端API）
+        if (username && password) {
+            // 设置登录状态
+            sessionStorage.setItem('thinkcraft_logged_in', 'true');
+            sessionStorage.setItem('thinkcraft_user_email', username);
+
+            // 隐藏登录弹窗
+            const loginModal = document.getElementById('loginModal');
+            if (loginModal) {
+                loginModal.classList.remove('active');
+                loginModal.style.display = 'none';
+            }
+
+            console.log('✅ Login successful');
+
+            // 可以在这里添加欢迎消息或其他操作
+        }
+    };
+
+    // 快速填充账号
+    window.quickFillAccount = function(username, password) {
+        document.getElementById('loginUsername').value = username;
+        document.getElementById('loginPassword').value = password;
+    };
+
+    // 退出登录
+    window.logout = function() {
+        // 清除登录状态
+        sessionStorage.removeItem('thinkcraft_logged_in');
+        sessionStorage.removeItem('thinkcraft_user_email');
+
+        // 显示退出蒙层
+        const overlay = document.getElementById('logoutOverlay');
+        if (overlay) {
+            overlay.style.display = 'block';
+        }
+
+        // 延迟跳转到登录页
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 300);
+    };
+})();
+</script>
 </body></html>
