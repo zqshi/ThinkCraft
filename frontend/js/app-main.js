@@ -6874,8 +6874,13 @@
             document.getElementById('sidebar').classList.toggle('active');
         }
 
-        // 点击模态框外部关闭
+        // 点击模态框外部关闭（登录Modal除外，因为登录是强制的）
         document.querySelectorAll('.modal').forEach(modal => {
+            // 登录Modal不允许点击外部关闭
+            if (modal.id === 'loginModal') {
+                return;
+            }
+
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     modal.classList.remove('active');

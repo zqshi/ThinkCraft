@@ -45,3 +45,27 @@ debug.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Flutter & Dart
+.flutter/
+.flutter-plugins
+.flutter-plugins-dependencies
+mobile/build/
+mobile/.dart_tool/
+.dart_tool/
+.pub-cache/
+.home/
+.packages
+*.dart_tool/
+
+# Flutter Web
+mobile/web/iframe_wrapper.html
+
+# Mobile build artifacts
+mobile/.gradle/
+mobile/.idea/
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties

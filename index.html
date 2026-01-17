@@ -27,7 +27,8 @@
     <script src="frontend/js/core/gesture-handler.js"></script>
 </head>
 <body>
-    <div class="app-container">
+    <!-- 应用容器：默认隐藏，登录后才显示（防止信息泄漏） -->
+    <div class="app-container" style="display: none;">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="logo">ThinkCraft</div>
@@ -1307,17 +1308,24 @@
     function checkLoginStatus() {
         const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
         const loginModal = document.getElementById('loginModal');
+        const appContainer = document.querySelector('.app-container');
 
-        if (isLoggedIn && loginModal) {
-            // 已登录，隐藏登录弹窗
-            loginModal.classList.remove('active');
-            loginModal.style.display = 'none';
-            console.log('✅ User logged in, hiding login modal');
-        } else if (!isLoggedIn && loginModal) {
-            // 未登录，显示登录弹窗
-            loginModal.classList.add('active');
-            loginModal.style.display = '';
-            console.log('ℹ️ User not logged in, showing login modal');
+        if (isLoggedIn) {
+            // 已登录，显示应用UI，隐藏登录弹窗
+            if (appContainer) appContainer.style.display = '';
+            if (loginModal) {
+                loginModal.classList.remove('active');
+                loginModal.style.display = 'none';
+            }
+            console.log('✅ User logged in, showing app UI');
+        } else {
+            // 未登录，隐藏应用UI（防止信息泄漏），只显示登录弹窗
+            if (appContainer) appContainer.style.display = 'none';
+            if (loginModal) {
+                loginModal.classList.add('active');
+                loginModal.style.display = '';
+            }
+            console.log('ℹ️ User not logged in, hiding app UI');
         }
     }
 
@@ -1341,14 +1349,17 @@
             sessionStorage.setItem('thinkcraft_logged_in', 'true');
             sessionStorage.setItem('thinkcraft_user_email', username);
 
-            // 隐藏登录弹窗
+            // 显示应用UI，隐藏登录弹窗
+            const appContainer = document.querySelector('.app-container');
             const loginModal = document.getElementById('loginModal');
+
+            if (appContainer) appContainer.style.display = '';
             if (loginModal) {
                 loginModal.classList.remove('active');
                 loginModal.style.display = 'none';
             }
 
-            console.log('✅ Login successful');
+            console.log('✅ Login successful, app UI now visible');
 
             // 可以在这里添加欢迎消息或其他操作
         }
@@ -1372,9 +1383,9 @@
             overlay.style.display = 'block';
         }
 
-        // 延迟跳转到登录页
+        // 延迟刷新页面，重新显示登录Modal
         setTimeout(() => {
-            window.location.href = 'login.html';
+            window.location.reload();
         }, 300);
     };
 })();
