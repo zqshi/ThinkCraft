@@ -242,6 +242,48 @@ class APIClient {
     }
   }
 
+  /**
+   * GET请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  get(endpoint, options = {}) {
+    return this.request(endpoint, { ...options, method: 'GET' });
+  }
+
+  /**
+   * POST请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} body - 请求体
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  post(endpoint, body = null, options = {}) {
+    return this.request(endpoint, { ...options, method: 'POST', body });
+  }
+
+  /**
+   * PUT请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} body - 请求体
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  put(endpoint, body = null, options = {}) {
+    return this.request(endpoint, { ...options, method: 'PUT', body });
+  }
+
+  /**
+   * DELETE请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  delete(endpoint, options = {}) {
+    return this.request(endpoint, { ...options, method: 'DELETE' });
+  }
+
   // ========== 业务API方法 ==========
 
   /**

@@ -381,24 +381,7 @@
             // 检查登录状态（最优先）
             checkLoginStatus();
 
-            // 一次性清理：只保留mock数据
-            const saved = localStorage.getItem('thinkcraft_chats');
-            if (saved && saved !== '[]') {
-                try {
-                    const allChats = JSON.parse(saved);
-                    const mockChatIds = ['demo_fitness_app', 'chat_001', 'chat_002'];
-                    const filteredChats = allChats.filter(chat => mockChatIds.includes(chat.id));
-
-                    // 如果过滤后为空或数量不足，重新加载mock数据
-                    if (filteredChats.length < 3) {
-                        localStorage.removeItem('thinkcraft_chats');
-                    } else {
-                        localStorage.setItem('thinkcraft_chats', JSON.stringify(filteredChats));
-                    }
-                } catch (e) {
-                    localStorage.removeItem('thinkcraft_chats');
-                }
-            }
+            // 不再自动恢复或过滤mock数据，尊重用户的实际数据
 
             loadChats();
             loadSettings();
@@ -990,8 +973,7 @@
 
             const userId = localStorage.getItem('thinkcraft_user_id');
             if (!userId) {
-                console.warn('[对话] 未登录，无法保存对话到后端');
-                return;
+                console.warn('[对话] 未登录，将使用本地方式保存对话');
             }
 
             try {
@@ -1006,30 +988,49 @@
                     });
 
                     if (response.code === 0 && response.data) {
-                        state.currentChat = response.data.id;  // 使用后端返回的ID
-                        console.log('[对话] 创建成功，ID:', state.currentChat);
+                    state.currentChat = response.data.id;  // 使用后端返回的ID
+                    console.log('[对话] 创建成功，ID:', state.currentChat);
 
-                        // ⭐ 重要：保存所有消息到后端
-                        console.log('[对话] 正在保存', state.messages.length, '条消息...');
-                        for (const message of state.messages) {
-                            try {
-                                await window.apiClient.post(`/api/conversations/${state.currentChat}/messages`, {
-                                    role: message.role,
-                                    content: message.content
-                                });
-                            } catch (msgError) {
-                                console.error('[对话] 保存消息失败:', msgError);
-                            }
+                    // ⭐ 重要：保存所有消息到后端
+                    console.log('[对话] 正在保存', state.messages.length, '条消息...');
+                    for (const message of state.messages) {
+                        try {
+                            await window.apiClient.post(`/api/conversations/${state.currentChat}/messages`, {
+                                role: message.role,
+                                content: message.content
+                            });
+                        } catch (msgError) {
+                            console.error('[对话] 保存消息失败:', msgError);
                         }
-                        console.log('[对话] 消息保存完成');
-
-                        // 重新加载对话列表以显示新对话
-                        await loadChats();
-                    } else {
-                        throw new Error(response.error || '创建对话失败');
                     }
+                    console.log('[对话] 消息保存完成');
+
+                    // 立即将新对话添加到本地状态中，确保UI及时更新
+                    const now = new Date().toISOString();
+                    const newChat = {
+                        id: state.currentChat,
+                        title: title,
+                        messages: [...state.messages],
+                        userData: {...state.userData},
+                        conversationStep: state.conversationStep,
+                        analysisCompleted: state.analysisCompleted,
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    
+                    // 将新对话添加到本地对话列表的开头
+                    state.chats.unshift(newChat);
+                    
+                    // 先保存到localStorage，确保数据持久化
+                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    
+                    // 重新加载对话列表以确保数据一致性
+                    await loadChats();
                 } else {
-                    // 场景2：更新现有对话 - 调用后端API
+                    throw new Error(response.error || '创建对话失败');
+                }
+            } else {
+                // 场景2：更新现有对话 - 调用后端API
                     console.log('[对话] 正在更新对话:', state.currentChat);
 
                     // ⭐ 修复：更新对话时也要保存最新的消息到后端
@@ -1079,7 +1080,7 @@
                 // 降级处理：保存到本地
                 const now = new Date().toISOString();
                 const chat = {
-                    id: state.currentChat || Date.now(),
+                    id: state.currentChat || crypto.randomUUID(),
                     title: title,
                     messages: [...state.messages],
                     userData: {...state.userData},
@@ -1100,20 +1101,55 @@
                 }
 
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-                loadChats();
+                await loadChats();
             }
         }
 
         async function loadChats() {
             try {
+                // 检查API客户端是否完全初始化
+                if (!window.apiClient || typeof window.apiClient.get !== 'function') {
+                    console.warn('[loadChats] API客户端未正确初始化，使用本地缓存');
+                    const saved = localStorage.getItem('thinkcraft_chats');
+                    if (saved && saved !== '[]') {
+                        state.chats = JSON.parse(saved);
+                        console.log('[loadChats] 从本地缓存加载', state.chats.length, '个对话');
+                    } else {
+                        state.chats = [];
+                        const historyDiv = document.getElementById('chatHistory');
+                        historyDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 13px;">暂无历史记录</div>';
+                    }
+                    return;
+                }
+                
                 // 获取当前用户ID
                 const userId = localStorage.getItem('thinkcraft_user_id');
 
                 if (!userId) {
-                    console.warn('[loadChats] 未找到用户ID，无法加载对话列表');
-                    state.chats = [];
-                    const historyDiv = document.getElementById('chatHistory');
-                    historyDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 13px;">请先登录</div>';
+                    // 未登录时使用本地缓存
+                    console.warn('[loadChats] 未找到用户ID，使用本地缓存');
+                    const saved = localStorage.getItem('thinkcraft_chats');
+                    if (saved && saved !== '[]') {
+                        state.chats = JSON.parse(saved);
+                        console.log('[loadChats] 从本地缓存加载', state.chats.length, '个对话');
+                    } else {
+                        state.chats = [];
+                        const historyDiv = document.getElementById('chatHistory');
+                        historyDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 13px;">暂无历史记录</div>';
+                    }
+                    return;
+                }
+
+                // 检查apiClient是否初始化
+                if (!window.apiClient) {
+                    console.warn('[loadChats] API客户端未初始化，使用本地缓存');
+                    const saved = localStorage.getItem('thinkcraft_chats');
+                    if (saved && saved !== '[]') {
+                        state.chats = JSON.parse(saved);
+                        console.log('[loadChats] 从本地缓存加载', state.chats.length, '个对话');
+                    } else {
+                        state.chats = [];
+                    }
                     return;
                 }
 
@@ -1129,7 +1165,14 @@
                     console.log('[loadChats] 成功加载', state.chats.length, '个对话');
                 } else {
                     console.warn('[loadChats] API返回异常:', response);
-                    state.chats = [];
+                    // 使用本地缓存作为后备
+                    const saved = localStorage.getItem('thinkcraft_chats');
+                    if (saved && saved !== '[]') {
+                        state.chats = JSON.parse(saved);
+                        console.log('[loadChats] 回退到本地缓存，加载', state.chats.length, '个对话');
+                    } else {
+                        state.chats = [];
+                    }
                 }
             } catch (error) {
                 console.error('[loadChats] 加载对话列表失败:', error);
@@ -7075,40 +7118,50 @@
             ];
         }
 
-        async function clearAllHistory() {
+        async function clearAllHistory(event) {
             if (!confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
                 return;
             }
 
+            let apiSuccess = false;
+            let originalText = event?.target?.textContent || '清除所有历史记录';
+            
             try {
                 // 显示加载状态
-                const originalText = event.target.textContent;
-                event.target.textContent = '清除中...';
-                event.target.disabled = true;
-
-                // 获取当前用户的所有对话
-                const userId = state.user?.id;
-                if (!userId) {
-                    throw new Error('用户未登录');
+                if (event?.target) {
+                    event.target.textContent = '清除中...';
+                    event.target.disabled = true;
                 }
 
-                const conversations = state.chats || [];
+                // 获取当前用户的所有对话
+                const userId = localStorage.getItem('thinkcraft_user_id');
+                if (userId) {
+                    const conversations = state.chats || [];
 
-                // 遍历删除所有对话 - 使用apiClient的baseURL
-                const deletePromises = conversations.map(chat =>
-                    fetch(`${window.apiClient.baseURL}/conversations/${chat.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ userId })
-                    })
-                );
+                    // 遍历删除所有对话 - 使用apiClient的baseURL
+                    const deletePromises = conversations.map(chat =>
+                        fetch(`${window.apiClient.baseURL}/conversations/${chat.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ userId })
+                        })
+                    );
 
-                await Promise.all(deletePromises);
-
+                    await Promise.all(deletePromises);
+                    apiSuccess = true;
+                } else {
+                    console.warn('[清除历史记录] 用户未登录，仅清除本地数据');
+                }
+            } catch (error) {
+                console.error('清除历史记录失败:', error);
+                // 不显示错误提示，因为无论API是否成功，我们都会清除本地数据
+            } finally {
+                // 无论API调用是否成功，都要清除本地数据
                 // 清除本地状态
                 state.chats = [];
+                state.currentChat = null;
                 state.currentChatId = null;
                 state.messages = [];
 
@@ -7116,25 +7169,29 @@
                 localStorage.removeItem('thinkcraft_chats');
                 localStorage.removeItem('thinkcraft_current_chat');
 
-                // 重新加载对话列表
-                await loadChats();
-
-                // 显示空状态
+                // 直接更新UI显示空状态，避免重新加载
                 document.getElementById('messageList').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'flex';
+                
+                // 重新渲染空的对话列表
+                const historyDiv = document.getElementById('chatHistory');
+                historyDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 13px;">暂无历史记录</div>';
+                
+                // 直接调用renderChats函数更新UI（如果存在）
+                if (typeof renderChats === 'function') {
+                    renderChats([]);
+                }
 
+                // 显示成功提示
                 alert('✅ 历史记录已清除');
 
                 // 关闭设置弹窗
                 closeSettings();
                 closeBottomSettings();
-            } catch (error) {
-                console.error('清除历史记录失败:', error);
-                alert('清除失败，请重试');
-            } finally {
+                
                 // 恢复按钮状态
                 if (event && event.target) {
-                    event.target.textContent = originalText || '清除所有历史记录';
+                    event.target.textContent = originalText;
                     event.target.disabled = false;
                 }
             }
@@ -7699,13 +7756,13 @@
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
-            initFloatingBallDrag();  // 初始化悬浮球拖拽
+            // initFloatingBallDrag();  // 初始化悬浮球拖拽 - 暂时注释，该函数未定义
         });
         if (window.deviceDetector?.initialized) {
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
-            initFloatingBallDrag();  // 初始化悬浮球拖拽
+            // initFloatingBallDrag();  // 初始化悬浮球拖拽 - 暂时注释，该函数未定义
         }
 
         // ==================== 输入框手势快捷操作 ====================

@@ -25,7 +25,7 @@ export async function sendMessage() {
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('messageList').style.display = 'block';
 
-    addMessage('user', message, null, false, false, true);
+    addMessage('user', message, null, false, false, false);
     input.value = '';
     input.style.height = 'auto';
 
