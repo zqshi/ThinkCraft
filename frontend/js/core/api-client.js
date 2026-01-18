@@ -3,17 +3,20 @@
  * 统一封装所有后端API调用，提供错误处理和重试机制
  */
 
+import ENV_CONFIG from '../config/env.js';
+
 class APIClient {
-  constructor(baseURL = 'http://localhost:3000') {
+  constructor(baseURL = ENV_CONFIG.API_BASE_URL) {
     this.baseURL = baseURL;
     this.requestQueue = [];
     this.processing = false;
+    this.token = null; // 存储 JWT token
 
     // 默认配置
     this.config = {
-      timeout: 30000, // 30秒超时
-      retry: 3, // 重试次数
-      retryDelay: 1000 // 重试延迟(ms)
+      timeout: 120000, // 120秒超时（AI分析需要较长时间）
+      retry: 2, // 重试次数（减少到2次，因为超时时间已增加）
+      retryDelay: 2000 // 重试延迟(ms)
     };
   }
 
@@ -43,6 +46,11 @@ class APIClient {
       }
     };
 
+    // 添加认证令牌
+    if (this.token) {
+      fetchOptions.headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
     if (body && method !== 'GET') {
       fetchOptions.body = JSON.stringify(body);
     }
@@ -63,7 +71,14 @@ class APIClient {
         // 处理HTTP错误
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+          const errorMsg = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+
+          // 创建自定义错误对象，附带状态码
+          const error = new Error(errorMsg);
+          error.status = response.status;
+          error.statusText = response.statusText;
+
+          throw error;
         }
 
         const data = await response.json();
@@ -72,13 +87,19 @@ class APIClient {
         return data;
 
       } catch (error) {
+        // 4xx 客户端错误（如用户名已存在、密码错误等）不重试，直接抛出
+        if (error.status && error.status >= 400 && error.status < 500) {
+          console.error(`[APIClient] ✗ ${method} ${url} - 客户端错误 ${error.status}:`, error.message);
+          throw this.normalizeError(error);
+        }
+
         // 最后一次重试失败，抛出错误
         if (i === retry - 1) {
           console.error(`[APIClient] ✗ ${method} ${url} - 失败:`, error.message);
           throw this.normalizeError(error);
         }
 
-        // 计算重试延迟（指数退避）
+        // 计算重试延迟（指数退避）- 仅对网络错误和5xx错误重试
         const delay = this.config.retryDelay * Math.pow(2, i);
         console.warn(`[APIClient] 请求失败，${delay}ms后重试...`);
         await this.sleep(delay);
@@ -106,6 +127,161 @@ class APIClient {
    */
   async post(endpoint, body = {}) {
     return this.request(endpoint, { method: 'POST', body });
+  }
+
+  // ========== 认证API方法 ==========
+
+  /**
+   * 用户登录
+   * @param {String} username - 用户名或邮箱
+   * @param {String} password - 密码
+   * @returns {Promise<Object>} { token, user }
+   */
+  async login(username, password) {
+    const response = await this.post('/api/auth/login', {
+      username,
+      password
+    });
+
+    if (response.code === 0) {
+      this.setToken(response.data.token);
+      return response.data;
+    } else {
+      throw new Error(response.error || '登录失败');
+    }
+  }
+
+  /**
+   * 用户注册
+   * @param {String} username - 用户名
+   * @param {String} email - 邮箱
+   * @param {String} password - 密码
+   * @param {String} displayName - 显示名称（可选）
+   * @returns {Promise<Object>} { token, user }
+   */
+  async register(username, email, password, displayName = null) {
+    // 调用API，如果失败会抛出异常（由request方法处理）
+    const response = await this.post('/api/auth/register', {
+      username,
+      email,
+      password,
+      displayName
+    });
+
+    // 如果执行到这里，说明HTTP请求成功（2xx状态码）
+    // 后端成功响应格式：{code: 0, message: '...', data: {token, user}}
+    if (response.code === 0 && response.data) {
+      this.setToken(response.data.token);
+      return response.data;
+    } else {
+      // 这种情况理论上不应该发生（HTTP成功但业务失败）
+      throw new Error(response.error || response.message || '注册失败');
+    }
+  }
+
+  /**
+   * 获取当前用户信息
+   * @returns {Promise<Object>} { user }
+   */
+  async getCurrentUser() {
+    const response = await this.get('/api/auth/me');
+
+    if (response.code === 0) {
+      return response.data.user;
+    } else {
+      throw new Error(response.error || '获取用户信息失败');
+    }
+  }
+
+  /**
+   * 用户登出
+   */
+  async logout() {
+    try {
+      await this.post('/api/auth/logout');
+    } catch (error) {
+      console.error('[APIClient] 登出失败:', error);
+    } finally {
+      this.clearToken();
+    }
+  }
+
+  /**
+   * 设置认证令牌
+   * @param {String} token - JWT token
+   */
+  setToken(token) {
+    this.token = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('thinkcraft_token', token);
+    }
+    console.log('[APIClient] 认证令牌已设置');
+  }
+
+  /**
+   * 清除认证令牌
+   */
+  clearToken() {
+    this.token = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('thinkcraft_token');
+    }
+    console.log('[APIClient] 认证令牌已清除');
+  }
+
+  /**
+   * 从本地存储加载令牌
+   */
+  loadTokenFromStorage() {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('thinkcraft_token');
+      if (token) {
+        this.token = token;
+        console.log('[APIClient] 从本地存储加载认证令牌');
+      }
+    }
+  }
+
+  /**
+   * GET请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  get(endpoint, options = {}) {
+    return this.request(endpoint, { ...options, method: 'GET' });
+  }
+
+  /**
+   * POST请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} body - 请求体
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  post(endpoint, body = null, options = {}) {
+    return this.request(endpoint, { ...options, method: 'POST', body });
+  }
+
+  /**
+   * PUT请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} body - 请求体
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  put(endpoint, body = null, options = {}) {
+    return this.request(endpoint, { ...options, method: 'PUT', body });
+  }
+
+  /**
+   * DELETE请求便捷方法
+   * @param {String} endpoint - API端点路径
+   * @param {Object} options - 请求选项
+   * @returns {Promise<Object>} 响应数据
+   */
+  delete(endpoint, options = {}) {
+    return this.request(endpoint, { ...options, method: 'DELETE' });
   }
 
   // ========== 业务API方法 ==========
@@ -293,6 +469,84 @@ class APIClient {
     return this.get('/api/health');
   }
 
+  // ========== 智能协同API ==========
+
+  /**
+   * 创建协同计划
+   * @param {String} userId - 用户ID
+   * @param {String} goal - 协同目标
+   * @param {String} projectId - 项目ID（可选）
+   * @returns {Promise<Object>} { planId, goal, projectId, status, createdAt }
+   */
+  async createCollaborationPlan(userId, goal, projectId = null) {
+    const response = await this.post('/api/collaboration/create', {
+      userId,
+      goal,
+      projectId
+    });
+    return response.data;
+  }
+
+  /**
+   * AI分析能力是否满足
+   * @param {String} planId - 协同计划ID
+   * @param {Array<String>} agentIds - 指定的Agent ID列表（可选，用于项目模式）
+   * @returns {Promise<Object>} { planId, analysis, nextStep }
+   */
+  async analyzeCollaborationCapability(planId, agentIds = null) {
+    const response = await this.post('/api/collaboration/analyze-capability', {
+      planId,
+      agentIds
+    });
+    return response.data;
+  }
+
+  /**
+   * 生成三种协同模式
+   * @param {String} planId - 协同计划ID
+   * @returns {Promise<Object>} { planId, modes, metadata }
+   */
+  async generateCollaborationModes(planId) {
+    const response = await this.post('/api/collaboration/generate-modes', {
+      planId
+    });
+    return response.data;
+  }
+
+  /**
+   * 执行协同计划
+   * @param {String} planId - 协同计划ID
+   * @param {String} executionMode - 执行模式 'workflow' | 'task_decomposition'
+   * @returns {Promise<Object>} { executionMode, totalSteps, stepResults, summary }
+   */
+  async executeCollaborationPlan(planId, executionMode = 'workflow') {
+    const response = await this.post('/api/collaboration/execute', {
+      planId,
+      executionMode
+    });
+    return response.data;
+  }
+
+  /**
+   * 获取协同计划详情
+   * @param {String} planId - 协同计划ID
+   * @returns {Promise<Object>} 完整的协同计划
+   */
+  async getCollaborationPlan(planId) {
+    const response = await this.get(`/api/collaboration/${planId}`);
+    return response.data;
+  }
+
+  /**
+   * 获取用户所有协同计划
+   * @param {String} userId - 用户ID
+   * @returns {Promise<Object>} { plans, total }
+   */
+  async getUserCollaborationPlans(userId) {
+    const response = await this.get(`/api/collaboration/user/${userId}`);
+    return response.data;
+  }
+
   // ========== 工具方法 ==========
 
   /**
@@ -383,9 +637,14 @@ if (typeof window !== 'undefined') {
   window.APIClient = APIClient;
 
   // 创建默认实例
-  const settings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
-  const apiUrl = settings.apiUrl || 'http://localhost:3000';
-  window.apiClient = new APIClient(apiUrl);
+  window.apiClient = new APIClient(ENV_CONFIG.API_BASE_URL);
 
-  console.log('[APIClient] API客户端已初始化，baseURL:', apiUrl);
+  // 从本地存储加载token
+  window.apiClient.loadTokenFromStorage();
+
+  console.log('[APIClient] API客户端已初始化');
+  console.log('[APIClient] baseURL:', ENV_CONFIG.API_BASE_URL);
+  console.log('[APIClient] 环境:', ENV_CONFIG.ENV);
 }
+
+export default APIClient;

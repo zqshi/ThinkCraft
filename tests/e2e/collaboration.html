@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>协同编排测试页面</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        .user-id {
+            background: #f0f4ff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .section {
+            margin-bottom: 32px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .section:last-child { border-bottom: none; }
+        h2 {
+            color: #1f2937;
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #5568d3; transform: translateY(-1px); }
+        .btn:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: #6b7280;
+        }
+        .btn-secondary:hover { background: #4b5563; }
+        .result {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .status.success { background: #d1fae5; color: #065f46; }
+        .status.error { background: #fee2e2; color: #991b1b; }
+        .status.pending { background: #dbeafe; color: #1e40af; }
+        .agent-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .agent-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .agent-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        .agent-card.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        pre {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 ThinkCraft 协同编排测试</h1>
+        <div class="user-id">
+            <strong>当前用户ID:</strong> <span id="userIdDisplay">加载中...</span>
+        </div>
+
+        <!-- 步骤1：查看可用Agent类型 -->
+        <div class="section">
+            <h2>步骤1️⃣：查看可用Agent类型</h2>
+            <button class="btn" onclick="loadAgentTypes()">📋 获取Agent类型列表</button>
+            <div id="agentTypesResult" class="result" style="display:none;"></div>
+        </div>
+
+        <!-- 步骤2：雇佣Agent -->
+        <div class="section">
+            <h2>步骤2️⃣：快速雇佣测试团队</h2>
+            <div class="actions">
+                <button class="btn" onclick="hireTestTeam()">💼 雇佣3个测试Agent</button>
+                <button class="btn btn-secondary" onclick="loadMyAgents()">🔄 刷新我的团队</button>
+            </div>
+            <div id="agentListDisplay" style="margin-top:16px;"></div>
+            <div id="hireResult" class="result" style="display:none;"></div>
+        </div>
+
+        <!-- 步骤3：测试能力分析 -->
+        <div class="section">
+            <h2>步骤3️⃣：测试协同能力分析</h2>
+            <button class="btn" onclick="testCollaboration()">🤖 开始协同分析</button>
+            <div id="collabResult" class="result" style="display:none;"></div>
+        </div>
+
+        <!-- 步骤4：清除数据 -->
+        <div class="section">
+            <h2>步骤4️⃣：重置测试环境</h2>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="clearLocalStorage()">🗑️ 清除LocalStorage</button>
+                <button class="btn btn-secondary" onclick="location.reload()">🔄 刷新页面</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+        let USER_ID = null;
+        let myAgents = [];
+
+        // 初始化UserID（模拟UserIdManager）
+        function initUserId() {
+            USER_ID = localStorage.getItem('thinkcraft_user_id');
+            if (!USER_ID) {
+                USER_ID = 'user_' + Date.now();
+                localStorage.setItem('thinkcraft_user_id', USER_ID);
+                console.log('[Test] 生成新用户ID:', USER_ID);
+            } else {
+                console.log('[Test] 使用已有用户ID:', USER_ID);
+            }
+            document.getElementById('userIdDisplay').textContent = USER_ID;
+        }
+
+        // 1. 获取Agent类型列表
+        async function loadAgentTypes() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ 加载中...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/agents/types`);
+                const result = await response.json();
+
+                const resultDiv = document.getElementById('agentTypesResult');
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <strong>✅ 成功获取 ${result.data.types.length} 种Agent类型</strong>
+                    <pre>${JSON.stringify(result.data.types.slice(0, 5), null, 2)}</pre>
+                `;
+            } catch (error) {
+                alert('❌ 获取失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📋 获取Agent类型列表';
+            }
+        }
+
+        // 2. 快速雇佣测试团队
+        async function hireTestTeam() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ 雇佣中...';
+
+            // 使用正确的Agent类型ID
+            const testAgents = ['product-manager', 'frontend-dev', 'designer'];
+            const results = [];
+
+            try {
+                for (const agentType of testAgents) {
+                    const response = await fetch(`${API_URL}/api/agents/hire`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: USER_ID,
+                            agentType: agentType
+                        })
+                    });
+                    const result = await response.json();
+                    results.push(result);
+                }
+
+                const resultDiv = document.getElementById('hireResult');
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <strong>✅ 成功雇佣 ${results.length} 个Agent</strong>
+                    <pre>${JSON.stringify(results, null, 2)}</pre>
+                `;
+
+                // 刷新团队列表
+                await loadMyAgents();
+            } catch (error) {
+                alert('❌ 雇佣失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💼 雇佣3个测试Agent';
+            }
+        }
+
+        // 3. 加载我的Agent团队
+        async function loadMyAgents() {
+            try {
+                const response = await fetch(`${API_URL}/api/agents/my/${USER_ID}`);
+                const result = await response.json();
+
+                myAgents = result.data.agents || [];
+
+                const displayDiv = document.getElementById('agentListDisplay');
+                if (myAgents.length === 0) {
+                    displayDiv.innerHTML = '<p style="color:#6b7280;">暂无Agent，请先雇佣</p>';
+                } else {
+                    displayDiv.innerHTML = `
+                        <strong>我的团队 (${myAgents.length}人):</strong>
+                        <div class="agent-list">
+                            ${myAgents.map(agent => `
+                                <div class="agent-card">
+                                    <div style="font-weight:600;">${agent.nickname}</div>
+                                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">${agent.typeId}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载团队失败:', error);
+            }
+        }
+
+        // 4. 测试协同分析
+        async function testCollaboration() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ 分析中...';
+
+            try {
+                // 4.1 创建协同计划
+                const createResponse = await fetch(`${API_URL}/api/collaboration/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: USER_ID,
+                        goal: '测试协同能力分析：开发一个电商网站'
+                    })
+                });
+                const createResult = await createResponse.json();
+                const planId = createResult.planId;
+
+                // 4.2 能力分析
+                const analyzeResponse = await fetch(`${API_URL}/api/collaboration/analyze-capability`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        planId: planId
+                    })
+                });
+                const analyzeResult = await analyzeResponse.json();
+
+                const resultDiv = document.getElementById('collabResult');
+                resultDiv.style.display = 'block';
+
+                const analysis = analyzeResult.analysis;
+                const statusClass = analysis.isSufficient ? 'success' : 'error';
+                const statusText = analysis.isSufficient ? '✅ 能力满足' : '⚠️ 能力不足';
+
+                resultDiv.innerHTML = `
+                    <div style="margin-bottom:12px;">
+                        <strong>协同计划ID:</strong> ${planId}
+                        <span class="status ${statusClass}">${statusText}</span>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <strong>当前Agent数量:</strong> ${analysis.currentAgents?.length || 0}
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <strong>AI置信度:</strong> ${analysis.confidenceScore}%
+                    </div>
+                    ${!analysis.isSufficient && analysis.roleGaps?.length > 0 ? `
+                        <div style="margin-top:16px;">
+                            <strong>需要补充的角色:</strong>
+                            <ul style="margin-top:8px;padding-left:20px;">
+                                ${analysis.roleGaps.map(gap => `
+                                    <li>${gap.role}: ${gap.reason}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    <details style="margin-top:16px;">
+                        <summary style="cursor:pointer;font-weight:600;">查看完整响应</summary>
+                        <pre style="margin-top:8px;">${JSON.stringify(analyzeResult, null, 2)}</pre>
+                    </details>
+                `;
+            } catch (error) {
+                alert('❌ 协同分析失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🤖 开始协同分析';
+            }
+        }
+
+        // 5. 清除LocalStorage
+        function clearLocalStorage() {
+            if (confirm('确定要清除LocalStorage吗？这将重置用户ID。')) {
+                localStorage.clear();
+                alert('✅ 已清除，请刷新页面');
+            }
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            initUserId();
+            loadMyAgents();
+        });
+    </script>
+</body>
+</html>

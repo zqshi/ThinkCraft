@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThinkCraft 样式版本对比</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --border: #1f2937;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 16px 0 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .panel h2 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: var(--accent);
+      color: #0b1120;
+      border-color: transparent;
+    }
+
+    .checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+    }
+
+    .info {
+      background: #0b1220;
+      border: 1px dashed #334155;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    iframe {
+      width: 100%;
+      height: 78vh;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      iframe {
+        height: 65vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ThinkCraft 样式版本对比</h1>
+    <p>通过切换样式表组合，观察界面在不同样式版本下的差异。</p>
+  </header>
+
+  <div class="controls">
+    <div class="panel">
+      <h2>组合预设</h2>
+      <div class="btn-group" id="presetButtons">
+        <button data-preset="all" class="active">全部启用</button>
+        <button data-preset="variables">仅 variables.css</button>
+        <button data-preset="main">仅 main.css</button>
+        <button data-preset="inline">仅 inline.css</button>
+        <button data-preset="variables+main">variables + main</button>
+        <button data-preset="variables+inline">variables + inline</button>
+        <button data-preset="main+inline">main + inline</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>单独开关</h2>
+      <div class="checkboxes">
+        <label><input type="checkbox" data-style="frontend/css/inline.css" checked /> frontend/css/inline.css</label>
+        <label><input type="checkbox" data-style="css/variables.css" checked /> css/variables.css</label>
+        <label><input type="checkbox" data-style="css/main.css" checked /> css/main.css</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="info">
+      <div>说明：</div>
+      <div>1) 该页面只控制 link 方式加载的 CSS，HTML/JS 内联样式无法关闭。</div>
+      <div>2) 如果你看到布局异常，说明该组合缺少必需的样式依赖。</div>
+      <div>3) 若页面加载为空，请确认本地 http 服务器已启动。</div>
+    </div>
+    <iframe id="preview" src="/index.html"></iframe>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('preview');
+    const checkboxNodes = Array.from(document.querySelectorAll('input[data-style]'));
+    const presetButtons = Array.from(document.querySelectorAll('#presetButtons button'));
+
+    function setCheckboxes(stateMap) {
+      checkboxNodes.forEach((box) => {
+        const key = box.getAttribute('data-style');
+        box.checked = Boolean(stateMap[key]);
+      });
+      applyStyles();
+    }
+
+    function setActivePreset(name) {
+      presetButtons.forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.preset === name);
+      });
+    }
+
+    function applyStyles() {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      checkboxNodes.forEach((box) => {
+        const href = box.getAttribute('data-style');
+        const link = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'))
+          .find((item) => item.getAttribute('href') === href);
+        if (link) {
+          link.disabled = !box.checked;
+        }
+      });
+    }
+
+    function applyPreset(name) {
+      const presets = {
+        all: {
+          'frontend/css/inline.css': true,
+          'css/variables.css': true,
+          'css/main.css': true
+        },
+        variables: {
+          'frontend/css/inline.css': false,
+          'css/variables.css': true,
+          'css/main.css': false
+        },
+        main: {
+          'frontend/css/inline.css': false,
+          'css/variables.css': false,
+          'css/main.css': true
+        },
+        inline: {
+          'frontend/css/inline.css': true,
+          'css/variables.css': false,
+          'css/main.css': false
+        },
+        'variables+main': {
+          'frontend/css/inline.css': false,
+          'css/variables.css': true,
+          'css/main.css': true
+        },
+        'variables+inline': {
+          'frontend/css/inline.css': true,
+          'css/variables.css': true,
+          'css/main.css': false
+        },
+        'main+inline': {
+          'frontend/css/inline.css': true,
+          'css/variables.css': false,
+          'css/main.css': true
+        }
+      };
+
+      setCheckboxes(presets[name]);
+      setActivePreset(name);
+    }
+
+    checkboxNodes.forEach((box) => {
+      box.addEventListener('change', () => {
+        setActivePreset('');
+        applyStyles();
+      });
+    });
+
+    presetButtons.forEach((btn) => {
+      btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+
+    iframe.addEventListener('load', () => {
+      applyPreset('all');
+    });
+  </script>
+</body>
+</html>

@@ -1,280 +1,119 @@
-# ThinkCraft - AI思维助手
+# ThinkCraft - 创意验证操作系统
 
-> 参考 DeepSeek、豆包等产品设计，打造专业的对话式创意分析工具
+ThinkCraft是一个AI驱动的创意验证与团队协同平台，采用DDD架构设计。
 
-## 🎯 核心特性
+## 快速开始
 
-### 真实的交互逻辑
-- **对话式界面**：类似 ChatGPT/DeepSeek，默认进入即为对话界面
-- **智能状态管理**：完整的对话流程控制和数据持久化
-- **打字机效果**：AI回复采用流式输出，更自然的交互体验
-- **历史记录**：左侧边栏展示所有对话，支持随时切换
+详见 [docs/SETUP.md](docs/SETUP.md)
 
-### 专业的视觉设计
-- **简洁配色**：黑白灰为主，品牌色点缀，专业且克制
-- **现代布局**：侧边栏 + 主内容区，符合主流AI产品设计
-- **细腻动效**：消息滑入、打字机、模态框等细节动画
-- **响应式设计**：桌面端和移动端完美适配
+## 项目文档
 
-### 完整的功能流程
-```
-进入页面（空状态引导）
-  ↓
-选择快速开始 / 输入想法
-  ↓
-AI逐步引导（5轮对话）
-  - 想法描述
-  - 目标用户
-  - 核心痛点
-  - 解决方案
-  - 验证指标
-  ↓
-对话完成，生成总结
-  ↓
-查看完整报告（模态框）
-  - 精益画布
-  - AI洞察建议
-  ↓
-导出/分享
-```
+- [系统架构](docs/ARCHITECTURE.md) - DDD领域模型和技术架构
+- [业务流程](docs/BUSINESS-FLOW.md) - 业务流程说明
+- [战略演进历史](docs/strategy/) - 产品定位的思考过程
 
-## 📱 快速体验
+## 项目结构
 
-### 直接打开
-```bash
-# 在项目目录下
-open index.html  # macOS
-start index.html # Windows
-
-# 或直接双击文件
-```
-
-### 本地服务器（推荐）
-```bash
-# Python 3
-python3 -m http.server 8000
-
-# Node.js
-npx http-server -p 8000
-
-# 访问 http://localhost:8000
-```
-
-## 🛠️ 技术实现
-
-### 架构设计
-- **单文件应用**：零依赖，开箱即用
-- **纯原生技术**：HTML5 + CSS3 + Vanilla JavaScript
-- **状态管理**：完整的全局状态机（state）
-- **本地存储**：localStorage 持久化对话历史
-
-### 核心模块
-
-#### 1. 状态管理
-```javascript
-const state = {
-    currentChat: null,      // 当前对话ID
-    chats: [],             // 历史对话列表
-    messages: [],          // 当前消息列表
-    isTyping: false,       // 打字中状态
-    conversationStep: 0,   // 对话进度
-    userData: {}           // 收集的用户数据
-};
-```
-
-#### 2. 对话流程
-```javascript
-const conversationFlow = [
-    { question: "...", key: "initialIdea", quickReplies: [...] },
-    { question: "...", key: "targetUser", quickReplies: [...] },
-    { question: "...", key: "problem" },
-    { question: "...", key: "solution" },
-    { question: "...", key: "validation" }
-];
-```
-
-#### 3. 核心功能
-- `sendMessage()` - 发送消息，触发AI响应
-- `handleAIResponse()` - 处理对话流程，生成AI回复
-- `typeWriter()` - 打字机效果实现
-- `addMessage()` - 动态添加消息到DOM
-- `viewReport()` - 生成并展示报告
-- `saveCurrentChat()` - 保存对话到本地
-- `loadChats()` - 加载历史记录
-
-## 🎨 设计细节
-
-### 参考产品对比
-
-| 特性 | DeepSeek | 豆包 | ThinkCraft |
-|-----|---------|------|-----------|
-| 侧边栏导航 | ✅ | ✅ | ✅ |
-| 对话式交互 | ✅ | ✅ | ✅ |
-| 打字机效果 | ✅ | ✅ | ✅ |
-| 历史记录 | ✅ | ✅ | ✅ |
-| 快捷操作 | ✅ | ✅ | ✅（快速回复chip）|
-| 结构化输出 | ❌ | ❌ | ✅（精益画布）|
-
-### 交互亮点
-
-1. **空状态引导**
-   - 4个快速开始卡片（创业想法、产品功能、解决方案、职业发展）
-   - 清晰的价值主张："将灵感转化为洞察"
-
-2. **对话增强**
-   - 快速回复按钮（chip）：点击直接填充答案
-   - 实时打字效果：30ms/字符，自然流畅
-   - 自动滚动：新消息始终在视野内
-
-3. **历史管理**
-   - 自动保存对话
-   - 点击切换历史记录
-   - 对话标题智能提取
-
-4. **报告展示**
-   - 模态框形式，不打断流程
-   - 精益画布 2x2 网格布局
-   - AI洞察采用编号列表，清晰易读
-
-## 📊 关键指标
-
-### 性能
-- **首屏加载**：< 100ms（单文件，无外部依赖）
-- **打字速度**：30ms/字符（可调整）
-- **动画帧率**：60fps（CSS动画）
-
-### 体验
-- **学习成本**：0秒（熟悉的对话界面）
-- **完成流程**：5个问题，约2-3分钟
-- **移动适配**：完美支持，侧边栏自动隐藏
-
-## 🚀 下一步开发
-
-### 短期优化（1周内）
-- [ ] 接入 Web Speech API 实现真实语音输入
-- [ ] 添加暗色模式切换
-- [ ] 优化移动端触控体验
-- [ ] 添加键盘快捷键（Cmd+K 新建对话等）
-
-### 中期功能（2-4周）
-- [ ] 接入 GPT-4/Claude API 实现真实AI对话
-- [ ] 后端服务搭建（Node.js + Express）
-- [ ] 用户认证系统
-- [ ] 真实的报告分享链接生成
-- [ ] PDF导出功能
-
-### 长期规划（1-3个月）
-- [ ] 多智能体协作分析
-- [ ] 图像识别（OCR + 图像理解）
-- [ ] 协作功能（团队共享）
-- [ ] 移动端原生App（React Native）
-- [ ] 浏览器插件（快速捕获）
-
-## 🔧 开发指南
-
-### 项目结构
 ```
 ThinkCraft/
-├── index.html          # 主文件（包含所有代码）
-├── README.md          # 本文档
-└── docs/              # 产品文档
-    └── MVP.md         # MVP定义
+├── backend/          # 后端服务（Express + DDD）
+│   ├── domains/      # 8个业务领域
+│   │   ├── agent/            # 数字员工领域
+│   │   ├── collaboration/    # 协同编排领域
+│   │   ├── businessPlan/     # 商业计划领域
+│   │   ├── demo/             # Demo生成领域
+│   │   └── pdfExport/        # PDF导出领域
+│   ├── routes/       # API路由层
+│   ├── middleware/   # 中间件
+│   └── server.js     # 服务入口
+├── frontend/         # 前端应用（Vanilla JS）
+│   ├── js/
+│   │   ├── core/             # 核心模块
+│   │   ├── components/       # UI组件
+│   │   ├── handlers/         # 事件处理
+│   │   ├── modules/          # 功能模块
+│   │   └── infrastructure/   # 基础设施
+│   │       ├── state/        # 状态管理
+│   │       └── storage/      # 数据持久化
+│   └── css/          # 样式
+├── config/           # 应用配置
+│   └── system-prompts.js  # AI提示词配置
+├── docs/             # 项目文档
+│   ├── ARCHITECTURE.md    # 系统架构
+│   ├── BUSINESS-FLOW.md   # 业务流程
+│   ├── SETUP.md           # 设置指南
+│   └── strategy/          # 战略演进历史
+└── tests/            # 测试
+    ├── unit/         # 单元测试
+    ├── e2e/          # 端到端测试
+    └── fixtures/     # 测试数据
 ```
 
-### 核心代码说明
+## 技术栈
 
-#### 添加新的对话步骤
-```javascript
-// 在 conversationFlow 数组中添加
-{
-    question: "你的问题？",
-    key: "dataKey",
-    placeholder: "提示文本",
-    quickReplies: ["选项1", "选项2"] // 可选
-}
+- **后端**: Node.js + Express + DDD架构
+- **前端**: Vanilla JavaScript + 事件驱动架构
+- **AI**: DeepSeek API
+- **存储**: localStorage + IndexedDB（当前）→ PostgreSQL（规划中）
+- **日志**: Console（当前）→ Winston（规划中）
+
+## 核心功能
+
+- ✅ **创意验证**：通过苏格拉底式提问引导用户完善创意
+- ✅ **AI对话**：基于DeepSeek的智能对话系统
+- ✅ **报告生成**：生成创意分析报告
+- ✅ **数字员工**：雇佣和管理AI数字员工
+- ✅ **智能协同**：多Agent协同工作流编排
+- ✅ **商业计划书**：自动生成商业计划书
+- ✅ **Demo生成**：生成可交互的产品Demo
+
+## 开发
+
+### 安装依赖
+```bash
+cd backend
+npm install
 ```
 
-#### 修改报告内容
-```javascript
-// 在 viewReport() 函数中修改 HTML
-reportContent.innerHTML = `
-    <div class="report-section">
-        <!-- 自定义报告内容 -->
-    </div>
-`;
+### 启动后端服务
+```bash
+cd backend
+npm start
 ```
 
-#### 调整打字速度
-```javascript
-// 在 typeWriter() 函数调用处修改 speed 参数
-typeWriter(element, content, 20); // 20ms/字符，更快
+后端服务将在 `http://localhost:3000` 启动
+
+### 访问前端
+直接用浏览器打开 `index.html` 或使用静态服务器：
+```bash
+python3 -m http.server 8080
 ```
 
-## 💡 设计原则
+然后访问 `http://localhost:8080`
 
-### 1. 简洁至上
-- 去除一切不必要的装饰
-- 大量留白，信息层次清晰
-- 配色克制，黑白灰为主
+## 运行测试
+```bash
+# 查看tests/目录了解测试结构
+cd tests/unit/
+node StateManager.test.js
+```
 
-### 2. 交互流畅
-- 所有状态变化都有过渡动画
-- 按钮hover/active有明确反馈
-- 异步操作有加载提示
+## 当前阶段
 
-### 3. 数据优先
-- 所有用户输入都被妥善保存
-- 历史记录永久存储（localStorage）
-- 报告内容基于真实用户数据生成
+项目正处于 **Phase 2 完成 → Phase 3（完整DDD重构）** 的过渡阶段：
 
-### 4. 移动优先
-- 触控友好的按钮尺寸（≥36px）
-- 侧边栏在小屏幕自动隐藏
-- 输入框自动聚焦，减少操作
+- ✅ Phase 1: 前端基础设施重构（StateManager、StorageManager）
+- ✅ Phase 2: 后端Domain重构（Agent、Collaboration等5个Domain）
+- 🔄 Phase 3: 计划中（详见 `docs/ARCHITECTURE.md`）
+  - 添加PostgreSQL数据库
+  - 完善所有Domain的Repository层
+  - 前端Service层重构
+  - 清理Mock数据
 
-## 🐛 已知限制
+## 贡献
 
-1. **AI对话是模拟的**
-   - 当前是固定的5步流程
-   - 需要接入真实AI API才能实现动态对话
+详见 `docs/ARCHITECTURE.md` 了解项目架构和开发规范。
 
-2. **报告内容是模板化的**
-   - 基于用户输入填充模板
-   - 没有真实的AI分析能力
+## License
 
-3. **分享功能未实现**
-   - 需要后端服务生成分享链接
-   - 需要数据库存储公开报告
-
-4. **语音/图片识别是演示**
-   - 需要接入第三方服务（OCR、ASR）
-   - 浏览器API兼容性有限
-
-## 📝 更新日志
-
-### v2.0 - 2026-01-09（当前版本）
-- ✅ 完全重构，参考 DeepSeek/豆包设计
-- ✅ 侧边栏 + 对话流布局
-- ✅ 真实的状态管理和数据持久化
-- ✅ 打字机效果和流畅动画
-- ✅ 历史记录管理
-- ✅ 报告模态框
-- ✅ 响应式设计
-
-### v1.0 - 2026-01-09
-- ~~首次版本（已废弃）~~
-- ~~多页面切换模式~~
-- ~~卡片化首页~~
-
-## 📞 反馈与建议
-
-体验后有任何想法，欢迎反馈：
-- 哪些交互让你困惑？
-- 你最喜欢哪个细节？
-- 缺少什么功能？
-- 性能是否流畅？
-
----
-
-**Built with ❤️**
-ThinkCraft - 让每个想法都值得被认真对待
+MIT

@@ -4,13 +4,18 @@
  */
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { config } from './config/env.js';  // 使用新的环境配置系统
+import { domainLoggers } from './infrastructure/logging/domainLogger.js';
+import registerDefaultHandlers from './infrastructure/events/handlers/registerDefaultHandlers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const serverLogger = domainLoggers.Server;
 import chatRouter from './routes/chat.js';
+import authRouter from './routes/auth.js';  // 认证路由
+import conversationRouter from './routes/conversation.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
 import businessPlanRouter from './routes/business-plan.js';
@@ -18,24 +23,22 @@ import pdfExportRouter from './routes/pdf-export.js';
 import shareRouter from './routes/share.js';
 import demoGeneratorRouter from './routes/demo-generator.js';
 import agentsRouter from './routes/agents.js';
+import collaborationRouter from './routes/collaboration.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
-// 加载环境变量
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const { PORT, FRONTEND_URL, IS_DEVELOPMENT } = config;
+
+// 领域事件订阅
+registerDefaultHandlers();
 
 // 中间件配置
 // 1. 请求日志
 app.use(logger);
 
 // 2. CORS 跨域配置（开发环境允许所有来源）
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-if (isDevelopment) {
+if (IS_DEVELOPMENT) {
     // 开发环境：宽松的CORS配置（包括file://协议）
     app.use((req, res, next) => {
         const origin = req.headers.origin;
@@ -85,8 +88,14 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// 认证接口（不需要认证中间件）
+app.use('/api/auth', authRouter);
+
 // 对话接口
 app.use('/api/chat', chatRouter);
+
+// 对话管理接口（DDD）
+app.use('/api/conversations', conversationRouter);
 
 // 报告生成接口
 app.use('/api/report', reportRouter);
@@ -109,6 +118,9 @@ app.use('/api/demo-generator', demoGeneratorRouter);
 // 数字员工Agent接口
 app.use('/api/agents', agentsRouter);
 
+// 智能协同编排接口
+app.use('/api/collaboration', collaborationRouter);
+
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));
 
@@ -125,31 +137,34 @@ app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log(`🚀 ThinkCraft 后端服务已启动`);
-    console.log(`📍 监听端口: ${PORT}`);
-    console.log(`🌐 前端地址: ${FRONTEND_URL}`);
-    console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🤖 API: DeepSeek Chat`);
-    console.log('='.repeat(50));
-    console.log(`\n健康检查:       http://localhost:${PORT}/api/health`);
-    console.log(`对话接口:       http://localhost:${PORT}/api/chat`);
-    console.log(`报告生成:       http://localhost:${PORT}/api/report/generate`);
-    console.log(`商业计划书:     http://localhost:${PORT}/api/business-plan/generate-batch`);
-    console.log(`视觉分析:       http://localhost:${PORT}/api/vision/analyze`);
-    console.log(`PDF导出:        http://localhost:${PORT}/api/pdf-export/report`);
-    console.log(`分享链接:       http://localhost:${PORT}/api/share/create`);
-    console.log(`Demo生成:       http://localhost:${PORT}/api/demo-generator/generate`);
-    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types\n`);
+    serverLogger.info('ThinkCraft后端服务已启动', {
+        port: PORT,
+        frontendUrl: FRONTEND_URL,
+        env: process.env.NODE_ENV || 'development',
+        api: 'DeepSeek Chat',
+        endpoints: {
+            health: `http://localhost:${PORT}/api/health`,
+            chat: `http://localhost:${PORT}/api/chat`,
+            conversations: `http://localhost:${PORT}/api/conversations`,
+            report: `http://localhost:${PORT}/api/report/generate`,
+            businessPlan: `http://localhost:${PORT}/api/business-plan/generate-batch`,
+            vision: `http://localhost:${PORT}/api/vision/analyze`,
+            pdfExport: `http://localhost:${PORT}/api/pdf-export/report`,
+            share: `http://localhost:${PORT}/api/share/create`,
+            demo: `http://localhost:${PORT}/api/demo-generator/generate`,
+            agents: `http://localhost:${PORT}/api/agents/types`,
+            collaboration: `http://localhost:${PORT}/api/collaboration/create`
+        }
+    });
 });
 
 // 优雅关闭
 process.on('SIGTERM', () => {
-    console.log('\n收到 SIGTERM 信号，正在关闭服务器...');
+    serverLogger.info('收到SIGTERM信号，正在关闭服务器');
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
-    console.log('\n收到 SIGINT 信号，正在关闭服务器...');
+    serverLogger.info('收到SIGINT信号，正在关闭服务器');
     process.exit(0);
 });

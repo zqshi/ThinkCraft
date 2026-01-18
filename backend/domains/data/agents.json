@@ -1,0 +1,83 @@
+{
+  "users": {
+    "user_1768382216832": {
+      "agents": [
+        {
+          "id": "user_1768382216832_product-manager_1768383119625",
+          "userId": "user_1768382216832",
+          "type": "product-manager",
+          "nickname": "产品经理",
+          "name": "产品经理",
+          "emoji": "📱",
+          "desc": "负责产品规划、需求分析、竞品研究",
+          "skills": [
+            "需求分析",
+            "产品规划",
+            "竞品分析",
+            "用户研究"
+          ],
+          "salary": 15000,
+          "level": "senior",
+          "category": "product",
+          "hiredAt": "2026-01-14T09:31:59.625Z",
+          "status": "idle",
+          "tasksCompleted": 0,
+          "performance": 100,
+          "currentTask": null,
+          "firedAt": null
+        },
+        {
+          "id": "user_1768382216832_frontend-dev_1768383119628",
+          "userId": "user_1768382216832",
+          "type": "frontend-dev",
+          "nickname": "前端工程师",
+          "name": "前端工程师",
+          "emoji": "💻",
+          "desc": "负责前端开发、页面实现",
+          "skills": [
+            "React",
+            "Vue",
+            "HTML/CSS",
+            "JavaScript"
+          ],
+          "salary": 18000,
+          "level": "senior",
+          "category": "tech",
+          "hiredAt": "2026-01-14T09:31:59.628Z",
+          "status": "idle",
+          "tasksCompleted": 0,
+          "performance": 100,
+          "currentTask": null,
+          "firedAt": null
+        },
+        {
+          "id": "user_1768382216832_designer_1768383119631",
+          "userId": "user_1768382216832",
+          "type": "designer",
+          "nickname": "UI/UX设计师",
+          "name": "UI/UX设计师",
+          "emoji": "🎨",
+          "desc": "负责界面设计、用户体验优化",
+          "skills": [
+            "界面设计",
+            "UX设计",
+            "原型制作",
+            "设计规范"
+          ],
+          "salary": 12000,
+          "level": "mid",
+          "category": "product",
+          "hiredAt": "2026-01-14T09:31:59.631Z",
+          "status": "idle",
+          "tasksCompleted": 0,
+          "performance": 100,
+          "currentTask": null,
+          "firedAt": null
+        }
+      ],
+      "createdAt": "2026-01-14T09:31:59.625Z",
+      "updatedAt": "2026-01-14T09:31:59.631Z"
+    }
+  },
+  "version": "1.0"
+}

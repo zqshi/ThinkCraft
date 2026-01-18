@@ -12,6 +12,12 @@ import { closeAllChatMenus } from '../utils/helpers.js';
  * 开始新对话
  */
 export function startNewChat() {
+    // 检查是否正在处理AI响应
+    if (appState.isTyping || appState.isLoading) {
+        alert('AI正在生成回复，请稍候再开始新对话');
+        return;
+    }
+
     if (appState.messages.length > 0 && appState.settings.saveHistory) {
         saveCurrentChat();
     }
@@ -58,21 +64,27 @@ export function debouncedSaveCurrentChat() {
  * 保存当前对话
  */
 export function saveCurrentChat() {
-    if (!appState.settings.saveHistory || appState.messages.length === 0) return;
+    if (!appState.settings.saveHistory) return;
+    
+    // 确保至少有一条消息才保存
+    if (appState.messages.length === 0 && appState.currentChat === null) return;
 
     let title = '新对话';
-    const firstUserMsg = appState.messages.find(m => m.role === 'user');
-    if (firstUserMsg) {
-        title = firstUserMsg.content.substring(0, 30);
-        if (firstUserMsg.content.length > 30) {
-            title += '...';
+    if (appState.messages.length > 0) {
+        const firstUserMsg = appState.messages.find(m => m.role === 'user');
+        if (firstUserMsg) {
+            title = firstUserMsg.content.substring(0, 30);
+            if (firstUserMsg.content.length > 30) {
+                title += '...';
+            }
         }
     }
 
     const now = new Date().toISOString();
 
     if (appState.currentChat === null) {
-        const chatId = Date.now();
+        // 创建新对话
+        const chatId = crypto.randomUUID();
         const chat = {
             id: chatId,
             title: title,
@@ -88,7 +100,8 @@ export function saveCurrentChat() {
         appState.chats.unshift(chat);
         console.log('[对话] 创建新对话:', chatId);
     } else {
-        const index = appState.chats.findIndex(c => c.id == appState.currentChat);
+        // 更新现有对话
+        const index = appState.chats.findIndex(c => c.id === appState.currentChat);
         if (index !== -1) {
             appState.chats[index] = {
                 ...appState.chats[index],
@@ -102,13 +115,28 @@ export function saveCurrentChat() {
             console.log('[对话] 更新对话:', appState.currentChat);
         } else {
             console.error('[对话] 找不到对话ID:', appState.currentChat);
-            appState.currentChat = null;
-            saveCurrentChat();
-            return;
+            // 如果找不到对话，创建新对话
+            const chatId = crypto.randomUUID();
+            const chat = {
+                id: chatId,
+                title: title,
+                messages: [...appState.messages],
+                userData: {...appState.userData},
+                conversationStep: appState.conversationStep,
+                analysisCompleted: appState.analysisCompleted,
+                createdAt: now,
+                updatedAt: now
+            };
+            
+            appState.currentChat = chatId;
+            appState.chats.unshift(chat);
+            console.log('[对话] 重新创建丢失的对话:', chatId);
         }
     }
 
+    // 保存到localStorage
     localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+    // 重新加载聊天列表以更新UI
     loadChats();
 }
 
@@ -129,6 +157,15 @@ export function loadChats() {
         }
     } else {
         appState.chats = JSON.parse(saved);
+        
+        // 确保所有对话都有有效的ID（兼容旧的数字ID和新的UUID）
+        appState.chats = appState.chats.map(chat => {
+            // 如果ID不是字符串类型，转换为字符串
+            if (typeof chat.id !== 'string') {
+                chat.id = String(chat.id);
+            }
+            return chat;
+        });
     }
 
     appState.chats.sort((a, b) => {
@@ -203,8 +240,14 @@ export function loadChats() {
  * 加载指定对话
  */
 export function loadChat(id) {
-    const targetId = typeof id === 'string' && !isNaN(id) ? Number(id) : id;
-    const chat = appState.chats.find(c => c.id == targetId);
+    // 检查是否正在处理AI响应
+    if (appState.isTyping || appState.isLoading) {
+        alert('AI正在生成回复，请稍候再切换对话');
+        return;
+    }
+
+    const targetId = id;
+    const chat = appState.chats.find(c => c.id === targetId);
 
     if (!chat) {
         console.error('[对话] 找不到对话:', id, '类型:', typeof id);
@@ -212,10 +255,12 @@ export function loadChat(id) {
         return;
     }
 
-    if (appState.currentChat && appState.currentChat != targetId && appState.messages.length > 0) {
+    // 保存当前对话状态
+    if (appState.currentChat && appState.currentChat !== targetId && appState.messages.length > 0) {
         saveCurrentChat();
     }
 
+    // 更新UI容器状态
     const chatContainer = document.getElementById('chatContainer');
     const knowledgePanel = document.getElementById('knowledgePanel');
     const inputContainer = document.getElementById('inputContainer');
@@ -224,32 +269,49 @@ export function loadChat(id) {
     if (knowledgePanel) knowledgePanel.style.display = 'none';
     if (inputContainer) inputContainer.style.display = 'block';
 
+    // 清空当前状态，确保数据隔离
+    appState.messages = [];
+    appState.userData = {};
+    appState.conversationStep = 0;
+    appState.analysisCompleted = false;
+    appState.isTyping = false;
+    appState.isLoading = false;
+
+    // 加载新对话状态
     appState.currentChat = chat.id;
-    appState.messages = [...chat.messages];
+    appState.messages = [...(chat.messages || [])];
     appState.userData = chat.userData ? {...chat.userData} : {};
-    appState.conversationStep = chat.conversationStep || chat.messages.length;
+    appState.conversationStep = chat.conversationStep || chat.messages.length || 0;
     appState.analysisCompleted = chat.analysisCompleted || false;
 
+    // 更新UI
     document.getElementById('emptyState').style.display = 'none';
     const messageList = document.getElementById('messageList');
     messageList.style.display = 'block';
     messageList.innerHTML = '';
 
-    chat.messages.forEach((msg, index) => {
-        const isLastMessage = index === chat.messages.length - 1;
-        const shouldShowButton = isLastMessage && msg.role === 'assistant' && chat.analysisCompleted;
+    // 重新渲染所有消息，跳过状态推送
+    if (chat.messages && chat.messages.length > 0) {
+        chat.messages.forEach((msg, index) => {
+            const isLastMessage = index === chat.messages.length - 1;
+            const shouldShowButton = isLastMessage && msg.role === 'assistant' && chat.analysisCompleted;
 
-        let content = msg.content;
-        if (content.includes('[ANALYSIS_COMPLETE]')) {
-            content = content.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
-        }
+            let content = msg.content;
+            if (content.includes('[ANALYSIS_COMPLETE]')) {
+                content = content.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
+            }
 
-        if (shouldShowButton) {
-            addMessage(msg.role, content, null, true, true, true);
-        } else {
-            addMessage(msg.role, content, null, false, true, true);
-        }
-    });
+            if (shouldShowButton) {
+                addMessage(msg.role, content, null, true, true, true);
+            } else {
+                addMessage(msg.role, content, null, false, true, true);
+            }
+        });
+    } else {
+        // 如果没有消息，显示空状态
+        document.getElementById('emptyState').style.display = 'flex';
+        messageList.style.display = 'none';
+    }
 
     const sidebar = document.getElementById('sidebar');
     const menuToggle = document.querySelector('.menu-toggle');

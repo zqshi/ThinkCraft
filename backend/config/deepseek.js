@@ -4,13 +4,10 @@
  * 新增：重试机制、成本控制、自定义参数支持
  */
 import axios from 'axios';
-import dotenv from 'dotenv';
+import { config } from './env.js';
 
-// 确保环境变量已加载
-dotenv.config();
-
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+const DEEPSEEK_API_KEY = config.DEEPSEEK_API_KEY;
+const DEEPSEEK_API_URL = config.DEEPSEEK_API_URL + '/chat/completions';
 
 // 成本统计（全局）
 let totalTokensUsed = 0;
@@ -47,7 +44,7 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
         temperature = 0.7,
         retry = 3,
         retryDelay = 1000,
-        timeout = 30000
+        timeout = 120000  // 默认120秒超时（AI分析需要较长时间）
     } = options;
 
     // 验证 API Key
