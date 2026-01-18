@@ -210,7 +210,7 @@ export class ConversationRepository {
     try {
       const messages = await MessageModel.findAll({
         where: { conversationId },
-        order: [['createdAt', 'ASC']]
+        order: [['created_at', 'ASC']]  // 使用数据库中的snake_case字段名
       });
 
       logger.debug('获取对话消息', { conversationId, count: messages.length });

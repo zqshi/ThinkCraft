@@ -11,6 +11,8 @@ backend/*.log
 .env
 .env.local
 .env.*.local
+backend/.env.local
+frontend/.env.local
 
 # Backup files
 *.backup

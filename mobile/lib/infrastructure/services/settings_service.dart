@@ -14,7 +14,7 @@ class AppSettings {
     this.darkMode = false,
     this.saveHistory = true,
     this.enableTeam = true,
-    this.apiUrl = 'http://localhost:3000',
+    this.apiUrl = const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:3000'),
     this.fontSize = 14.0,
     this.language = 'zh-CN',
   });

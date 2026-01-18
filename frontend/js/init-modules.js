@@ -19,15 +19,30 @@ try {
     window.UserIdManager = UserIdManager;
     window.USER_ID = USER_ID; // 向后兼容
 
-    // 4. 导入状态管理模块
+    // 4. 导入环境配置和 API Client（必须在状态管理之前初始化）
+    const envModule = await import('./config/env.js');
+    const { ENV_CONFIG } = envModule;
+    console.log('[init-modules.js] ENV_CONFIG 导入成功:', ENV_CONFIG);
+
+    const apiClientModule = await import('./core/api-client.js');
+    const { default: APIClient } = apiClientModule;
+    console.log('[init-modules.js] APIClient 模块导入成功');
+
+    // 初始化 API Client 实例
+    window.APIClient = APIClient;
+    window.apiClient = new APIClient(ENV_CONFIG.API_BASE_URL);
+    window.apiClient.loadTokenFromStorage();
+    console.log('[初始化] ✅ APIClient 已初始化，baseURL:', ENV_CONFIG.API_BASE_URL);
+
+    // 5. 导入状态管理模块
     const stateModule = await import('./infrastructure/state/index.js');
     console.log('[init-modules.js] StateManager 模块导入成功:', stateModule);
 
-    // 5. 导入存储管理模块
+    // 6. 导入存储管理模块
     const storageModule = await import('./infrastructure/storage/index.js');
     console.log('[init-modules.js] StorageManager 模块导入成功:', storageModule);
 
-    // 6. 导入协同状态模块
+    // 7. 导入协同状态模块
     const collaborationStateModule = await import('./infrastructure/state/stores/CollaborationState.js');
     console.log('[init-modules.js] CollaborationState 模块导入成功');
 
@@ -39,7 +54,7 @@ try {
     console.log('[init-modules.js] storageManager 实例:', storageManager);
     console.log('[init-modules.js] collaborationState 实例:', collaborationState);
 
-    // 7. 暴露到全局对象
+    // 8. 暴露到全局对象
     window.stateManager = stateManager;
     window.storageManager = storageManager;
     window.collaborationState = collaborationState;

@@ -23,6 +23,14 @@
     <link rel="stylesheet" href="frontend/css/inline.css">
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
+
+    <!-- Markdown渲染 - Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+
+    <!-- 代码高亮 - Highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
     <script src="frontend/js/core/device-detector.js"></script>
     <script src="frontend/js/core/gesture-handler.js"></script>
 </head>
@@ -228,6 +236,8 @@
                             placeholder="输入消息..."
                             rows="1"
                             onkeydown="handleKeyDown(event)"
+                            oncompositionstart="handleCompositionStart(event)"
+                            oncompositionend="handleCompositionEnd(event)"
                             oninput="autoResize(this)"
                         ></textarea>
                         <button class="mobile-send-btn" onclick="sendMessage()">
@@ -259,6 +269,8 @@
                                 rows="1"
                                 onkeydown="handleKeyDown(event)"
                                 onkeyup="handleKeyUp(event)"
+                                oncompositionstart="handleCompositionStart(event)"
+                                oncompositionend="handleCompositionEnd(event)"
                                 oninput="autoResize(this)"
                             ></textarea>
                             <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
@@ -1224,39 +1236,104 @@
                     </button>
                 </form>
 
-                <!-- 测试账号 -->
-                <div style="background: var(--bg-secondary); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                    <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        测试账号
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button onclick="quickFillAccount('admin', 'admin123')" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; text-align: left; display: flex; justify-content: space-between; align-items: center;">
-                            <span>
-                                <strong>管理员账号</strong>
-                                <span style="color: var(--text-tertiary); font-size: 12px; margin-left: 8px;">admin / admin123</span>
-                            </span>
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </button>
-                        <button onclick="quickFillAccount('demo', 'demo123')" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; text-align: left; display: flex; justify-content: space-between; align-items: center;">
-                            <span>
-                                <strong>演示账号</strong>
-                                <span style="color: var(--text-tertiary); font-size: 12px; margin-left: 8px;">demo / demo123</span>
-                            </span>
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- 提示信息 -->
                 <div style="text-align: center; font-size: 12px; color: var(--text-tertiary);">
-                    点击测试账号可一键填充登录信息
+                    还没有账号？<a href="javascript:void(0)" onclick="showRegisterModal()" style="color: var(--primary); text-decoration: none; font-weight: 500;">立即注册</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 注册Modal -->
+    <div class="modal" id="registerModal" style="z-index: 10000;">
+        <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border); padding: 20px 24px;">
+                <div class="modal-title">创建新账号</div>
+                <button class="close-btn" onclick="closeRegisterModal()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 32px 40px;">
+                <!-- 注册表单 -->
+                <form id="registerForm" onsubmit="handleRegister(event)">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">
+                            用户名 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="registerUsername"
+                            required
+                            minlength="3"
+                            maxlength="20"
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="3-20个字符，字母、数字、下划线"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">
+                            邮箱 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input
+                            type="email"
+                            id="registerEmail"
+                            required
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="your@email.com"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">
+                            密码 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input
+                            type="password"
+                            id="registerPassword"
+                            required
+                            minlength="6"
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="至少6个字符"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">
+                            确认密码 <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input
+                            type="password"
+                            id="registerPasswordConfirm"
+                            required
+                            minlength="6"
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="再次输入密码"
+                        />
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 14px;">
+                            显示名称（可选）
+                        </label>
+                        <input
+                            type="text"
+                            id="registerDisplayName"
+                            maxlength="30"
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.2s;"
+                            placeholder="在应用中显示的名称"
+                        />
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 15px; font-weight: 500; border-radius: 8px;">
+                        注册
+                    </button>
+                </form>
+
+                <div style="text-align: center; font-size: 12px; color: var(--text-tertiary); margin-top: 20px;">
+                    已有账号？<a href="javascript:void(0)" onclick="showLoginModal()" style="color: var(--primary); text-decoration: none; font-weight: 500;">立即登录</a>
                 </div>
             </div>
         </div>
@@ -1282,14 +1359,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- 系统提示词配置 -->
     <script src="config/system-prompts.js"></script>
-    <!-- Mock 数据（用于演示） -->
-    <script src="config/mock-data.js"></script>
+    <!-- Mock 数据已移除 - 使用真实 API -->
 
     <!-- 初始化 ES6 模块（必须最先加载） -->
-    <script type="module" src="frontend/js/init-modules.js"></script>
+    <script type="module" src="frontend/js/init-modules.js?v=202601181804"></script>
 
-    <!-- 核心模块 -->
-    <script src="frontend/js/core/api-client.js"></script>
+    <!-- 核心模块：api-client.js 已在 init-modules.js 中作为 ES6 模块加载 -->
 
     <!-- 组件模块 -->
     <script src="frontend/js/components/modal-manager.js"></script>
@@ -1299,95 +1374,10 @@
     <!-- 功能模块 -->
     <script src="frontend/js/modules/business-plan-generator.js"></script>
 
-<script src="frontend/js/app-main.js"></script>
+<script src="frontend/js/app-main.js?v=202601181804"></script>
 
-<!-- 登录状态检查 -->
-<script>
-(function() {
-    // 检查登录状态
-    function checkLoginStatus() {
-        const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
-        const loginModal = document.getElementById('loginModal');
-        const appContainer = document.querySelector('.app-container');
-
-        if (isLoggedIn) {
-            // 已登录，显示应用UI，隐藏登录弹窗
-            if (appContainer) appContainer.style.display = '';
-            if (loginModal) {
-                loginModal.classList.remove('active');
-                loginModal.style.display = 'none';
-            }
-            console.log('✅ User logged in, showing app UI');
-        } else {
-            // 未登录，隐藏应用UI（防止信息泄漏），只显示登录弹窗
-            if (appContainer) appContainer.style.display = 'none';
-            if (loginModal) {
-                loginModal.classList.add('active');
-                loginModal.style.display = '';
-            }
-            console.log('ℹ️ User not logged in, hiding app UI');
-        }
-    }
-
-    // 页面加载时检查
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', checkLoginStatus);
-    } else {
-        checkLoginStatus();
-    }
-
-    // 处理登录表单提交
-    window.handleLogin = function(event) {
-        event.preventDefault();
-
-        const username = document.getElementById('loginUsername').value;
-        const password = document.getElementById('loginPassword').value;
-
-        // 简单验证（实际项目中应该调用后端API）
-        if (username && password) {
-            // 设置登录状态
-            sessionStorage.setItem('thinkcraft_logged_in', 'true');
-            sessionStorage.setItem('thinkcraft_user_email', username);
-
-            // 显示应用UI，隐藏登录弹窗
-            const appContainer = document.querySelector('.app-container');
-            const loginModal = document.getElementById('loginModal');
-
-            if (appContainer) appContainer.style.display = '';
-            if (loginModal) {
-                loginModal.classList.remove('active');
-                loginModal.style.display = 'none';
-            }
-
-            console.log('✅ Login successful, app UI now visible');
-
-            // 可以在这里添加欢迎消息或其他操作
-        }
-    };
-
-    // 快速填充账号
-    window.quickFillAccount = function(username, password) {
-        document.getElementById('loginUsername').value = username;
-        document.getElementById('loginPassword').value = password;
-    };
-
-    // 退出登录
-    window.logout = function() {
-        // 清除登录状态
-        sessionStorage.removeItem('thinkcraft_logged_in');
-        sessionStorage.removeItem('thinkcraft_user_email');
-
-        // 显示退出蒙层
-        const overlay = document.getElementById('logoutOverlay');
-        if (overlay) {
-            overlay.style.display = 'block';
-        }
-
-        // 延迟刷新页面，重新显示登录Modal
-        setTimeout(() => {
-            window.location.reload();
-        }, 300);
-    };
-})();
-</script>
+<!--
+    注意: 登录逻辑已移至 app-main.js
+    所有认证功能由真实的后端 API (/api/auth/*) 处理
+-->
 </body></html>

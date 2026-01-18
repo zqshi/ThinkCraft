@@ -1,31 +1,46 @@
         // ==================== 登录系统 ====================
 
-        // 测试账号列表
-        const TEST_ACCOUNTS = [
-            { username: 'admin', password: 'admin123', name: '管理员' },
-            { username: 'demo', password: 'demo123', name: '演示用户' }
-        ];
-
         // 检查登录状态
-        function checkLoginStatus() {
+        async function checkLoginStatus() {
             const isLoggedIn = localStorage.getItem('thinkcraft_logged_in') === 'true';
+            const token = localStorage.getItem('thinkcraft_token');
             const loginModal = document.getElementById('loginModal');
 
-            if (!isLoggedIn) {
+            if (!isLoggedIn || !token) {
                 // 未登录，显示登录Modal
                 if (loginModal) {
                     loginModal.classList.add('active');
                 }
                 return false;
             } else {
-                // 已登录，隐藏登录Modal
-                if (loginModal) {
-                    loginModal.classList.remove('active');
+                // 验证 token 是否有效
+                try {
+                    const user = await window.apiClient.getCurrentUser();
+
+                    // Token有效，保存/更新用户信息
+                    if (user.id) localStorage.setItem('thinkcraft_user_id', user.id);
+                    if (user.username) localStorage.setItem('thinkcraft_username', user.username);
+                    if (user.displayName) localStorage.setItem('thinkcraft_displayName', user.displayName);
+
+                    // 隐藏登录Modal
+                    if (loginModal) {
+                        loginModal.classList.remove('active');
+                    }
+                    updateUserDisplay(user.displayName || user.username);
+                    return true;
+                } catch (error) {
+                    // Token无效，清除登录状态
+                    console.error('[Auth] Token验证失败:', error);
+                    localStorage.removeItem('thinkcraft_logged_in');
+                    localStorage.removeItem('thinkcraft_token');
+                    localStorage.removeItem('thinkcraft_user_id');
+                    localStorage.removeItem('thinkcraft_username');
+                    localStorage.removeItem('thinkcraft_displayName');
+                    if (loginModal) {
+                        loginModal.classList.add('active');
+                    }
+                    return false;
                 }
-                // 更新用户名显示
-                const currentUser = localStorage.getItem('thinkcraft_username') || 'ThinkCraft 用户';
-                updateUserDisplay(currentUser);
-                return true;
             }
         }
 
@@ -33,27 +48,34 @@
         function updateUserDisplay(username) {
             const userNameEl = document.getElementById('userName');
             if (userNameEl) {
-                const accountInfo = TEST_ACCOUNTS.find(acc => acc.username === username);
-                userNameEl.textContent = accountInfo ? accountInfo.name : username;
+                const displayName = localStorage.getItem('thinkcraft_displayName') || username;
+                userNameEl.textContent = displayName;
             }
         }
 
         // 处理登录
-        function handleLogin(event) {
+        async function handleLogin(event) {
             event.preventDefault();
 
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value.trim();
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
 
-            // 验证账号密码
-            const account = TEST_ACCOUNTS.find(acc =>
-                acc.username === username && acc.password === password
-            );
+            try {
+                // 显示加载状态
+                submitBtn.textContent = '登录中...';
+                submitBtn.disabled = true;
 
-            if (account) {
-                // 登录成功
+                // 调用登录 API
+                const { token, user } = await window.apiClient.login(username, password);
+
+                // 登录成功，保存状态
                 localStorage.setItem('thinkcraft_logged_in', 'true');
-                localStorage.setItem('thinkcraft_username', username);
+                localStorage.setItem('thinkcraft_user_id', user.id);  // ⭐ 保存用户ID
+                localStorage.setItem('thinkcraft_username', user.username);
+                localStorage.setItem('thinkcraft_displayName', user.displayName);
+                localStorage.setItem('thinkcraft_token', token);
 
                 // 隐藏登录Modal
                 document.getElementById('loginModal').classList.remove('active');
@@ -65,43 +87,191 @@
                 }
 
                 // 更新用户名显示
-                updateUserDisplay(username);
+                updateUserDisplay(user.displayName || user.username);
+
+                // 显示应用容器
+                const appContainer = document.querySelector('.app-container');
+                if (appContainer) {
+                    appContainer.style.display = 'flex';
+                }
+
+                // 加载对话列表
+                await loadChats();
 
                 // 显示欢迎提示
                 setTimeout(() => {
-                    alert(`欢迎回来，${account.name}！`);
+                    alert(`欢迎回来，${user.displayName || user.username}！`);
                 }, 300);
-            } else {
-                // 登录失败
-                alert('账号或密码错误，请重试！\n\n提示：可以点击下方的测试账号快速填充登录信息');
+            } catch (error) {
+                console.error('[Auth] 登录失败:', error);
+
+                let errorMessage = '❌ 登录失败';
+                if (error.message) {
+                    errorMessage += `: ${error.message}`;
+                } else if (error.error) {
+                    errorMessage += `: ${error.error}`;
+                }
+
+                alert(errorMessage);
+            } finally {
+                // 恢复按钮状态
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
             }
         }
 
-        // 一键填充账号密码
-        function quickFillAccount(username, password) {
-            document.getElementById('loginUsername').value = username;
-            document.getElementById('loginPassword').value = password;
+        // 显示注册Modal
+        function showRegisterModal() {
+            const loginModal = document.getElementById('loginModal');
+            const registerModal = document.getElementById('registerModal');
 
-            // 聚焦到登录按钮
-            const loginForm = document.getElementById('loginForm');
-            if (loginForm) {
-                const submitBtn = loginForm.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    submitBtn.focus();
-                }
+            if (loginModal) loginModal.classList.remove('active');
+            if (registerModal) registerModal.classList.add('active');
+
+            // 清空表单
+            document.getElementById('registerForm').reset();
+        }
+
+        // 关闭注册Modal
+        function closeRegisterModal() {
+            const registerModal = document.getElementById('registerModal');
+            if (registerModal) registerModal.classList.remove('active');
+        }
+
+        // 显示登录Modal（从注册页返回）
+        function showLoginModal() {
+            const loginModal = document.getElementById('loginModal');
+            const registerModal = document.getElementById('registerModal');
+
+            if (registerModal) registerModal.classList.remove('active');
+            if (loginModal) loginModal.classList.add('active');
+        }
+
+        // 处理注册
+        async function handleRegister(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('registerUsername').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+            const displayName = document.getElementById('registerDisplayName').value.trim() || username;
+
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+
+            // 前端验证
+            if (password !== passwordConfirm) {
+                alert('⚠️ 两次输入的密码不一致，请重新输入');
+                return;
             }
+
+            if (password.length < 6) {
+                alert('⚠️ 密码长度至少为6个字符');
+                return;
+            }
+
+            try {
+                // 显示加载状态
+                submitBtn.textContent = '注册中...';
+                submitBtn.disabled = true;
+
+                // 调用注册 API（使用APIClient的register方法）
+                const { token, user } = await window.apiClient.register(username, email, password, displayName);
+
+                // 注册成功，关闭注册Modal
+                closeRegisterModal();
+
+                // 显示登录Modal
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.add('active');
+                }
+
+                // 预填充用户名和密码到登录表单
+                document.getElementById('loginUsername').value = username;
+                document.getElementById('loginPassword').value = password;
+
+                // 显示成功消息
+                alert(`✅ 注册成功！账号已自动填充，请点击登录。`);
+            } catch (error) {
+                // 🔴 调试：强制输出到控制台
+                console.error('='.repeat(50));
+                console.error('[Auth] ❌ 注册异常捕获');
+                console.error('[Auth] 错误对象:', error);
+                console.error('[Auth] 错误类型:', typeof error);
+                console.error('[Auth] 错误status:', error.status);
+                console.error('[Auth] 错误message:', error.message);
+                console.error('[Auth] 错误stack:', error.stack);
+                console.error('='.repeat(50));
+
+                let errorMessage = '❌ 注册失败';
+
+                // 根据错误类型提供更友好的提示
+                if (error.message) {
+                    const msg = error.message.toLowerCase();
+                    if (msg.includes('already') || msg.includes('exists') || msg.includes('已存在') || msg.includes('占用')) {
+                        errorMessage = '❌ 该用户名或邮箱已被注册，请使用其他账号';
+                    } else if (msg.includes('invalid') || msg.includes('无效')) {
+                        errorMessage = '❌ 输入信息格式不正确，请检查';
+                    } else {
+                        errorMessage += `: ${error.message}`;
+                    }
+                } else if (error.error) {
+                    errorMessage += `: ${error.error}`;
+                } else if (error.status) {
+                    // 根据HTTP状态码提供提示
+                    if (error.status === 409 || error.status === 400) {
+                        errorMessage = '❌ 该用户名或邮箱已被注册，请使用其他账号';
+                    } else if (error.status >= 500) {
+                        errorMessage = '❌ 服务器错误，请稍后重试';
+                    } else {
+                        errorMessage += `（错误码：${error.status}）`;
+                    }
+                }
+
+                console.error('[Auth] 将显示错误提示:', errorMessage);
+                alert(errorMessage);
+            } finally {
+                // 恢复按钮状态
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+
+        // 一键填充账号密码（改为显示注册链接）
+        function quickFillAccount(username, password) {
+            // 显示注册提示
+            alert('还没有账号？\n\n请使用表单注册新账号。\n注册后即可登录使用所有功能。');
+            // TODO: 未来可以在这里打开注册Modal
         }
 
         // 退出登录
-        function logout() {
+        async function logout() {
             if (confirm('确定要退出登录吗？')) {
+                try {
+                    // 调用后端登出API
+                    await window.apiClient.logout();
+                } catch (error) {
+                    console.error('[Auth] 登出失败:', error);
+                }
+
                 // 清除登录状态
                 localStorage.removeItem('thinkcraft_logged_in');
+                localStorage.removeItem('thinkcraft_user_id');  // 新增：清除用户ID
                 localStorage.removeItem('thinkcraft_username');
+                localStorage.removeItem('thinkcraft_displayName');
+                localStorage.removeItem('thinkcraft_token');
 
                 // 关闭设置Modal
                 closeSettings();
                 closeBottomSettings();
+
+                // 隐藏应用容器
+                const appContainer = document.querySelector('.app-container');
+                if (appContainer) {
+                    appContainer.style.display = 'none';
+                }
 
                 // 显示蒙层，防止敏感信息泄漏
                 const overlay = document.getElementById('logoutOverlay');
@@ -117,6 +287,9 @@
 
                 // 重置用户名显示
                 updateUserDisplay('ThinkCraft 用户');
+
+                // 清除 API Client 的 token
+                window.apiClient.clearToken();
             }
         }
 
@@ -136,13 +309,32 @@
             settings: {
                 darkMode: false,
                 saveHistory: true,
-                enableTeam: false,  // 数字员工团队功能开关
+                enableTeam: true,  // 数字员工团队功能开关 - 默认开启
                 apiUrl: 'http://localhost:3000'
             }
         };
 
         // 暴露state到全局（供其他模块使用）
         window.state = state;
+
+        // 暴露认证相关函数到全局（供HTML调用）
+        window.handleLogin = handleLogin;
+        window.handleRegister = handleRegister;
+        window.showRegisterModal = showRegisterModal;
+        window.closeRegisterModal = closeRegisterModal;
+        window.showLoginModal = showLoginModal;
+        window.logout = logout;
+
+        // 暴露设置相关函数到全局
+        window.closeSettings = closeSettings;
+        window.closeBottomSettings = closeBottomSettings;
+        window.openBottomSettings = openBottomSettings;
+
+        // 暴露输入处理函数到全局
+        window.handleKeyDown = handleKeyDown;
+        window.handleKeyUp = handleKeyUp;
+        window.handleCompositionStart = handleCompositionStart;
+        window.handleCompositionEnd = handleCompositionEnd;
 
         // 系统提示词 - 从配置文件加载
         // 修改提示词：编辑 config/system-prompts.js 文件
@@ -214,7 +406,6 @@
 
             // 初始化不依赖模块的组件
             window.modalManager = new ModalManager();
-            window.apiClient = new APIClient('http://localhost:3000');
             window.agentProgressManager = new AgentProgressManager(window.modalManager);
 
             // 等待 stateManager 就绪后初始化依赖它的组件
@@ -232,19 +423,16 @@
                 );
 
                 // 初始化智能协同Modal
-                window.collaborationModal = new CollaborationModal(
-                    window.apiClient,
-                    window.collaborationState,
-                    window.modalManager
-                );
-
-                // 监听状态变化，更新按钮UI
-                window.stateManager.subscribe((newState) => {
-                    updateGenerationButtonState(newState.generation);
-                });
-
-                console.log('[App] 所有组件初始化完成');
-                console.log('[App] CollaborationModal 已初始化');
+                try {
+                    window.collaborationModal = new CollaborationModal(
+                        window.apiClient,
+                        window.collaborationState,
+                        window.modalManager
+                    );
+                    console.log('[App] CollaborationModal 已初始化');
+                } catch (error) {
+                    console.error('[App] CollaborationModal 初始化失败:', error);
+                }
             };
 
             // 监听 stateManager 就绪事件
@@ -297,10 +485,21 @@
         // ==================== 长按空格键语音输入 ====================
         let spaceHoldTimer = null;
         let spaceHoldTriggered = false;
+        let isComposing = false;  // 输入法状态tracking
+
+        // 监听输入法开始事件
+        function handleCompositionStart(e) {
+            isComposing = true;
+        }
+
+        // 监听输入法结束事件
+        function handleCompositionEnd(e) {
+            isComposing = false;
+        }
 
         function handleKeyDown(e) {
-            // Enter键发送消息
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // Enter键发送消息（仅在非输入法状态时）
+            if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                 e.preventDefault();
                 sendMessage();
                 return;
@@ -342,6 +541,9 @@
             sendMessage();
         }
 
+        // AbortController 用于取消请求
+        let currentAbortController = null;
+
         async function sendMessage() {
             // 兼容桌面端和移动端输入框
             const desktopInput = document.getElementById('mainInput');
@@ -349,7 +551,14 @@
             const input = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
             const message = input.value.trim();
 
-            if (!message || state.isTyping || state.isLoading) return;
+            if (!message) return;  // 移除 isTyping 和 isLoading 检查，允许打断
+
+            // 取消之前的请求（如果有）
+            if (currentAbortController) {
+                console.log('[打断] 取消之前的请求');
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
 
             // 首次对话时重置分析状态
             if (state.messages.length === 0) {
@@ -380,11 +589,15 @@
 
             // ⭐ 关键修复：用户发送第一条消息后，立即创建对话并显示在列表中
             if (state.settings.saveHistory && state.currentChat === null) {
-                saveCurrentChat();
+                await saveCurrentChat();
             }
 
             // 设置加载状态
             state.isLoading = true;
+
+            // 创建新的 AbortController
+            currentAbortController = new AbortController();
+            const signal = currentAbortController.signal;
 
             try {
                 // 调用后端API
@@ -399,7 +612,8 @@
                             content: m.content
                         })),
                         systemPrompt: SYSTEM_PROMPT
-                    })
+                    }),
+                    signal  // 添加 signal 支持取消
                 });
 
                 if (!response.ok) {
@@ -423,15 +637,21 @@
                 // ⭐ AI回复后再次递增
                 state.conversationStep++;
 
-                // 显示AI回复（带打字机效果）
+                // 显示AI回复（使用Markdown渲染）
                 handleAPIResponse(aiContent);
 
                 // AI回复后更新对话
                 if (state.settings.saveHistory) {
-                    saveCurrentChat();
+                    await saveCurrentChat();
                 }
 
             } catch (error) {
+                // 检查是否是用户取消的请求
+                if (error.name === 'AbortError') {
+                    console.log('[打断] 请求已被取消');
+                    return;  // 不显示错误消息
+                }
+
                 console.error('API调用失败:', error);
                 const errorMsg = `抱歉，出现了错误：${error.message}\n\n请检查：\n1. 后端服务是否已启动（npm start）\n2. .env文件中的DEEPSEEK_API_KEY是否配置正确\n3. 网络连接是否正常`;
                 addMessage('assistant', errorMsg, null, false, false, true);  // skipStatePush=true，避免重复
@@ -446,16 +666,29 @@
 
                 // 即使出错也保存对话
                 if (state.settings.saveHistory) {
-                    saveCurrentChat();
+                    await saveCurrentChat();
                 }
             } finally {
                 state.isLoading = false;
+                currentAbortController = null;
             }
         }
 
         function handleAPIResponse(content) {
             const messageList = document.getElementById('messageList');
             const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+            // 检测并移除分析完成标记
+            let displayText = content;
+            let hasAnalysisMarker = false;
+
+            if (content.includes('[ANALYSIS_COMPLETE]')) {
+                hasAnalysisMarker = true;
+                displayText = content.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
+            }
+
+            // 渲染Markdown
+            const renderedContent = renderMarkdown(displayText);
 
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message assistant';
@@ -466,17 +699,36 @@
                         <span class="message-role">ThinkCraft</span>
                         <span class="message-time">${time}</span>
                     </div>
-                    <div class="message-text" id="typing-${Date.now()}"></div>
-                    <div class="message-actions" id="actions-${Date.now()}" style="display: none;"></div>
+                    <div class="message-text markdown-body">${renderedContent}</div>
+                    <div class="message-actions" style="display: ${hasAnalysisMarker ? 'flex' : 'none'};">
+                        <button class="view-report-btn" onclick="viewReport()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            查看完整报告
+                        </button>
+                        <button class="share-btn" onclick="showShareCard()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                            </svg>
+                            创意分享
+                        </button>
+                    </div>
                 </div>
             `;
             messageList.appendChild(messageDiv);
 
-            const textElement = messageDiv.querySelector('.message-text');
-            const actionElement = messageDiv.querySelector('.message-actions');
+            // 应用代码高亮
+            if (typeof hljs !== 'undefined') {
+                messageDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
 
-            // 使用新的打字函数
-            typeWriterWithCompletion(textElement, actionElement, content, 30);
+            // 更新分析完成状态
+            if (hasAnalysisMarker && !state.analysisCompleted) {
+                state.analysisCompleted = true;
+            }
 
             scrollToBottom();
         }
@@ -500,15 +752,13 @@
                     </div>
             `;
 
-            // 历史对话直接显示，不使用打字机效果
-            if (role === 'assistant' && !showButtons && !skipTyping) {
-                html += `<div class="message-text" id="typing-${Date.now()}"></div>`;
-                messageDiv.innerHTML = html + '</div>';
-                messageList.appendChild(messageDiv);
-
-                const textElement = messageDiv.querySelector('.message-text');
-                typeWriter(textElement, content, 30);
+            // 渲染消息内容（使用Markdown渲染）
+            if (role === 'assistant') {
+                // AI消息：使用Markdown渲染
+                const renderedContent = renderMarkdown(content);
+                html += `<div class="message-text markdown-body">${renderedContent}</div>`;
             } else {
+                // 用户消息：纯文本显示
                 html += `<div class="message-text">${content}</div>`;
             }
 
@@ -541,9 +791,14 @@
 
             html += '</div>';
 
-            if (role === 'user' || showButtons || skipTyping) {
-                messageDiv.innerHTML = html;
-                messageList.appendChild(messageDiv);
+            messageDiv.innerHTML = html;
+            messageList.appendChild(messageDiv);
+
+            // 代码高亮
+            if (role === 'assistant' && typeof hljs !== 'undefined') {
+                messageDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
             }
 
             scrollToBottom();
@@ -555,6 +810,43 @@
 
             // 返回创建的DOM元素，供调用者使用
             return messageDiv;
+        }
+
+        /**
+         * Markdown 渲染函数
+         * 将Markdown文本转换为HTML，并应用代码高亮
+         */
+        function renderMarkdown(text) {
+            if (!text) return '';
+
+            // 配置 marked
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({
+                    breaks: true,  // 支持换行
+                    gfm: true,     // GitHub Flavored Markdown
+                    highlight: function(code, lang) {
+                        // 代码高亮
+                        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                            try {
+                                return hljs.highlight(code, { language: lang }).value;
+                            } catch (err) {
+                                console.error('代码高亮失败:', err);
+                            }
+                        }
+                        return code;
+                    }
+                });
+
+                try {
+                    return marked.parse(text);
+                } catch (err) {
+                    console.error('Markdown解析失败:', err);
+                    return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+
+            // 降级处理：如果 marked 不可用，返回纯文本
+            return text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         }
 
         function typeWriter(element, text, speed = 30) {
@@ -683,7 +975,7 @@
             }, 300);
         }
 
-        function saveCurrentChat() {
+        async function saveCurrentChat() {
             if (!state.settings.saveHistory || state.messages.length === 0) return;
 
             // 从第一条用户消息提取标题
@@ -696,14 +988,98 @@
                 }
             }
 
-            const now = new Date().toISOString();
+            const userId = localStorage.getItem('thinkcraft_user_id');
+            if (!userId) {
+                console.warn('[对话] 未登录，无法保存对话到后端');
+                return;
+            }
 
-            // 核心逻辑：区分创建新对话和更新现有对话
-            if (state.currentChat === null) {
-                // 场景1：创建新对话
-                const chatId = Date.now();
+            try {
+                // 核心逻辑：区分创建新对话和更新现有对话
+                if (state.currentChat === null) {
+                    // 场景1：创建新对话 - 调用后端API
+                    console.log('[对话] 正在创建新对话...');
+                    const response = await window.apiClient.post('/api/conversations', {
+                        userId,
+                        title,
+                        userData: {...state.userData}
+                    });
+
+                    if (response.code === 0 && response.data) {
+                        state.currentChat = response.data.id;  // 使用后端返回的ID
+                        console.log('[对话] 创建成功，ID:', state.currentChat);
+
+                        // ⭐ 重要：保存所有消息到后端
+                        console.log('[对话] 正在保存', state.messages.length, '条消息...');
+                        for (const message of state.messages) {
+                            try {
+                                await window.apiClient.post(`/api/conversations/${state.currentChat}/messages`, {
+                                    role: message.role,
+                                    content: message.content
+                                });
+                            } catch (msgError) {
+                                console.error('[对话] 保存消息失败:', msgError);
+                            }
+                        }
+                        console.log('[对话] 消息保存完成');
+
+                        // 重新加载对话列表以显示新对话
+                        await loadChats();
+                    } else {
+                        throw new Error(response.error || '创建对话失败');
+                    }
+                } else {
+                    // 场景2：更新现有对话 - 调用后端API
+                    console.log('[对话] 正在更新对话:', state.currentChat);
+
+                    // ⭐ 修复：更新对话时也要保存最新的消息到后端
+                    // 获取后端已有的消息数量，只保存新增的消息
+                    try {
+                        const messagesResponse = await window.apiClient.get(`/api/conversations/${state.currentChat}/messages`);
+                        const existingMessages = messagesResponse.code === 0 ? messagesResponse.data : [];
+                        const existingCount = existingMessages.length;
+
+                        // 保存新增的消息
+                        if (state.messages.length > existingCount) {
+                            const newMessages = state.messages.slice(existingCount);
+                            console.log('[对话] 正在保存', newMessages.length, '条新消息...');
+
+                            for (const message of newMessages) {
+                                try {
+                                    await window.apiClient.post(`/api/conversations/${state.currentChat}/messages`, {
+                                        role: message.role,
+                                        content: message.content
+                                    });
+                                } catch (msgError) {
+                                    console.error('[对话] 保存消息失败:', msgError);
+                                }
+                            }
+                            console.log('[对话] 新消息保存完成');
+                        }
+                    } catch (msgError) {
+                        console.error('[对话] 获取现有消息失败:', msgError);
+                    }
+
+                    // 更新对话标题
+                    const response = await window.apiClient.request(`/api/conversations/${state.currentChat}/title`, {
+                        method: 'PUT',
+                        body: { title }
+                    });
+
+                    if (response.code === 0) {
+                        console.log('[对话] 更新成功');
+                        // 重新加载对话列表以刷新显示
+                        await loadChats();
+                    } else {
+                        console.warn('[对话] 更新失败:', response.error);
+                    }
+                }
+            } catch (error) {
+                console.error('[对话] 保存失败:', error);
+                // 降级处理：保存到本地
+                const now = new Date().toISOString();
                 const chat = {
-                    id: chatId,
+                    id: state.currentChat || Date.now(),
                     title: title,
                     messages: [...state.messages],
                     userData: {...state.userData},
@@ -713,52 +1089,59 @@
                     updatedAt: now
                 };
 
-                state.currentChat = chatId;  // 设置当前对话ID
-                state.chats.unshift(chat);
-                console.log('[对话] 创建新对话:', chatId);
-            } else {
-                // 场景2：更新现有对话
-                const index = state.chats.findIndex(c => c.id == state.currentChat);
-                if (index !== -1) {
-                    state.chats[index] = {
-                        ...state.chats[index],
-                        title: title,
-                        messages: [...state.messages],
-                        userData: {...state.userData},
-                        conversationStep: state.conversationStep,
-                        analysisCompleted: state.analysisCompleted,
-                        updatedAt: now
-                    };
-                    console.log('[对话] 更新对话:', state.currentChat);
+                if (state.currentChat === null) {
+                    state.currentChat = chat.id;
+                    state.chats.unshift(chat);
                 } else {
-                    console.error('[对话] 找不到对话ID:', state.currentChat);
-                    // 降级处理：当前对话ID不存在，创建新对话
-                    state.currentChat = null;
-                    saveCurrentChat();  // 递归调用，走创建新对话分支
-                    return;
+                    const index = state.chats.findIndex(c => c.id == state.currentChat);
+                    if (index !== -1) {
+                        state.chats[index] = chat;
+                    }
                 }
-            }
 
-            localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-            loadChats();
+                localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                loadChats();
+            }
         }
 
-        function loadChats() {
-            const saved = localStorage.getItem('thinkcraft_chats');
+        async function loadChats() {
+            try {
+                // 获取当前用户ID
+                const userId = localStorage.getItem('thinkcraft_user_id');
 
-            if (!saved || saved === '[]') {
-                // localStorage为空，加载mock数据
-                if (window.MOCK_DATA) {
-                    const demoChat = JSON.parse(JSON.stringify(window.MOCK_DATA.chat));
-                    const otherChats = JSON.parse(JSON.stringify(window.MOCK_DATA.otherChats));
-                    state.chats = [demoChat, ...otherChats];
+                if (!userId) {
+                    console.warn('[loadChats] 未找到用户ID，无法加载对话列表');
+                    state.chats = [];
+                    const historyDiv = document.getElementById('chatHistory');
+                    historyDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 13px;">请先登录</div>';
+                    return;
+                }
+
+                // 从真实API获取对话列表
+                console.log('[loadChats] 从API加载对话列表，userId:', userId);
+                const response = await window.apiClient.get(`/api/conversations/user/${userId}`);
+
+                if (response.code === 0 && Array.isArray(response.data)) {
+                    state.chats = response.data;
+
+                    // 同步到 localStorage（作为缓存）
                     localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    console.log('[loadChats] 成功加载', state.chats.length, '个对话');
+                } else {
+                    console.warn('[loadChats] API返回异常:', response);
+                    state.chats = [];
+                }
+            } catch (error) {
+                console.error('[loadChats] 加载对话列表失败:', error);
+
+                // API失败时，尝试从 localStorage 加载缓存
+                const saved = localStorage.getItem('thinkcraft_chats');
+                if (saved && saved !== '[]') {
+                    console.log('[loadChats] 从本地缓存加载对话列表');
+                    state.chats = JSON.parse(saved);
                 } else {
                     state.chats = [];
                 }
-            } else {
-                // 加载已保存的数据
-                state.chats = JSON.parse(saved);
             }
 
             // 排序：置顶的在前，然后按更新时间倒序
@@ -809,12 +1192,7 @@
                             </svg>
                         </button>
                         <div class="chat-item-menu" id="menu-${chat.id}">
-                            <div class="chat-item-menu-item" onclick="manageTagsForChat(event, '${chat.id}')">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                </svg>
-                                管理标签
-                            </div>
+                            <!-- 标签管理功能已隐藏 -->
                             <div class="chat-item-menu-item" onclick="renameChat(event, '${chat.id}')">
                                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -943,16 +1321,35 @@
             closeChatMenu(chatId);
         }
 
-        function togglePinChat(e, chatId) {
+        async function togglePinChat(e, chatId) {
             e.stopPropagation();
             const chat = state.chats.find(c => c.id == chatId);
             if (!chat) return;
 
-            chat.isPinned = !chat.isPinned;
-            localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-            loadChats();
+            const newPinnedState = !chat.isPinned;
 
-            closeChatMenu(chatId);
+            try {
+                // 调用后端API - 使用apiClient方法（自动带Authorization header）
+                const response = await window.apiClient.request(`/api/conversations/${chatId}/pin`, {
+                    method: 'PUT',
+                    body: { isPinned: newPinnedState }
+                });
+
+                if (response.code === 0) {
+                    // 更新本地状态
+                    chat.isPinned = newPinnedState;
+
+                    // 重新加载对话列表
+                    await loadChats();
+
+                    closeChatMenu(chatId);
+                } else {
+                    throw new Error(response.error || '置顶操作失败');
+                }
+            } catch (error) {
+                console.error('置顶对话失败:', error);
+                alert(`置顶操作失败: ${error.message}`);
+            }
         }
 
         // 管理标签
@@ -991,7 +1388,7 @@
             closeChatMenu(chatId);
         }
 
-        function deleteChat(e, chatId) {
+        async function deleteChat(e, chatId) {
             e.stopPropagation();
 
             if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
@@ -999,23 +1396,58 @@
                 return;
             }
 
-            state.chats = state.chats.filter(c => c.id != chatId);
-            localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-
-            // 如果删除的是当前对话，重置状态
-            if (state.currentChat == chatId) {
-                state.currentChat = null;
-                state.messages = [];
-                state.conversationStep = 0;
-                state.userData = {};
-                document.getElementById('emptyState').style.display = 'flex';
-                document.getElementById('messageList').style.display = 'none';
-                document.getElementById('messageList').innerHTML = '';
+            const userId = localStorage.getItem('thinkcraft_user_id');
+            if (!userId) {
+                alert('未登录，无法删除对话');
+                closeChatMenu(chatId);
+                return;
             }
 
-            loadChats();
-            closeChatMenu(chatId);
+            try {
+                // 调用后端API删除对话
+                console.log('[对话] 正在删除对话:', chatId);
+                const response = await window.apiClient.request(`/api/conversations/${chatId}`, {
+                    method: 'DELETE',
+                    body: { userId }
+                });
+
+                if (response.code === 0) {
+                    console.log('[对话] 删除成功');
+
+                    // 从本地状态删除
+                    state.chats = state.chats.filter(c => c.id != chatId);
+                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+
+                    // 如果删除的是当前对话，重置状态
+                    if (state.currentChat == chatId) {
+                        state.currentChat = null;
+                        state.messages = [];
+                        state.conversationStep = 0;
+                        state.userData = {};
+                        document.getElementById('emptyState').style.display = 'flex';
+                        document.getElementById('messageList').style.display = 'none';
+                        document.getElementById('messageList').innerHTML = '';
+                    }
+
+                    // 刷新对话列表
+                    await loadChats();
+                    closeChatMenu(chatId);
+                } else {
+                    throw new Error(response.error || '删除失败');
+                }
+            } catch (error) {
+                console.error('[对话] 删除失败:', error);
+                alert(`删除对话失败: ${error.message}`);
+                closeChatMenu(chatId);
+            }
         }
+
+        // 暴露函数到全局对象
+        window.loadChat = loadChat;
+        window.toggleChatMenu = toggleChatMenu;
+        window.renameChat = renameChat;
+        window.togglePinChat = togglePinChat;
+        window.deleteChat = deleteChat;
 
         // 点击页面其他地方关闭所有菜单
         document.addEventListener('click', () => {
@@ -1052,7 +1484,7 @@
             });
         });
 
-        function loadChat(id) {
+        async function loadChat(id) {
             // 兼容数字和字符串ID，统一转换比较
             const targetId = typeof id === 'string' && !isNaN(id) ? Number(id) : id;
             const chat = state.chats.find(c => c.id == targetId);  // 使用 == 而非 === 做宽松比较
@@ -1076,6 +1508,24 @@
             if (chatContainer) chatContainer.style.display = 'flex';
             if (knowledgePanel) knowledgePanel.style.display = 'none';
             if (inputContainer) inputContainer.style.display = 'block'; // 显示输入框
+
+            try {
+                // ⭐ 关键修复：从后端API获取完整的消息历史
+                console.log('[对话] 正在从后端加载消息历史:', chat.id);
+                const response = await window.apiClient.get(`/api/conversations/${chat.id}/messages`);
+
+                if (response.code === 0 && Array.isArray(response.data)) {
+                    chat.messages = response.data;
+                    console.log('[对话] 成功加载', chat.messages.length, '条消息');
+                } else {
+                    console.warn('[对话] 加载消息失败，使用本地缓存');
+                    chat.messages = chat.messages || [];
+                }
+            } catch (error) {
+                console.error('[对话] 获取消息历史失败:', error);
+                // 使用本地缓存
+                chat.messages = chat.messages || [];
+            }
 
             // 恢复完整state
             state.currentChat = chat.id;  // 使用原始ID
@@ -1131,14 +1581,7 @@
 
         // 查看报告
         async function viewReport() {
-            // 检查是否为示例数据，如果是则使用预设报告
-            if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA && window.MOCK_DATA.demoReport) {
-                const reportContent = document.getElementById('reportContent');
-                renderAIReport(window.MOCK_DATA.demoReport);
-                document.getElementById('reportModal').classList.add('active');
-                return;
-            }
-
+            // 移除了 MOCK_DATA 的检查，直接生成真实报告
             await generateDetailedReport();
             document.getElementById('reportModal').classList.add('active');
         }
@@ -1540,12 +1983,12 @@
                 const loadingMsg = alert('📄 正在生成PDF，请稍候...');
 
                 // 从window.MOCK_DATA或实际生成的报告中获取数据
-                let reportData;
-                if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA) {
-                    reportData = window.MOCK_DATA.demoReport;
-                } else {
-                    // 从DOM或state中获取实际报告数据
-                    reportData = window.lastGeneratedReport || {};
+                // 从DOM或state中获取实际报告数据
+                const reportData = window.lastGeneratedReport || {};
+
+                if (!reportData || Object.keys(reportData).length === 0) {
+                    alert('⚠️ 请先生成报告后再导出');
+                    return;
                 }
 
                 // 调用后端API生成PDF
@@ -1587,11 +2030,11 @@
         async function generateShareLink() {
             try {
                 // 获取当前报告数据
-                let reportData;
-                if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA) {
-                    reportData = window.MOCK_DATA.demoReport;
-                } else {
-                    reportData = window.lastGeneratedReport || {};
+                const reportData = window.lastGeneratedReport || {};
+
+                if (!reportData || Object.keys(reportData).length === 0) {
+                    alert('⚠️ 请先生成报告后再分享');
+                    return;
                 }
 
                 // 调用后端API创建分享
@@ -3088,12 +3531,21 @@
         // 加载用户的Agent团队
         async function loadMyAgents() {
             try {
-                const response = await fetch(`${state.settings.apiUrl}/api/agents/my/${USER_ID}`);
+                // 从localStorage获取真实的用户ID（登录时保存的UUID）
+                const userId = localStorage.getItem('thinkcraft_user_id');
+                if (!userId) {
+                    console.warn('[AgentSystem] 用户未登录，跳过加载Agent团队');
+                    return;
+                }
+
+                const response = await fetch(`${state.settings.apiUrl}/api/agents/my/${userId}`);
                 if (response.ok) {
                     const result = await response.json();
                     if (result.code === 0) {
                         myAgents = result.data.agents || [];
                     }
+                } else {
+                    console.warn('[AgentSystem] 加载团队失败，HTTP状态:', response.status);
                 }
             } catch (error) {
                 console.error('[AgentSystem] 加载团队失败:', error);
@@ -3362,7 +3814,7 @@
                                 <button class="assign-task-btn" onclick="assignTaskToAgent('${agent.id}')">
                                     分配任务
                                 </button>
-                                <button class="fire-btn" onclick="fireAgent('${agent.id}')">
+                                <button class="fire-btn" onclick="fireAgentFromMyTeam('${agent.id}')">
                                     解雇
                                 </button>
                             </div>
@@ -3541,8 +3993,8 @@
             }
         }
 
-        // 解雇Agent
-        async function fireAgent(agentId) {
+        // 解雇Agent（员工市场 - 我的团队）
+        async function fireAgentFromMyTeam(agentId) {
             const agent = myAgents.find(a => a.id === agentId);
             if (!agent) return;
 
@@ -3579,6 +4031,9 @@
                 alert(`❌ 解雇失败: ${error.message}`);
             }
         }
+
+        // 暴露员工管理相关函数到全局对象
+        window.fireAgentFromMyTeam = fireAgentFromMyTeam;
 
         // 分配任务给Agent
         async function assignTaskToAgent(agentId) {
@@ -3836,6 +4291,9 @@
                 loadTeamSpace();
             }
         }
+
+        // 暴露到全局对象
+        window.switchSidebarTab = switchSidebarTab;
 
         // 加载团队空间内容
         function loadTeamSpace() {
@@ -4242,12 +4700,22 @@
                 <div class="project-section">
                     <div class="project-section-header">
                         <h3>💡 关联创意</h3>
-                        <button class="btn-secondary" onclick="linkIdeaToProject('${project.id}')">
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-                            </svg>
-                            引入创意
-                        </button>
+                        ${ideaCount > 0 ? `
+                            <button class="btn-secondary" disabled style="opacity: 0.5; cursor: not-allowed;" title="每个团队空间只能引入一个创意">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                    <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
+                                </svg>
+                                已引入创意
+                            </button>
+                        ` : `
+                            <button class="btn-secondary" onclick="linkIdeaToProject('${project.id}')">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                </svg>
+                                引入创意
+                            </button>
+                        `}
                     </div>
                     <div class="project-ideas-grid">
                         ${ideasHTML}
@@ -4474,7 +4942,7 @@
                         <div class="agent-card-desc">${agent.description}</div>
                         <div class="agent-card-skills">${skillsHTML}</div>
                         <div class="agent-card-actions">
-                            <button class="btn-secondary" onclick="fireAgent('${agent.id}')">
+                            <button class="btn-secondary" onclick="fireAgentFromTeamSpace('${agent.id}')">
                                 解雇
                             </button>
                         </div>
@@ -4507,8 +4975,8 @@
             alert(`✅ 成功雇佣 ${agent.name}`);
         }
 
-        // 解雇员工
-        function fireAgent(agentId) {
+        // 解雇员工（TeamSpace）
+        function fireAgentFromTeamSpace(agentId) {
             const agent = state.teamSpace.agents.find(a => a.id === agentId);
             if (!agent) return;
 
@@ -4592,6 +5060,16 @@
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
+            // ⭐ 检查项目是否已有创意（每个项目只能引入一个创意）
+            if (project.linkedIdeas && project.linkedIdeas.length > 0) {
+                // 获取已引入创意的标题
+                const linkedChat = state.chats.find(c => c.id === project.linkedIdeas[0]);
+                const linkedTitle = linkedChat ? linkedChat.title : '已引入的创意';
+
+                alert(`❌ 每个团队空间只能引入一个创意\n\n当前项目已引入：${linkedTitle}\n\n如需更换创意，请先移除当前创意。`);
+                return;
+            }
+
             // 找到已完成分析的对话
             const availableChats = state.chats.filter(
                 chat => !project.linkedIdeas.includes(chat.id) &&
@@ -4599,8 +5077,15 @@
             );
 
             if (availableChats.length === 0) {
-                alert('没有可引入的创意，请先在对话中完成创意分析');
-                switchSidebarTab('chats');
+                const shouldSwitch = confirm('没有可引入的创意，请先在对话中完成创意分析。\n\n是否切换到对话tab？');
+                if (shouldSwitch) {
+                    // 切换到对话tab
+                    switchSidebarTab('chats');
+                    // 关闭项目详情视图，显示空状态
+                    document.getElementById('emptyState').style.display = 'flex';
+                    document.getElementById('messageList').style.display = 'none';
+                    document.getElementById('chatContainer').querySelector('.project-detail-wrapper')?.remove();
+                }
                 return;
             }
 
@@ -4625,6 +5110,15 @@
             renderProjectDetail(project);
             alert(`✅ 已将创意"${selectedChat.title}"引入项目`);
         }
+
+        // 暴露团队空间相关函数到全局对象
+        window.createNewProject = createNewProject;
+        window.openProject = openProject;
+        window.removeAgentFromProject = removeAgentFromProject;
+        window.linkIdeaToProject = linkIdeaToProject;
+        window.fireAgentFromTeamSpace = fireAgentFromTeamSpace;
+        window.fireAgentFromProject = fireAgentFromProject;
+        window.fireAgentFromModal = fireAgentFromModal;
 
         // 编辑项目信息
         function editProjectInfo(projectId) {
@@ -5479,6 +5973,18 @@
                 return;
             }
 
+            // ⭐ 检查项目是否有关联创意
+            if (!project.linkedIdeas || project.linkedIdeas.length === 0) {
+                alert('❌ 无法启动智能协同\n\n请先引入创意！点击【引入创意】按钮将对话中的创意想法添加到项目中。');
+                return;
+            }
+
+            // ⭐ 检查项目是否有团队成员
+            if (!project.assignedAgents || project.assignedAgents.length === 0) {
+                alert('❌ 无法启动智能协同\n\n请先添加团队成员！点击【添加成员】按钮从数字员工市场雇佣员工。');
+                return;
+            }
+
             // 启动智能协同Modal，传入项目上下文
             if (window.collaborationModal) {
                 window.collaborationModal.showForProject(projectId, project);
@@ -5487,6 +5993,9 @@
                 alert('系统初始化中，请稍后再试');
             }
         }
+
+        // 暴露项目协同相关函数到全局对象
+        window.startProjectCollaboration = startProjectCollaboration;
 
         // 启动团队协同（旧版本，保留兼容）
         async function startTeamCollaboration(projectId) {
@@ -5896,6 +6405,9 @@
             loadChat(chatId);
         }
 
+        // 暴露到全局对象
+        window.loadChatFromProject = loadChatFromProject;
+
         // 移动端输入模式切换
         function switchToTextMode() {
             document.getElementById('mobileVoiceMode').style.display = 'none';
@@ -5991,7 +6503,15 @@
                 localStorage.setItem('thinkcraft_settings', JSON.stringify(state.settings));
             }
 
-            document.getElementById('darkModeToggle').checked = state.settings.darkMode;
+            // 应用暗色模式
+            const darkModeEnabled = state.settings.darkMode || false;
+            document.getElementById('darkModeToggle').checked = darkModeEnabled;
+            if (darkModeEnabled) {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+
             document.getElementById('saveHistoryToggle').checked = state.settings.saveHistory;
 
             // 初始化团队空间数据
@@ -6011,9 +6531,26 @@
         }
 
         function toggleDarkMode() {
-            state.settings.darkMode = document.getElementById('darkModeToggle').checked;
+            // 获取复选框状态
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const darkModeToggle2 = document.getElementById('darkModeToggle2');
+            const isDarkMode = darkModeToggle.checked;
+
+            // 同步两个复选框状态
+            if (darkModeToggle2) {
+                darkModeToggle2.checked = isDarkMode;
+            }
+
+            // 切换body的dark-mode类
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+
+            // 保存设置
+            state.settings.darkMode = isDarkMode;
             saveSettings();
-            alert('暗色模式功能开发中，敬请期待！');
         }
 
         function toggleSaveHistory() {
@@ -6180,7 +6717,7 @@
                         <div class="member-role">${member.role}</div>
                     </div>
                     ${member.type === 'agent' ? `
-                        <button class="btn-secondary" onclick="fireAgent('${member.id}')" style="padding: 6px 12px; font-size: 13px; margin-left: auto;">
+                        <button class="btn-secondary" onclick="fireAgentFromProject('${member.id}')" style="padding: 6px 12px; font-size: 13px; margin-left: auto;">
                             解雇
                         </button>
                     ` : ''}
@@ -6463,7 +7000,8 @@
             renderProjectList();
         }
 
-        function fireAgent(agentId) {
+        // 从项目中解雇员工
+        function fireAgentFromProject(agentId) {
             if (!confirm('确定要将该数字员工从项目中移除吗？')) {
                 return;
             }
@@ -6537,12 +7075,68 @@
             ];
         }
 
-        function clearAllHistory() {
-            if (confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
-                localStorage.removeItem('thinkcraft_chats');
+        async function clearAllHistory() {
+            if (!confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
+                return;
+            }
+
+            try {
+                // 显示加载状态
+                const originalText = event.target.textContent;
+                event.target.textContent = '清除中...';
+                event.target.disabled = true;
+
+                // 获取当前用户的所有对话
+                const userId = state.user?.id;
+                if (!userId) {
+                    throw new Error('用户未登录');
+                }
+
+                const conversations = state.chats || [];
+
+                // 遍历删除所有对话 - 使用apiClient的baseURL
+                const deletePromises = conversations.map(chat =>
+                    fetch(`${window.apiClient.baseURL}/conversations/${chat.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ userId })
+                    })
+                );
+
+                await Promise.all(deletePromises);
+
+                // 清除本地状态
                 state.chats = [];
-                loadChats();
+                state.currentChatId = null;
+                state.messages = [];
+
+                // 清除localStorage
+                localStorage.removeItem('thinkcraft_chats');
+                localStorage.removeItem('thinkcraft_current_chat');
+
+                // 重新加载对话列表
+                await loadChats();
+
+                // 显示空状态
+                document.getElementById('messageList').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'flex';
+
                 alert('✅ 历史记录已清除');
+
+                // 关闭设置弹窗
+                closeSettings();
+                closeBottomSettings();
+            } catch (error) {
+                console.error('清除历史记录失败:', error);
+                alert('清除失败，请重试');
+            } finally {
+                // 恢复按钮状态
+                if (event && event.target) {
+                    event.target.textContent = originalText || '清除所有历史记录';
+                    event.target.disabled = false;
+                }
             }
         }
 

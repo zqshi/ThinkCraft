@@ -4,9 +4,9 @@
  */
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { config } from './config/env.js';  // 使用新的环境配置系统
 import { domainLoggers } from './infrastructure/logging/domainLogger.js';
 import registerDefaultHandlers from './infrastructure/events/handlers/registerDefaultHandlers.js';
 
@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const serverLogger = domainLoggers.Server;
 import chatRouter from './routes/chat.js';
+import authRouter from './routes/auth.js';  // 认证路由
 import conversationRouter from './routes/conversation.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
@@ -26,12 +27,8 @@ import collaborationRouter from './routes/collaboration.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
-// 加载环境变量
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const { PORT, FRONTEND_URL, IS_DEVELOPMENT } = config;
 
 // 领域事件订阅
 registerDefaultHandlers();
@@ -41,9 +38,7 @@ registerDefaultHandlers();
 app.use(logger);
 
 // 2. CORS 跨域配置（开发环境允许所有来源）
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-if (isDevelopment) {
+if (IS_DEVELOPMENT) {
     // 开发环境：宽松的CORS配置（包括file://协议）
     app.use((req, res, next) => {
         const origin = req.headers.origin;
@@ -92,6 +87,9 @@ app.get('/api/health', (req, res) => {
         version: '1.0.0'
     });
 });
+
+// 认证接口（不需要认证中间件）
+app.use('/api/auth', authRouter);
 
 // 对话接口
 app.use('/api/chat', chatRouter);
