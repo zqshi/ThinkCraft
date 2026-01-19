@@ -26,10 +26,18 @@
     <script src="frontend/js/core/device-detector.js"></script>
     <script src="frontend/js/core/gesture-handler.js"></script>
 
-    <!-- 响应式优化：报告弹窗按钮样式 -->
+    <!-- 响应式优化：弹窗按钮样式 -->
     <style>
-        /* 桌面端优化 - 更紧凑的按钮 */
+        /* ============ 桌面端优化 - 所有弹窗按钮更紧凑 ============ */
         @media (min-width: 768px) {
+            /* 全局弹窗按钮优化 */
+            .modal-footer .btn-primary,
+            .modal-footer .btn-secondary {
+                padding: 8px 16px !important;
+                font-size: 13px !important;
+                border-radius: 6px !important;
+            }
+
             /* 报告弹窗底部按钮优化 */
             #reportModal .modal-footer .btn-primary,
             #reportModal .modal-footer .btn-secondary {
@@ -57,14 +65,44 @@
             #reportModal .modal-footer > div:last-child {
                 gap: 10px !important;
             }
+
+            /* 对话消息中的按钮优化 */
+            .view-report-btn,
+            .share-btn,
+            .action-chip {
+                padding: 8px 14px !important;
+                font-size: 13px !important;
+                border-radius: 6px !important;
+            }
+
+            /* 设置弹窗按钮优化 */
+            #settingsModal .modal-footer .btn-primary,
+            #settingsModal .modal-footer .btn-secondary {
+                padding: 8px 16px !important;
+                font-size: 13px !important;
+            }
         }
 
-        /* 移动端保持原样 */
+        /* ============ 移动端保持友好尺寸 ============ */
         @media (max-width: 767px) {
             /* 移动端按钮保持触摸友好的大小 */
+            .modal-footer .btn-primary,
+            .modal-footer .btn-secondary {
+                min-height: 44px; /* 移动端最小可触摸尺寸 */
+                padding: 10px 20px;
+            }
+
             #reportModal .modal-footer .btn-primary,
             #reportModal .modal-footer .btn-secondary {
-                min-height: 44px; /* 移动端最小可触摸尺寸 */
+                min-height: 44px;
+            }
+
+            /* 对话消息中的按钮移动端保持原样 */
+            .view-report-btn,
+            .share-btn,
+            .action-chip {
+                min-height: 40px;
+                padding: 10px 16px;
             }
         }
     </style>
@@ -1565,6 +1603,13 @@
                 } else {
                     clearInterval(timer);
                     state.isTyping = false;
+
+                    // 打字机效果完成后，渲染Markdown
+                    if (window.markdownRenderer) {
+                        const renderedHTML = window.markdownRenderer.render(text);
+                        element.innerHTML = renderedHTML;
+                        element.classList.add('markdown-content');
+                    }
                 }
             }, speed);
         }
@@ -1590,6 +1635,13 @@
                 } else {
                     clearInterval(timer);
                     state.isTyping = false;
+
+                    // 打字机效果完成后，渲染Markdown
+                    if (window.markdownRenderer) {
+                        const renderedHTML = window.markdownRenderer.render(displayText);
+                        textElement.innerHTML = renderedHTML;
+                        textElement.classList.add('markdown-content');
+                    }
 
                     // 打字完成后：首次检测到标记时显示按钮
                     if (hasAnalysisMarker && !state.analysisCompleted) {
