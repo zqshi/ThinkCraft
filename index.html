@@ -51,7 +51,7 @@
                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
-                    <span>团队</span>
+                    <span>项目空间</span>
                 </button>
             </div>
 
@@ -131,8 +131,7 @@
                     <!-- 左侧：组织树 -->
                     <div class="knowledge-sidebar">
                         <div class="knowledge-org-switcher">
-                            <button class="active" data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
-                            <button data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
+                            <button class="active" data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
                             <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
                             <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
                         </div>
@@ -728,8 +727,7 @@
                 <div class="knowledge-sidebar">
                     <!-- 组织方式切换器 -->
                     <div class="knowledge-org-switcher">
-                        <button class="active" data-org="byProject" onclick="switchKnowledgeOrganization('byProject')">按项目</button>
-                        <button data-org="byType" onclick="switchKnowledgeOrganization('byType')">按类型</button>
+                        <button class="active" data-org="byType" onclick="switchKnowledgeOrganization('byType')">按类型</button>
                         <button data-org="byTimeline" onclick="switchKnowledgeOrganization('byTimeline')">时间线</button>
                         <button data-org="byTags" onclick="switchKnowledgeOrganization('byTags')">标签</button>
                     </div>
@@ -791,7 +789,8 @@
             </div>
 
             <div class="modal-body">
-                <div class="settings-section">
+                <!-- 外观部分已隐藏 -->
+                <!-- <div class="settings-section">
                     <div class="settings-section-title">外观</div>
                     <div class="settings-item">
                         <div class="settings-item-info">
@@ -803,7 +802,7 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-                </div>
+                </div> -->
 
                 <div class="settings-section">
                     <div class="settings-section-title">数据管理</div>
@@ -816,9 +815,6 @@
                             <input type="checkbox" id="saveHistoryToggle" checked onchange="toggleSaveHistory()">
                             <span class="toggle-slider"></span>
                         </label>
-                    </div>
-                    <div style="margin-top: 16px;">
-                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
                     </div>
                 </div>
 
@@ -843,6 +839,15 @@
                             <div class="settings-item-title">ThinkCraft v2.0</div>
                             <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div style="margin-top: 0;">
+                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        <button class="logout-btn" onclick="handleLogout()">退出登录</button>
                     </div>
                 </div>
             </div>
@@ -883,8 +888,8 @@
                     </div>
                 </div>
 
-                <!-- 主题设置 -->
-                <div class="settings-section">
+                <!-- 主题设置已隐藏 -->
+                <!-- <div class="settings-section">
                     <div class="settings-section-title">外观</div>
                     <div class="settings-item">
                         <div class="settings-item-info">
@@ -896,7 +901,7 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- 数据管理 -->
                 <div class="settings-section">
@@ -910,9 +915,6 @@
                             <input type="checkbox" id="saveHistoryToggle2" checked onchange="toggleSaveHistory()">
                             <span class="toggle-slider"></span>
                         </label>
-                    </div>
-                    <div style="margin-top: 16px;">
-                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
                     </div>
                 </div>
 
@@ -939,6 +941,15 @@
                             <div class="settings-item-title">ThinkCraft v2.0</div>
                             <div class="settings-item-desc">AI思维助手 · 将灵感转化为洞察</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div style="margin-top: 0;">
+                        <button class="danger-btn" onclick="clearAllHistory()">清除所有历史记录</button>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        <button class="logout-btn" onclick="handleLogout()">退出登录</button>
                     </div>
                 </div>
             </div>
@@ -1135,6 +1146,30 @@
 
 始终保持建设性态度，鼓励用户深度思考。`;
 
+        // 更新用户名显示
+        function updateUserNameDisplay() {
+            const userNameEl = document.getElementById('userName');
+            const userProfileName = document.querySelector('.user-profile-name');
+
+            try {
+                // 从 sessionStorage 获取用户信息
+                const userInfo = sessionStorage.getItem('thinkcraft_user');
+                if (userInfo) {
+                    const user = JSON.parse(userInfo);
+                    if (user.username) {
+                        if (userNameEl) userNameEl.textContent = user.username;
+                        if (userProfileName) userProfileName.textContent = user.username;
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('获取用户信息失败:', e);
+            }
+
+            // 默认显示
+            if (userNameEl) userNameEl.textContent = 'ThinkCraft 用户';
+            if (userProfileName) userProfileName.textContent = 'ThinkCraft 用户';
+        }
 
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1156,6 +1191,9 @@
                     localStorage.removeItem('thinkcraft_chats');
                 }
             }
+
+            // 更新用户名显示
+            updateUserNameDisplay();
 
             loadChats();
             loadSettings();
@@ -1726,12 +1764,6 @@
                             </svg>
                         </button>
                         <div class="chat-item-menu" id="menu-${chat.id}">
-                            <div class="chat-item-menu-item" onclick="manageTagsForChat(event, '${chat.id}')">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                </svg>
-                                管理标签
-                            </div>
                             <div class="chat-item-menu-item" onclick="renameChat(event, '${chat.id}')">
                                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -1788,39 +1820,9 @@
                         // 获取按钮位置（相对于视口）
                         const buttonRect = button.getBoundingClientRect();
 
-                        // 获取菜单实际尺寸
-                        const menuWidth = menu.offsetWidth || 140;
-                        const menuHeight = menu.offsetHeight;
-
-                        // 垂直位置：按钮底部下方 2px
-                        let top = buttonRect.bottom + 2;
-
-                        // 如果下方空间不足，显示在按钮上方
-                        if (top + menuHeight > window.innerHeight - 8) {
-                            top = buttonRect.top - menuHeight - 2;
-                        }
-
-                        // 水平位置：菜单左边缘对齐按钮左边缘（更自然的下拉菜单效果）
-                        let left = buttonRect.left;
-
-                        // 获取侧边栏实际宽度
-                        const sidebar = document.querySelector('.sidebar');
-                        const sidebarWidth = sidebar ? sidebar.offsetWidth : 280;
-
-                        // 如果菜单超出侧边栏右边界，调整为右对齐（留8px边距）
-                        if (left + menuWidth > sidebarWidth - 8) {
-                            left = sidebarWidth - menuWidth - 8;
-                        }
-
-                        // 确保不超出视口左边界
-                        left = Math.max(8, left);
-
-                        // 最终限制在视口内
-                        top = Math.max(8, top);
-
-                        console.log('按钮位置:', buttonRect);
-                        console.log('菜单尺寸:', { width: menuWidth, height: menuHeight });
-                        console.log('最终位置:', { left, top });
+                        // 简化定位逻辑：直接显示在按钮下方
+                        const top = buttonRect.bottom + 4;
+                        const left = buttonRect.right - 140; // 菜单右边对齐按钮右边
 
                         // 应用位置
                         menu.style.left = `${left}px`;
@@ -2362,7 +2364,11 @@
 
 
         function closeReport() {
-            document.getElementById('reportModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('reportModal')) {
+                window.modalManager.close('reportModal');
+            } else {
+                document.getElementById('reportModal').classList.remove('active');
+            }
         }
 
         // Tab 切换逻辑
@@ -2408,7 +2414,11 @@
         }
 
         function closeShareModal() {
-            document.getElementById('shareModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('shareModal')) {
+                window.modalManager.close('shareModal');
+            } else {
+                document.getElementById('shareModal').classList.remove('active');
+            }
         }
 
         // 下载卡片为图片
@@ -2627,10 +2637,44 @@
 
         // 开始生成流程
         function startGenerationFlow(type) {
+            // 确保businessPlanGenerator已初始化
+            if (!window.businessPlanGenerator) {
+                console.warn('[Button] businessPlanGenerator未初始化，尝试创建实例');
+                try {
+                    // 尝试初始化所需的依赖
+                    if (!window.modalManager) window.modalManager = new ModalManager();
+                    if (!window.apiClient) window.apiClient = new APIClient('http://localhost:3000');
+                    if (!window.stateManager) window.stateManager = new StateManager();
+                    if (!window.agentProgressManager) window.agentProgressManager = new AgentProgressManager(window.modalManager);
+
+                    // 创建businessPlanGenerator实例
+                    window.businessPlanGenerator = new BusinessPlanGenerator(
+                        window.apiClient,
+                        window.stateManager,
+                        window.agentProgressManager
+                    );
+                    console.log('[Button] businessPlanGenerator已创建');
+                } catch (error) {
+                    console.error('[Button] 创建businessPlanGenerator失败:', error);
+                    alert('系统初始化失败，请刷新页面重试');
+                    return;
+                }
+            }
+
             if (type === 'business') {
-                window.businessPlanGenerator.showChapterSelection('business');
+                if (typeof window.businessPlanGenerator.showChapterSelection === 'function') {
+                    window.businessPlanGenerator.showChapterSelection('business');
+                } else {
+                    console.error('[Button] showChapterSelection方法不存在');
+                    alert('系统功能异常，请刷新页面重试');
+                }
             } else if (type === 'proposal') {
-                window.businessPlanGenerator.showChapterSelection('proposal');
+                if (typeof window.businessPlanGenerator.showChapterSelection === 'function') {
+                    window.businessPlanGenerator.showChapterSelection('proposal');
+                } else {
+                    console.error('[Button] showChapterSelection方法不存在');
+                    alert('系统功能异常，请刷新页面重试');
+                }
             } else if (type === 'demo') {
                 startDemoGeneration();
             }
@@ -2946,7 +2990,11 @@
 
         // 关闭章节选择模态框
         function closeChapterSelection() {
-            document.getElementById('chapterSelectionModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('chapterSelectionModal')) {
+                window.modalManager.close('chapterSelectionModal');
+            } else {
+                document.getElementById('chapterSelectionModal').classList.remove('active');
+            }
         }
 
         // 开始生成
@@ -3037,7 +3085,11 @@
                 clearInterval(progressInterval);
                 progressInterval = null;
             }
-            document.getElementById('agentProgressModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('agentProgressModal')) {
+                window.modalManager.close('agentProgressModal');
+            } else {
+                document.getElementById('agentProgressModal').classList.remove('active');
+            }
         }
 
         // 取消生成
@@ -3122,7 +3174,11 @@
 
         // 关闭商业报告
         function closeBusinessReport() {
-            document.getElementById('businessReportModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+                window.modalManager.close('businessReportModal');
+            } else {
+                document.getElementById('businessReportModal').classList.remove('active');
+            }
         }
 
         // 重新生成商业报告
@@ -3280,7 +3336,11 @@
 
         // 关闭Demo类型选择
         function closeDemoTypeSelection() {
-            document.getElementById('demoTypeModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('demoTypeModal')) {
+                window.modalManager.close('demoTypeModal');
+            } else {
+                document.getElementById('demoTypeModal').classList.remove('active');
+            }
         }
 
         // 选择Demo类型
@@ -3401,7 +3461,11 @@
 
         // 关闭功能确认
         function closeDemoFeatures() {
-            document.getElementById('demoFeaturesModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('demoFeaturesModal')) {
+                window.modalManager.close('demoFeaturesModal');
+            } else {
+                document.getElementById('demoFeaturesModal').classList.remove('active');
+            }
         }
 
         // 确认Demo功能并开始生成
@@ -3744,7 +3808,11 @@
                 clearInterval(demoProgressInterval);
                 demoProgressInterval = null;
             }
-            document.getElementById('demoProgressModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('demoProgressModal')) {
+                window.modalManager.close('demoProgressModal');
+            } else {
+                document.getElementById('demoProgressModal').classList.remove('active');
+            }
         }
 
         // 取消Demo生成
@@ -3791,7 +3859,11 @@
 
         // 关闭Demo预览
         function closeDemoPreview() {
-            document.getElementById('demoPreviewModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('demoPreviewModal')) {
+                window.modalManager.close('demoPreviewModal');
+            } else {
+                document.getElementById('demoPreviewModal').classList.remove('active');
+            }
         }
 
         // 下载Demo
@@ -4669,7 +4741,11 @@
         }
 
         function closeSettings() {
-            document.getElementById('settingsModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('settingsModal')) {
+                window.modalManager.close('settingsModal');
+            } else {
+                document.getElementById('settingsModal').classList.remove('active');
+            }
         }
 
         // 底部上滑设置面板（移动端）
@@ -4681,10 +4757,13 @@
         }
 
         function closeBottomSettings() {
-            const sheet = document.getElementById('bottomSettingsSheet');
-            sheet.classList.remove('active');
-            // 恢复背景滚动
-            document.body.style.overflow = '';
+            if (window.modalManager && window.modalManager.isOpen('bottomSettingsSheet')) {
+                window.modalManager.close('bottomSettingsSheet');
+            } else {
+                const sheet = document.getElementById('bottomSettingsSheet');
+                sheet.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         }
 
         // 侧边栏Tab切换
@@ -4751,7 +4830,7 @@
                             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
-                            <div>数字员工团队空间</div>
+                            <div>数字员工项目空间</div>
                             <div>请在设置中开启此功能</div>
                         </div>
                     </div>
@@ -4876,13 +4955,8 @@
                 <div class="team-space-full">
                     <!-- 顶部操作栏 -->
                     <div class="team-header">
-                        <div class="team-header-title">团队空间</div>
+                        <div class="team-header-title">项目空间</div>
                         <div class="team-header-actions">
-                            <button class="team-action-btn" onclick="showKnowledgeBase('global')" title="全局知识库">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                            </button>
                             <button class="team-action-btn primary" onclick="createNewProject()" title="新建项目">
                                 <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
@@ -5024,13 +5098,16 @@
             const memberCount = project.assignedAgents.length;
             const ideaCount = project.linkedIdeas.length;
 
+            // 获取员工市场数据
+            const agentMarket = getAgentMarket();
+
             // 构建成员列表HTML
             let membersHTML = '';
             if (memberCount === 0) {
                 membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
             } else {
                 membersHTML = project.assignedAgents.map(agentId => {
-                    const agent = state.teamSpace.agents.find(a => a.id === agentId);
+                    const agent = agentMarket.find(a => a.id === agentId);
                     if (!agent) return '';
                     return `
                         <div class="project-member-card">
@@ -5097,6 +5174,11 @@
                     <button class="icon-btn" onclick="editProjectInfo('${project.id}')" title="编辑项目">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" onclick="deleteProject('${project.id}')" title="删除项目" style="color: #ef4444;">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
                     </button>
                     <button class="icon-btn desktop-only" onclick="showSettings()" title="设置">
@@ -5243,7 +5325,11 @@
 
         // 关闭员工市场
         function closeAgentMarket() {
-            document.getElementById('agentMarketModal').classList.remove('active');
+            if (window.modalManager && window.modalManager.isOpen('agentMarketModal')) {
+                window.modalManager.close('agentMarketModal');
+            } else {
+                document.getElementById('agentMarketModal').classList.remove('active');
+            }
         }
 
         // 切换市场Tab
@@ -5449,6 +5535,14 @@
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
+            // 检查是否已经引入创意（每个项目仅可引入一个创意）
+            if (project.linkedIdeas && project.linkedIdeas.length > 0) {
+                const linkedChat = state.chats.find(chat => chat.id === project.linkedIdeas[0]);
+                const ideaTitle = linkedChat ? linkedChat.title : '未知创意';
+                alert(`该项目已经引入创意"${ideaTitle}"，每个项目仅可引入一个创意。\n\n如需更换创意，请先移除当前创意。`);
+                return;
+            }
+
             // 找到已完成分析的对话
             const availableChats = state.chats.filter(
                 chat => !project.linkedIdeas.includes(chat.id) &&
@@ -5497,6 +5591,39 @@
             saveTeamSpace();
             renderProjectList();
             renderProjectDetail(project);
+        }
+
+        // 删除项目
+        function deleteProject(projectId) {
+            const project = state.teamSpace.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const confirmMsg = `确定要删除项目"${project.name}"吗？\n\n此操作不可恢复，项目中的所有数据都将被删除。`;
+            if (!confirm(confirmMsg)) return;
+
+            // 从项目列表中移除
+            const index = state.teamSpace.projects.findIndex(p => p.id === projectId);
+            if (index > -1) {
+                state.teamSpace.projects.splice(index, 1);
+                saveTeamSpace();
+
+                // 返回项目列表视图
+                renderProjectList();
+
+                // 清空主内容区，显示空状态
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div class="empty-title">项目已删除</div>
+                        <div class="empty-subtitle">选择其他项目或创建新项目</div>
+                    </div>
+                `;
+
+                alert('✅ 项目已删除');
+            }
         }
 
         // 知识库
@@ -5628,11 +5755,6 @@
             console.log(`[知识库] 类型过滤: ${type}`);
             stateManager.setKnowledgeTypeFilter(type);
             renderKnowledgeList();
-        }
-
-        function createKnowledge() {
-            alert('创建知识功能待实现');
-            // TODO: 打开创建知识的Modal或面板
         }
 
         function renderKnowledgeList() {
@@ -5903,12 +6025,176 @@
             item.viewCount = (item.viewCount || 0) + 1;
             await storageManager.saveKnowledge(item);
 
-            // 简单展示（实际应该用一个详情Modal）
-            alert(`${item.title}\n\n${item.content}\n\n类型: ${getTypeLabel(item.type)}\n标签: ${item.tags.join(', ')}\n创建时间: ${formatTime(item.createdAt)}\n浏览次数: ${item.viewCount}`);
+            // 创建知识详情弹窗
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+                    <div class="modal-header">
+                        <div class="modal-title">${item.icon} ${item.title}</div>
+                        <button class="close-btn" onclick="this.closest('.modal').remove()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="padding: 24px;">
+                        <div style="margin-bottom: 16px;">
+                            <span class="badge" style="background: ${getTypeBadgeColor(item.type)}; color: ${getTypeBadgeTextColor(item.type)}; margin-right: 8px;">${getTypeLabel(item.type)}</span>
+                            ${item.scope === 'global' ? '<span class="badge" style="background: #fef3c7; color: #92400e; margin-right: 8px;">全局</span>' : ''}
+                            <span class="badge time" style="background: #f3f4f6; color: #6b7280;">浏览 ${item.viewCount} 次</span>
+                        </div>
+                        ${item.tags.length > 0 ? `
+                            <div style="margin-bottom: 16px;">
+                                ${item.tags.map(tag => `<span class="tag" style="display: inline-block; padding: 4px 12px; background: #e0e7ff; color: #4338ca; border-radius: 12px; margin-right: 8px; font-size: 12px;">${tag}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div style="white-space: pre-wrap; line-height: 1.8; color: var(--text-secondary);">
+                            ${item.content}
+                        </div>
+                        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-tertiary); font-size: 12px;">
+                            <div>创建时间: ${formatTime(item.createdAt)}</div>
+                            ${item.updatedAt ? `<div>更新时间: ${formatTime(item.updatedAt)}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // 点击背景关闭
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
         }
 
-        function createKnowledge() {
-            alert('创建知识功能开发中...\n\n未来将支持：\n• 富文本编辑器\n• 文件附件上传\n• Markdown支持\n• AI辅助生成');
+        async function createKnowledge() {
+            // 创建新建知识弹窗
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <div class="modal-title">✨ 新建知识</div>
+                        <button class="close-btn" onclick="this.closest('.modal').remove()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="padding: 24px;">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">标题</label>
+                            <input type="text" id="knowledgeTitleInput" placeholder="输入知识标题..." style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">类型</label>
+                            <select id="knowledgeTypeInput" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;">
+                                <option value="prd">产品需求文档 (PRD)</option>
+                                <option value="tech">技术方案</option>
+                                <option value="analysis">市场分析</option>
+                                <option value="research">调研报告</option>
+                                <option value="summary">会议纪要</option>
+                                <option value="idea">创意想法</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">内容</label>
+                            <textarea id="knowledgeContentInput" placeholder="输入知识内容..." style="width: 100%; min-height: 200px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+                        </div>
+                        <div style="margin-bottom: 24px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">标签 <span style="font-weight: normal; color: var(--text-tertiary); font-size: 12px;">(用逗号分隔)</span></label>
+                            <input type="text" id="knowledgeTagsInput" placeholder="例如: 产品, 需求, v1.0" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button class="btn-secondary" onclick="this.closest('.modal').remove()">取消</button>
+                            <button class="btn-primary" id="saveKnowledgeBtn" onclick="saveNewKnowledge()">保存</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // 聚焦标题输入框
+            setTimeout(() => {
+                document.getElementById('knowledgeTitleInput').focus();
+            }, 100);
+
+            // 点击背景关闭
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        async function saveNewKnowledge() {
+            const title = document.getElementById('knowledgeTitleInput').value.trim();
+            const type = document.getElementById('knowledgeTypeInput').value;
+            const content = document.getElementById('knowledgeContentInput').value.trim();
+            const tagsInput = document.getElementById('knowledgeTagsInput').value.trim();
+
+            if (!title) {
+                alert('请输入标题');
+                return;
+            }
+
+            if (!content) {
+                alert('请输入内容');
+                return;
+            }
+
+            // 解析标签
+            const tags = tagsInput ? tagsInput.split(/[,，]/).map(t => t.trim()).filter(t => t) : [];
+
+            // 创建知识对象
+            const knowledge = {
+                id: Date.now().toString(),
+                title: title,
+                type: type,
+                content: content,
+                tags: tags,
+                icon: getTypeIcon(type),
+                scope: 'global',
+                projectId: state.currentProject || null,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                viewCount: 0
+            };
+
+            // 保存到存储
+            await storageManager.saveKnowledge(knowledge);
+
+            // 关闭弹窗
+            const modalToClose = document.getElementById('saveKnowledgeBtn')?.closest('.modal');
+            if (modalToClose) {
+                modalToClose.remove();
+            }
+
+            // 刷新知识列表
+            if (typeof renderKnowledgeList === 'function') {
+                renderKnowledgeList();
+            }
+
+            // 提示成功
+            alert('✅ 知识已保存');
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                prd: '📋',
+                tech: '⚙️',
+                analysis: '📊',
+                research: '🔍',
+                summary: '📝',
+                idea: '💡',
+                other: '📄'
+            };
+            return icons[type] || '📄';
         }
 
         // 工具函数
@@ -6100,8 +6386,8 @@
             }
         }
 
-        // 启动团队协同（占位符）
-        function startTeamCollaboration(projectId) {
+        // 启动团队协同
+        async function startTeamCollaboration(projectId) {
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
@@ -6115,7 +6401,128 @@
                 return;
             }
 
-            alert('AI协同功能开发中...\n\n未来将支持：\n• 多员工智能协同完成任务\n• 自动分配工作和生成文档\n• 实时协作和进度跟踪\n• AI辅助决策和优化');
+            // 获取项目成员信息
+            const agentMarket = getAgentMarket();
+            const projectMembers = project.assignedAgents.map(agentId => {
+                const agent = agentMarket.find(a => a.id === agentId);
+                return agent ? {
+                    name: agent.name,
+                    role: agent.role,
+                    skills: agent.skills
+                } : null;
+            }).filter(m => m !== null);
+
+            // 获取创意信息
+            const linkedChat = state.chats.find(chat => chat.id === project.linkedIdeas[0]);
+            const ideaContent = linkedChat ? linkedChat.title : '未知创意';
+            const ideaMessages = linkedChat && linkedChat.messages ? linkedChat.messages.slice(0, 5) : [];
+
+            try {
+                // 显示加载提示
+                const loadingModal = document.createElement('div');
+                loadingModal.className = 'modal';
+                loadingModal.style.display = 'flex';
+                loadingModal.innerHTML = `
+                    <div class="modal-content" style="max-width: 400px; text-align: center; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🤖</div>
+                        <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">AI评估中...</div>
+                        <div style="color: var(--text-secondary); font-size: 14px;">正在分析项目成员与创意的匹配度</div>
+                    </div>
+                `;
+                document.body.appendChild(loadingModal);
+
+                // 调用AI评估API
+                const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            {
+                                role: 'system',
+                                content: '你是一个专业的项目评估专家，擅长分析团队成员与项目需求的匹配度。请根据项目成员和创意需求，评估团队是否具备完成该项目的能力，并给出专业建议。'
+                            },
+                            {
+                                role: 'user',
+                                content: `请评估以下项目团队配置：
+
+项目名称：${project.name}
+创意内容：${ideaContent}
+${ideaMessages.length > 0 ? `\n创意详情：\n${ideaMessages.map(m => m.content).join('\n')}` : ''}
+
+当前团队成员：
+${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`).join('\n')}
+
+请从以下几个方面进行评估：
+1. 分析当前团队成员的角色和技能是否能够覆盖该创意所需的核心能力
+2. 指出可能存在的角色缺失或技能短板
+3. 如果存在不足，给出具体的雇佣建议（需要什么角色的成员）
+4. 如果团队配置合理，建议一个高效的协同模式（如何分工协作）
+5. 给出项目成功完成的概率评估（0-100%）
+
+请用清晰、专业的语言回答，分点阐述。`
+                            }
+                        ]
+                    })
+                });
+
+                loadingModal.remove();
+
+                if (!response.ok) {
+                    throw new Error('评估请求失败');
+                }
+
+                const result = await response.json();
+
+                if (result.code !== 0) {
+                    throw new Error(result.error || '评估失败');
+                }
+
+                // 显示评估结果
+                const evaluationResult = result.data.reply;
+
+                const resultModal = document.createElement('div');
+                resultModal.className = 'modal';
+                resultModal.style.display = 'flex';
+                resultModal.innerHTML = `
+                    <div class="modal-content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <div class="modal-title">🎯 团队协同评估报告</div>
+                            <button class="close-btn" onclick="this.closest('.modal').remove()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding: 24px;">
+                            <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">项目：${project.name}</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);">创意：${ideaContent}</div>
+                            </div>
+                            <div style="white-space: pre-wrap; line-height: 1.8; color: var(--text-primary);">
+                                ${evaluationResult}
+                            </div>
+                            <div style="display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end;">
+                                <button class="btn-secondary" onclick="this.closest('.modal').remove()">关闭</button>
+                                <button class="btn-primary" onclick="this.closest('.modal').remove(); showAddMember()">添加成员</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(resultModal);
+
+                // 点击背景关闭
+                resultModal.addEventListener('click', function(e) {
+                    if (e.target === resultModal) {
+                        resultModal.remove();
+                    }
+                });
+
+            } catch (error) {
+                console.error('[协同评估] 失败:', error);
+                alert(`评估失败: ${error.message}\n\n请检查后端服务是否正常运行。`);
+            }
         }
 
         // 恢复对话界面的HTML结构
@@ -6166,8 +6573,7 @@
                         <!-- 左侧：组织树 -->
                         <div class="knowledge-sidebar">
                             <div class="knowledge-org-switcher">
-                                <button class="active" data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
-                                <button data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
+                                <button class="active" data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
                                 <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
                                 <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
                             </div>
@@ -6788,11 +7194,10 @@
                             ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                         </div>
                         <div class="agent-card-actions">
-                            <button class="hire-btn ${isHired ? 'hired' : ''}"
-                                    onclick="toggleAgentHire('${agent.id}')"
-                                    ${isHired ? '' : ''}>
-                                ${isHired ? '✓ 已加入' : '加入团队'}
-                            </button>
+                            ${isHired
+                                ? `<button class="hire-btn hired" disabled style="cursor: not-allowed; opacity: 0.6;">✓ 已加入</button>`
+                                : `<button class="hire-btn" onclick="toggleAgentHire('${agent.id}')">加入团队</button>`
+                            }
                         </div>
                     </div>
                 `;
@@ -6805,14 +7210,13 @@
             const index = hiredAgents.indexOf(agentId);
 
             if (index > -1) {
-                // 已雇佣，执行解雇
-                hiredAgents.splice(index, 1);
-                console.log(`[项目] 解雇员工: ${agentId}`);
-            } else {
-                // 未雇佣，执行雇佣
-                hiredAgents.push(agentId);
-                console.log(`[项目] 雇佣员工: ${agentId}`);
+                // 已雇佣的情况不应该走到这里，因为按钮已经disabled
+                return;
             }
+
+            // 执行雇佣
+            hiredAgents.push(agentId);
+            console.log(`[项目] 雇佣员工: ${agentId}`);
 
             project.assignedAgents = hiredAgents;
 
@@ -6821,7 +7225,13 @@
 
             // 重新渲染
             renderAvailableAgents();
+            renderProjectHiredAgents(); // 同时刷新已雇佣Tab
             renderProjectMembers(project);
+            renderProjectList(); // 刷新项目列表，确保回显
+
+            // 刷新主内容区的项目详情页面（关键修复）
+            renderProjectDetail(project);
+
             document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
         }
 
@@ -6841,6 +7251,12 @@
 
                 // 重新渲染
                 renderProjectMembers(project);
+                renderProjectList(); // 刷新项目列表，确保回显
+
+                // 刷新主内容区的项目详情页面（关键修复）
+                renderProjectDetail(project);
+                renderProjectHiredAgents(); // 刷新已雇佣Tab
+
                 document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
             }
         }
@@ -6905,6 +7321,18 @@
                 state.chats = [];
                 loadChats();
                 alert('✅ 历史记录已清除');
+            }
+        }
+
+        // 退出登录
+        function handleLogout() {
+            if (confirm('确定要退出登录吗？\n\n退出后将清除本地数据并返回登录页面。')) {
+                // 清除所有本地数据
+                localStorage.clear();
+                sessionStorage.clear();
+
+                // 跳转到登录页面
+                window.location.href = 'login.html';
             }
         }
 

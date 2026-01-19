@@ -165,16 +165,21 @@
         .team-empty-action {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 10px 20px;
+            gap: 4px;
+            padding: 6px 12px;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            border-radius: 6px;
+            font-size: 12px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
+        }
+
+        .team-empty-action svg {
+            width: 12px;
+            height: 12px;
         }
 
         .team-empty-action:hover {
@@ -1940,6 +1945,24 @@
             background: #dc2626;
         }
 
+        .logout-btn {
+            width: 100%;
+            padding: 12px 24px;
+            background: white;
+            color: #1a1a1a;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
         .modal-footer {
             padding: 16px 24px;
             border-top: 1px solid var(--border);
@@ -2376,6 +2399,33 @@
 
             .menu-toggle {
                 display: block;
+            }
+
+            /* 移动端：调整sidebar-tabs横线居中 */
+            .sidebar-tabs {
+                justify-content: center;
+                padding: 12px 16px 0;
+            }
+
+            .sidebar-tab {
+                justify-content: center;
+            }
+
+            /* 移动端：调整预览模式和icon居中 */
+            .team-space-preview {
+                padding: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .team-space-empty {
+                padding: 20px;
+                text-align: center;
+            }
+
+            .team-space-empty svg {
+                margin: 0 auto;
             }
 
             /* 移动端：隐藏桌面端专用元素 */
@@ -4009,6 +4059,7 @@
     flex-direction: column;
     overflow: hidden;
     background: white;
+    position: relative;
 }
 
 /* 组织切换器 */
@@ -4145,6 +4196,21 @@
     padding: 20px;
     overflow-y: auto;
     flex: 1;
+}
+
+/* 知识库空状态 */
+.knowledge-main .empty-state {
+    position: absolute;
+    top: 60px; /* 跳过toolbar的高度 */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
 }
 
 .knowledge-card {
