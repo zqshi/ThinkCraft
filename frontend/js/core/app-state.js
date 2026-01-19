@@ -13,7 +13,12 @@ export const appState = {
     isTyping: false,
     isLoading: false,
     analysisCompleted: false,
+
+    // 项目管理（v5新增）
     currentProject: null,
+    projects: [],
+    projectsLoaded: false,
+
     teamSpace: null,
     settings: {
         darkMode: false,
@@ -81,4 +86,41 @@ export function updateSpaceHoldTimer(timer) {
 
 export function updateSpaceHoldTriggered(triggered) {
     spaceHoldTriggered = triggered;
+}
+
+// 项目状态更新函数（v5新增）
+export function setCurrentProject(project) {
+    appState.currentProject = project;
+}
+
+export function setProjects(projects) {
+    appState.projects = projects;
+    appState.projectsLoaded = true;
+}
+
+export function addProject(project) {
+    appState.projects.unshift(project); // 添加到数组开头
+}
+
+export function updateProject(projectId, updates) {
+    const index = appState.projects.findIndex(p => p.id === projectId);
+    if (index !== -1) {
+        appState.projects[index] = { ...appState.projects[index], ...updates };
+    }
+    // 如果是当前项目，也更新
+    if (appState.currentProject && appState.currentProject.id === projectId) {
+        appState.currentProject = { ...appState.currentProject, ...updates };
+    }
+}
+
+export function removeProject(projectId) {
+    appState.projects = appState.projects.filter(p => p.id !== projectId);
+    // 如果删除的是当前项目，清空
+    if (appState.currentProject && appState.currentProject.id === projectId) {
+        appState.currentProject = null;
+    }
+}
+
+export function clearCurrentProject() {
+    appState.currentProject = null;
 }

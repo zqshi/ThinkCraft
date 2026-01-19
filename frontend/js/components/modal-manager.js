@@ -279,7 +279,7 @@ class ModalManager {
    * @returns {String} 临时模态框ID
    */
   openTemp(config) {
-    const tempId = `temp-modal-${Date.now()}`;
+    const tempId = config.modalId || `temp-modal-${Date.now()}`;
 
     // 创建模态框HTML
     const modalHTML = `
@@ -370,6 +370,24 @@ class ModalManager {
         <button class="btn btn-primary" onclick="modalManager.close(this.closest('.modal').id)">确定</button>
       `,
       className: `alert-modal alert-${type}`
+    });
+  }
+
+  /**
+   * 显示自定义模态框
+   * @param {String} title - 标题
+   * @param {String} contentHTML - 内容HTML
+   * @param {String} customId - 自定义模态框ID（可选）
+   */
+  showCustomModal(title, contentHTML, customId = null) {
+    const modalId = customId || `custom-modal-${Date.now()}`;
+
+    this.openTemp({
+      title,
+      content: contentHTML,
+      footer: '', // 自定义内容中包含按钮
+      className: 'custom-modal',
+      modalId
     });
   }
 

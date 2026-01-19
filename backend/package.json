@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "NODE_ENV=development node server.js",
+    "dev": "NODE_ENV=development node --watch server.js"
   },
   "keywords": ["thinkcraft", "ai", "deepseek"],
   "author": "",

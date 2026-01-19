@@ -1,0 +1,983 @@
+/**
+ * 项目管理器（前端）
+ * 负责项目创建、查询、展示、模式管理
+ */
+
+class ProjectManager {
+    constructor() {
+        this.projects = [];
+        this.currentProject = null;
+        this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
+        this.storageManager = window.storageManager;
+
+        console.log('[ProjectManager] 项目管理器已初始化');
+    }
+
+    /**
+     * 初始化：加载所有项目
+     */
+    async init() {
+        try {
+            await this.loadProjects();
+            console.log(`[ProjectManager] 加载了 ${this.projects.length} 个项目`);
+        } catch (error) {
+            console.error('[ProjectManager] 初始化失败:', error);
+        }
+    }
+
+    /**
+     * 加载所有项目（从本地存储）
+     */
+    async loadProjects() {
+        try {
+            this.projects = await this.storageManager.getAllProjects();
+
+            // 更新全局状态
+            if (window.setProjects) {
+                window.setProjects(this.projects);
+            }
+
+            return this.projects;
+        } catch (error) {
+            console.error('[ProjectManager] 加载项目失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 创建项目（从创意）
+     * @param {String} ideaId - 创意ID（对话ID）
+     * @param {String} mode - 'demo' | 'development'
+     * @param {String} name - 项目名称
+     * @returns {Promise<Object>} 项目对象
+     */
+    async createProject(ideaId, mode, name) {
+        try {
+            // 检查该创意是否已创建项目
+            const existing = await this.storageManager.getProjectByIdeaId(ideaId);
+            if (existing) {
+                throw new Error('该创意已创建项目');
+            }
+
+            // 调用后端API创建项目
+            const response = await fetch(`${this.apiUrl}/api/projects/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ideaId, mode, name })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || '创建项目失败');
+            }
+
+            const result = await response.json();
+            const project = result.data.project;
+
+            // 保存到本地存储
+            await this.storageManager.saveProject(project);
+
+            // 更新内存
+            this.projects.unshift(project);
+
+            // 更新全局状态
+            if (window.addProject) {
+                window.addProject(project);
+            }
+
+            console.log(`[ProjectManager] 创建项目成功: ${project.id}`);
+
+            return project;
+        } catch (error) {
+            console.error('[ProjectManager] 创建项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取项目详情
+     * @param {String} projectId - 项目ID
+     * @returns {Promise<Object>} 项目对象
+     */
+    async getProject(projectId) {
+        try {
+            // 先从本地获取
+            const project = await this.storageManager.getProject(projectId);
+            if (project) {
+                return project;
+            }
+
+            // 如果本地没有，从后端获取
+            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`);
+            if (!response.ok) {
+                throw new Error('项目不存在');
+            }
+
+            const result = await response.json();
+            return result.data.project;
+        } catch (error) {
+            console.error('[ProjectManager] 获取项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 根据创意ID获取项目
+     * @param {String} ideaId - 创意ID
+     * @returns {Promise<Object|null>} 项目对象
+     */
+    async getProjectByIdeaId(ideaId) {
+        return await this.storageManager.getProjectByIdeaId(ideaId);
+    }
+
+    /**
+     * 更新项目
+     * @param {String} projectId - 项目ID
+     * @param {Object} updates - 更新内容
+     */
+    async updateProject(projectId, updates) {
+        try {
+            // 调用后端API
+            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+
+            if (!response.ok) {
+                throw new Error('更新项目失败');
+            }
+
+            const result = await response.json();
+            const project = result.data.project;
+
+            // 更新本地存储
+            await this.storageManager.saveProject(project);
+
+            // 更新内存
+            const index = this.projects.findIndex(p => p.id === projectId);
+            if (index !== -1) {
+                this.projects[index] = project;
+            }
+
+            // 更新全局状态
+            if (window.updateProject) {
+                window.updateProject(projectId, updates);
+            }
+
+            console.log(`[ProjectManager] 更新项目成功: ${projectId}`);
+
+            return project;
+        } catch (error) {
+            console.error('[ProjectManager] 更新项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 删除项目
+     * @param {String} projectId - 项目ID
+     */
+    async deleteProject(projectId) {
+        try {
+            // 调用后端API
+            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('删除项目失败');
+            }
+
+            // 删除本地存储
+            await this.storageManager.deleteProject(projectId);
+
+            // 更新内存
+            this.projects = this.projects.filter(p => p.id !== projectId);
+
+            // 更新全局状态
+            if (window.removeProject) {
+                window.removeProject(projectId);
+            }
+
+            console.log(`[ProjectManager] 删除项目成功: ${projectId}`);
+
+        } catch (error) {
+            console.error('[ProjectManager] 删除项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 升级项目模式（Demo → Development）
+     * @param {String} projectId - 项目ID
+     * @returns {Promise<Object>} 升级后的项目
+     */
+    async upgradeProject(projectId) {
+        try {
+            // 调用后端API
+            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}/upgrade`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || '升级失败');
+            }
+
+            const result = await response.json();
+            const project = result.data.project;
+
+            // 更新本地存储
+            await this.storageManager.saveProject(project);
+
+            // 更新内存
+            const index = this.projects.findIndex(p => p.id === projectId);
+            if (index !== -1) {
+                this.projects[index] = project;
+            }
+
+            console.log(`[ProjectManager] 项目升级成功: ${projectId}`);
+
+            return project;
+        } catch (error) {
+            console.error('[ProjectManager] 项目升级失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 为项目关联Demo
+     * @param {String} projectId - 项目ID
+     * @param {Object} demoData - Demo数据
+     */
+    async linkDemo(projectId, demoData) {
+        try {
+            const project = await this.storageManager.getProject(projectId);
+            if (!project) {
+                throw new Error('项目不存在');
+            }
+
+            // 更新项目的demo数据
+            project.demo = {
+                type: demoData.demoType,
+                code: demoData.code || null,
+                previewUrl: demoData.previewUrl,
+                downloadUrl: demoData.downloadUrl,
+                generatedAt: demoData.generatedAt || Date.now()
+            };
+
+            // 保存到本地
+            await this.storageManager.saveProject(project);
+
+            // 更新后端
+            await this.updateProject(projectId, { demo: project.demo });
+
+            console.log(`[ProjectManager] Demo已关联到项目: ${projectId}`);
+
+            return project;
+        } catch (error) {
+            console.error('[ProjectManager] 关联Demo失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 渲染项目列表
+     * @param {String} containerId - 容器元素ID
+     */
+    renderProjectList(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`[ProjectManager] 容器不存在: ${containerId}`);
+            return;
+        }
+
+        if (this.projects.length === 0) {
+            container.innerHTML = `
+                <div style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">我的项目</h2>
+                        <button class="btn-primary" onclick="projectManager.showCreateProjectDialog()">
+                            <span>+ 新建项目</span>
+                        </button>
+                    </div>
+                    <div style="text-align: center; padding: 80px 40px; background: linear-gradient(135deg, #fdfbfb 0%, #f8f9fa 100%); border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+                        <div style="margin-bottom: 32px; display: inline-block;">
+                            <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <linearGradient id="projectGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
+                                        <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
+                                    </linearGradient>
+                                </defs>
+                                <!-- 背景圆 -->
+                                <circle cx="48" cy="48" r="40" fill="url(#projectGradient)" opacity="0.08"/>
+                                <!-- 文件夹图标 -->
+                                <path d="M28 32C28 29.3137 30.0147 27 32.5 27H41L45 32H63.5C66.2614 32 68 34.3137 68 37V59C68 61.6863 66.2614 64 63.5 64H32.5C30.0147 64 28 61.6863 28 59V32Z"
+                                      fill="url(#projectGradient)" opacity="0.12"/>
+                                <path d="M28 37C28 34.3137 30.0147 32 32.5 32H41L45 37H63.5C66.2614 37 68 39.3137 68 42V59C68 61.6863 66.2614 64 63.5 64H32.5C30.0147 64 28 61.6863 28 59V37Z"
+                                      stroke="url(#projectGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
+                                <!-- 加号 -->
+                                <circle cx="48" cy="50.5" r="10" fill="url(#projectGradient)"/>
+                                <path d="M48 45.5V55.5M43 50.5H53" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <h3 style="font-size: 17px; font-weight: 600; color: #1a1a1a; margin: 0 0 10px 0; letter-spacing: -0.01em;">还没有项目</h3>
+                        <p style="font-size: 13.5px; color: #6b7280; margin: 0 0 32px 0; line-height: 1.7; max-width: 320px; margin-left: auto; margin-right: auto;">从创意对话中引入创意，开始项目开发</p>
+                        <button class="btn-primary" onclick="projectManager.showCreateProjectDialog()"
+                                style="margin: 0 auto; padding: 10px 20px; font-size: 13.5px; font-weight: 500; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                </svg>
+                                引入创意，创建项目
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const projectCardsHTML = this.projects.map(project => this.renderProjectCard(project)).join('');
+
+        container.innerHTML = `
+            <div style="padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0; font-size: 24px; font-weight: 600;">我的项目</h2>
+                    <button class="btn-primary" onclick="projectManager.showCreateProjectDialog()">
+                        <span>+ 新建项目</span>
+                    </button>
+                </div>
+                <div style="display: grid; gap: 16px;">
+                    ${projectCardsHTML}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染单个项目卡片
+     * @param {Object} project - 项目对象
+     * @returns {String} HTML字符串
+     */
+    renderProjectCard(project) {
+        const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
+        const statusText = {
+            planning: '规划中',
+            active: '进行中',
+            completed: '已完成',
+            archived: '已归档'
+        }[project.status] || project.status;
+
+        const timeAgo = this.formatTimeAgo(project.updatedAt);
+
+        let contentHTML = '';
+
+        if (project.mode === 'demo') {
+            if (project.demo && project.demo.previewUrl) {
+                contentHTML = `
+                    <div style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">
+                        💻 HTML Demo已生成
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-secondary" onclick="projectManager.previewDemo('${project.id}')">预览</button>
+                        <button class="btn-secondary" onclick="projectManager.regenerateDemo('${project.id}')">重新生成</button>
+                        <button class="btn-primary" onclick="projectManager.upgradeProject('${project.id}')">升级为完整项目</button>
+                    </div>
+                `;
+            } else {
+                contentHTML = `
+                    <div style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">
+                        等待生成Demo
+                    </div>
+                    <button class="btn-primary" onclick="projectManager.startDemoGeneration('${project.id}')">生成Demo</button>
+                `;
+            }
+        } else {
+            const progress = this.calculateWorkflowProgress(project.workflow);
+            contentHTML = `
+                <div style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">
+                    进度 ${progress}%
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <div style="background: var(--border); height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div style="background: var(--primary); height: 100%; width: ${progress}%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="projectManager.openProject('${project.id}')">查看详情</button>
+            `;
+        }
+
+        return `
+            <div class="project-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">${this.escapeHtml(project.name)}</h3>
+                        <div style="display: flex; gap: 8px; align-items: center; color: var(--text-secondary); font-size: 14px;">
+                            <span>${modeText}</span>
+                            <span>•</span>
+                            <span>${statusText}</span>
+                            <span>•</span>
+                            <span>${timeAgo}</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon" onclick="projectManager.deleteProject('${project.id}')" title="删除项目">
+                        🗑️
+                    </button>
+                </div>
+                ${contentHTML}
+            </div>
+        `;
+    }
+
+    /**
+     * 计算工作流进度
+     * @param {Object} workflow - 工作流对象
+     * @returns {Number} 进度百分比
+     */
+    calculateWorkflowProgress(workflow) {
+        if (!workflow || !workflow.stages || workflow.stages.length === 0) {
+            return 0;
+        }
+
+        const completedStages = workflow.stages.filter(s => s.status === 'completed').length;
+        return Math.round((completedStages / workflow.stages.length) * 100);
+    }
+
+    /**
+     * 格式化时间
+     * @param {Number} timestamp - 时间戳
+     * @returns {String} 相对时间
+     */
+    formatTimeAgo(timestamp) {
+        const now = Date.now();
+        const diff = now - timestamp;
+
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}天前`;
+        if (hours > 0) return `${hours}小时前`;
+        if (minutes > 0) return `${minutes}分钟前`;
+        return '刚刚';
+    }
+
+    /**
+     * HTML转义
+     * @param {String} text - 文本
+     * @returns {String} 转义后的文本
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * 显示创建项目对话框
+     */
+    async showCreateProjectDialog() {
+        try {
+            console.log('[ProjectManager] 显示创建项目对话框');
+
+            // 获取所有对话
+            const chats = await this.storageManager.getAllChats();
+
+            // 筛选已完成分析的对话
+            const analyzedChats = chats.filter(chat => chat.analysisCompleted);
+
+            if (analyzedChats.length === 0) {
+                if (window.modalManager) {
+                    window.modalManager.alert('暂无可用创意<br><br>请先在对话中完成创意分析，然后再创建项目', 'info');
+                } else {
+                    alert('暂无可用创意\n\n请先在对话中完成创意分析，然后再创建项目');
+                }
+                return;
+            }
+
+            // 检查哪些创意已经创建过项目
+            const chatIdsWithProjects = new Set(this.projects.map(p => p.ideaId));
+
+            // 显示创意选择对话框
+            const ideaListHTML = analyzedChats.map(chat => {
+                const hasProject = chatIdsWithProjects.has(chat.id);
+                const disabledClass = hasProject ? 'disabled' : '';
+                const disabledAttr = hasProject ? 'disabled' : '';
+
+                return `
+                    <label class="idea-item ${disabledClass}" style="display: flex; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; cursor: ${hasProject ? 'not-allowed' : 'pointer'}; opacity: ${hasProject ? '0.5' : '1'};">
+                        <input type="radio" name="selectedIdea" value="${chat.id}" ${disabledAttr} style="margin-top: 4px;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; margin-bottom: 4px;">${this.escapeHtml(chat.title)}</div>
+                            <div style="font-size: 14px; color: var(--text-secondary);">
+                                ${this.formatTimeAgo(chat.updatedAt)}
+                                ${hasProject ? '· 已创建项目' : ''}
+                            </div>
+                        </div>
+                    </label>
+                `;
+            }).join('');
+
+            const dialogHTML = `
+                <div style="max-height: 60vh; overflow-y: auto; padding: 4px;">
+                    <div style="margin-bottom: 16px; color: var(--text-secondary); font-size: 14px;">
+                        选择一个已完成分析的创意来创建项目：
+                    </div>
+                    <div id="ideaList" style="display: flex; flex-direction: column; gap: 12px;">
+                        ${ideaListHTML}
+                    </div>
+                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+                        <div style="margin-bottom: 12px; font-weight: 500;">选择开发模式：</div>
+                        <div style="display: flex; gap: 12px;">
+                            <label style="flex: 1; padding: 16px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="this.querySelector('input').checked = true; this.style.borderColor = 'var(--primary)'; this.parentElement.querySelectorAll('label').forEach(l => {if(l !== this) l.style.borderColor = 'var(--border)'})">
+                                <input type="radio" name="projectMode" value="demo" checked style="margin-right: 8px;">
+                                <strong>Demo模式</strong>
+                                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">快速生成原型验证创意</div>
+                            </label>
+                            <label style="flex: 1; padding: 16px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="this.querySelector('input').checked = true; this.style.borderColor = 'var(--primary)'; this.parentElement.querySelectorAll('label').forEach(l => {if(l !== this) l.style.borderColor = 'var(--border)'})">
+                                <input type="radio" name="projectMode" value="development" style="margin-right: 8px;">
+                                <strong>协同开发</strong>
+                                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">完整开发流程，生产级产品</div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+                    <button class="btn-secondary" onclick="window.modalManager.close('createProjectDialog')" style="flex: 1;">取消</button>
+                    <button class="btn-primary" onclick="projectManager.confirmCreateProject()" style="flex: 1;">创建项目</button>
+                </div>
+            `;
+
+            // 使用modalManager显示对话框
+            if (window.modalManager) {
+                window.modalManager.showCustomModal('创建项目', dialogHTML, 'createProjectDialog');
+            } else {
+                // 降级处理：使用简单的prompt
+                const chatTitles = analyzedChats.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
+                const choice = prompt(`选择创意（输入序号）：\n\n${chatTitles}`);
+                if (choice) {
+                    const index = parseInt(choice) - 1;
+                    if (index >= 0 && index < analyzedChats.length) {
+                        const chat = analyzedChats[index];
+                        const mode = confirm('选择开发模式：\n\n确定 = Demo模式\n取消 = 协同开发模式') ? 'demo' : 'development';
+                        await this.createProjectFromIdea(chat.id, mode, chat.title);
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error('[ProjectManager] 显示创建项目对话框失败:', error);
+            alert('显示对话框失败: ' + error.message);
+        }
+    }
+
+    /**
+     * 确认创建项目
+     */
+    async confirmCreateProject() {
+        try {
+            // 获取选中的创意
+            const selectedIdeaInput = document.querySelector('input[name="selectedIdea"]:checked');
+            if (!selectedIdeaInput) {
+                if (window.modalManager) {
+                    window.modalManager.alert('请选择一个创意', 'warning');
+                } else {
+                    alert('请选择一个创意');
+                }
+                return;
+            }
+
+            const ideaId = selectedIdeaInput.value;
+
+            // 获取选中的模式
+            const selectedModeInput = document.querySelector('input[name="projectMode"]:checked');
+            const mode = selectedModeInput ? selectedModeInput.value : 'demo';
+
+            // 获取创意标题
+            const chat = await this.storageManager.getChat(ideaId);
+            const projectName = chat ? `${chat.title} - 项目` : '新项目';
+
+            // 关闭对话框
+            if (window.modalManager) {
+                window.modalManager.close('createProjectDialog');
+            }
+
+            // 如果是协同开发模式，显示工作流推荐
+            if (mode === 'development' && window.workflowRecommendationManager) {
+                await window.workflowRecommendationManager.showRecommendationDialog(
+                    projectName,
+                    ideaId,
+                    async (selectedStages) => {
+                        // 创建项目并设置自定义工作流
+                        await this.createProjectWithWorkflow(ideaId, mode, projectName, selectedStages);
+                    }
+                );
+            } else {
+                // Demo模式或不支持推荐，直接创建
+                await this.createProjectFromIdea(ideaId, mode, projectName);
+            }
+
+        } catch (error) {
+            console.error('[ProjectManager] 创建项目失败:', error);
+            if (window.modalManager) {
+                window.modalManager.alert('创建项目失败: ' + error.message, 'error');
+            } else {
+                alert('创建项目失败: ' + error.message);
+            }
+        }
+    }
+
+    /**
+     * 创建项目并设置自定义工作流
+     * @param {String} ideaId - 创意ID
+     * @param {String} mode - 模式
+     * @param {String} name - 项目名称
+     * @param {Array<String>} selectedStages - 选中的阶段ID
+     */
+    async createProjectWithWorkflow(ideaId, mode, name, selectedStages) {
+        try {
+            // 创建项目
+            const project = await this.createProject(ideaId, mode, name);
+
+            // 如果有自定义阶段，更新工作流
+            if (selectedStages && selectedStages.length > 0 && project.workflow) {
+                // 过滤出选中的阶段
+                project.workflow.stages = project.workflow.stages.filter(stage =>
+                    selectedStages.includes(stage.id)
+                );
+
+                // 保存更新后的项目
+                await this.storageManager.saveProject(project);
+            }
+
+            // 刷新项目列表
+            await this.loadProjects();
+            this.renderProjectList('projectListContainer');
+
+            // 显示成功提示
+            if (window.modalManager) {
+                const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
+                window.modalManager.alert(
+                    `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}<br>阶段数：${selectedStages.length}`,
+                    'success'
+                );
+            } else {
+                alert('项目创建成功！');
+            }
+
+            console.log('[ProjectManager] 项目创建成功:', project.id);
+
+        } catch (error) {
+            console.error('[ProjectManager] 创建项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 从创意创建项目
+     * @param {String} ideaId - 创意ID
+     * @param {String} mode - 模式
+     * @param {String} name - 项目名称
+     */
+    async createProjectFromIdea(ideaId, mode, name) {
+        try {
+            // 创建项目
+            const project = await this.createProject(ideaId, mode, name);
+
+            // 刷新项目列表
+            await this.loadProjects();
+            this.renderProjectList('projectListContainer');
+
+            // 显示成功提示
+            if (window.modalManager) {
+                const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
+                window.modalManager.alert(`项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}`, 'success');
+            } else {
+                alert('项目创建成功！');
+            }
+
+            console.log('[ProjectManager] 项目创建成功:', project.id);
+
+        } catch (error) {
+            console.error('[ProjectManager] 创建项目失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 打开项目详情
+     * @param {String} projectId - 项目ID
+     */
+    async openProject(projectId) {
+        try {
+            console.log('[ProjectManager] 打开项目:', projectId);
+
+            // 获取项目详情
+            const project = await this.getProject(projectId);
+            if (!project) {
+                throw new Error('项目不存在');
+            }
+
+            // 更新全局状态
+            if (window.setCurrentProject) {
+                window.setCurrentProject(project);
+            }
+
+            // 渲染工作流详情页
+            this.renderWorkflowDetails(project);
+
+        } catch (error) {
+            console.error('[ProjectManager] 打开项目失败:', error);
+            if (window.modalManager) {
+                window.modalManager.alert('打开项目失败: ' + error.message, 'error');
+            } else {
+                alert('打开项目失败: ' + error.message);
+            }
+        }
+    }
+
+    /**
+     * 渲染工作流详情页
+     * @param {Object} project - 项目对象
+     */
+    renderWorkflowDetails(project) {
+        // 使用modalManager显示工作流详情
+        if (!window.modalManager) {
+            console.error('[ProjectManager] modalManager不可用');
+            return;
+        }
+
+        const progress = this.calculateWorkflowProgress(project.workflow);
+
+        // 渲染阶段卡片
+        const stagesHTML = project.workflow.stages.map((stage, index) => {
+            const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+            const statusText = {
+                'pending': '未开始',
+                'active': '进行中',
+                'completed': '已完成'
+            }[stage.status] || stage.status;
+
+            const statusColor = {
+                'pending': '#9ca3af',
+                'active': '#3b82f6',
+                'completed': '#10b981'
+            }[stage.status] || '#9ca3af';
+
+            const artifactCount = stage.artifacts?.length || 0;
+
+            let actionHTML = '';
+            if (stage.status === 'pending') {
+                actionHTML = `
+                    <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);">
+                        开始执行
+                    </button>
+                `;
+            } else if (stage.status === 'completed') {
+                actionHTML = `
+                    <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')">
+                        查看交付物 (${artifactCount})
+                    </button>
+                `;
+            } else {
+                actionHTML = `
+                    <button class="btn-secondary" disabled>执行中...</button>
+                `;
+            }
+
+            return `
+                <div class="stage-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: white; border-left: 4px solid ${definition?.color || '#667eea'}; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 32px;">${definition?.icon || '📋'}</span>
+                            <div>
+                                <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600;">${definition?.name || stage.name}</h3>
+                                <p style="margin: 0; font-size: 14px; color: var(--text-secondary);">${definition?.description || ''}</p>
+                            </div>
+                        </div>
+                        <div style="padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 500; color: white; background: ${statusColor};">
+                            ${statusText}
+                        </div>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        ${actionHTML}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const contentHTML = `
+            <div style="max-height: 70vh; overflow-y: auto; padding: 4px;">
+                <!-- 项目信息卡片 -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; color: white;">
+                    <h2 style="margin: 0 0 12px 0; font-size: 24px; font-weight: 600;">${this.escapeHtml(project.name)}</h2>
+                    <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span>📊</span>
+                            <span>进度: ${progress}%</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span>⏱️</span>
+                            <span>${this.formatTimeAgo(project.updatedAt)}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span>🚀</span>
+                            <span>${project.mode === 'demo' ? 'Demo模式' : '协同开发模式'}</span>
+                        </div>
+                    </div>
+                    <!-- 进度条 -->
+                    <div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="background: white; height: 100%; width: ${progress}%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+
+                <!-- 工作流阶段 -->
+                <div style="margin-bottom: 16px;">
+                    <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">工作流阶段</h3>
+                    ${stagesHTML}
+                </div>
+
+                <!-- 快捷操作 -->
+                <div style="display: flex; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border);">
+                    <button class="btn-secondary" onclick="window.modalManager.close('workflowDetails')" style="flex: 1;">
+                        返回项目列表
+                    </button>
+                    <button class="btn-primary" onclick="projectManager.executeAllStages('${project.id}')" style="flex: 1;">
+                        一键执行全部
+                    </button>
+                </div>
+            </div>
+        `;
+
+        window.modalManager.showCustomModal(
+            '🎯 项目工作流',
+            contentHTML,
+            'workflowDetails'
+        );
+    }
+
+    /**
+     * 执行所有阶段
+     * @param {String} projectId - 项目ID
+     */
+    async executeAllStages(projectId) {
+        try {
+            const project = await this.getProject(projectId);
+            if (!project || !project.workflow) {
+                throw new Error('项目工作流不存在');
+            }
+
+            // 获取所有未完成的阶段
+            const pendingStages = project.workflow.stages
+                .filter(s => s.status === 'pending')
+                .map(s => s.id);
+
+            if (pendingStages.length === 0) {
+                if (window.modalManager) {
+                    window.modalManager.alert('所有阶段已完成！', 'success');
+                }
+                return;
+            }
+
+            // 确认执行
+            const confirmed = confirm(`将执行 ${pendingStages.length} 个阶段，这可能需要一些时间，是否继续？`);
+            if (!confirmed) return;
+
+            // 关闭详情页
+            if (window.modalManager) {
+                window.modalManager.close('workflowDetails');
+            }
+
+            // 显示执行提示
+            if (window.modalManager) {
+                window.modalManager.alert('正在批量执行工作流，请稍候...', 'info');
+            }
+
+            // 获取创意对话内容
+            const chat = await this.storageManager.getChat(project.ideaId);
+            const conversation = chat ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n') : '';
+
+            // 调用workflowExecutor批量执行
+            const result = await window.workflowExecutor.executeBatch(
+                projectId,
+                pendingStages,
+                conversation
+            );
+
+            // 显示成功提示
+            if (window.modalManager) {
+                window.modalManager.close();
+                window.modalManager.alert(
+                    `工作流执行完成！<br><br>完成了 ${pendingStages.length} 个阶段<br>消耗 ${result.totalTokens} tokens`,
+                    'success'
+                );
+            }
+
+            // 刷新项目列表
+            await this.loadProjects();
+            this.renderProjectList('projectListContainer');
+
+        } catch (error) {
+            console.error('[ProjectManager] 执行工作流失败:', error);
+            if (window.modalManager) {
+                window.modalManager.close();
+                window.modalManager.alert('执行失败: ' + error.message, 'error');
+            }
+        }
+    }
+
+    /**
+     * 预览Demo
+     * @param {String} projectId - 项目ID
+     */
+    async previewDemo(projectId) {
+        try {
+            const project = await this.getProject(projectId);
+            if (project.demo && project.demo.previewUrl) {
+                window.open(project.demo.previewUrl, '_blank');
+            }
+        } catch (error) {
+            console.error('[ProjectManager] 预览Demo失败:', error);
+            alert('预览失败');
+        }
+    }
+
+    /**
+     * 重新生成Demo
+     * @param {String} projectId - 项目ID
+     */
+    regenerateDemo(projectId) {
+        console.log('[ProjectManager] 重新生成Demo:', projectId);
+        // TODO: 实现重新生成逻辑
+        alert('重新生成Demo功能开发中...');
+    }
+
+    /**
+     * 开始生成Demo
+     * @param {String} projectId - 项目ID
+     */
+    startDemoGeneration(projectId) {
+        console.log('[ProjectManager] 开始生成Demo:', projectId);
+        // TODO: 实现Demo生成流程
+        alert('Demo生成功能开发中...');
+    }
+}
+
+// 导出（浏览器环境）
+if (typeof window !== 'undefined') {
+    window.ProjectManager = ProjectManager;
+    window.projectManager = new ProjectManager();
+
+    // 自动初始化
+    window.addEventListener('DOMContentLoaded', () => {
+        if (window.projectManager) {
+            window.projectManager.init();
+        }
+    });
+
+    console.log('[ProjectManager] 项目管理器已加载');
+}

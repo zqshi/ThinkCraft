@@ -18,6 +18,9 @@ import pdfExportRouter from './routes/pdf-export.js';
 import shareRouter from './routes/share.js';
 import demoGeneratorRouter from './routes/demo-generator.js';
 import agentsRouter from './routes/agents.js';
+import projectsRouter from './routes/projects.js';
+import workflowRouter from './routes/workflow.js';
+import workflowRecommendationRouter from './routes/workflow-recommendation.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -108,6 +111,15 @@ app.use('/api/demo-generator', demoGeneratorRouter);
 
 // 数字员工Agent接口
 app.use('/api/agents', agentsRouter);
+
+// 项目管理接口
+app.use('/api/projects', projectsRouter);
+
+// 工作流执行接口
+app.use('/api/workflow', workflowRouter);
+
+// 工作流推荐接口
+app.use('/api/workflow-recommendation', workflowRecommendationRouter);
 
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));

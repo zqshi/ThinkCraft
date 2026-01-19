@@ -7,7 +7,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this.dbName = 'ThinkCraft';
-    this.dbVersion = 4; // 升级到v4支持知识库
+    this.dbVersion = 6; // 升级到v6支持工作流交付物存储
     this.ready = false;
 
     // 初始化数据库
@@ -83,6 +83,27 @@ class StorageManager {
           knowledgeStore.createIndex('createdAt', 'createdAt', { unique: false });
           knowledgeStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
           console.log('[StorageManager] 创建 knowledge 存储');
+        }
+
+        // 项目管理存储（v5新增）
+        if (!db.objectStoreNames.contains('projects')) {
+          const projectsStore = db.createObjectStore('projects', { keyPath: 'id' });
+          projectsStore.createIndex('ideaId', 'ideaId', { unique: false });
+          projectsStore.createIndex('mode', 'mode', { unique: false });
+          projectsStore.createIndex('status', 'status', { unique: false });
+          projectsStore.createIndex('createdAt', 'createdAt', { unique: false });
+          projectsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+          console.log('[StorageManager] 创建 projects 存储');
+        }
+
+        // 工作流交付物存储（v6新增）
+        if (!db.objectStoreNames.contains('artifacts')) {
+          const artifactsStore = db.createObjectStore('artifacts', { keyPath: 'id' });
+          artifactsStore.createIndex('projectId', 'projectId', { unique: false });
+          artifactsStore.createIndex('stageId', 'stageId', { unique: false });
+          artifactsStore.createIndex('type', 'type', { unique: false });
+          artifactsStore.createIndex('createdAt', 'createdAt', { unique: false });
+          console.log('[StorageManager] 创建 artifacts 存储');
         }
       };
     });
@@ -1002,6 +1023,339 @@ class StorageManager {
    */
   async clearKnowledge() {
     return this.clear('knowledge');
+  }
+
+  // ========== 项目管理业务方法（v5新增） ==========
+
+  /**
+   * 保存项目
+   * @param {Object} project - 项目对象
+   * @returns {Promise<void>}
+   */
+  async saveProject(project) {
+    if (!project.id) {
+      project.id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    project.updatedAt = Date.now();
+    if (!project.createdAt) {
+      project.createdAt = Date.now();
+    }
+    await this.save('projects', project);
+    console.log(`[StorageManager] 保存项目: ${project.id}`);
+  }
+
+  /**
+   * 获取项目
+   * @param {String} id - 项目ID
+   * @returns {Promise<Object|null>}
+   */
+  async getProject(id) {
+    return this.get('projects', id);
+  }
+
+  /**
+   * 获取所有项目
+   * @returns {Promise<Array>}
+   */
+  async getAllProjects() {
+    const projects = await this.getAll('projects');
+    // 按更新时间倒序排序（最近更新的在前）
+    return projects.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * 根据创意ID获取项目
+   * @param {String} ideaId - 创意ID（对话ID）
+   * @returns {Promise<Object|null>}
+   */
+  async getProjectByIdeaId(ideaId) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['projects'], 'readonly');
+      const store = transaction.objectStore('projects');
+      const index = store.index('ideaId');
+      const request = index.get(ideaId);
+
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取创意项目失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据模式获取项目
+   * @param {String} mode - 'demo' | 'development'
+   * @returns {Promise<Array>}
+   */
+  async getProjectsByMode(mode) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['projects'], 'readonly');
+      const store = transaction.objectStore('projects');
+      const index = store.index('mode');
+      const request = index.getAll(mode);
+
+      request.onsuccess = () => {
+        const projects = request.result || [];
+        resolve(projects.sort((a, b) => b.updatedAt - a.updatedAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取模式项目失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据状态获取项目
+   * @param {String} status - 'planning' | 'active' | 'completed' | 'archived'
+   * @returns {Promise<Array>}
+   */
+  async getProjectsByStatus(status) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['projects'], 'readonly');
+      const store = transaction.objectStore('projects');
+      const index = store.index('status');
+      const request = index.getAll(status);
+
+      request.onsuccess = () => {
+        const projects = request.result || [];
+        resolve(projects.sort((a, b) => b.updatedAt - a.updatedAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取状态项目失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 更新项目模式（Demo → Development升级）
+   * @param {String} id - 项目ID
+   * @param {String} newMode - 新模式
+   * @returns {Promise<void>}
+   */
+  async updateProjectMode(id, newMode) {
+    const project = await this.getProject(id);
+    if (!project) {
+      throw new Error(`项目不存在: ${id}`);
+    }
+    project.mode = newMode;
+    project.updatedAt = Date.now();
+    await this.saveProject(project);
+  }
+
+  /**
+   * 删除项目
+   * @param {String} id - 项目ID
+   * @returns {Promise<void>}
+   */
+  async deleteProject(id) {
+    return this.delete('projects', id);
+  }
+
+  /**
+   * 搜索项目
+   * @param {String} keyword - 搜索关键词
+   * @returns {Promise<Array>}
+   */
+  async searchProjects(keyword) {
+    if (!keyword) return this.getAllProjects();
+
+    const allProjects = await this.getAllProjects();
+    const lowerKeyword = keyword.toLowerCase();
+
+    return allProjects.filter(project => {
+      return project.name.toLowerCase().includes(lowerKeyword);
+    });
+  }
+
+  /**
+   * 清空项目
+   * @returns {Promise<void>}
+   */
+  async clearProjects() {
+    return this.clear('projects');
+  }
+
+  // ========== 工作流交付物业务方法（v6新增） ==========
+
+  /**
+   * 保存交付物
+   * @param {Object} artifact - 交付物对象
+   * @returns {Promise<void>}
+   */
+  async saveArtifact(artifact) {
+    if (!artifact.id) {
+      artifact.id = `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    if (!artifact.createdAt) {
+      artifact.createdAt = Date.now();
+    }
+    await this.save('artifacts', artifact);
+    console.log(`[StorageManager] 保存交付物: ${artifact.id}`);
+  }
+
+  /**
+   * 获取交付物
+   * @param {String} id - 交付物ID
+   * @returns {Promise<Object|null>}
+   */
+  async getArtifact(id) {
+    return this.get('artifacts', id);
+  }
+
+  /**
+   * 获取所有交付物
+   * @returns {Promise<Array>}
+   */
+  async getAllArtifacts() {
+    const artifacts = await this.getAll('artifacts');
+    // 按创建时间倒序排序
+    return artifacts.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /**
+   * 根据项目获取交付物
+   * @param {String} projectId - 项目ID
+   * @returns {Promise<Array>}
+   */
+  async getArtifactsByProject(projectId) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['artifacts'], 'readonly');
+      const store = transaction.objectStore('artifacts');
+      const index = store.index('projectId');
+      const request = index.getAll(projectId);
+
+      request.onsuccess = () => {
+        const artifacts = request.result || [];
+        resolve(artifacts.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取项目交付物失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 根据阶段获取交付物
+   * @param {String} projectId - 项目ID
+   * @param {String} stageId - 阶段ID
+   * @returns {Promise<Array>}
+   */
+  async getArtifactsByStage(projectId, stageId) {
+    const projectArtifacts = await this.getArtifactsByProject(projectId);
+    return projectArtifacts.filter(artifact => artifact.stageId === stageId);
+  }
+
+  /**
+   * 根据类型获取交付物
+   * @param {String} type - 交付物类型
+   * @returns {Promise<Array>}
+   */
+  async getArtifactsByType(type) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['artifacts'], 'readonly');
+      const store = transaction.objectStore('artifacts');
+      const index = store.index('type');
+      const request = index.getAll(type);
+
+      request.onsuccess = () => {
+        const artifacts = request.result || [];
+        resolve(artifacts.sort((a, b) => b.createdAt - a.createdAt));
+      };
+
+      request.onerror = () => {
+        console.error('[StorageManager] 获取类型交付物失败:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 删除交付物
+   * @param {String} id - 交付物ID
+   * @returns {Promise<void>}
+   */
+  async deleteArtifact(id) {
+    return this.delete('artifacts', id);
+  }
+
+  /**
+   * 批量保存交付物
+   * @param {Array} artifacts - 交付物数组
+   * @returns {Promise<void>}
+   */
+  async saveArtifacts(artifacts) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['artifacts'], 'readwrite');
+      const store = transaction.objectStore('artifacts');
+
+      let completed = 0;
+      const total = artifacts.length;
+
+      if (total === 0) {
+        resolve();
+        return;
+      }
+
+      artifacts.forEach(artifact => {
+        const request = store.put(artifact);
+
+        request.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            console.log(`[StorageManager] 批量保存 ${total} 个交付物`);
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error('[StorageManager] 批量保存失败:', request.error);
+          reject(request.error);
+        };
+      });
+    });
+  }
+
+  /**
+   * 清空交付物
+   * @returns {Promise<void>}
+   */
+  async clearArtifacts() {
+    return this.clear('artifacts');
+  }
+
+  /**
+   * 删除项目的所有交付物
+   * @param {String} projectId - 项目ID
+   * @returns {Promise<void>}
+   */
+  async deleteProjectArtifacts(projectId) {
+    const artifacts = await this.getArtifactsByProject(projectId);
+    for (const artifact of artifacts) {
+      await this.deleteArtifact(artifact.id);
+    }
+    console.log(`[StorageManager] 删除项目 ${projectId} 的所有交付物`);
   }
 }
 

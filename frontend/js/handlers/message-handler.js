@@ -141,7 +141,13 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
         const textElement = messageDiv.querySelector('.message-text');
         typeWriter(textElement, content, 30);
     } else {
-        html += `<div class="message-text">${content}</div>`;
+        // 直接显示内容，对AI消息渲染Markdown
+        if (role === 'assistant' && window.markdownRenderer) {
+            const renderedHTML = window.markdownRenderer.render(content);
+            html += `<div class="message-text markdown-content">${renderedHTML}</div>`;
+        } else {
+            html += `<div class="message-text">${content}</div>`;
+        }
     }
 
     if (quickReplies) {
@@ -188,7 +194,7 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
 }
 
 /**
- * 打字机效果
+ * 打字机效果（支持Markdown渲染）
  */
 export function typeWriter(element, text, speed = 30) {
     appState.isTyping = true;
@@ -201,12 +207,23 @@ export function typeWriter(element, text, speed = 30) {
         } else {
             clearInterval(timer);
             appState.isTyping = false;
+
+            // 打字机效果完成后，渲染Markdown
+            if (window.markdownRenderer) {
+                console.log('[TypeWriter] 开始渲染Markdown');
+                const renderedHTML = window.markdownRenderer.render(text);
+                console.log('[TypeWriter] 渲染完成:', renderedHTML.substring(0, 100));
+                element.innerHTML = renderedHTML;
+                element.classList.add('markdown-content');
+            } else {
+                console.warn('[TypeWriter] markdownRenderer 未找到');
+            }
         }
     }, speed);
 }
 
 /**
- * 带完成检测的打字机效果
+ * 带完成检测的打字机效果（支持Markdown渲染）
  */
 export function typeWriterWithCompletion(textElement, actionElement, text, speed = 30) {
     appState.isTyping = true;
@@ -228,6 +245,13 @@ export function typeWriterWithCompletion(textElement, actionElement, text, speed
         } else {
             clearInterval(timer);
             appState.isTyping = false;
+
+            // 打字机效果完成后，渲染Markdown
+            if (window.markdownRenderer) {
+                const renderedHTML = window.markdownRenderer.render(displayText);
+                textElement.innerHTML = renderedHTML;
+                textElement.classList.add('markdown-content');
+            }
 
             if (hasAnalysisMarker && !appState.analysisCompleted) {
                 appState.analysisCompleted = true;

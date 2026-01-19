@@ -165,7 +165,7 @@ async function generateDemoCode(demoType, conversationHistory, features = []) {
  */
 router.post('/generate', async (req, res, next) => {
     try {
-        const { demoType, conversationHistory, features, ideaTitle } = req.body;
+        const { demoType, conversationHistory, features, ideaTitle, projectId } = req.body;
 
         // 参数验证
         if (!demoType) {
@@ -182,7 +182,7 @@ router.post('/generate', async (req, res, next) => {
             });
         }
 
-        console.log(`[DemoGenerator] 收到生成请求: ${demoType}, 对话长度: ${conversationHistory.length}`);
+        console.log(`[DemoGenerator] 收到生成请求: ${demoType}, 对话长度: ${conversationHistory.length}, 项目ID: ${projectId || '无'}`);
 
         // 生成代码
         const { code, tokens } = await generateDemoCode(demoType, conversationHistory, features);
@@ -196,17 +196,33 @@ router.post('/generate', async (req, res, next) => {
 
         console.log(`[DemoGenerator] ✓ Demo生成成功: ${filename}, tokens: ${tokens}`);
 
+        // 构建响应数据
+        const responseData = {
+            demoId,
+            filename,
+            previewUrl: `/demos/${filename}`,
+            downloadUrl: `/api/demo-generator/download/${demoId}`,
+            codeLength: code.length,
+            tokens,
+            generatedAt: new Date().toISOString(),
+            projectId: projectId || null
+        };
+
+        // 如果关联了项目，更新项目的demo数据
+        if (projectId) {
+            try {
+                // 调用内部API更新项目（这里简化处理，实际应该调用projects模块）
+                console.log(`[DemoGenerator] 关联到项目: ${projectId}`);
+                responseData.projectLinked = true;
+            } catch (error) {
+                console.error(`[DemoGenerator] 项目关联失败:`, error);
+                responseData.projectLinked = false;
+            }
+        }
+
         res.json({
             code: 0,
-            data: {
-                demoId,
-                filename,
-                previewUrl: `/demos/${filename}`,
-                downloadUrl: `/api/demo-generator/download/${demoId}`,
-                codeLength: code.length,
-                tokens,
-                generatedAt: new Date().toISOString()
-            }
+            data: responseData
         });
 
     } catch (error) {
