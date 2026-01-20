@@ -2586,6 +2586,32 @@
             justify-content: flex-end;
         }
 
+        #reportModal .modal-footer {
+            align-items: stretch;
+        }
+
+        #reportModal .report-deep-analysis {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        #reportModal .report-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            align-items: stretch;
+            flex: 1;
+            align-self: stretch;
+        }
+
+        #reportModal .report-actions button {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            align-self: stretch;
+        }
+
         .btn-secondary {
             padding: 10px 20px;
             background: var(--bg-secondary);

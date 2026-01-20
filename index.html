@@ -382,9 +382,6 @@
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                     <div class="modal-title">创意思维结构化分析报告</div>
-                    <button class="btn-secondary" onclick="regenerateInsightsReport()" style="padding: 6px 12px; font-size: 13px;">
-                        🔄 重新生成
-                    </button>
                 </div>
                 <button class="close-btn" onclick="closeReport()">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -399,7 +396,7 @@
 
             <div class="modal-footer">
                 <!-- 深度分析模块 -->
-                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                <div class="report-deep-analysis" style="background: var(--bg-secondary); padding: 16px; border-radius: 12px;">
                     <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                         <span>📈</span>
                         <span>深度分析</span>
@@ -429,7 +426,10 @@
                 </div>
 
                 <!-- 报告操作按钮 -->
-                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <div class="report-actions">
+                    <button class="btn-secondary" onclick="regenerateInsightsReport()">
+                        🔄 重新生成
+                    </button>
                     <button class="btn-secondary" onclick="exportFullReport()">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; vertical-align: middle; margin-right: 4px;">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
@@ -1276,7 +1276,10 @@
             // 初始化新组件
             window.modalManager = new ModalManager();
             window.storageManager = new StorageManager();
-            window.apiClient = new APIClient('http://localhost:3000');
+            const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
+            const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || 'http://localhost:3000';
+            window.apiClient = window.apiClient || new APIClient(apiUrl);
+            window.apiClient.setBaseURL && window.apiClient.setBaseURL(apiUrl);
             window.stateManager = new StateManager();
             window.agentProgressManager = new AgentProgressManager(window.modalManager);
             window.businessPlanGenerator = new BusinessPlanGenerator(
@@ -6998,6 +7001,11 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
             // 根据设置显示/隐藏团队Tab
             updateTeamTabVisibility();
+
+            if (window.apiClient && window.apiClient.setBaseURL) {
+                const apiUrl = state.settings.apiUrl || 'http://localhost:3000';
+                window.apiClient.setBaseURL(apiUrl);
+            }
         }
 
         function saveSettings() {
