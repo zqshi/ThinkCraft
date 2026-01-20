@@ -29,8 +29,9 @@ class MarkdownRenderer {
         const opts = { ...this.options, ...options };
 
         try {
+            const normalized = this.normalizeSoftLineBreaks(markdown);
             // 简单的Markdown渲染实现
-            let html = markdown;
+            let html = normalized;
 
             // 1. 代码块（```）- 先处理，避免内部内容被误解析
             html = this.renderCodeBlocks(html);
@@ -95,6 +96,45 @@ class MarkdownRenderer {
             console.error('[MarkdownRenderer] 渲染失败:', error);
             return this.escapeHtml(markdown);
         }
+    }
+
+    /**
+     * 折叠普通文本的软换行，保留段落/列表/标题等结构
+     */
+    normalizeSoftLineBreaks(text) {
+        const lines = text.split('\n');
+        const result = [];
+        let inCodeBlock = false;
+
+        const isBlockLine = (line) => {
+            return /^(#{1,6}\s|>|\* |\-\s|•\s|\d+\.\s)/.test(line.trim());
+        };
+
+        for (const line of lines) {
+            if (line.trim().startsWith('```')) {
+                inCodeBlock = !inCodeBlock;
+                result.push(line);
+                continue;
+            }
+
+            if (inCodeBlock) {
+                result.push(line);
+                continue;
+            }
+
+            if (line.trim() === '') {
+                continue;
+            }
+
+            const prev = result[result.length - 1] || '';
+            if (prev && prev.trim() !== '' && !isBlockLine(prev) && !isBlockLine(line)) {
+                result[result.length - 1] = `${prev} ${line.trim()}`;
+            } else {
+                result.push(line);
+            }
+        }
+
+        return result.join('\n');
     }
 
     /**
@@ -286,71 +326,71 @@ class MarkdownRenderer {
         style.textContent = `
             /* Markdown渲染样式 */
             .markdown-content {
-                line-height: 1.8;
-                color: #333;
+                line-height: 1.6;
+                color: #4b5563;
                 font-size: 15px;
             }
 
             .markdown-content .md-h1 {
-                font-size: 28px;
+                font-size: 26px;
                 font-weight: 700;
-                margin: 24px 0 16px 0;
-                padding-bottom: 8px;
+                margin: 18px 0 10px 0;
+                padding-bottom: 6px;
                 border-bottom: 2px solid #eee;
-                color: #1a1a1a;
+                color: #4b5563;
             }
 
             .markdown-content .md-h2 {
-                font-size: 24px;
+                font-size: 22px;
                 font-weight: 600;
-                margin: 20px 0 12px 0;
-                padding-bottom: 6px;
+                margin: 16px 0 8px 0;
+                padding-bottom: 4px;
                 border-bottom: 1px solid #f0f0f0;
-                color: #2a2a2a;
+                color: #4b5563;
             }
 
             .markdown-content .md-h3 {
-                font-size: 20px;
+                font-size: 19px;
                 font-weight: 600;
-                margin: 16px 0 10px 0;
-                color: #3a3a3a;
+                margin: 12px 0 6px 0;
+                color: #4b5563;
             }
 
             .markdown-content .md-h4 {
-                font-size: 18px;
+                font-size: 17px;
                 font-weight: 600;
-                margin: 14px 0 8px 0;
-                color: #4a4a4a;
+                margin: 10px 0 6px 0;
+                color: #5b6472;
             }
 
             .markdown-content .md-h5,
             .markdown-content .md-h6 {
-                font-size: 16px;
+                font-size: 15px;
                 font-weight: 600;
-                margin: 12px 0 6px 0;
-                color: #5a5a5a;
+                margin: 8px 0 4px 0;
+                color: #5b6472;
             }
 
             .markdown-content .md-ul,
             .markdown-content .md-ol {
-                margin: 12px 0;
-                padding-left: 24px;
+                margin: 8px 0;
+                padding-left: 20px;
             }
 
             .markdown-content .md-li,
             .markdown-content .md-li-ordered {
-                margin: 6px 0;
-                line-height: 1.6;
+                margin: 4px 0;
+                line-height: 1.5;
             }
 
             .markdown-content .md-strong {
                 font-weight: 600;
-                color: #1a1a1a;
+                color: #4b5563;
             }
 
             .markdown-content .md-em {
                 font-style: italic;
-                color: #444;
+                color: #4b5563;
             }
 
             .markdown-content .md-link {
@@ -366,20 +406,20 @@ class MarkdownRenderer {
             }
 
             .markdown-content .md-code {
-                background: #f5f5f5;
+                background: #f3f4f6;
                 padding: 2px 6px;
-                border-radius: 3px;
+                border-radius: 4px;
                 font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                 font-size: 13px;
-                color: #d63384;
+                color: #b4236a;
             }
 
             .markdown-content .code-block {
-                background: #f8f9fa;
-                border: 1px solid #e9ecef;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
                 border-radius: 6px;
-                padding: 16px;
-                margin: 16px 0;
+                padding: 12px;
+                margin: 12px 0;
                 overflow-x: auto;
                 position: relative;
             }
@@ -404,54 +444,65 @@ class MarkdownRenderer {
             }
 
             .markdown-content .md-blockquote {
-                border-left: 4px solid #667eea;
-                padding: 12px 16px;
-                margin: 16px 0;
-                background: #f8f9ff;
-                color: #555;
+                border-left: 4px solid #9aa7f3;
+                padding: 10px 14px;
+                margin: 12px 0;
+                background: #f5f7ff;
+                color: #4a5160;
                 font-style: italic;
             }
 
             .markdown-content .md-hr {
                 border: none;
                 border-top: 2px solid #e9ecef;
-                margin: 24px 0;
+                margin: 16px 0;
             }
 
             .markdown-content .md-image {
                 max-width: 100%;
                 height: auto;
                 border-radius: 8px;
-                margin: 16px 0;
+                margin: 12px 0;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
             .markdown-content p,
             .markdown-content .md-p {
-                margin: 12px 0;
-                line-height: 1.8;
+                margin: 8px 0;
+                line-height: 1.6;
             }
 
             /* 消息中的markdown样式优化 */
             .message-text.markdown-content {
                 font-size: 15px;
-                line-height: 1.7;
+                line-height: 1.55;
+                color: #4b5563;
             }
 
             .message-text.markdown-content .md-h1,
             .message-text.markdown-content .md-h2,
             .message-text.markdown-content .md-h3 {
-                margin-top: 16px;
-                margin-bottom: 10px;
+                margin-top: 12px;
+                margin-bottom: 6px;
+            }
+
+            .message-text.markdown-content .md-h1,
+            .message-text.markdown-content .md-h2,
+            .message-text.markdown-content .md-h3,
+            .message-text.markdown-content .md-h4,
+            .message-text.markdown-content .md-h5,
+            .message-text.markdown-content .md-h6,
+            .message-text.markdown-content .md-strong {
+                color: #4b5563;
             }
 
             .message-text.markdown-content .md-ul,
             .message-text.markdown-content .md-ol {
-                margin: 8px 0;
+                margin: 6px 0;
             }
 
             .message-text.markdown-content .code-block {
-                margin: 12px 0;
+                margin: 10px 0;
                 font-size: 13px;
             }
         `;

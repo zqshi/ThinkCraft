@@ -6,6 +6,10 @@
 
 这个文件包含所有可用的系统提示词预设。
 
+**报告提示词：** `config/report-prompts.js`
+
+该文件用于“查看完整报告”的结构化分析报告生成要求。
+
 ---
 
 ## 🎯 快速开始
@@ -20,20 +24,12 @@ const DEFAULT_PROMPT = 'default';  // 改为其他预设的key
 ```
 
 **可用预设：**
-- `default` - 默认的专业创意分析助手
-- `business_consultant` - 商业分析顾问（严谨、数据驱动）
-- `friendly_mentor` - 友好的创业导师（温暖、鼓励）
-- `tech_product_expert` - 技术产品专家（技术导向、开发者友好）
-- `lean_startup_coach` - 精益创业教练（实验驱动、快速迭代）
-- `concise` - 简洁直接模式（高效、简短）
+- `default` - 当前默认的系统提示词
 
 **示例：**
 ```javascript
-// 切换为商业顾问模式
-const DEFAULT_PROMPT = 'business_consultant';
-
-// 切换为友好导师模式
-const DEFAULT_PROMPT = 'friendly_mentor';
+// 切换为自定义模式
+const DEFAULT_PROMPT = 'my_custom_prompt';
 ```
 
 ### 2. 修改现有预设
@@ -91,6 +87,12 @@ const DEFAULT_PROMPT = 'my_custom_prompt';
 **注意：** 已有的对话会继续使用旧的提示词，新对话会使用修改后的提示词。
 
 ---
+
+## 📊 报告提示词配置
+
+报告生成要求维护在 `config/report-prompts.js`。该提示词会约束后端输出的 JSON 结构。
+
+**注意：** 若你调整了报告 JSON 结构，需要同步更新前端 `index.html` 的 `renderAIReport` 结构映射，否则报告弹窗会显示不完整。
 
 ## 📝 提示词设计建议
 
@@ -189,31 +191,9 @@ my_prompt: `你是[角色名称]，[详细背景介绍]。
 
 ---
 
-## 🎨 预设对比
-
-| 预设 | 适合场景 | 风格 | 特点 |
-|-----|---------|------|------|
-| **default** | 通用创意分析 | 专业友好 | 平衡的引导和分析 |
-| **business_consultant** | 严肃的商业项目 | 专业严谨 | 精益画布框架，数据驱动 |
-| **friendly_mentor** | 初次创业者 | 温暖鼓励 | 倾听为主，分享经验 |
-| **tech_product_expert** | 技术产品/SaaS | 技术导向 | 深度技术分析，PLG策略 |
-| **lean_startup_coach** | 快速验证想法 | 实验驱动 | MVP方法，快速迭代 |
-| **concise** | 时间紧迫 | 简洁高效 | 单问单答，直击要害 |
-
----
-
 ## 💡 使用技巧
 
-### 1. 根据用户切换
-
-为不同类型的用户准备不同预设：
-
-- **技术背景** → `tech_product_expert`
-- **商业背景** → `business_consultant`
-- **新手创业者** → `friendly_mentor`
-- **经验丰富** → `lean_startup_coach`
-
-### 2. A/B测试
+### 1. A/B测试
 
 创建多个版本，测试哪个效果更好：
 

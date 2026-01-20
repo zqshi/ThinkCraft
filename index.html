@@ -1570,7 +1570,7 @@
                 const textElement = messageDiv.querySelector('.message-text');
                 typeWriter(textElement, content, 30);
             } else {
-                html += `<div class="message-text">${content}</div>`;
+                html += `<div class="message-text"></div>`;
             }
 
             if (quickReplies) {
@@ -1605,6 +1605,21 @@
             if (role === 'user' || showButtons || skipTyping) {
                 messageDiv.innerHTML = html;
                 messageList.appendChild(messageDiv);
+            }
+
+            if ((showButtons || skipTyping) && role === 'assistant') {
+                const textElement = messageDiv.querySelector('.message-text');
+                if (textElement) {
+                    if (window.markdownRenderer) {
+                        textElement.innerHTML = window.markdownRenderer.render(content);
+                        textElement.classList.add('markdown-content');
+                    } else {
+                        textElement.textContent = content;
+                    }
+                }
+            } else if (role === 'user' && (showButtons || skipTyping)) {
+                const textElement = messageDiv.querySelector('.message-text');
+                if (textElement) textElement.textContent = content;
             }
 
             scrollToBottom();

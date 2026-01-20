@@ -141,13 +141,7 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
         const textElement = messageDiv.querySelector('.message-text');
         typeWriter(textElement, content, 30);
     } else {
-        // 直接显示内容，对AI消息渲染Markdown
-        if (role === 'assistant' && window.markdownRenderer) {
-            const renderedHTML = window.markdownRenderer.render(content);
-            html += `<div class="message-text markdown-content">${renderedHTML}</div>`;
-        } else {
-            html += `<div class="message-text">${content}</div>`;
-        }
+        html += `<div class="message-text"></div>`;
     }
 
     if (quickReplies) {
@@ -182,6 +176,21 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
     if (role === 'user' || showButtons || skipTyping) {
         messageDiv.innerHTML = html;
         messageList.appendChild(messageDiv);
+    }
+
+    if ((showButtons || skipTyping) && role === 'assistant') {
+        const textElement = messageDiv.querySelector('.message-text');
+        if (textElement) {
+            if (window.markdownRenderer) {
+                textElement.innerHTML = window.markdownRenderer.render(content);
+                textElement.classList.add('markdown-content');
+            } else {
+                textElement.textContent = content;
+            }
+        }
+    } else if (role === 'user' && (showButtons || skipTyping)) {
+        const textElement = messageDiv.querySelector('.message-text');
+        if (textElement) textElement.textContent = content;
     }
 
     scrollToBottom();
