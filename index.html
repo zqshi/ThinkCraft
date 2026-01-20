@@ -894,7 +894,7 @@
                             <div class="settings-item-desc">启用AI团队协作功能，可在侧边栏切换查看</div>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="enableTeamToggle" onchange="toggleTeamFeature()">
+                            <input type="checkbox" id="enableTeamToggle" onchange="toggleTeamFeature(this)">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -995,7 +995,7 @@
                             <div class="settings-item-desc">启用AI团队协作功能，可在侧边栏切换查看</div>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="enableTeamToggle2" onchange="toggleTeamFeature()">
+                            <input type="checkbox" id="enableTeamToggle2" onchange="toggleTeamFeature(this)">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -6971,14 +6971,19 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             saveSettings();
         }
 
-        function toggleTeamFeature() {
-            // 获取任意一个checkbox的状态（两个保持同步）
-            const enabled = document.getElementById('enableTeamToggle').checked;
+        function toggleTeamFeature(sourceToggle) {
+            const primaryToggle = document.getElementById('enableTeamToggle');
+            const secondaryToggle = document.getElementById('enableTeamToggle2');
+            const enabled = sourceToggle ? sourceToggle.checked : primaryToggle.checked;
 
             // 更新state和同步两个checkbox
             state.settings.enableTeam = enabled;
-            document.getElementById('enableTeamToggle').checked = enabled;
-            document.getElementById('enableTeamToggle2').checked = enabled;
+            if (primaryToggle) {
+                primaryToggle.checked = enabled;
+            }
+            if (secondaryToggle) {
+                secondaryToggle.checked = enabled;
+            }
 
             // 保存设置
             saveSettings();
