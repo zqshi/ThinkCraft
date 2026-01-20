@@ -4,7 +4,7 @@
  * Version: 1.0.0
  */
 
-const CACHE_VERSION = 'thinkcraft-v1.0.0';
+const CACHE_VERSION = 'thinkcraft-v1.0.1';
 const CACHE_NAME = `${CACHE_VERSION}`;
 
 // 核心资源列表（优先缓存）
@@ -14,12 +14,13 @@ const CORE_ASSETS = [
     '/manifest.json',
     '/css/variables.css',
     '/css/main.css',
-    '/js/core/state-manager.js',
-    '/js/core/storage-manager.js',
-    '/js/core/gesture-handler.js',
-    '/js/core/device-detector.js',
-    '/js/components/modal-manager.js',
-    '/js/components/agent-progress.js'
+    '/frontend/js/core/state-manager.js',
+    '/frontend/js/core/storage-manager.js',
+    '/frontend/js/core/gesture-handler.js',
+    '/frontend/js/core/device-detector.js',
+    '/frontend/js/core/api-client.js',
+    '/frontend/js/components/modal-manager.js',
+    '/frontend/js/components/agent-progress.js'
 ];
 
 // 离线后备页面

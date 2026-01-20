@@ -32,6 +32,8 @@ class WorkflowExecutor {
             this.isExecuting = true;
             console.log(`[WorkflowExecutor] 开始执行阶段: ${stageId}`);
 
+            await this.updateProjectStageStatus(projectId, stageId, 'active');
+
             // 调用后端API
             const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
                 method: 'POST',
@@ -48,7 +50,7 @@ class WorkflowExecutor {
             console.log(`[WorkflowExecutor] ✓ 阶段 ${stageId} 执行完成`);
 
             // 更新项目状态
-            await this.updateProjectStageStatus(projectId, stageId, 'completed');
+            await this.updateProjectStageStatus(projectId, stageId, 'completed', result.data.artifacts || []);
 
             return result.data;
 
@@ -84,27 +86,54 @@ class WorkflowExecutor {
 
             console.log(`[WorkflowExecutor] 开始批量执行 ${stageIds.length} 个阶段`);
 
-            // 调用后端API
-            const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-batch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stageIds, conversation })
-            });
+            const results = [];
+            let totalTokens = 0;
+            const context = {
+                CONVERSATION: conversation || ''
+            };
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '批量执行失败');
+            for (let index = 0; index < stageIds.length; index += 1) {
+                const stageId = stageIds[index];
+                this.currentExecution.currentStageIndex = index;
+
+                await this.updateProjectStageStatus(projectId, stageId, 'active');
+                if (typeof onProgress === 'function') {
+                    onProgress(stageId, 'active', index);
+                }
+
+                const stageResult = await this.executeStageRequest(projectId, stageId, context);
+                const artifacts = stageResult.artifacts || [];
+
+                totalTokens += stageResult.totalTokens || 0;
+                if (artifacts.length > 0) {
+                    const mainArtifact = artifacts[0];
+                    context[stageId.toUpperCase()] = mainArtifact.content;
+                    if (stageId === 'requirement') {
+                        context.PRD = mainArtifact.content;
+                    } else if (stageId === 'design') {
+                        context.DESIGN = mainArtifact.content;
+                    } else if (stageId === 'architecture') {
+                        context.ARCHITECTURE = mainArtifact.content;
+                    } else if (stageId === 'development') {
+                        context.DEVELOPMENT = mainArtifact.content;
+                    }
+                }
+
+                await this.updateProjectStageStatus(projectId, stageId, 'completed', artifacts);
+                if (typeof onProgress === 'function') {
+                    onProgress(stageId, 'completed', index);
+                }
+
+                results.push({ stageId, artifacts });
             }
 
-            const result = await response.json();
-            console.log(`[WorkflowExecutor] ✓ 批量执行完成，消耗 ${result.data.totalTokens} tokens`);
+            console.log(`[WorkflowExecutor] ✓ 批量执行完成，消耗 ${totalTokens} tokens`);
 
-            // 更新所有阶段状态为已完成
-            for (const stageId of stageIds) {
-                await this.updateProjectStageStatus(projectId, stageId, 'completed');
-            }
-
-            return result.data;
+            return {
+                results,
+                totalTokens,
+                completedAt: new Date().toISOString()
+            };
 
         } catch (error) {
             console.error('[WorkflowExecutor] 批量执行失败:', error);
@@ -191,8 +220,9 @@ class WorkflowExecutor {
      * @param {String} projectId - 项目ID
      * @param {String} stageId - 阶段ID
      * @param {String} status - 状态（pending|active|completed）
+     * @param {Array<Object>} artifacts - 交付物
      */
-    async updateProjectStageStatus(projectId, stageId, status) {
+    async updateProjectStageStatus(projectId, stageId, status, artifacts = null) {
         try {
             const project = await this.storageManager.getProject(projectId);
             if (!project || !project.workflow || !project.workflow.stages) {
@@ -204,6 +234,9 @@ class WorkflowExecutor {
             const stage = project.workflow.stages.find(s => s.id === stageId);
             if (stage) {
                 stage.status = status;
+                if (Array.isArray(artifacts)) {
+                    stage.artifacts = artifacts;
+                }
 
                 if (status === 'active' && !stage.startedAt) {
                     stage.startedAt = Date.now();
@@ -220,11 +253,30 @@ class WorkflowExecutor {
                 }
 
                 console.log(`[WorkflowExecutor] 阶段状态已更新: ${stageId} -> ${status}`);
+                if (this.projectManager?.currentProjectId === projectId) {
+                    this.projectManager.refreshProjectPanel(project);
+                }
             }
 
         } catch (error) {
             console.error('[WorkflowExecutor] 更新阶段状态失败:', error);
         }
+    }
+
+    async executeStageRequest(projectId, stageId, context) {
+        const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stageId, context })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || '阶段执行失败');
+        }
+
+        const result = await response.json();
+        return result.data;
     }
 
     /**

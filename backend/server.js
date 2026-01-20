@@ -21,6 +21,7 @@ import agentsRouter from './routes/agents.js';
 import projectsRouter from './routes/projects.js';
 import workflowRouter from './routes/workflow.js';
 import workflowRecommendationRouter from './routes/workflow-recommendation.js';
+import authRouter from './routes/auth.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -120,6 +121,9 @@ app.use('/api/workflow', workflowRouter);
 
 // 工作流推荐接口
 app.use('/api/workflow-recommendation', workflowRecommendationRouter);
+
+// 认证接口
+app.use('/api/auth', authRouter);
 
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));

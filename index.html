@@ -207,6 +207,32 @@
                 <div id="messageList" style="display: none;"></div>
             </div>
 
+            <!-- 项目右侧面板 -->
+            <aside class="project-panel" id="projectPanel" style="display: none;">
+                <div class="project-panel-header">
+                    <div class="project-panel-title" id="projectPanelTitle">项目详情</div>
+                    <div class="project-panel-header-actions">
+                        <button class="icon-btn" onclick="projectManager.openProjectKnowledgePanel()" title="项目知识库">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                            </svg>
+                        </button>
+                        <button class="icon-btn" onclick="projectManager.editCurrentProjectName()" title="编辑项目">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 7.125L16.862 4.487"/>
+                            </svg>
+                        </button>
+                        <button class="icon-btn icon-btn-danger" onclick="projectManager.confirmDeleteCurrentProject()" title="删除项目">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m4 0H5"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="project-panel-body" id="projectPanelBody"></div>
+            </aside>
+
             <!-- 知识库面板（右侧切换面板）-->
             <div class="knowledge-panel" id="knowledgePanel" style="display: none;">
                 <div class="knowledge-panel-content">
@@ -3435,6 +3461,7 @@
             } else {
                 document.getElementById('demoTypeModal').classList.remove('active');
             }
+            window.currentDemoProjectId = null;
         }
 
         // 选择Demo类型
@@ -3560,6 +3587,7 @@
             } else {
                 document.getElementById('demoFeaturesModal').classList.remove('active');
             }
+            window.currentDemoProjectId = null;
         }
 
         // 确认Demo功能并开始生成
@@ -3608,6 +3636,26 @@
         async function generateDemoViaAPI(steps) {
             try {
                 let currentStepIndex = 0;
+                let conversationHistory = state.messages;
+                let ideaTitle = state.userData.idea || '创意项目';
+                let projectId = window.currentDemoProjectId || null;
+
+                if (projectId && window.projectManager) {
+                    try {
+                        const project = await window.projectManager.getProject(projectId);
+                        if (project) {
+                            const chat = await storageManager.getChat(project.ideaId);
+                            if (chat) {
+                                conversationHistory = chat.messages || [];
+                                ideaTitle = chat.title || project.name;
+                            } else {
+                                ideaTitle = project.name;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[Demo] 加载项目创意失败:', error);
+                    }
+                }
 
                 // 模拟前期步骤（需求分析、架构设计）
                 for (let i = 0; i < 2; i++) {
@@ -3635,9 +3683,10 @@
                     },
                     body: JSON.stringify({
                         demoType: currentDemoType,
-                        conversationHistory: state.messages,
+                        conversationHistory,
                         features: currentDemoFeatures,
-                        ideaTitle: state.userData.idea || '创意项目'
+                        ideaTitle,
+                        projectId
                     })
                 });
 
@@ -3659,6 +3708,16 @@
                 updateDemoStep(frontendStep, 'completed');
                 currentStepIndex++;
                 updateDemoProgress(currentStepIndex, steps.length);
+
+                if (projectId && window.projectManager) {
+                    await window.projectManager.linkDemo(projectId, {
+                        demoType: currentDemoType,
+                        previewUrl,
+                        downloadUrl,
+                        generatedAt: Date.now()
+                    });
+                    window.currentDemoProjectId = null;
+                }
 
                 // 后续步骤（集成、测试）
                 for (let i = 3; i < steps.length; i++) {
@@ -4868,6 +4927,10 @@
             });
             document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
 
+            if (window.projectManager) {
+                window.projectManager.closeProjectPanel();
+            }
+
             // 获取输入框元素
             const inputContainer = document.getElementById('inputContainer');
 
@@ -5589,6 +5652,10 @@
 
             console.log(`[知识库] 打开 ${mode} 模式`, projectId);
 
+            if (window.projectManager) {
+                window.projectManager.closeProjectPanel();
+            }
+
             // 设置视图模式
             if (mode === 'project' && projectId) {
                 stateManager.setKnowledgeViewMode('project');
@@ -6106,6 +6173,12 @@
             // 解析标签
             const tags = tagsInput ? tagsInput.split(/[,，]/).map(t => t.trim()).filter(t => t) : [];
 
+            const currentProjectId = stateManager?.state?.knowledge?.currentProjectId
+                || window.projectManager?.currentProjectId
+                || window.appState?.currentProject?.id
+                || state.currentProject
+                || null;
+
             // 创建知识对象
             const knowledge = {
                 id: Date.now().toString(),
@@ -6114,8 +6187,8 @@
                 content: content,
                 tags: tags,
                 icon: getTypeIcon(type),
-                scope: 'global',
-                projectId: state.currentProject || null,
+                scope: currentProjectId ? 'project' : 'global',
+                projectId: currentProjectId,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 viewCount: 0
@@ -6123,6 +6196,10 @@
 
             // 保存到存储
             await storageManager.saveKnowledge(knowledge);
+
+            if (stateManager?.addKnowledgeItem) {
+                stateManager.addKnowledgeItem(knowledge);
+            }
 
             // 关闭弹窗
             const modalToClose = document.getElementById('saveKnowledgeBtn')?.closest('.modal');
@@ -6133,6 +6210,12 @@
             // 刷新知识列表
             if (typeof renderKnowledgeList === 'function') {
                 renderKnowledgeList();
+            }
+            if (typeof renderKnowledgeOrgTree === 'function') {
+                renderKnowledgeOrgTree();
+            }
+            if (window.projectManager?.currentProject) {
+                window.projectManager.renderProjectKnowledgePanel(window.projectManager.currentProject);
             }
 
             // 提示成功
@@ -7104,11 +7187,21 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
         // 从弹窗中解雇员工
         function fireAgentFromModal(agentId) {
-            if (!confirm('确定要将该数字员工从项目中移除吗？')) {
+            const project = window.currentProject;
+            const agentMarket = getAgentMarket();
+            const agent = agentMarket.find(item => item.id === agentId);
+            const agentName = agent?.name || '该成员';
+
+            if (!confirm(`确定要将 ${agentName} 从项目中移除吗？`)) {
                 return;
             }
 
-            const project = window.currentProject;
+            if (project?.mode === 'development') {
+                if (!confirm('当前为协同开发模式，移除成员可能影响流程执行与交付质量。确认继续移除？')) {
+                    return;
+                }
+            }
+
             const index = project.assignedAgents.indexOf(agentId);
             if (index > -1) {
                 project.assignedAgents.splice(index, 1);
