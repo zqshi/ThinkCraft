@@ -72,7 +72,9 @@ export function saveCurrentChat() {
     const now = new Date().toISOString();
 
     if (appState.currentChat === null) {
-        const chatId = Date.now();
+        const base = Date.now();
+        const suffix = Math.floor(Math.random() * 1000);
+        const chatId = base * 1000 + suffix;
         const chat = {
             id: chatId,
             title: title,
@@ -102,9 +104,17 @@ export function saveCurrentChat() {
             console.log('[对话] 更新对话:', appState.currentChat);
         } else {
             console.error('[对话] 找不到对话ID:', appState.currentChat);
-            appState.currentChat = null;
-            saveCurrentChat();
-            return;
+            const chat = {
+                id: appState.currentChat,
+                title: title,
+                messages: [...appState.messages],
+                userData: {...appState.userData},
+                conversationStep: appState.conversationStep,
+                analysisCompleted: appState.analysisCompleted,
+                createdAt: now,
+                updatedAt: now
+            };
+            appState.chats.unshift(chat);
         }
     }
 
@@ -134,9 +144,12 @@ export function loadChats() {
     appState.chats.sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
-        const aTime = new Date(a.updatedAt || a.createdAt);
-        const bTime = new Date(b.updatedAt || b.createdAt);
-        return bTime - aTime;
+        const aId = Number(a.id) || 0;
+        const bId = Number(b.id) || 0;
+        if (aId !== bId) return bId - aId;
+        const aRequestId = Number(a.requestId ?? a.requestID ?? 0) || 0;
+        const bRequestId = Number(b.requestId ?? b.requestID ?? 0) || 0;
+        return bRequestId - aRequestId;
     });
 
     const historyDiv = document.getElementById('chatHistory');
@@ -224,10 +237,11 @@ export function loadChat(id) {
     if (knowledgePanel) knowledgePanel.style.display = 'none';
     if (inputContainer) inputContainer.style.display = 'block';
 
+    const chatMessages = Array.isArray(chat.messages) ? chat.messages : [];
     appState.currentChat = chat.id;
-    appState.messages = [...chat.messages];
+    appState.messages = [...chatMessages];
     appState.userData = chat.userData ? {...chat.userData} : {};
-    appState.conversationStep = chat.conversationStep || chat.messages.length;
+    appState.conversationStep = chat.conversationStep || chatMessages.length;
     appState.analysisCompleted = chat.analysisCompleted || false;
 
     document.getElementById('emptyState').style.display = 'none';
@@ -235,8 +249,8 @@ export function loadChat(id) {
     messageList.style.display = 'block';
     messageList.innerHTML = '';
 
-    chat.messages.forEach((msg, index) => {
-        const isLastMessage = index === chat.messages.length - 1;
+    chatMessages.forEach((msg, index) => {
+        const isLastMessage = index === chatMessages.length - 1;
         const shouldShowButton = isLastMessage && msg.role === 'assistant' && chat.analysisCompleted;
 
         let content = msg.content;
@@ -384,23 +398,14 @@ export function toggleChatMenu(e, chatId) {
             requestAnimationFrame(() => {
                 const buttonRect = button.getBoundingClientRect();
                 const menuWidth = menu.offsetWidth || 140;
-                const menuHeight = menu.offsetHeight;
-
-                let top = buttonRect.bottom + 2;
-                if (top + menuHeight > window.innerHeight - 8) {
-                    top = buttonRect.top - menuHeight - 2;
-                }
-
-                let left = buttonRect.left;
                 const sidebar = document.querySelector('.sidebar');
-                const sidebarWidth = sidebar ? sidebar.offsetWidth : 280;
+                const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth };
 
-                if (left + menuWidth > sidebarWidth - 8) {
-                    left = sidebarWidth - menuWidth - 8;
-                }
-
-                left = Math.max(8, left);
-                top = Math.max(8, top);
+                const top = buttonRect.bottom + 2;
+                let left = buttonRect.right - menuWidth;
+                const minLeft = sidebarRect.left + 8;
+                const maxLeft = sidebarRect.right - menuWidth - 8;
+                left = Math.min(Math.max(left, minLeft), maxLeft);
 
                 menu.style.left = `${left}px`;
                 menu.style.top = `${top}px`;

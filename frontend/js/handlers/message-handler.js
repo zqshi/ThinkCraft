@@ -18,6 +18,25 @@ export async function sendMessage() {
 
     if (!message || appState.isTyping || appState.isLoading) return;
 
+    let chatId = appState.currentChat;
+    if (appState.settings.saveHistory && chatId === null) {
+        const base = Date.now();
+        const suffix = Math.floor(Math.random() * 1000);
+        chatId = base * 1000 + suffix;
+        appState.currentChat = chatId;
+        appState.chats.unshift({
+            id: chatId,
+            title: '新对话',
+            messages: [],
+            userData: {...appState.userData},
+            conversationStep: 0,
+            analysisCompleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+        localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+    }
+
     if (appState.messages.length === 0) {
         appState.analysisCompleted = false;
     }
@@ -36,8 +55,19 @@ export async function sendMessage() {
     appState.messages.push({ role: 'user', content: message });
     appState.conversationStep++;
 
-    if (appState.settings.saveHistory && appState.currentChat === null) {
-        window.saveCurrentChat && window.saveCurrentChat();
+    if (appState.settings.saveHistory && chatId !== null) {
+        const index = appState.chats.findIndex(c => c.id == chatId);
+        if (index !== -1) {
+            appState.chats[index] = {
+                ...appState.chats[index],
+                messages: [...appState.messages],
+                userData: {...appState.userData},
+                conversationStep: appState.conversationStep,
+                analysisCompleted: appState.analysisCompleted,
+                updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+        }
     }
 
     appState.isLoading = true;
@@ -58,23 +88,57 @@ export async function sendMessage() {
         if (data.code !== 0) throw new Error(data.error || '未知错误');
 
         const aiContent = data.data.content;
-        appState.messages.push({ role: 'assistant', content: aiContent });
-        appState.conversationStep++;
+        if (appState.settings.saveHistory && chatId !== null) {
+            const index = appState.chats.findIndex(c => c.id == chatId);
+            if (index !== -1) {
+                const chatMessages = Array.isArray(appState.chats[index].messages)
+                    ? [...appState.chats[index].messages]
+                    : [];
+                chatMessages.push({ role: 'assistant', content: aiContent });
+                appState.chats[index] = {
+                    ...appState.chats[index],
+                    messages: chatMessages,
+                    updatedAt: new Date().toISOString()
+                };
+                localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+            }
+        }
 
-        handleAPIResponse(aiContent);
+        if (appState.currentChat == chatId) {
+            appState.messages.push({ role: 'assistant', content: aiContent });
+            appState.conversationStep++;
+            handleAPIResponse(aiContent);
+        }
 
-        if (appState.settings.saveHistory) {
+        if (appState.settings.saveHistory && appState.currentChat == chatId) {
             window.saveCurrentChat && window.saveCurrentChat();
         }
 
     } catch (error) {
         console.error('API调用失败:', error);
         const errorMsg = `抱歉，出现了错误：${error.message}\n\n请检查：\n1. 后端服务是否已启动（npm start）\n2. .env文件中的DEEPSEEK_API_KEY是否配置正确\n3. 网络连接是否正常`;
-        addMessage('assistant', errorMsg, null, false, false, true);
-        appState.messages.push({ role: 'assistant', content: errorMsg });
-        appState.conversationStep++;
+        if (appState.settings.saveHistory && chatId !== null) {
+            const index = appState.chats.findIndex(c => c.id == chatId);
+            if (index !== -1) {
+                const chatMessages = Array.isArray(appState.chats[index].messages)
+                    ? [...appState.chats[index].messages]
+                    : [];
+                chatMessages.push({ role: 'assistant', content: errorMsg });
+                appState.chats[index] = {
+                    ...appState.chats[index],
+                    messages: chatMessages,
+                    updatedAt: new Date().toISOString()
+                };
+                localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+            }
+        }
+        if (appState.currentChat == chatId) {
+            addMessage('assistant', errorMsg, null, false, false, true);
+            appState.messages.push({ role: 'assistant', content: errorMsg });
+            appState.conversationStep++;
+        }
 
-        if (appState.settings.saveHistory) {
+        if (appState.settings.saveHistory && appState.currentChat == chatId) {
             window.saveCurrentChat && window.saveCurrentChat();
         }
     } finally {
@@ -188,7 +252,7 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
                 textElement.textContent = content;
             }
         }
-    } else if (role === 'user' && (showButtons || skipTyping)) {
+    } else if (role === 'user') {
         const textElement = messageDiv.querySelector('.message-text');
         if (textElement) textElement.textContent = content;
     }

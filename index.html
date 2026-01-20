@@ -1378,6 +1378,23 @@
 
             if (!message || state.isTyping || state.isLoading) return;
 
+            let chatId = state.currentChat;
+            if (state.settings.saveHistory && chatId === null) {
+                chatId = generateChatId();
+                state.currentChat = chatId;
+                state.chats.unshift({
+                    id: chatId,
+                    title: '新对话',
+                    messages: [],
+                    userData: {...state.userData},
+                    conversationStep: 0,
+                    analysisCompleted: false,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+                localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+            }
+
             // 首次对话时重置分析状态
             if (state.messages.length === 0) {
                 state.analysisCompleted = false;
@@ -1405,9 +1422,19 @@
             // ⭐ 递增对话步骤
             state.conversationStep++;
 
-            // ⭐ 关键修复：用户发送第一条消息后，立即创建对话并显示在列表中
-            if (state.settings.saveHistory && state.currentChat === null) {
-                saveCurrentChat();
+            if (state.settings.saveHistory && chatId !== null) {
+                const index = state.chats.findIndex(c => c.id == chatId);
+                if (index !== -1) {
+                    state.chats[index] = {
+                        ...state.chats[index],
+                        messages: [...state.messages],
+                        userData: {...state.userData},
+                        conversationStep: state.conversationStep,
+                        analysisCompleted: state.analysisCompleted,
+                        updatedAt: new Date().toISOString()
+                    };
+                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                }
             }
 
             // 设置加载状态
@@ -1441,38 +1468,73 @@
 
                 const aiContent = data.data.content;
 
-                // 将AI回复添加到state.messages
-                state.messages.push({
-                    role: 'assistant',
-                    content: aiContent
-                });
+                if (state.settings.saveHistory && chatId !== null) {
+                    const index = state.chats.findIndex(c => c.id == chatId);
+                    if (index !== -1) {
+                        const chatMessages = Array.isArray(state.chats[index].messages)
+                            ? [...state.chats[index].messages]
+                            : [];
+                        chatMessages.push({ role: 'assistant', content: aiContent });
+                        state.chats[index] = {
+                            ...state.chats[index],
+                            messages: chatMessages,
+                            updatedAt: new Date().toISOString()
+                        };
+                        localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    }
+                }
 
-                // ⭐ AI回复后再次递增
-                state.conversationStep++;
+                if (state.currentChat == chatId) {
+                    // 将AI回复添加到当前对话
+                    state.messages.push({
+                        role: 'assistant',
+                        content: aiContent
+                    });
 
-                // 显示AI回复（带打字机效果）
-                handleAPIResponse(aiContent);
+                    // ⭐ AI回复后再次递增
+                    state.conversationStep++;
+
+                    // 显示AI回复（带打字机效果）
+                    handleAPIResponse(aiContent);
+                }
 
                 // AI回复后更新对话
-                if (state.settings.saveHistory) {
+                if (state.settings.saveHistory && state.currentChat == chatId) {
                     saveCurrentChat();
                 }
 
             } catch (error) {
                 console.error('API调用失败:', error);
                 const errorMsg = `抱歉，出现了错误：${error.message}\n\n请检查：\n1. 后端服务是否已启动（npm start）\n2. .env文件中的DEEPSEEK_API_KEY是否配置正确\n3. 网络连接是否正常`;
-                addMessage('assistant', errorMsg, null, false, false, true);  // skipStatePush=true，避免重复
-                // 手动添加错误消息到state
-                state.messages.push({
-                    role: 'assistant',
-                    content: errorMsg
-                });
+                if (state.settings.saveHistory && chatId !== null) {
+                    const index = state.chats.findIndex(c => c.id == chatId);
+                    if (index !== -1) {
+                        const chatMessages = Array.isArray(state.chats[index].messages)
+                            ? [...state.chats[index].messages]
+                            : [];
+                        chatMessages.push({ role: 'assistant', content: errorMsg });
+                        state.chats[index] = {
+                            ...state.chats[index],
+                            messages: chatMessages,
+                            updatedAt: new Date().toISOString()
+                        };
+                        localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    }
+                }
+                if (state.currentChat == chatId) {
+                    addMessage('assistant', errorMsg, null, false, false, true);  // skipStatePush=true，避免重复
+                    // 手动添加错误消息到state
+                    state.messages.push({
+                        role: 'assistant',
+                        content: errorMsg
+                    });
 
-                // ⭐ 错误消息也算一步
-                state.conversationStep++;
+                    // ⭐ 错误消息也算一步
+                    state.conversationStep++;
+                }
 
                 // 即使出错也保存对话
-                if (state.settings.saveHistory) {
+                if (state.settings.saveHistory && state.currentChat == chatId) {
                     saveCurrentChat();
                 }
             } finally {
@@ -1583,7 +1645,7 @@
                         textElement.textContent = content;
                     }
                 }
-            } else if (role === 'user' && (showButtons || skipTyping)) {
+            } else if (role === 'user') {
                 const textElement = messageDiv.querySelector('.message-text');
                 if (textElement) textElement.textContent = content;
             }
@@ -1739,6 +1801,12 @@
             }, 300);
         }
 
+        function generateChatId() {
+            const base = Date.now();
+            const suffix = Math.floor(Math.random() * 1000);
+            return base * 1000 + suffix;
+        }
+
         function saveCurrentChat() {
             if (!state.settings.saveHistory || state.messages.length === 0) return;
 
@@ -1757,7 +1825,7 @@
             // 核心逻辑：区分创建新对话和更新现有对话
             if (state.currentChat === null) {
                 // 场景1：创建新对话
-                const chatId = Date.now();
+                const chatId = generateChatId();
                 const chat = {
                     id: chatId,
                     title: title,
@@ -1788,10 +1856,18 @@
                     console.log('[对话] 更新对话:', state.currentChat);
                 } else {
                     console.error('[对话] 找不到对话ID:', state.currentChat);
-                    // 降级处理：当前对话ID不存在，创建新对话
-                    state.currentChat = null;
-                    saveCurrentChat();  // 递归调用，走创建新对话分支
-                    return;
+                    // 降级处理：当前对话ID不存在，使用现有ID创建新对话
+                    const chat = {
+                        id: state.currentChat,
+                        title: title,
+                        messages: [...state.messages],
+                        userData: {...state.userData},
+                        conversationStep: state.conversationStep,
+                        analysisCompleted: state.analysisCompleted,
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    state.chats.unshift(chat);
                 }
             }
 
@@ -1817,13 +1893,16 @@
                 state.chats = JSON.parse(saved);
             }
 
-            // 排序：置顶的在前，然后按更新时间倒序
+            // 排序：置顶优先，其次按 chat ID + requestID 倒序
             state.chats.sort((a, b) => {
                 if (a.isPinned && !b.isPinned) return -1;
                 if (!a.isPinned && b.isPinned) return 1;
-                const aTime = new Date(a.updatedAt || a.createdAt);
-                const bTime = new Date(b.updatedAt || b.createdAt);
-                return bTime - aTime;
+                const aId = Number(a.id) || 0;
+                const bId = Number(b.id) || 0;
+                if (aId !== bId) return bId - aId;
+                const aRequestId = Number(a.requestId ?? a.requestID ?? 0) || 0;
+                const bRequestId = Number(b.requestId ?? b.requestID ?? 0) || 0;
+                return bRequestId - aRequestId;
             });
 
             const historyDiv = document.getElementById('chatHistory');
@@ -1921,9 +2000,15 @@
                         // 获取按钮位置（相对于视口）
                         const buttonRect = button.getBoundingClientRect();
 
-                        // 简化定位逻辑：直接显示在按钮下方
-                        const top = buttonRect.bottom + 4;
-                        const left = buttonRect.right - 140; // 菜单右边对齐按钮右边
+                        // 显示在按钮下方，贴近更多按钮
+                        const menuWidth = menu.offsetWidth || 140;
+                        const sidebar = document.querySelector('.sidebar');
+                        const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+                        const top = buttonRect.bottom + 2;
+                        let left = buttonRect.right - menuWidth;
+                        const minLeft = sidebarRect.left + 8;
+                        const maxLeft = sidebarRect.right - menuWidth - 8;
+                        left = Math.min(Math.max(left, minLeft), maxLeft);
 
                         // 应用位置
                         menu.style.left = `${left}px`;
@@ -2098,10 +2183,11 @@
             if (inputContainer) inputContainer.style.display = 'block'; // 显示输入框
 
             // 恢复完整state
+            const chatMessages = Array.isArray(chat.messages) ? chat.messages : [];
             state.currentChat = chat.id;  // 使用原始ID
-            state.messages = [...chat.messages];
+            state.messages = [...chatMessages];
             state.userData = chat.userData ? {...chat.userData} : {};
-            state.conversationStep = chat.conversationStep || chat.messages.length;
+            state.conversationStep = chat.conversationStep || chatMessages.length;
             state.analysisCompleted = chat.analysisCompleted || false;
 
             document.getElementById('emptyState').style.display = 'none';
@@ -2109,8 +2195,8 @@
             messageList.style.display = 'block';
             messageList.innerHTML = '';
 
-            chat.messages.forEach((msg, index) => {
-                const isLastMessage = index === chat.messages.length - 1;
+            chatMessages.forEach((msg, index) => {
+                const isLastMessage = index === chatMessages.length - 1;
                 const shouldShowButton = isLastMessage && msg.role === 'assistant' && chat.analysisCompleted;
 
                 // 移除消息中的[ANALYSIS_COMPLETE]标记
