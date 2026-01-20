@@ -172,8 +172,12 @@ class ProjectManager {
             await this.storageManager.saveKnowledgeItems(this.buildKnowledgeFromArtifacts(devProject.id, artifacts));
         } else {
             const patchedWorkflow = this.patchWorkflowArtifacts(existingDev.workflow, devProject.workflow);
+            const defaultDevAgents = devProject.assignedAgents;
+            const validAgentIds = this.getValidAgentIds();
+            const currentAgents = existingDev.assignedAgents || [];
+            const hasValidAgents = currentAgents.some(id => validAgentIds.has(id));
             const patch = {
-                assignedAgents: existingDev.assignedAgents?.length ? existingDev.assignedAgents : devProject.assignedAgents,
+                assignedAgents: currentAgents.length && hasValidAgents ? currentAgents : defaultDevAgents,
                 members: existingDev.members?.length ? existingDev.members : devProject.members,
                 workflow: existingDev.workflow ? patchedWorkflow : devProject.workflow
             };
@@ -207,6 +211,15 @@ class ProjectManager {
                 tags: [artifact.type, artifact.stageId].filter(Boolean),
                 createdAt: artifact.createdAt || Date.now()
             }));
+    }
+
+    getValidAgentIds() {
+        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+        const ids = agentMarket.map(agent => agent.id);
+        if (ids.length > 0) {
+            return new Set(ids);
+        }
+        return new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006']);
     }
 
     patchWorkflowArtifacts(workflow, templateWorkflow) {
@@ -337,7 +350,8 @@ class ProjectManager {
             });
 
             if (!response.ok) {
-                throw new Error('更新项目失败');
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error || '更新项目失败');
             }
 
             const result = await response.json();
@@ -363,8 +377,23 @@ class ProjectManager {
 
             return project;
         } catch (error) {
-            console.error('[ProjectManager] 更新项目失败:', error);
-            throw error;
+            console.warn('[ProjectManager] 后端不可用，使用本地更新:', error.message);
+            const existing = await this.storageManager.getProject(projectId);
+            if (!existing) {
+                throw error;
+            }
+            const project = { ...existing, ...updates, updatedAt: Date.now() };
+            await this.storageManager.saveProject(project);
+
+            const index = this.projects.findIndex(p => p.id === projectId);
+            if (index !== -1) {
+                this.projects[index] = project;
+            }
+            if (window.updateProject) {
+                window.updateProject(projectId, updates);
+            }
+            this.refreshProjectPanel(project);
+            return project;
         }
     }
 
@@ -802,8 +831,8 @@ class ProjectManager {
                 completed: '#10b981'
             }[stage.status] || '#9ca3af';
 
-            const docArtifacts = this.getDocArtifacts(stage);
-            const artifactsHTML = this.renderStageArtifacts(stage, project.id, docArtifacts);
+            const displayArtifacts = this.getDisplayArtifacts(stage);
+            const artifactsHTML = this.renderStageArtifacts(stage, project.id, displayArtifacts);
 
             let actionHTML = '';
             if (stage.status === 'pending') {
@@ -819,10 +848,10 @@ class ProjectManager {
                         </button>
                     `;
             } else if (stage.status === 'completed') {
-                if (docArtifacts.length > 3) {
+                if (displayArtifacts.length > 3) {
                     actionHTML = `
                         <button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">
-                            查看交付物 (${docArtifacts.length})
+                            查看交付物 (${displayArtifacts.length})
                         </button>
                     `;
                 } else {
@@ -973,22 +1002,22 @@ class ProjectManager {
         this.renderProjectKnowledgePanel(project);
     }
 
-    renderStageArtifacts(stage, projectId, docArtifacts) {
+    renderStageArtifacts(stage, projectId, displayArtifacts) {
         if (stage.status !== 'completed') {
             return '';
         }
 
-        if (!docArtifacts || docArtifacts.length === 0) {
+        if (!displayArtifacts || displayArtifacts.length === 0) {
             return '';
         }
 
-        if (docArtifacts.length > 3) {
+        if (displayArtifacts.length > 3) {
             return '';
         }
 
         return `
             <div class="project-panel-list" style="margin-top: 10px;">
-                ${docArtifacts.map(artifact => `
+                ${displayArtifacts.map(artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -1012,6 +1041,18 @@ class ProjectManager {
                 type: artifact.type || 'document'
             }))
             .filter(artifact => docTypes.has(artifact.type));
+    }
+
+    getDisplayArtifacts(stage) {
+        const docArtifacts = this.getDocArtifacts(stage);
+        if (docArtifacts.length > 0) {
+            return docArtifacts;
+        }
+        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        return artifacts.map(artifact => ({
+            ...artifact,
+            type: artifact.type || 'document'
+        }));
     }
 
     async openKnowledgeFromArtifact(projectId, artifactId) {
@@ -1046,7 +1087,7 @@ class ProjectManager {
     showStageArtifactsModal(projectId, stageId) {
         const project = this.currentProjectId === projectId ? this.currentProject : null;
         const stage = project?.workflow?.stages?.find(s => s.id === stageId);
-        const artifacts = stage ? this.getDocArtifacts(stage) : [];
+        const artifacts = stage ? this.getDisplayArtifacts(stage) : [];
 
         if (!window.modalManager) {
             return;
@@ -1325,13 +1366,24 @@ class ProjectManager {
         const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
         const hiredIds = project.assignedAgents || [];
         const hiredAgents = agentMarket.filter(agent => hiredIds.includes(agent.id));
+        const customMembers = Array.isArray(project.members) ? project.members : [];
+        const customAgents = customMembers.map(member => ({
+            id: member.id || member.name,
+            name: member.name || '未命名成员',
+            role: member.role || '项目成员',
+            avatar: member.avatar || '👤',
+            desc: member.desc || '参与项目协作与推进',
+            skills: member.skills || [],
+            isCustom: true
+        }));
+        const mergedAgents = [...hiredAgents, ...customAgents.filter(member => !hiredIds.includes(member.id))];
 
-        if (hiredAgents.length === 0) {
+        if (mergedAgents.length === 0) {
             container.innerHTML = '<div class="project-panel-empty">暂无雇佣成员</div>';
             return;
         }
 
-        container.innerHTML = hiredAgents.map(agent => `
+        container.innerHTML = mergedAgents.map(agent => `
             <div class="agent-card hired">
                 <div class="agent-card-header">
                     <div class="agent-card-avatar">${agent.avatar}</div>
@@ -1345,9 +1397,10 @@ class ProjectManager {
                     ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                 </div>
                 <div class="agent-card-actions">
-                    <button class="btn-secondary" onclick="projectManager.fireAgentFromProject('${project.id}', '${agent.id}')">
-                        解雇
-                    </button>
+                    ${agent.isCustom
+                        ? '<button class="btn-secondary" disabled>项目成员</button>'
+                        : `<button class="btn-secondary" onclick="projectManager.fireAgentFromProject('${project.id}', '${agent.id}')">解雇</button>`
+                    }
                 </div>
             </div>
         `).join('');

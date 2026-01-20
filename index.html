@@ -529,6 +529,22 @@
         </div>
     </div>
 
+    <!-- 新手引导 -->
+    <div class="onboarding-overlay" id="onboardingOverlay" style="display: none;">
+        <div class="onboarding-backdrop"></div>
+        <div class="onboarding-highlight" id="onboardingHighlight"></div>
+        <div class="onboarding-tooltip" id="onboardingTooltip">
+            <div class="onboarding-step" id="onboardingStep">1 / 1</div>
+            <div class="onboarding-title" id="onboardingTitle"></div>
+            <div class="onboarding-desc" id="onboardingDesc"></div>
+            <div class="onboarding-actions">
+                <button class="btn-secondary" id="onboardingSkip">跳过</button>
+                <button class="btn-secondary" id="onboardingPrev">上一步</button>
+                <button class="btn-primary" id="onboardingNext">下一步</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 章节选择模态框 -->
     <div class="modal" id="chapterSelectionModal">
         <div class="modal-content chapter-selection">
@@ -5945,20 +5961,20 @@
                 <div class="knowledge-card" onclick="viewKnowledge('${item.id}')">
                     <div class="knowledge-card-header">
                         <div class="knowledge-icon" style="background: ${getTypeColor(item.type)}">
-                            ${item.icon}
+                            ${item.icon || '📘'}
                         </div>
-                        <div class="knowledge-card-title">${item.title}</div>
+                        <div class="knowledge-card-title">${item.title || '未命名内容'}</div>
                     </div>
                     <div class="knowledge-card-content">
-                        <p>${item.content.substring(0, 80)}...</p>
+                        <p>${(item.content || '').substring(0, 80)}${(item.content || '').length > 80 ? '...' : ''}</p>
                         <div class="knowledge-card-meta">
                             <span class="badge" style="background: ${getTypeBadgeColor(item.type)}; color: ${getTypeBadgeTextColor(item.type)};">${getTypeLabel(item.type)}</span>
                             ${item.scope === 'global' ? '<span class="badge" style="background: #fef3c7; color: #92400e;">全局</span>' : ''}
                             <span class="badge time">${formatTime(item.createdAt)}</span>
                         </div>
-                        ${item.tags.length > 0 ? `
+                        ${(item.tags || []).length > 0 ? `
                             <div class="knowledge-tags">
-                                ${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                                ${(item.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
                             </div>
                         ` : ''}
                     </div>
@@ -8134,6 +8150,185 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         } else {
             console.warn('⚠️ [PWA] 浏览器不支持Service Worker');
         }
+
+        // 新手引导
+        function initOnboarding() {
+            const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
+            const hasDone = localStorage.getItem('thinkcraft_onboarding_done') === 'true';
+            if (!isLoggedIn || hasDone) return;
+
+            const overlay = document.getElementById('onboardingOverlay');
+            const highlight = document.getElementById('onboardingHighlight');
+            const tooltip = document.getElementById('onboardingTooltip');
+            const titleEl = document.getElementById('onboardingTitle');
+            const descEl = document.getElementById('onboardingDesc');
+            const stepEl = document.getElementById('onboardingStep');
+            const btnPrev = document.getElementById('onboardingPrev');
+            const btnNext = document.getElementById('onboardingNext');
+            const btnSkip = document.getElementById('onboardingSkip');
+
+            const steps = [
+                {
+                    title: '新建对话',
+                    desc: '从这里开始创建一个新的创意对话。',
+                    target: '.new-chat-btn',
+                    onEnter: () => switchSidebarTab('chats')
+                },
+                {
+                    title: '输入想法',
+                    desc: '在这里输入你的创意或需求，支持回车发送。',
+                    target: '#mainInput'
+                },
+                {
+                    title: '开启团队功能',
+                    desc: '在设置里打开数字员工团队开关，解锁项目空间。',
+                    target: () => document.getElementById('enableTeamToggle') || document.getElementById('enableTeamToggle2'),
+                    onEnter: () => {
+                        if (typeof showSettings === 'function') {
+                            showSettings();
+                        } else if (typeof openBottomSettings === 'function') {
+                            openBottomSettings();
+                        }
+                    },
+                    onExit: () => {
+                        if (typeof closeSettings === 'function') {
+                            closeSettings();
+                        } else if (typeof closeBottomSettings === 'function') {
+                            closeBottomSettings();
+                        }
+                    }
+                },
+                {
+                    title: '切换项目空间',
+                    desc: '点击这里进入项目空间查看你的项目。',
+                    target: '#teamTab',
+                    onEnter: () => switchSidebarTab('team')
+                },
+                {
+                    title: '查看项目面板',
+                    desc: '点击项目卡片查看项目详情与流程面板。',
+                    target: '.project-card',
+                    onEnter: () => {
+                        switchSidebarTab('team');
+                    }
+                },
+                {
+                    title: '项目详情面板',
+                    desc: '这里展示项目概览、流程阶段与交付物。',
+                    target: '#projectPanel',
+                    onEnter: () => {
+                        switchSidebarTab('team');
+                        setTimeout(() => {
+                            const firstCard = document.querySelector('.project-card');
+                            if (firstCard && typeof window.projectManager?.openProject === 'function') {
+                                window.projectManager.openProject(firstCard.dataset.projectId);
+                            }
+                        }, 100);
+                    }
+                }
+            ];
+
+            let current = 0;
+
+            function finishOnboarding() {
+                overlay.style.display = 'none';
+                localStorage.setItem('thinkcraft_onboarding_done', 'true');
+                if (typeof closeSettings === 'function') {
+                    closeSettings();
+                } else if (typeof closeBottomSettings === 'function') {
+                    closeBottomSettings();
+                }
+                if (window.projectManager) {
+                    window.projectManager.closeProjectPanel();
+                }
+                if (typeof switchSidebarTab === 'function') {
+                    switchSidebarTab('chats');
+                }
+            }
+
+            function positionTooltip(rect) {
+                const padding = 12;
+                const tooltipRect = tooltip.getBoundingClientRect();
+                let top = rect.bottom + padding;
+                let left = rect.left;
+
+                if (top + tooltipRect.height > window.innerHeight) {
+                    top = rect.top - tooltipRect.height - padding;
+                }
+                if (left + tooltipRect.width > window.innerWidth) {
+                    left = window.innerWidth - tooltipRect.width - padding;
+                }
+                if (left < padding) {
+                    left = padding;
+                }
+                if (top < padding) {
+                    top = padding;
+                }
+
+                tooltip.style.top = `${top}px`;
+                tooltip.style.left = `${left}px`;
+            }
+
+            function showStep(index, retry = 0) {
+                if (index < 0 || index >= steps.length) {
+                    finishOnboarding();
+                    return;
+                }
+
+                const prevStep = steps[current];
+                if (prevStep && typeof prevStep.onExit === 'function') {
+                    prevStep.onExit();
+                }
+
+                current = index;
+                const step = steps[current];
+
+                if (typeof step.onEnter === 'function') {
+                    step.onEnter();
+                }
+
+                const target = typeof step.target === 'function'
+                    ? step.target()
+                    : document.querySelector(step.target);
+
+                if (!target) {
+                    if (retry < 6) {
+                        setTimeout(() => showStep(index, retry + 1), 200);
+                        return;
+                    }
+                    showStep(index + 1);
+                    return;
+                }
+
+                const rect = target.getBoundingClientRect();
+                const pad = 6;
+                highlight.style.top = `${rect.top - pad}px`;
+                highlight.style.left = `${rect.left - pad}px`;
+                highlight.style.width = `${rect.width + pad * 2}px`;
+                highlight.style.height = `${rect.height + pad * 2}px`;
+
+                titleEl.textContent = step.title;
+                descEl.textContent = step.desc;
+                stepEl.textContent = `${current + 1} / ${steps.length}`;
+
+                btnPrev.disabled = current === 0;
+                btnNext.textContent = current === steps.length - 1 ? '完成' : '下一步';
+
+                positionTooltip(rect);
+            }
+
+            btnPrev.addEventListener('click', () => showStep(current - 1));
+            btnNext.addEventListener('click', () => showStep(current + 1));
+            btnSkip.addEventListener('click', finishOnboarding);
+            window.addEventListener('resize', () => showStep(current));
+
+            overlay.style.display = 'block';
+            showStep(0);
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(initOnboarding, 300);
+        });
 
         console.log('✅ ThinkCraft 移动端优化已加载');
 
