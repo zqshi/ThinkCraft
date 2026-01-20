@@ -34,6 +34,9 @@ class ProjectManager {
         try {
             this.projects = await this.storageManager.getAllProjects();
 
+            await this.ensureMockProjects();
+            this.projects = await this.storageManager.getAllProjects();
+
             // 更新全局状态
             if (window.setProjects) {
                 window.setProjects(this.projects);
@@ -44,6 +47,193 @@ class ProjectManager {
             console.error('[ProjectManager] 加载项目失败:', error);
             return [];
         }
+    }
+
+    async ensureMockProjects() {
+        if (!this.storageManager) {
+            return;
+        }
+
+        const existingProjects = this.projects || [];
+        const existingIds = new Set(existingProjects.map(project => project.id));
+        const now = Date.now();
+        const day = 24 * 60 * 60 * 1000;
+
+        const demoProject = {
+            id: 'project_demo_001',
+            name: '智能健身APP Demo',
+            description: 'AI个性化健身指导应用的Demo展示',
+            mode: 'demo',
+            status: 'active',
+            ideaId: 'demo_fitness_app',
+            linkedIdeas: [],
+            assignedAgents: ['agent_004', 'agent_006'],
+            members: [
+                { id: 'member_001', name: '陈念', role: '业务负责人' }
+            ],
+            createdAt: now - 7 * day,
+            updatedAt: now - 2 * day,
+            demo: {
+                type: 'web',
+                previewUrl: 'https://example.com/demo/fitness',
+                downloadUrl: '',
+                generatedAt: now - 2 * day
+            }
+        };
+
+        const devProject = {
+            id: 'project_dev_001',
+            name: '在线教育平台 · 协同开发',
+            description: '面向K12的互动式在线学习平台',
+            mode: 'development',
+            status: 'active',
+            ideaId: 'chat_001',
+            linkedIdeas: [],
+            assignedAgents: ['agent_001', 'agent_002', 'agent_004', 'agent_005'],
+            members: [
+                { id: 'member_002', name: '李默', role: '项目经理' },
+                { id: 'member_003', name: '周禾', role: '运营负责人' }
+            ],
+            createdAt: now - 12 * day,
+            updatedAt: now - 1 * day,
+            workflow: {
+                currentStageId: 'design',
+                stages: [
+                    {
+                        id: 'requirement',
+                        status: 'completed',
+                        artifacts: [
+                            { id: 'artifact-req-001', name: '需求规格说明', type: 'prd' },
+                            { id: 'artifact-req-002', name: '用户画像与场景', type: 'analysis' }
+                        ]
+                    },
+                    {
+                        id: 'design',
+                        status: 'active',
+                        artifacts: []
+                    },
+                    {
+                        id: 'architecture',
+                        status: 'pending',
+                        artifacts: []
+                    },
+                    {
+                        id: 'development',
+                        status: 'pending',
+                        artifacts: []
+                    },
+                    {
+                        id: 'testing',
+                        status: 'pending',
+                        artifacts: []
+                    }
+                ],
+                isCustom: false
+            }
+        };
+
+        const artifacts = [
+            {
+                id: 'artifact-req-001',
+                projectId: devProject.id,
+                stageId: 'requirement',
+                type: 'prd',
+                name: '需求规格说明',
+                agentName: '产品经理',
+                content: '需求规格说明（示例）：目标用户、核心功能、验收标准、里程碑等。'
+            },
+            {
+                id: 'artifact-req-002',
+                projectId: devProject.id,
+                stageId: 'requirement',
+                type: 'analysis',
+                name: '用户画像与场景',
+                agentName: '用户研究员',
+                content: '用户画像与使用场景（示例）：目标人群、痛点、学习路径。'
+            }
+        ];
+
+        const existingDemo = existingProjects.find(project => project.id === demoProject.id);
+        if (!existingDemo) {
+            await this.storageManager.saveProject(demoProject);
+        } else {
+            const patch = {
+                assignedAgents: existingDemo.assignedAgents?.length ? existingDemo.assignedAgents : demoProject.assignedAgents,
+                members: existingDemo.members?.length ? existingDemo.members : demoProject.members,
+                demo: existingDemo.demo || demoProject.demo
+            };
+            await this.storageManager.saveProject({ ...existingDemo, ...patch });
+        }
+
+        const existingDev = existingProjects.find(project => project.id === devProject.id);
+        if (!existingDev) {
+            await this.storageManager.saveProject(devProject);
+            await this.storageManager.saveArtifacts(artifacts);
+            await this.storageManager.saveKnowledgeItems(this.buildKnowledgeFromArtifacts(devProject.id, artifacts));
+        } else {
+            const patchedWorkflow = this.patchWorkflowArtifacts(existingDev.workflow, devProject.workflow);
+            const patch = {
+                assignedAgents: existingDev.assignedAgents?.length ? existingDev.assignedAgents : devProject.assignedAgents,
+                members: existingDev.members?.length ? existingDev.members : devProject.members,
+                workflow: existingDev.workflow ? patchedWorkflow : devProject.workflow
+            };
+            await this.storageManager.saveProject({ ...existingDev, ...patch });
+            await this.storageManager.saveArtifacts(artifacts);
+            await this.storageManager.saveKnowledgeItems(this.buildKnowledgeFromArtifacts(devProject.id, artifacts));
+        }
+
+        console.log('[ProjectManager] 已写入项目空间Mock数据');
+    }
+
+    buildKnowledgeFromArtifacts(projectId, artifacts) {
+        const docTypeMap = {
+            'prd': 'prd',
+            'ui-design': 'design',
+            'architecture-doc': 'tech',
+            'test-report': 'analysis',
+            'deploy-doc': 'tech',
+            'marketing-plan': 'analysis'
+        };
+
+        return artifacts
+            .filter(artifact => docTypeMap[artifact.type])
+            .map(artifact => ({
+                id: `knowledge-${artifact.id}`,
+                title: artifact.name || '未命名文档',
+                type: docTypeMap[artifact.type],
+                scope: 'project',
+                projectId,
+                content: artifact.content || '',
+                tags: [artifact.type, artifact.stageId].filter(Boolean),
+                createdAt: artifact.createdAt || Date.now()
+            }));
+    }
+
+    patchWorkflowArtifacts(workflow, templateWorkflow) {
+        if (!workflow || !Array.isArray(workflow.stages)) {
+            return templateWorkflow;
+        }
+        if (!templateWorkflow || !Array.isArray(templateWorkflow.stages)) {
+            return workflow;
+        }
+
+        const templateMap = new Map(templateWorkflow.stages.map(stage => [stage.id, stage]));
+        const patchedStages = workflow.stages.map(stage => {
+            const templateStage = templateMap.get(stage.id);
+            if (!templateStage || !Array.isArray(stage.artifacts)) {
+                return stage;
+            }
+            const patchedArtifacts = stage.artifacts.map(artifact => {
+                if (artifact.type) {
+                    return artifact;
+                }
+                const templateArtifact = templateStage.artifacts?.find(item => item.id === artifact.id);
+                return templateArtifact ? { ...artifact, type: templateArtifact.type } : { ...artifact, type: 'document' };
+            });
+            return { ...stage, artifacts: patchedArtifacts };
+        });
+
+        return { ...workflow, stages: patchedStages };
     }
 
     /**
@@ -612,6 +802,9 @@ class ProjectManager {
                 completed: '#10b981'
             }[stage.status] || '#9ca3af';
 
+            const docArtifacts = this.getDocArtifacts(stage);
+            const artifactsHTML = this.renderStageArtifacts(stage, project.id, docArtifacts);
+
             let actionHTML = '';
             if (stage.status === 'pending') {
                 actionHTML = workflowReady
@@ -626,18 +819,15 @@ class ProjectManager {
                         </button>
                     `;
             } else if (stage.status === 'completed') {
-                const artifactCount = stage.artifacts?.length || 0;
-                actionHTML = workflowReady
-                    ? `
-                        <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')">
-                            查看交付物 (${artifactCount})
-                        </button>
-                    `
-                    : `
-                        <button class="btn-secondary" disabled title="工作流执行器未就绪">
-                            查看交付物 (${artifactCount})
+                if (docArtifacts.length > 3) {
+                    actionHTML = `
+                        <button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">
+                            查看交付物 (${docArtifacts.length})
                         </button>
                     `;
+                } else {
+                    actionHTML = '';
+                }
             } else {
                 actionHTML = `<button class="btn-secondary" disabled>执行中...</button>`;
             }
@@ -651,7 +841,12 @@ class ProjectManager {
                         </span>
                         <span>${definition?.description || ''}</span>
                     </div>
-                    ${actionHTML}
+                    ${artifactsHTML}
+                    ${actionHTML ? `
+                        <div class="project-panel-actions">
+                            ${actionHTML}
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }).join('');
@@ -778,6 +973,109 @@ class ProjectManager {
         this.renderProjectKnowledgePanel(project);
     }
 
+    renderStageArtifacts(stage, projectId, docArtifacts) {
+        if (stage.status !== 'completed') {
+            return '';
+        }
+
+        if (!docArtifacts || docArtifacts.length === 0) {
+            return '';
+        }
+
+        if (docArtifacts.length > 3) {
+            return '';
+        }
+
+        return `
+            <div class="project-panel-list" style="margin-top: 10px;">
+                ${docArtifacts.map(artifact => `
+                    <div class="project-panel-item">
+                        <div class="project-panel-item-main">
+                            <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
+                            <div class="project-panel-item-sub">${this.escapeHtml(artifact.type || 'deliverable')}</div>
+                        </div>
+                        <button class="btn-secondary" onclick="projectManager.openKnowledgeFromArtifact('${projectId}', '${artifact.id}')" style="padding: 4px 10px; font-size: 12px;">
+                            查看
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    getDocArtifacts(stage) {
+        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        const docTypes = new Set(['prd', 'ui-design', 'architecture-doc', 'test-report', 'deploy-doc', 'marketing-plan', 'document']);
+        return artifacts
+            .map(artifact => ({
+                ...artifact,
+                type: artifact.type || 'document'
+            }))
+            .filter(artifact => docTypes.has(artifact.type));
+    }
+
+    async openKnowledgeFromArtifact(projectId, artifactId) {
+        if (!this.storageManager || !window.modalManager) {
+            return;
+        }
+
+        const knowledgeId = `knowledge-${artifactId}`;
+        let item = await this.storageManager.getKnowledge(knowledgeId);
+        if (!item) {
+            const artifact = await this.storageManager.getArtifact(artifactId);
+            if (!artifact) {
+                window.modalManager.alert('未找到交付物内容', 'warning');
+                return;
+            }
+            item = {
+                title: artifact.name || '交付物',
+                content: artifact.content || ''
+            };
+        }
+
+        const rendered = window.markdownRenderer ? window.markdownRenderer.render(item.content || '') : (item.content || '');
+        const contentHTML = `
+            <div style="display: grid; gap: 12px;">
+                <div style="font-size: 18px; font-weight: 600;">${this.escapeHtml(item.title || '知识条目')}</div>
+                <div class="markdown-body">${rendered}</div>
+            </div>
+        `;
+        window.modalManager.showCustomModal('知识查看', contentHTML, 'knowledgeDetailModal');
+    }
+
+    showStageArtifactsModal(projectId, stageId) {
+        const project = this.currentProjectId === projectId ? this.currentProject : null;
+        const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+        const artifacts = stage ? this.getDocArtifacts(stage) : [];
+
+        if (!window.modalManager) {
+            return;
+        }
+
+        if (artifacts.length === 0) {
+            window.modalManager.alert('暂无交付物', 'info');
+            return;
+        }
+
+        const listHTML = `
+            <div style="display: grid; gap: 10px;">
+                ${artifacts.map(artifact => `
+                    <div class="project-panel-item">
+                        <div class="project-panel-item-main">
+                            <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
+                            <div class="project-panel-item-sub">${this.escapeHtml(artifact.type || 'deliverable')}</div>
+                        </div>
+                        <button class="btn-secondary" onclick="projectManager.openKnowledgeFromArtifact('${projectId}', '${artifact.id}')" style="padding: 4px 10px; font-size: 12px;">
+                            查看
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        window.modalManager.showCustomModal('交付物列表', listHTML, 'stageArtifactsModal');
+    }
+
     /**
      * 关闭项目右侧面板
      */
@@ -816,7 +1114,20 @@ class ProjectManager {
 
         const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
         const assignedIds = project.assignedAgents || [];
-        const members = assignedIds.map(id => agentMarket.find(agent => agent.id === id)).filter(Boolean);
+        const assignedMembers = assignedIds.map(id => agentMarket.find(agent => agent.id === id)).filter(Boolean);
+        const customMembers = Array.isArray(project.members) ? project.members : [];
+        const members = [
+            ...assignedMembers.map(member => ({ ...member, _source: 'market' })),
+            ...customMembers.map(member => ({
+                id: member.id || member.name,
+                name: member.name || '未命名成员',
+                role: member.role || '项目成员',
+                avatar: member.avatar || '👤',
+                desc: member.desc || '参与项目协作与推进',
+                skills: member.skills || [],
+                _source: 'custom'
+            }))
+        ];
 
         if (members.length === 0) {
             container.classList.add('is-empty');

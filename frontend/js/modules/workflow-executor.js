@@ -236,6 +236,8 @@ class WorkflowExecutor {
                 stage.status = status;
                 if (Array.isArray(artifacts)) {
                     stage.artifacts = artifacts;
+                    await this.storageManager.saveArtifacts(artifacts);
+                    await this.saveArtifactsToKnowledge(projectId, artifacts);
                 }
 
                 if (status === 'active' && !stage.startedAt) {
@@ -261,6 +263,40 @@ class WorkflowExecutor {
         } catch (error) {
             console.error('[WorkflowExecutor] 更新阶段状态失败:', error);
         }
+    }
+
+    async saveArtifactsToKnowledge(projectId, artifacts) {
+        if (!this.storageManager || !Array.isArray(artifacts) || artifacts.length === 0) {
+            return;
+        }
+
+        const docTypeMap = {
+            'prd': 'prd',
+            'ui-design': 'design',
+            'architecture-doc': 'tech',
+            'test-report': 'analysis',
+            'deploy-doc': 'tech',
+            'marketing-plan': 'analysis'
+        };
+
+        const items = artifacts
+            .filter(artifact => docTypeMap[artifact.type])
+            .map(artifact => ({
+                id: `knowledge-${artifact.id}`,
+                title: artifact.name || '未命名文档',
+                type: docTypeMap[artifact.type],
+                scope: 'project',
+                projectId,
+                content: artifact.content || '',
+                tags: [artifact.type, artifact.stageId].filter(Boolean),
+                createdAt: artifact.createdAt || Date.now()
+            }));
+
+        if (items.length === 0) {
+            return;
+        }
+
+        await this.storageManager.saveKnowledgeItems(items);
     }
 
     async executeStageRequest(projectId, stageId, context) {
@@ -395,7 +431,9 @@ class WorkflowExecutor {
             'completed': '#10b981'
         }[stage.status] || '#9ca3af';
 
-        const artifactCount = stage.artifacts ? stage.artifacts.length : 0;
+        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        const artifactCount = artifacts.length;
+        const artifactsHTML = this.renderArtifactsList(artifacts, projectId, stage.status);
 
         let actionHTML = '';
         if (stage.status === 'pending') {
@@ -432,9 +470,38 @@ class WorkflowExecutor {
                         ${statusText}
                     </div>
                 </div>
+                ${artifactsHTML}
                 <div style="margin-top: 16px;">
                     ${actionHTML}
                 </div>
+            </div>
+        `;
+    }
+
+    renderArtifactsList(artifacts, projectId, status) {
+        if (status !== 'completed') {
+            return '';
+        }
+        if (!artifacts.length) {
+            return `<div style="margin-top: 12px; color: #9ca3af; font-size: 13px;">暂无交付物</div>`;
+        }
+
+        const docTypes = new Set(['prd', 'ui-design', 'architecture-doc', 'test-report', 'deploy-doc', 'marketing-plan']);
+        return `
+            <div style="margin-top: 12px; display: grid; gap: 8px;">
+                ${artifacts.map(artifact => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 10px;">
+                        <div style="min-width: 0;">
+                            <div style="font-size: 14px; font-weight: 600; color: #111827;">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${this.escapeHtml(artifact.type || 'deliverable')}</div>
+                        </div>
+                        ${docTypes.has(artifact.type) ? `
+                            <button class="btn-secondary" onclick="showKnowledgeBase('project', '${projectId}')" style="padding: 4px 10px; font-size: 12px;">
+                                知识库
+                            </button>
+                        ` : ''}
+                    </div>
+                `).join('')}
             </div>
         `;
     }

@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <script>
+        const isOSPage = /\/OS\.html(?:[?#]|$)/.test(window.location.pathname);
+        const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
+
+        if (!isLoggedIn && !isOSPage) {
+            window.location.replace('OS.html' + window.location.search + window.location.hash);
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ThinkCraft - AI思维助手</title>
