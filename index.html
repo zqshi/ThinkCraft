@@ -1181,6 +1181,8 @@
             conversationStep: 0,
             isTyping: false,
             isLoading: false,
+            typingChatId: null,
+            pendingChatIds: new Set(),
             analysisCompleted: false,  // 防止重复显示报告按钮
             currentProject: null,  // 当前打开的项目ID
             teamSpace: null,  // 团队空间数据（延迟初始化）
@@ -1369,6 +1371,13 @@
             sendMessage();
         }
 
+        function isCurrentChatBusy() {
+            const currentChatId = state.currentChat;
+            const isTyping = currentChatId !== null && state.typingChatId === currentChatId;
+            const isLoading = currentChatId !== null && state.pendingChatIds.has(currentChatId);
+            return isTyping || isLoading;
+        }
+
         async function sendMessage() {
             // 兼容桌面端和移动端输入框
             const desktopInput = document.getElementById('mainInput');
@@ -1376,7 +1385,7 @@
             const input = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
             const message = input.value.trim();
 
-            if (!message || state.isTyping || state.isLoading) return;
+            if (!message || isCurrentChatBusy()) return;
 
             let chatId = state.currentChat;
             if (state.settings.saveHistory && chatId === null) {
@@ -1393,6 +1402,7 @@
                     updatedAt: new Date().toISOString()
                 });
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                loadChats();
             }
 
             // 首次对话时重置分析状态
@@ -1438,7 +1448,10 @@
             }
 
             // 设置加载状态
-            state.isLoading = true;
+            if (chatId !== null) {
+                state.pendingChatIds.add(chatId);
+            }
+            state.isLoading = state.pendingChatIds.size > 0;
 
             try {
                 // 调用后端API
@@ -1538,7 +1551,10 @@
                     saveCurrentChat();
                 }
             } finally {
-                state.isLoading = false;
+                if (chatId !== null) {
+                    state.pendingChatIds.delete(chatId);
+                }
+                state.isLoading = state.pendingChatIds.size > 0;
             }
         }
 
@@ -1565,7 +1581,7 @@
             const actionElement = messageDiv.querySelector('.message-actions');
 
             // 使用新的打字函数
-            typeWriterWithCompletion(textElement, actionElement, content, 30);
+            typeWriterWithCompletion(textElement, actionElement, content, 30, state.currentChat);
 
             scrollToBottom();
         }
@@ -1596,7 +1612,7 @@
                 messageList.appendChild(messageDiv);
 
                 const textElement = messageDiv.querySelector('.message-text');
-                typeWriter(textElement, content, 30);
+                typeWriter(textElement, content, 30, state.currentChat);
             } else {
                 html += `<div class="message-text"></div>`;
             }
@@ -1661,7 +1677,9 @@
             return messageDiv;
         }
 
-        function typeWriter(element, text, speed = 30) {
+        function typeWriter(element, text, speed = 30, chatId = null) {
+            const targetChatId = chatId ?? state.currentChat;
+            state.typingChatId = targetChatId;
             state.isTyping = true;
             let i = 0;
             const timer = setInterval(() => {
@@ -1671,7 +1689,10 @@
                     scrollToBottom();
                 } else {
                     clearInterval(timer);
-                    state.isTyping = false;
+                    if (state.typingChatId === targetChatId) {
+                        state.isTyping = false;
+                        state.typingChatId = null;
+                    }
 
                     // 打字机效果完成后，渲染Markdown
                     if (window.markdownRenderer) {
@@ -1683,7 +1704,9 @@
             }, speed);
         }
 
-        function typeWriterWithCompletion(textElement, actionElement, text, speed = 30) {
+        function typeWriterWithCompletion(textElement, actionElement, text, speed = 30, chatId = null) {
+            const targetChatId = chatId ?? state.currentChat;
+            state.typingChatId = targetChatId;
             state.isTyping = true;
             let i = 0;
 
@@ -1703,7 +1726,10 @@
                     scrollToBottom();
                 } else {
                     clearInterval(timer);
-                    state.isTyping = false;
+                    if (state.typingChatId === targetChatId) {
+                        state.isTyping = false;
+                        state.typingChatId = null;
+                    }
 
                     // 打字机效果完成后，渲染Markdown
                     if (window.markdownRenderer) {
@@ -7983,7 +8009,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             // 1. 双击输入框发送消息
             window.gestureHandler.registerDoubleTap(mainInput, () => {
                 const content = mainInput.value.trim();
-                if (content && !state.isTyping && !state.isLoading) {
+                if (content && !isCurrentChatBusy()) {
                     sendMessage();
                     if (navigator.vibrate) navigator.vibrate(30);  // 震动反馈
                     console.log('[手势] 双击发送消息');
@@ -7994,7 +8020,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             window.gestureHandler.registerSwipe(mainInput, {
                 onSwipeUp: (distance) => {
                     const content = mainInput.value.trim();
-                    if (distance > 50 && content && !state.isTyping && !state.isLoading) {
+                    if (distance > 50 && content && !isCurrentChatBusy()) {
                         sendMessage();
                         if (navigator.vibrate) navigator.vibrate(30);  // 震动反馈
                         console.log('[手势] 向上滑动发送消息');

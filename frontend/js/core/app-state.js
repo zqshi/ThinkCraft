@@ -12,6 +12,8 @@ export const appState = {
     conversationStep: 0,
     isTyping: false,
     isLoading: false,
+    typingChatId: null,
+    pendingChatIds: new Set(),
     analysisCompleted: false,
 
     // 项目管理（v5新增）

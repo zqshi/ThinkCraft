@@ -16,7 +16,10 @@ export async function sendMessage() {
     const input = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
     const message = input.value.trim();
 
-    if (!message || appState.isTyping || appState.isLoading) return;
+    const currentChatId = appState.currentChat;
+    const isCurrentChatTyping = currentChatId !== null && appState.typingChatId === currentChatId;
+    const isCurrentChatLoading = currentChatId !== null && appState.pendingChatIds.has(currentChatId);
+    if (!message || isCurrentChatTyping || isCurrentChatLoading) return;
 
     let chatId = appState.currentChat;
     if (appState.settings.saveHistory && chatId === null) {
@@ -35,6 +38,9 @@ export async function sendMessage() {
             updatedAt: new Date().toISOString()
         });
         localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
+        if (window.loadChats) {
+            window.loadChats();
+        }
     }
 
     if (appState.messages.length === 0) {
@@ -70,7 +76,10 @@ export async function sendMessage() {
         }
     }
 
-    appState.isLoading = true;
+    if (chatId !== null) {
+        appState.pendingChatIds.add(chatId);
+    }
+    appState.isLoading = appState.pendingChatIds.size > 0;
 
     try {
         const response = await fetch(`${appState.settings.apiUrl}/api/chat`, {
@@ -142,7 +151,10 @@ export async function sendMessage() {
             window.saveCurrentChat && window.saveCurrentChat();
         }
     } finally {
-        appState.isLoading = false;
+        if (chatId !== null) {
+            appState.pendingChatIds.delete(chatId);
+        }
+        appState.isLoading = appState.pendingChatIds.size > 0;
     }
 }
 
@@ -171,7 +183,7 @@ export function handleAPIResponse(content) {
     const textElement = messageDiv.querySelector('.message-text');
     const actionElement = messageDiv.querySelector('.message-actions');
 
-    typeWriterWithCompletion(textElement, actionElement, content, 30);
+    typeWriterWithCompletion(textElement, actionElement, content, 30, appState.currentChat);
     scrollToBottom();
 }
 
@@ -203,7 +215,7 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
         messageList.appendChild(messageDiv);
 
         const textElement = messageDiv.querySelector('.message-text');
-        typeWriter(textElement, content, 30);
+        typeWriter(textElement, content, 30, appState.currentChat);
     } else {
         html += `<div class="message-text"></div>`;
     }
@@ -269,7 +281,9 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
 /**
  * 打字机效果（支持Markdown渲染）
  */
-export function typeWriter(element, text, speed = 30) {
+export function typeWriter(element, text, speed = 30, chatId = null) {
+    const targetChatId = chatId ?? appState.currentChat;
+    appState.typingChatId = targetChatId;
     appState.isTyping = true;
     let i = 0;
     const timer = setInterval(() => {
@@ -279,7 +293,10 @@ export function typeWriter(element, text, speed = 30) {
             scrollToBottom();
         } else {
             clearInterval(timer);
-            appState.isTyping = false;
+            if (appState.typingChatId === targetChatId) {
+                appState.isTyping = false;
+                appState.typingChatId = null;
+            }
 
             // 打字机效果完成后，渲染Markdown
             if (window.markdownRenderer) {
@@ -298,7 +315,9 @@ export function typeWriter(element, text, speed = 30) {
 /**
  * 带完成检测的打字机效果（支持Markdown渲染）
  */
-export function typeWriterWithCompletion(textElement, actionElement, text, speed = 30) {
+export function typeWriterWithCompletion(textElement, actionElement, text, speed = 30, chatId = null) {
+    const targetChatId = chatId ?? appState.currentChat;
+    appState.typingChatId = targetChatId;
     appState.isTyping = true;
     let i = 0;
 
@@ -317,7 +336,10 @@ export function typeWriterWithCompletion(textElement, actionElement, text, speed
             scrollToBottom();
         } else {
             clearInterval(timer);
-            appState.isTyping = false;
+            if (appState.typingChatId === targetChatId) {
+                appState.isTyping = false;
+                appState.typingChatId = null;
+            }
 
             // 打字机效果完成后，渲染Markdown
             if (window.markdownRenderer) {
