@@ -1,280 +1,112 @@
 # ThinkCraft - AI思维助手
 
-> 参考 DeepSeek、豆包等产品设计，打造专业的对话式创意分析工具
+> 创意验证操作系统：用对话式引导 + AI分析报告，把灵感变成可执行方案
 
-## 🎯 核心特性
+## ✨ 当前能力概览
 
-### 真实的交互逻辑
-- **对话式界面**：类似 ChatGPT/DeepSeek，默认进入即为对话界面
-- **智能状态管理**：完整的对话流程控制和数据持久化
-- **打字机效果**：AI回复采用流式输出，更自然的交互体验
-- **历史记录**：左侧边栏展示所有对话，支持随时切换
+- **多入口体验**：`OS.html` 产品介绍页 → 登录/注册 → 主应用
+- **对话式思维引导**：多轮对话、快速回复、打字机效果、历史记录
+- **项目空间**：对话与项目分区管理
+- **结构化产出**：分析报告、商业计划书章节、PDF导出、分享链接
+- **AI增强模块**：视觉分析、Demo生成、工作流推荐与执行、数字员工
+- **本地持久化**：对话/设置基于 `localStorage` 与 `sessionStorage`
+- **PWA基础设施**：`manifest.json` + `service-worker.js`
 
-### 专业的视觉设计
-- **简洁配色**：黑白灰为主，品牌色点缀，专业且克制
-- **现代布局**：侧边栏 + 主内容区，符合主流AI产品设计
-- **细腻动效**：消息滑入、打字机、模态框等细节动画
-- **响应式设计**：桌面端和移动端完美适配
+## 🚀 快速开始
 
-### 完整的功能流程
-```
-进入页面（空状态引导）
-  ↓
-选择快速开始 / 输入想法
-  ↓
-AI逐步引导（5轮对话）
-  - 想法描述
-  - 目标用户
-  - 核心痛点
-  - 解决方案
-  - 验证指标
-  ↓
-对话完成，生成总结
-  ↓
-查看完整报告（模态框）
-  - 精益画布
-  - AI洞察建议
-  ↓
-导出/分享
-```
-
-## 📱 快速体验
-
-### 直接打开
+### 方式一：纯前端预览（无需后端）
 ```bash
-# 在项目目录下
-open index.html  # macOS
-start index.html # Windows
-
-# 或直接双击文件
-```
-
-### 本地服务器（推荐）
-```bash
-# Python 3
+# 在项目根目录
 python3 -m http.server 8000
-
-# Node.js
-npx http-server -p 8000
-
-# 访问 http://localhost:8000
+# 访问 http://localhost:8000/OS.html
 ```
 
-## 🛠️ 技术实现
+- 在 OS 页面点击“立即体验”进入登录页
+- 登录/注册目前为演示模式（存储在浏览器本地）
 
-### 架构设计
-- **单文件应用**：零依赖，开箱即用
-- **纯原生技术**：HTML5 + CSS3 + Vanilla JavaScript
-- **状态管理**：完整的全局状态机（state）
-- **本地存储**：localStorage 持久化对话历史
-
-### 核心模块
-
-#### 1. 状态管理
-```javascript
-const state = {
-    currentChat: null,      // 当前对话ID
-    chats: [],             // 历史对话列表
-    messages: [],          // 当前消息列表
-    isTyping: false,       // 打字中状态
-    conversationStep: 0,   // 对话进度
-    userData: {}           // 收集的用户数据
-};
+### 方式二：启动后端（解锁真实AI能力）
+```bash
+cd backend
+npm install
+npm run dev
 ```
 
-#### 2. 对话流程
-```javascript
-const conversationFlow = [
-    { question: "...", key: "initialIdea", quickReplies: [...] },
-    { question: "...", key: "targetUser", quickReplies: [...] },
-    { question: "...", key: "problem" },
-    { question: "...", key: "solution" },
-    { question: "...", key: "validation" }
-];
+在 `backend/.env` 中设置：
+```
+DEEPSEEK_API_KEY=your_api_key_here
+PORT=3000
+FRONTEND_URL=http://localhost:8000
 ```
 
-#### 3. 核心功能
-- `sendMessage()` - 发送消息，触发AI响应
-- `handleAIResponse()` - 处理对话流程，生成AI回复
-- `typeWriter()` - 打字机效果实现
-- `addMessage()` - 动态添加消息到DOM
-- `viewReport()` - 生成并展示报告
-- `saveCurrentChat()` - 保存对话到本地
-- `loadChats()` - 加载历史记录
+后端启动后，前端默认请求 `http://localhost:3000`。
 
-## 🎨 设计细节
+## 🧩 主要模块
 
-### 参考产品对比
+### 前端
+- **入口页面**：`OS.html`、`login.html`、`register.html`、`index.html`
+- **核心逻辑**：`frontend/js/`（state、api、handlers、modules、components）
+- **样式**：`css/` + `frontend/css/inline.css`
 
-| 特性 | DeepSeek | 豆包 | ThinkCraft |
-|-----|---------|------|-----------|
-| 侧边栏导航 | ✅ | ✅ | ✅ |
-| 对话式交互 | ✅ | ✅ | ✅ |
-| 打字机效果 | ✅ | ✅ | ✅ |
-| 历史记录 | ✅ | ✅ | ✅ |
-| 快捷操作 | ✅ | ✅ | ✅（快速回复chip）|
-| 结构化输出 | ❌ | ❌ | ✅（精益画布）|
+### 后端
+- **服务入口**：`backend/server.js`
+- **路由**：`backend/routes/`
+- **AI配置**：`backend/config/deepseek.js`
 
-### 交互亮点
+### 提示词与配置
+- **系统提示词**：`config/system-prompts.js`
+- **报告提示词**：`config/report-prompts.js`
+- **更多说明**：`config/README.md`
 
-1. **空状态引导**
-   - 4个快速开始卡片（创业想法、产品功能、解决方案、职业发展）
-   - 清晰的价值主张："将灵感转化为洞察"
+## 🔌 后端API（摘要）
 
-2. **对话增强**
-   - 快速回复按钮（chip）：点击直接填充答案
-   - 实时打字效果：30ms/字符，自然流畅
-   - 自动滚动：新消息始终在视野内
+- `/api/health` 健康检查
+- `/api/chat` 对话
+- `/api/report/generate` 报告生成
+- `/api/business-plan/*` 商业计划书生成
+- `/api/vision/analyze` 图片分析
+- `/api/demo-generator/*` Demo生成/预览/下载
+- `/api/pdf-export/report` PDF导出
+- `/api/share/*` 分享链接
+- `/api/agents/*` 数字员工
+- `/api/projects/*` 项目管理
+- `/api/workflow/*` 工作流执行
+- `/api/workflow-recommendation/*` 工作流推荐
+- `/api/auth/*` 认证接口（当前前端为演示模式）
 
-3. **历史管理**
-   - 自动保存对话
-   - 点击切换历史记录
-   - 对话标题智能提取
+## 📁 项目结构
 
-4. **报告展示**
-   - 模态框形式，不打断流程
-   - 精益画布 2x2 网格布局
-   - AI洞察采用编号列表，清晰易读
-
-## 📊 关键指标
-
-### 性能
-- **首屏加载**：< 100ms（单文件，无外部依赖）
-- **打字速度**：30ms/字符（可调整）
-- **动画帧率**：60fps（CSS动画）
-
-### 体验
-- **学习成本**：0秒（熟悉的对话界面）
-- **完成流程**：5个问题，约2-3分钟
-- **移动适配**：完美支持，侧边栏自动隐藏
-
-## 🚀 下一步开发
-
-### 短期优化（1周内）
-- [ ] 接入 Web Speech API 实现真实语音输入
-- [ ] 添加暗色模式切换
-- [ ] 优化移动端触控体验
-- [ ] 添加键盘快捷键（Cmd+K 新建对话等）
-
-### 中期功能（2-4周）
-- [ ] 接入 GPT-4/Claude API 实现真实AI对话
-- [ ] 后端服务搭建（Node.js + Express）
-- [ ] 用户认证系统
-- [ ] 真实的报告分享链接生成
-- [ ] PDF导出功能
-
-### 长期规划（1-3个月）
-- [ ] 多智能体协作分析
-- [ ] 图像识别（OCR + 图像理解）
-- [ ] 协作功能（团队共享）
-- [ ] 移动端原生App（React Native）
-- [ ] 浏览器插件（快速捕获）
-
-## 🔧 开发指南
-
-### 项目结构
 ```
 ThinkCraft/
-├── index.html          # 主文件（包含所有代码）
-├── README.md          # 本文档
-└── docs/              # 产品文档
-    └── MVP.md         # MVP定义
+├── index.html
+├── OS.html
+├── login.html
+├── register.html
+├── frontend/
+│   ├── css/
+│   └── js/
+├── css/
+├── backend/
+│   ├── server.js
+│   ├── routes/
+│   └── config/
+├── config/
+├── docs/
+├── manifest.json
+├── service-worker.js
+└── icons/
 ```
 
-### 核心代码说明
+## 📚 产品文档
 
-#### 添加新的对话步骤
-```javascript
-// 在 conversationFlow 数组中添加
-{
-    question: "你的问题？",
-    key: "dataKey",
-    placeholder: "提示文本",
-    quickReplies: ["选项1", "选项2"] // 可选
-}
-```
+- `docs/README.md`：产品战略与MVP文档索引
+- `docs/MVP.md`：当前MVP功能边界
 
-#### 修改报告内容
-```javascript
-// 在 viewReport() 函数中修改 HTML
-reportContent.innerHTML = `
-    <div class="report-section">
-        <!-- 自定义报告内容 -->
-    </div>
-`;
-```
+## 🧪 备注与限制
 
-#### 调整打字速度
-```javascript
-// 在 typeWriter() 函数调用处修改 speed 参数
-typeWriter(element, content, 20); // 20ms/字符，更快
-```
-
-## 💡 设计原则
-
-### 1. 简洁至上
-- 去除一切不必要的装饰
-- 大量留白，信息层次清晰
-- 配色克制，黑白灰为主
-
-### 2. 交互流畅
-- 所有状态变化都有过渡动画
-- 按钮hover/active有明确反馈
-- 异步操作有加载提示
-
-### 3. 数据优先
-- 所有用户输入都被妥善保存
-- 历史记录永久存储（localStorage）
-- 报告内容基于真实用户数据生成
-
-### 4. 移动优先
-- 触控友好的按钮尺寸（≥36px）
-- 侧边栏在小屏幕自动隐藏
-- 输入框自动聚焦，减少操作
-
-## 🐛 已知限制
-
-1. **AI对话是模拟的**
-   - 当前是固定的5步流程
-   - 需要接入真实AI API才能实现动态对话
-
-2. **报告内容是模板化的**
-   - 基于用户输入填充模板
-   - 没有真实的AI分析能力
-
-3. **分享功能未实现**
-   - 需要后端服务生成分享链接
-   - 需要数据库存储公开报告
-
-4. **语音/图片识别是演示**
-   - 需要接入第三方服务（OCR、ASR）
-   - 浏览器API兼容性有限
-
-## 📝 更新日志
-
-### v2.0 - 2026-01-09（当前版本）
-- ✅ 完全重构，参考 DeepSeek/豆包设计
-- ✅ 侧边栏 + 对话流布局
-- ✅ 真实的状态管理和数据持久化
-- ✅ 打字机效果和流畅动画
-- ✅ 历史记录管理
-- ✅ 报告模态框
-- ✅ 响应式设计
-
-### v1.0 - 2026-01-09
-- ~~首次版本（已废弃）~~
-- ~~多页面切换模式~~
-- ~~卡片化首页~~
-
-## 📞 反馈与建议
-
-体验后有任何想法，欢迎反馈：
-- 哪些交互让你困惑？
-- 你最喜欢哪个细节？
-- 缺少什么功能？
-- 性能是否流畅？
+- 登录/注册为本地演示逻辑，真实认证需要后端对接
+- 未启动后端时，AI能力相关功能将提示连接失败
+- Demo生成/报告/PDF等功能依赖 `DEEPSEEK_API_KEY`
 
 ---
 
-**Built with ❤️**
-ThinkCraft - 让每个想法都值得被认真对待
+**ThinkCraft - 让每个想法都值得被认真对待**
