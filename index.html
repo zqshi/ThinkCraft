@@ -346,11 +346,6 @@
                     <!-- 桌面端：文本模式（默认） -->
                     <div class="desktop-text-mode" id="desktopTextMode">
                         <div class="desktop-input-tools">
-                            <button class="desktop-tool-btn" onclick="switchDesktopToVoice()" title="切换语音输入" aria-label="切换语音输入">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                                </svg>
-                            </button>
                             <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -367,41 +362,12 @@
                                 onkeyup="handleKeyUp(event)"
                                 oninput="autoResize(this)"
                             ></textarea>
-                            <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                </svg>
-                            </button>
                         </div>
-                    </div>
-
-                    <!-- 桌面端：语音模式 -->
-                    <div class="desktop-voice-mode" id="desktopVoiceMode" style="display: none;">
-                        <div class="desktop-input-tools">
-                            <button class="desktop-tool-btn" onclick="switchDesktopToText()" title="切换文字输入" aria-label="切换文字输入">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                </svg>
-                            </button>
-                            <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="desktop-input-box">
-                            <button class="desktop-voice-btn" id="desktopVoiceBtn" onclick="handleVoice()">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                                </svg>
-                                <span id="desktopVoiceText">点击语音输入</span>
-                            </button>
-                            <button class="desktop-send-btn" id="sendBtn2" onclick="sendMessage()" style="display: none;">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                </svg>
-                            </button>
-                        </div>
+                        <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -6733,11 +6699,6 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                         <!-- 桌面端：文本模式（默认） -->
                         <div class="desktop-text-mode" id="desktopTextMode">
                             <div class="desktop-input-tools">
-                                <button class="desktop-tool-btn" onclick="switchDesktopToVoice()" title="切换语音输入" aria-label="切换语音输入">
-                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                                    </svg>
-                                </button>
                                 <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
                                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -6754,41 +6715,12 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                                     onkeyup="handleKeyUp(event)"
                                     oninput="autoResize(this)"
                                 ></textarea>
-                                <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
-                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                    </svg>
-                                </button>
                             </div>
-                        </div>
-
-                        <!-- 桌面端：语音模式 -->
-                        <div class="desktop-voice-mode" id="desktopVoiceMode" style="display: none;">
-                            <div class="desktop-input-tools">
-                                <button class="desktop-tool-btn" onclick="switchDesktopToText()" title="切换文字输入" aria-label="切换文字输入">
-                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                    </svg>
-                                </button>
-                                <button class="desktop-tool-btn" onclick="handleImageUpload()" title="上传图片" aria-label="上传图片">
-                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="desktop-input-box">
-                                <button class="desktop-voice-btn" id="desktopVoiceBtn">
-                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                                    </svg>
-                                    <span>点击录音</span>
-                                </button>
-                                <button class="desktop-send-btn" id="sendBtn2" onclick="sendMessage()" style="display: none;">
-                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                    </svg>
-                                </button>
-                            </div>
+                            <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -6863,36 +6795,25 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                 });
             }
 
-            const desktopVoiceBtn = document.getElementById('desktopVoiceBtn');
-            if (desktopVoiceBtn) {
-                const newBtn = desktopVoiceBtn.cloneNode(true);
-                desktopVoiceBtn.parentNode.replaceChild(newBtn, desktopVoiceBtn);
-
-                newBtn.addEventListener('click', () => {
-                    handleVoice();
-                });
-            }
+            // 桌面端已移除语音输入
         }
 
         // 桌面端输入模式切换
         function switchDesktopToVoice() {
-            document.getElementById('desktopTextMode').style.display = 'none';
-            document.getElementById('desktopVoiceMode').style.display = 'flex';
-
-            // ⭐ 确保语音模式下的发送按钮隐藏
-            const sendBtn2 = document.getElementById('sendBtn2');
-            if (sendBtn2) {
-                sendBtn2.style.display = 'none';
-            }
+            return;
         }
 
         function switchDesktopToText() {
-            document.getElementById('desktopVoiceMode').style.display = 'none';
-            document.getElementById('desktopTextMode').style.display = 'flex';
+            const textMode = document.getElementById('desktopTextMode');
+            if (textMode) {
+                textMode.style.display = 'flex';
+            }
             // 聚焦文本输入框
             setTimeout(() => {
                 const input = document.getElementById('mainInput');
-                input.focus();
+                if (input) {
+                    input.focus();
+                }
             }, 100);
         }
 
