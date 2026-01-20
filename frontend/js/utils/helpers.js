@@ -113,6 +113,7 @@ export function addDemoLog(message) {
 export function closeAllChatMenus() {
     document.querySelectorAll('.chat-item-menu').forEach(menu => {
         menu.classList.remove('active');
+        restoreChatMenu(menu);
     });
     document.querySelectorAll('.chat-item.menu-open').forEach(item => {
         item.classList.remove('menu-open');
@@ -127,10 +128,24 @@ export function closeChatMenu(chatId) {
     const menu = document.getElementById(`menu-${chatId}`);
     if (menu) {
         menu.classList.remove('active');
+        restoreChatMenu(menu);
     }
     document.querySelectorAll('.chat-item.menu-open').forEach(item => {
         item.classList.remove('menu-open');
     });
+}
+
+function restoreChatMenu(menu) {
+    const menuId = menu.id || '';
+    const menuChatId = menu.dataset.chatId || (menuId.startsWith('menu-') ? menuId.slice(5) : '');
+    if (!menuChatId) return;
+    const chatItem = document.querySelector(`.chat-item[data-chat-id="${menuChatId}"]`);
+    const actions = chatItem ? chatItem.querySelector('.chat-item-actions') : null;
+    if (actions && menu.parentElement !== actions) {
+        actions.appendChild(menu);
+    } else if (!actions && menu.parentElement === document.body) {
+        menu.remove();
+    }
 }
 
 /**

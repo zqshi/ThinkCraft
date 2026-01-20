@@ -21,7 +21,7 @@ import {
     handleKeyUp,
     quickStart
 } from './handlers/input-handler.js';
-import { autoResize, focusInput, scrollToBottom } from './utils/helpers.js';
+import { autoResize, closeAllChatMenus, closeChatMenu, focusInput, scrollToBottom } from './utils/helpers.js';
 import { SYSTEM_PROMPT } from './app-config.js';
 
 // 导出全局函数供HTML onclick调用
@@ -42,6 +42,8 @@ window.quickStart = quickStart;
 window.autoResize = autoResize;
 window.focusInput = focusInput;
 window.scrollToBottom = scrollToBottom;
+window.closeAllChatMenus = closeAllChatMenus;
+window.closeChatMenu = closeChatMenu;
 
 // 导出appState供调试
 window.appState = appState;
@@ -177,35 +179,20 @@ if ('serviceWorker' in navigator) {
 
 // 点击其他地方关闭菜单
 document.addEventListener('click', () => {
-    document.querySelectorAll('.chat-item-menu').forEach(menu => {
-        menu.classList.remove('active');
-    });
-    document.querySelectorAll('.chat-item.menu-open').forEach(item => {
-        item.classList.remove('menu-open');
-    });
+    closeAllChatMenus();
 });
 
 // 滚动时关闭菜单
 const chatHistory = document.querySelector('.chat-history');
 if (chatHistory) {
     chatHistory.addEventListener('scroll', () => {
-        document.querySelectorAll('.chat-item-menu').forEach(menu => {
-            menu.classList.remove('active');
-        });
-        document.querySelectorAll('.chat-item.menu-open').forEach(item => {
-            item.classList.remove('menu-open');
-        });
+        closeAllChatMenus();
     });
 }
 
 // 窗口调整大小时关闭菜单
 window.addEventListener('resize', () => {
-    document.querySelectorAll('.chat-item-menu').forEach(menu => {
-        menu.classList.remove('active');
-    });
-    document.querySelectorAll('.chat-item.menu-open').forEach(item => {
-        item.classList.remove('menu-open');
-    });
+    closeAllChatMenus();
 });
 
 // DOM加载完成后初始化

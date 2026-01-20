@@ -6,7 +6,7 @@
 import { appState, saveDebounceTimer, updateSaveDebounceTimer } from '../core/app-state.js';
 import { addMessage } from './message-handler.js';
 import { focusInput } from '../utils/helpers.js';
-import { closeAllChatMenus } from '../utils/helpers.js';
+import { closeAllChatMenus, closeChatMenu } from '../utils/helpers.js';
 
 /**
  * 开始新对话
@@ -163,6 +163,7 @@ export function loadChats() {
     appState.chats.forEach(chat => {
         const item = document.createElement('div');
         item.className = 'chat-item' + (chat.isPinned ? ' pinned' : '') + (appState.currentChat == chat.id ? ' active' : '');
+        item.dataset.chatId = chat.id;
 
         const tagsHTML = '';
 
@@ -172,7 +173,7 @@ export function loadChats() {
             </svg>
             <div style="flex: 1; min-width: 0; overflow: hidden;">
                 ${tagsHTML}
-                <span class="chat-item-content" onclick="window.loadChat('${chat.id}')">${chat.title}</span>
+                <span class="chat-item-content">${chat.title}</span>
             </div>
             <div class="chat-item-actions">
                 <button class="chat-item-more" onclick="window.toggleChatMenu(event, '${chat.id}')">
@@ -193,11 +194,11 @@ export function loadChats() {
                         </svg>
                         重命名
                     </div>
-                    <div class="chat-item-menu-item" onclick="window.togglePinChat(event, '${chat.id}')">
+                    <div class="chat-item-menu-item" onclick="window.togglePinChat(event, '${chat.id}')" data-action="pin">
                         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
                         </svg>
-                        ${chat.isPinned ? '取消置顶' : '置顶'}
+                        <span class="chat-item-menu-label" data-role="pin-label">${chat.isPinned ? '取消置顶' : '置顶'}</span>
                     </div>
                     <div class="chat-item-menu-item danger" onclick="window.deleteChat(event, '${chat.id}')">
                         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,6 +209,9 @@ export function loadChats() {
                 </div>
             </div>
         `;
+        item.addEventListener('click', () => {
+            window.loadChat(chat.id);
+        });
         historyDiv.appendChild(item);
     });
 }
@@ -287,7 +291,6 @@ export function deleteChat(e, chatId) {
     e.stopPropagation();
 
     if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
-        window.closeChatMenu && window.closeChatMenu(chatId);
         return;
     }
 
@@ -305,7 +308,6 @@ export function deleteChat(e, chatId) {
     }
 
     loadChats();
-    window.closeChatMenu && window.closeChatMenu(chatId);
 }
 
 /**
@@ -321,9 +323,8 @@ export function renameChat(e, chatId) {
         chat.title = newTitle.trim();
         localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
         loadChats();
+        reopenChatMenu(chatId);
     }
-
-    window.closeChatMenu && window.closeChatMenu(chatId);
 }
 
 /**
@@ -337,8 +338,7 @@ export function togglePinChat(e, chatId) {
     chat.isPinned = !chat.isPinned;
     localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
     loadChats();
-
-    window.closeChatMenu && window.closeChatMenu(chatId);
+    reopenChatMenu(chatId);
 }
 
 /**
@@ -372,14 +372,29 @@ export function manageTagsForChat(e, chatId) {
         chat.tags.user = newTags;
         localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
         loadChats();
+        reopenChatMenu(chatId);
     }
-
-    window.closeChatMenu && window.closeChatMenu(chatId);
 }
 
 /**
  * 切换聊天菜单
  */
+function portalChatMenu(menu, chatId) {
+    menu.dataset.chatId = chatId;
+    if (menu.parentElement !== document.body) {
+        document.body.appendChild(menu);
+    }
+}
+
+function syncPinMenuLabel(menu, chatId) {
+    const chat = appState.chats.find(c => c.id == chatId);
+    if (!chat) return;
+    const label = menu.querySelector('[data-role="pin-label"]');
+    if (label) {
+        label.textContent = chat.isPinned ? '取消置顶' : '置顶';
+    }
+}
+
 export function toggleChatMenu(e, chatId) {
     e.stopPropagation();
     const menu = document.getElementById(`menu-${chatId}`);
@@ -393,18 +408,19 @@ export function toggleChatMenu(e, chatId) {
 
     if (!isOpen) {
         chatItem.classList.add('menu-open');
+        portalChatMenu(menu, chatId);
+        syncPinMenuLabel(menu, chatId);
+        menu.style.position = 'fixed';
 
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 const buttonRect = button.getBoundingClientRect();
                 const menuWidth = menu.offsetWidth || 140;
-                const sidebar = document.querySelector('.sidebar');
-                const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth };
 
-                const top = buttonRect.bottom + 2;
+                const top = buttonRect.bottom + 6;
                 let left = buttonRect.right - menuWidth;
-                const minLeft = sidebarRect.left + 8;
-                const maxLeft = sidebarRect.right - menuWidth - 8;
+                const minLeft = 8;
+                const maxLeft = window.innerWidth - menuWidth - 8;
                 left = Math.min(Math.max(left, minLeft), maxLeft);
 
                 menu.style.left = `${left}px`;
@@ -412,6 +428,14 @@ export function toggleChatMenu(e, chatId) {
             });
         });
     } else {
-        chatItem.classList.remove('menu-open');
+        closeChatMenu(chatId);
     }
+}
+
+function reopenChatMenu(chatId) {
+    requestAnimationFrame(() => {
+        const button = document.querySelector(`.chat-item[data-chat-id="${chatId}"] .chat-item-more`);
+        if (!button) return;
+        toggleChatMenu({ stopPropagation() {}, currentTarget: button }, chatId);
+    });
 }

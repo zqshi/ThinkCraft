@@ -1942,6 +1942,7 @@
             state.chats.forEach(chat => {
                 const item = document.createElement('div');
                 item.className = 'chat-item' + (chat.isPinned ? ' pinned' : '') + (state.currentChat == chat.id ? ' active' : '');
+                item.dataset.chatId = chat.id;
 
                 // 渲染标签 - 已禁用
                 // const autoTags = chat.tags?.auto || [];
@@ -1959,10 +1960,10 @@
                     <svg class="chat-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                     </svg>
-                    <div style="flex: 1; min-width: 0; overflow: hidden;">
-                        ${tagsHTML}
-                        <span class="chat-item-content" onclick="loadChat('${chat.id}')">${chat.title}</span>
-                    </div>
+            <div style="flex: 1; min-width: 0; overflow: hidden;">
+                ${tagsHTML}
+                <span class="chat-item-content">${chat.title}</span>
+            </div>
                     <div class="chat-item-actions">
                         <button class="chat-item-more" onclick="toggleChatMenu(event, '${chat.id}')">
                             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -1976,12 +1977,12 @@
                                 </svg>
                                 重命名
                             </div>
-                            <div class="chat-item-menu-item" onclick="togglePinChat(event, '${chat.id}')">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
-                                </svg>
-                                ${chat.isPinned ? '取消置顶' : '置顶'}
-                            </div>
+                    <div class="chat-item-menu-item" onclick="togglePinChat(event, '${chat.id}')" data-action="pin">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                        </svg>
+                        <span class="chat-item-menu-label" data-role="pin-label">${chat.isPinned ? '取消置顶' : '置顶'}</span>
+                    </div>
                             <div class="chat-item-menu-item danger" onclick="deleteChat(event, '${chat.id}')">
                                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1991,8 +1992,40 @@
                         </div>
                     </div>
                 `;
+                item.addEventListener('click', () => {
+                    loadChat(chat.id);
+                });
                 historyDiv.appendChild(item);
             });
+        }
+
+        function portalChatMenu(menu, chatId) {
+            menu.dataset.chatId = chatId;
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+        }
+
+        function syncPinMenuLabel(menu, chatId) {
+            const chat = state.chats.find(c => c.id == chatId);
+            if (!chat) return;
+            const label = menu.querySelector('[data-role="pin-label"]');
+            if (label) {
+                label.textContent = chat.isPinned ? '取消置顶' : '置顶';
+            }
+        }
+
+        function restoreChatMenu(menu) {
+            const menuId = menu.id || '';
+            const menuChatId = menu.dataset.chatId || (menuId.startsWith('menu-') ? menuId.slice(5) : '');
+            if (!menuChatId) return;
+            const chatItem = document.querySelector(`.chat-item[data-chat-id="${menuChatId}"]`);
+            const actions = chatItem ? chatItem.querySelector('.chat-item-actions') : null;
+            if (actions && menu.parentElement !== actions) {
+                actions.appendChild(menu);
+            } else if (!actions && menu.parentElement === document.body) {
+                menu.remove();
+            }
         }
 
         function toggleChatMenu(e, chatId) {
@@ -2005,6 +2038,7 @@
             document.querySelectorAll('.chat-item-menu').forEach(m => {
                 if (m.id !== `menu-${chatId}`) {
                     m.classList.remove('active');
+                    restoreChatMenu(m);
                 }
             });
             document.querySelectorAll('.chat-item.menu-open').forEach(item => {
@@ -2020,6 +2054,10 @@
                 // 给当前对话项添加 menu-open 类，提升 z-index
                 chatItem.classList.add('menu-open');
 
+                portalChatMenu(menu, chatId);
+                syncPinMenuLabel(menu, chatId);
+                menu.style.position = 'fixed';
+
                 // 双重 requestAnimationFrame 确保菜单完全渲染
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
@@ -2028,12 +2066,10 @@
 
                         // 显示在按钮下方，贴近更多按钮
                         const menuWidth = menu.offsetWidth || 140;
-                        const sidebar = document.querySelector('.sidebar');
-                        const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth };
-                        const top = buttonRect.bottom + 2;
+                        const top = buttonRect.bottom + 6;
                         let left = buttonRect.right - menuWidth;
-                        const minLeft = sidebarRect.left + 8;
-                        const maxLeft = sidebarRect.right - menuWidth - 8;
+                        const minLeft = 8;
+                        const maxLeft = window.innerWidth - menuWidth - 8;
                         left = Math.min(Math.max(left, minLeft), maxLeft);
 
                         // 应用位置
@@ -2044,7 +2080,16 @@
             } else {
                 // 关闭菜单时移除 menu-open 类
                 chatItem.classList.remove('menu-open');
+                restoreChatMenu(menu);
             }
+        }
+
+        function reopenChatMenu(chatId) {
+            requestAnimationFrame(() => {
+                const button = document.querySelector(`.chat-item[data-chat-id="${chatId}"] .chat-item-more`);
+                if (!button) return;
+                toggleChatMenu({ stopPropagation() {}, currentTarget: button }, chatId);
+            });
         }
 
         // 辅助函数：关闭指定的聊天菜单
@@ -2052,6 +2097,7 @@
             const menu = document.getElementById(`menu-${chatId}`);
             if (menu) {
                 menu.classList.remove('active');
+                restoreChatMenu(menu);
             }
             // 移除所有 menu-open 类
             document.querySelectorAll('.chat-item.menu-open').forEach(item => {
@@ -2069,9 +2115,8 @@
                 chat.title = newTitle.trim();
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
                 loadChats();
+                reopenChatMenu(chatId);
             }
-
-            closeChatMenu(chatId);
         }
 
         function togglePinChat(e, chatId) {
@@ -2082,8 +2127,7 @@
             chat.isPinned = !chat.isPinned;
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
             loadChats();
-
-            closeChatMenu(chatId);
+            reopenChatMenu(chatId);
         }
 
         // 管理标签
@@ -2117,16 +2161,14 @@
                 chat.tags.user = newTags;
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
                 loadChats();
+                reopenChatMenu(chatId);
             }
-
-            closeChatMenu(chatId);
         }
 
         function deleteChat(e, chatId) {
             e.stopPropagation();
 
             if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
-                closeChatMenu(chatId);
                 return;
             }
 
@@ -2145,13 +2187,13 @@
             }
 
             loadChats();
-            closeChatMenu(chatId);
         }
 
         // 点击页面其他地方关闭所有菜单
         document.addEventListener('click', () => {
             document.querySelectorAll('.chat-item-menu').forEach(menu => {
                 menu.classList.remove('active');
+                restoreChatMenu(menu);
             });
             // 移除所有 menu-open 类
             document.querySelectorAll('.chat-item.menu-open').forEach(item => {
@@ -2165,6 +2207,7 @@
             chatHistory.addEventListener('scroll', () => {
                 document.querySelectorAll('.chat-item-menu').forEach(menu => {
                     menu.classList.remove('active');
+                    restoreChatMenu(menu);
                 });
                 // 移除所有 menu-open 类
                 document.querySelectorAll('.chat-item.menu-open').forEach(item => {
@@ -2176,6 +2219,7 @@
         window.addEventListener('resize', () => {
             document.querySelectorAll('.chat-item-menu').forEach(menu => {
                 menu.classList.remove('active');
+                restoreChatMenu(menu);
             });
             // 移除所有 menu-open 类
             document.querySelectorAll('.chat-item.menu-open').forEach(item => {
