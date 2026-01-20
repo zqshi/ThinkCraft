@@ -2227,6 +2227,12 @@
                 0 16px 48px rgba(99, 102, 241, 0.08);
         }
 
+        @media (min-width: 641px) {
+            .share-card {
+                aspect-ratio: 1 / 1.08;
+            }
+        }
+
         /* 装饰性色块 */
         .share-card::before {
             content: '';
@@ -3085,6 +3091,7 @@
 
             .share-card {
                 padding: 32px 24px;
+                aspect-ratio: auto;
             }
 
             .share-card-idea {
@@ -3109,6 +3116,16 @@
 
             .share-stat-label {
                 font-size: 12px;
+            }
+
+            .share-card-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .share-actions {
+                flex-direction: column;
             }
 
             .report-buttons {
@@ -3185,6 +3202,7 @@
 
             .share-card {
                 padding: 36px 32px;
+                aspect-ratio: auto;
             }
 
             .share-card-idea {
@@ -3209,6 +3227,16 @@
 
             .share-stat-label {
                 font-size: 13px;
+            }
+
+            .share-card-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .share-actions {
+                flex-direction: column;
             }
 
             .report-buttons {
@@ -3857,6 +3885,10 @@
     /* 为输入框和按钮预留足够空间 */
     .chat-container {
         padding-bottom: calc(180px + var(--safe-area-bottom)) !important;
+    }
+
+    .report-buttons {
+        margin-bottom: calc(96px + var(--safe-area-bottom));
     }
 
     /* 附件按钮优化 */
