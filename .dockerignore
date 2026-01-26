@@ -1,0 +1,42 @@
+# Node modules
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# 开发工具
+.eslintrc.js
+.eslintignore
+.prettierrc
+.prettierignore
+.husky/
+
+# 文档
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 日志
+logs/
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 备份文件
+*.bak
+*.backup
+
+# Docker相关
+Dockerfile
+.dockerignore
+docker-compose.yml

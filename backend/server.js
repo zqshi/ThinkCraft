@@ -84,7 +84,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 路由配置
-// 健康检查端点
+// 健康检查端点（用于Docker健康检查）
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// 健康检查端点（详细信息）
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
