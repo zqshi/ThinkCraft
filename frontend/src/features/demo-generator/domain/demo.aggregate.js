@@ -3,15 +3,6 @@
  * 管理演示项目的业务逻辑
  */
 import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
-import { DemoId } from './value-objects/demo-id.vo.js';
-import { DemoType } from './value-objects/demo-type.vo.js';
-import { DemoStatus } from './value-objects/demo-status.vo.js';
-import { DemoTitle } from './value-objects/demo-title.vo.js';
-import { CodeFile } from './entities/code-file.entity.js';
-import { UserId } from '../value-objects/user-id.vo.js';
-import { DemoCreatedEvent } from './events/demo-created.event.js';
-import { DemoGenerationStartedEvent } from './events/demo-generation-started.event.js';
-import { DemoGenerationCompletedEvent } from './events/demo-generation-completed.event.js';
 
 export class Demo extends AggregateRoot {
   constructor(
@@ -610,109 +601,5 @@ export class DemoGenerationFailedEvent {
   constructor(payload) {
     this.payload = payload;
     this.timestamp = new Date();
-  }
-}
-
-/**
- * 结果对象
- */
-export class Result {
-  constructor(isSuccess, value, error) {
-    this.isSuccess = isSuccess;
-    this.isFailure = !isSuccess;
-    this.value = value;
-    this.error = error;
-  }
-
-  static ok(value) {
-    return new Result(true, value, null);
-  }
-
-  static fail(error) {
-    return new Result(false, null, error);
-  }
-}
-
-/**
- * 聚合根基类
- */
-export class AggregateRoot {
-  constructor(id) {
-    this.id = id;
-    this._domainEvents = [];
-    this._createdAt = new Date();
-    this._updatedAt = new Date();
-  }
-
-  addDomainEvent(event) {
-    this._domainEvents.push(event);
-  }
-
-  getDomainEvents() {
-    return [...this._domainEvents];
-  }
-
-  clearDomainEvents() {
-    this._domainEvents = [];
-  }
-
-  updateTimestamp() {
-    this._updatedAt = new Date();
-  }
-
-  toJSON() {
-    return {
-      id: this.id.value,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt
-    };
-  }
-}
-
-/**
- * 值对象基类
- */
-export class ValueObject {
-  equals(other) {
-    if (!other || !(other instanceof this.constructor)) {
-      return false;
-    }
-    return JSON.stringify(this) === JSON.stringify(other);
-  }
-}
-
-/**
- * 实体基类
- */
-export class Entity {
-  constructor(id) {
-    this.id = id;
-    this._domainEvents = [];
-    this._createdAt = new Date();
-    this._updatedAt = new Date();
-  }
-
-  addDomainEvent(event) {
-    this._domainEvents.push(event);
-  }
-
-  getDomainEvents() {
-    return [...this._domainEvents];
-  }
-
-  clearDomainEvents() {
-    this._domainEvents = [];
-  }
-
-  updateTimestamp() {
-    this._updatedAt = new Date();
-  }
-
-  toJSON() {
-    return {
-      id: this.id.value,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt
-    };
   }
 }

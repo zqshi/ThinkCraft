@@ -91,8 +91,6 @@ export class DemoMapper {
    * 创建精简DTO（用于列表显示）
    */
   toMinimalDTO(demo) {
-    const firstFile = demo.codeFiles.length > 0 ? demo.codeFiles[0] : null;
-
     return {
       id: demo.id.value,
       title: demo.title.value,
