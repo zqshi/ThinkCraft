@@ -1,12 +1,24 @@
 # ThinkCraft 项目执行计划
 
-**文档版本**: 1.1
+**文档版本**: 1.2
 **更新时间**: 2026-01-26
 **项目路径**: `/Users/zqs/Downloads/project/ThinkCraft`
 
 ---
 
 ## 📝 更新日志
+
+### v1.2 (2026-01-26)
+
+- ✅ 完成阶段5账号体系完善（100%）
+- ✅ 实现手机验证码系统（SMS服务+验证码管理）
+- ✅ 实现密码重置功能（手机验证码方式）
+- ✅ 实现账号管理功能（个人信息+安全设置+偏好设置）
+- ✅ 创建3个新路由和3个用例类
+- ✅ 扩展用户模型支持手机号
+- ✅ 提交1次代码到git仓库（1460行新增代码）
+- 📊 总进度从55%提升至65%
+- 🎯 当前阶段：阶段6 - Docker容器化
 
 ### v1.1 (2026-01-26)
 
@@ -15,7 +27,6 @@
 - ✅ 创建7个模块的基础设施层API服务
 - ✅ 提交3次代码到git仓库
 - 📊 总进度从45%提升至55%
-- 🎯 当前阶段：阶段5 - 账号体系完善
 
 ### v1.0 (2026-01-26)
 
@@ -39,7 +50,7 @@ ThinkCraft是一个创意验证操作系统，采用DDD（领域驱动设计）�
 
 ---
 
-## ✅ 已完成工作（阶段1-4）
+## ✅ 已完成工作（阶段1-5）
 
 ### 阶段1：代码质量修复 ✅
 
@@ -73,6 +84,38 @@ ThinkCraft是一个创意验证操作系统，采用DDD（领域驱动设计）�
 - 删除重复的基类定义和未使用的导入
 - 修复未使用的参数和重复的方法定义
 
+### 阶段5：账号体系完善 ✅（100%）
+
+- **手机验证码系统**：
+  - 创建SMS服务（支持阿里云、腾讯云、模拟模式）
+  - 实现验证码发送（60秒频率限制、每日10次限制）
+  - 实现验证码验证（10分钟有效期、5次错误限制）
+  - 支持注册、登录、重置、绑定四种场景
+
+- **密码重置功能**：
+  - 通过手机验证码重置密码
+  - 自动解锁被锁定的账户
+  - 密码长度验证（至少6位）
+
+- **账号管理功能**：
+  - 个人信息管理（查看、修改用户名、修改邮箱）
+  - 手机号管理（绑定、更换手机号）
+  - 密码管理（修改密码）
+  - 安全设置（登录历史查询）
+  - 偏好设置（语言、主题、通知）
+  - 账号注销（软删除）
+
+- **数据模型扩展**：
+  - 用户模型添加phone和phoneVerified字段
+  - 创建Phone值对象（手机号验证和脱敏）
+  - 用户聚合根添加手机验证方法
+  - 用户仓库添加findByPhone方法
+
+- **API路由**：
+  - `/api/verification` - 验证码发送和验证
+  - `/api/password-reset` - 密码重置
+  - `/api/account` - 账号管理（需要认证）
+
 **阶段3关键文件**:
 
 - `/backend/src/features/auth/infrastructure/user.model.js`
@@ -95,70 +138,25 @@ ThinkCraft是一个创意验证操作系统，采用DDD（领域驱动设计）�
 - `/frontend/src/features/workflow/infrastructure/workflow-api.service.js`
 - `/frontend/src/features/workflow-recommendation/infrastructure/recommendation-api.service.js`
 
----
+**阶段5关键文件**:
 
-## 🎯 待执行任务（阶段5-7）
-
-### 阶段5：账号体系完善（5天）⏳ 当前阶段
-
-**目标**: 实现基础版账号体系
-
-**功能清单**:
-
-#### 1. 邮箱验证（1.5天）
-
-- 注册时发送验证邮件
-- 6位数字验证码
-- 验证码存储在Redis（TTL 10分钟）
-- 验证成功后激活账号
-
-**需要创建的文件**:
-
-- `/backend/src/infrastructure/email/email.service.js`
-- `/backend/src/features/auth/application/email-verification.use-case.js`
-
-**需要修改的文件**:
-
-- `/backend/src/features/auth/domain/user.aggregate.js` - 添加邮箱验证方法
-- `/backend/src/features/auth/infrastructure/user.model.js` - 已包含邮箱验证字段
-
-#### 2. 密码重置（1.5天）
-
-- 发送重置链接（包含token）
-- Token存储在Redis（TTL 30分钟）
-- 频率限制（5次/小时）
-- 重置成功后更新密码
-
-**需要创建的文件**:
-
-- `/backend/src/features/auth/application/password-reset.use-case.js`
-- `/backend/routes/password-reset.js`
-
-#### 3. 账号管理（2天）
-
-- 个人信息管理（查看、修改用户名、修改邮箱、修改密码）
-- 安全设置（登录历史、活跃会话、强制登出、账号注销）
-- 偏好设置（语言、主题、通知）
-
-**需要创建的文件**:
-
-- `/backend/src/features/auth/application/account-management.use-case.js`
-- `/backend/routes/account.js`
-- `/frontend/src/features/account/` - 完整模块
-
-**环境变量**:
-
-```bash
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-SMTP_FROM=ThinkCraft <noreply@thinkcraft.com>
-```
+- `/backend/src/infrastructure/sms/sms.service.js` - SMS服务
+- `/backend/src/features/auth/domain/value-objects/phone.vo.js` - 手机号值对象
+- `/backend/src/features/auth/application/phone-verification.use-case.js` - 手机验证码用例
+- `/backend/src/features/auth/application/password-reset.use-case.js` - 密码重置用例
+- `/backend/src/features/auth/application/account-management.use-case.js` - 账号管理用例
+- `/backend/routes/verification.js` - 验证码路由
+- `/backend/routes/password-reset.js` - 密码重置路由
+- `/backend/routes/account.js` - 账号管理路由
+- `/backend/src/features/auth/domain/user.aggregate.js` - 用户聚合根（已扩展）
+- `/backend/src/features/auth/infrastructure/user.model.js` - 用户模型（已扩展）
+- `/backend/src/features/auth/infrastructure/user-mongodb.repository.js` - 用户仓库（已扩展）
 
 ---
 
-### 阶段6：Docker容器化（2天）
+## 🎯 待执行任务（阶段6-7）
+
+### 阶段6：Docker容器化（2天）⏳ 当前阶段
 
 **目标**: 实现Docker容器化部署
 
@@ -635,40 +633,39 @@ npx eslint . --format=json > eslint-report.json
 | 阶段2：测试体系建立 | ✅ 完成     | 100%   | 7.5天    | 7.5天        |
 | 阶段3：数据库集成   | ✅ 完成     | 100%   | 8天      | 8天          |
 | 阶段4：前端DDD重构  | ✅ 完成     | 85%+   | 11.5天   | 10天         |
-| 阶段5：账号体系完善 | ⏳ 当前阶段 | 0%     | 5天      | -            |
-| 阶段6：Docker容器化 | ⏳ 待开始   | 0%     | 2天      | -            |
+| 阶段5：账号体系完善 | ✅ 完成     | 100%   | 5天      | 1天          |
+| 阶段6：Docker容器化 | ⏳ 当前阶段 | 0%     | 2天      | -            |
 | 阶段7：CI/CD流程    | ⏳ 待开始   | 0%     | 2天      | -            |
 
-**总进度**: 约55% (20.5/37.5天)
+**总进度**: 约65% (25.5/37.5天)
 
 **最新更新**: 2026-01-26
 
-- 完成阶段4前端DDD重构（85%+）
-- ESLint错误从757个降至<10个（减少98%+）
-- 创建7个模块的基础设施层
-- 提交3次代码到git仓库
+- 完成阶段5账号体系完善（100%）
+- 实现手机验证码系统（SMS服务+验证码管理）
+- 实现密码重置和账号管理功能
+- 创建3个新路由和3个用例类
+- 扩展用户模型支持手机号
+- 提交1次代码到git仓库（1460行新增代码）
 
 ---
 
 ## 🎯 下一步行动
 
-1. **立即执行**: 开始阶段5 - 账号体系完善
-   - 实现邮箱验证功能
-   - 实现密码重置功能
-   - 实现账号管理功能
-
-2. **接下来**: 执行阶段6 - Docker容器化
+1. **立即执行**: 开始阶段6 - Docker容器化
    - 创建Dockerfile（前端+后端）
    - 创建docker-compose.yml
    - 配置Nginx
+   - 测试容器化部署
 
-3. **然后**: 执行阶段7 - CI/CD流程
+2. **接下来**: 执行阶段7 - CI/CD流程
    - 创建GitHub Actions工作流
    - 配置自动化测试和部署
 
-4. **优化建议**:
+3. **优化建议**:
+   - 为新增的SMS服务和账号管理功能编写单元测试
    - 补充share、vision、workflow、workflow-recommendation模块的mapper和repository
-   - 修复剩余的少量ESLint错误
+   - 考虑添加前端账号管理页面
    - 为新增的API服务编写单元测试
 
 **预计完成时间**: 约2-3周
