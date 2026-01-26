@@ -2,9 +2,9 @@
  * 用户仓库接口
  * 定义用户聚合根的持久化操作
  */
-import { Repository } from '../../../shared/domain/repository.base.js';
+import { IRepository } from '../../../shared/domain/repository.base.js';
 
-export class UserRepository extends Repository {
+export class UserRepository extends IRepository {
   /**
    * 根据ID查找用户
    */

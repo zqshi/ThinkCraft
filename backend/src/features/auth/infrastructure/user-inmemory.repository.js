@@ -23,7 +23,7 @@ export class UserInMemoryRepository extends UserRepository {
   initDemoData() {
     // 创建演示用户
     const demoUser = new User(
-      new UserId('user-1'),
+      UserId.fromString('user-1'),
       new Username('demo'),
       new Email('demo@example.com'),
       Password.create('demo123'),

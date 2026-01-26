@@ -2,6 +2,8 @@
  * 用户领域服务
  * 处理跨聚合根的业务逻辑
  */
+import { User } from './user.aggregate.js';
+
 export class UserService {
   constructor(userRepository, tokenService) {
     this.userRepository = userRepository;
@@ -62,7 +64,7 @@ export class UserService {
     // 检查邮箱是否已存在
     const emailExists = await this.userRepository.existsByEmail(email);
     if (emailExists) {
-      throw new Error('邮箱已被使用');
+      throw new Error('邮箱已被注册');
     }
 
     // 创建新用户

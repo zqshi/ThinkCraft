@@ -18,6 +18,8 @@ import { tokenService } from '../infrastructure/token.service.js';
 
 export class AuthUseCase {
   constructor() {
+    this.userRepository = userRepository;
+    this.tokenService = tokenService;
     this.userService = new UserService(userRepository, tokenService);
   }
 
