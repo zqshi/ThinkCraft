@@ -50,8 +50,6 @@ class APIClient {
     // 重试逻辑
     for (let i = 0; i < retry; i++) {
       try {
-        ` : ''}`);
-
         // 超时控制
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);

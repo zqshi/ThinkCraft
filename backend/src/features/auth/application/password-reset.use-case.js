@@ -4,7 +4,7 @@
  */
 import { Password } from '../domain/value-objects/password.vo.js';
 import { PhoneVerificationUseCase } from './phone-verification.use-case.js';
-import { logger } from '../../../shared/utils/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class PasswordResetUseCase {
   constructor(userRepository, phoneVerificationUseCase = null) {

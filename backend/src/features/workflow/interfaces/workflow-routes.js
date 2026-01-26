@@ -3,12 +3,12 @@
  * 协同开发模式的阶段任务执行
  */
 import express from 'express';
-import { callDeepSeekAPI } from '../../../../../../config/deepseek.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import {
     DEFAULT_WORKFLOW_STAGES,
     getStageById,
     getRecommendedAgents
-} from '../../../../../../config/workflow-stages.js';
+} from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
 
@@ -325,8 +325,6 @@ async function executeStage(projectId, stageId, context = {}) {
     if (!stage) {
         throw new Error(`无效的阶段ID: ${stageId}`);
     }
-
-    `);
 
     // 获取阶段提示词模板
     let promptTemplate = STAGE_PROMPTS[stageId];

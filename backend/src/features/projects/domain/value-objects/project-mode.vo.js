@@ -10,7 +10,6 @@ export class ProjectMode extends ValueObject {
   constructor(value) {
     super();
     this._value = value;
-    this.validate();
   }
 
   /**

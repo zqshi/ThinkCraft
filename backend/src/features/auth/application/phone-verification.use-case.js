@@ -3,14 +3,14 @@
  * 处理发送验证码和验证验证码的业务逻辑
  */
 import { getSmsService, SmsService } from '../../../infrastructure/sms/sms.service.js';
-import { getRedisCacheService } from '../../../infrastructure/cache/redis-cache.service.js';
-import { logger } from '../../../shared/utils/logger.js';
+import { cacheService } from '../../../infrastructure/cache/redis-cache.service.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class PhoneVerificationUseCase {
-  constructor(userRepository, smsService = null, cacheService = null) {
+  constructor(userRepository, smsService = null, cacheServiceInstance = null) {
     this.userRepository = userRepository;
     this.smsService = smsService || getSmsService();
-    this.cacheService = cacheService || getRedisCacheService();
+    this.cacheService = cacheServiceInstance || cacheService;
   }
 
   /**

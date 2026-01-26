@@ -2,9 +2,9 @@
  * 项目仓库接口
  * 定义项目聚合根的持久化操作
  */
-import { Repository } from '../../../shared/domain/repository.base.js';
+import { IAggregateRootRepository } from '../../../shared/domain/repository.base.js';
 
-export class ProjectRepository extends Repository {
+export class ProjectRepository extends IAggregateRootRepository {
   /**
    * 根据ID查找项目
    */

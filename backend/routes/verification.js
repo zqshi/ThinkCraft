@@ -3,9 +3,9 @@
  * 处理手机验证码的发送和验证
  */
 import express from 'express';
-import { PhoneVerificationUseCase } from '../features/auth/application/phone-verification.use-case.js';
-import { getRepository } from '../shared/infrastructure/repository.factory.js';
-import { logger } from '../shared/utils/logger.js';
+import { PhoneVerificationUseCase } from '../src/features/auth/application/phone-verification.use-case.js';
+import { getRepository } from '../src/shared/infrastructure/repository.factory.js';
+import { logger } from '../middleware/logger.js';
 
 const router = express.Router();
 

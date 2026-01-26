@@ -3,7 +3,7 @@
  * 处理实际的代码生成逻辑
  */
 import { CodeFile } from '../domain/entities/code-file.entity.js';
-import { callDeepSeekAPI } from '../../../../../config/deepseek.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 
 export class DemoGenerationService {
   constructor() {

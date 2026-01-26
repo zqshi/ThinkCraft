@@ -51,8 +51,6 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
             }
             activeRequests++;
 
-            ，消息数: ${fullMessages.length}, max_tokens: ${max_tokens}`);
-
             const response = await axios.post(
                 DEEPSEEK_API_URL,
                 {
@@ -79,8 +77,6 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
 
             totalTokensUsed += usage.total_tokens;
             totalCost = (totalTokensUsed / 1000) * 0.001;
-
-            })`);
 
             return {
                 content: content,

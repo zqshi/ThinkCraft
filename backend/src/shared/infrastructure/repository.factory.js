@@ -93,3 +93,15 @@ export const repositoryFactory = new RepositoryFactory();
 export function getUserRepository() {
   return repositoryFactory.getUserRepository();
 }
+
+/**
+ * 通用方法：根据类型获取仓库
+ */
+export function getRepository(type) {
+  switch (type) {
+    case 'user':
+      return getUserRepository();
+    default:
+      throw new Error(`不支持的仓库类型: ${type}`);
+  }
+}

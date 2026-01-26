@@ -1,7 +1,7 @@
 /**
  * Share聚合根
  */
-import { AggregateRoot } from '../../../../shared/domain/aggregate-root.base.js';
+import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { ShareId } from './value-objects/share-id.vo.js';
 import { ShareType } from './value-objects/share-type.vo.js';
 import { SharePermission } from './value-objects/share-permission.vo.js';

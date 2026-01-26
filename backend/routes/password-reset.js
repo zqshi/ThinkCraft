@@ -3,9 +3,9 @@
  * 处理密码重置相关的HTTP请求
  */
 import express from 'express';
-import { PasswordResetUseCase } from '../features/auth/application/password-reset.use-case.js';
-import { getRepository } from '../shared/infrastructure/repository.factory.js';
-import { logger } from '../shared/utils/logger.js';
+import { PasswordResetUseCase } from '../src/features/auth/application/password-reset.use-case.js';
+import { getRepository } from '../src/shared/infrastructure/repository.factory.js';
+import { logger } from '../middleware/logger.js';
 
 const router = express.Router();
 

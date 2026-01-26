@@ -3,8 +3,8 @@
  * 基于项目类型和需求智能推荐工作流配置
  */
 import express from 'express';
-import { callDeepSeekAPI } from '../../../../../../config/deepseek.js';
-import { DEFAULT_WORKFLOW_STAGES } from '../../../../../../config/workflow-stages.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
+import { DEFAULT_WORKFLOW_STAGES } from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
 

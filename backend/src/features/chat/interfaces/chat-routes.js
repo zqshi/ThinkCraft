@@ -388,28 +388,36 @@ router.get('/stats', async (req, res) => {
 
 // 保持原有的聊天接口以兼容现有代码
 router.post('/', async (req, res) => {
-  const { messages, systemPrompt } = req.body;
+  try {
+    const { messages, systemPrompt } = req.body;
 
-  // 这里应该调用AI服务，暂时返回模拟数据
-  const result = {
-    ok: true,
-    data: {
-      message: '这是一个模拟的AI回复',
-      timestamp: new Date().toISOString()
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        code: -1,
+        error: '消息列表不能为空'
+      });
     }
-  };
 
-  if (!result.ok) {
-    return res.status(result.status || 500).json({
+    // 调用 DeepSeek API
+    const { callDeepSeekAPI } = await import('../../../infrastructure/ai/deepseek-client.js');
+    const result = await callDeepSeekAPI(messages, systemPrompt);
+
+    return res.json({
+      code: 0,
+      data: {
+        content: result.content,
+        model: result.model,
+        usage: result.usage,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('[Chat API] Error:', error);
+    return res.status(500).json({
       code: -1,
-      error: result.error
+      error: error.message || '服务器内部错误'
     });
   }
-
-  return res.json({
-    code: 0,
-    data: result.data
-  });
 });
 
 export default router;

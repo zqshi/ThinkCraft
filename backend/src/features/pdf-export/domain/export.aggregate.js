@@ -1,7 +1,7 @@
 /**
  * Export聚合根
  */
-import { AggregateRoot } from '../../../../shared/domain/aggregate-root.base.js';
+import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { ExportId } from './value-objects/export-id.vo.js';
 import { ExportFormat } from './value-objects/export-format.vo.js';
 import { ExportStatus } from './value-objects/export-status.vo.js';

@@ -2,7 +2,7 @@
  * Report生成服务
  * 处理报告的实际生成逻辑
  */
-import { callDeepSeekAPI } from '../../../../../config/deepseek.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import { ReportType } from '../domain/value-objects/report-type.vo.js';
 
 export class ReportGenerationService {

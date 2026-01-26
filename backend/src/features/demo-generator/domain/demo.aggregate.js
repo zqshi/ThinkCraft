@@ -1,7 +1,7 @@
 /**
  * Demo聚合根
  */
-import { AggregateRoot } from '../../../../shared/domain/aggregate-root.base.js';
+import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { DemoId } from './value-objects/demo-id.vo.js';
 import { DemoType } from './value-objects/demo-type.vo.js';
 import { DemoStatus } from './value-objects/demo-status.vo.js';

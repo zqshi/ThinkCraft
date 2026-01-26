@@ -3,15 +3,15 @@
  * 处理账号管理相关的HTTP请求
  */
 import express from 'express';
-import { AccountManagementUseCase } from '../features/auth/application/account-management.use-case.js';
-import { getRepository } from '../shared/infrastructure/repository.factory.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
-import { logger } from '../shared/utils/logger.js';
+import { AccountManagementUseCase } from '../src/features/auth/application/account-management.use-case.js';
+import { getRepository } from '../src/shared/infrastructure/repository.factory.js';
+import { authMiddleware } from '../src/features/auth/interfaces/auth.middleware.js';
+import { logger } from '../middleware/logger.js';
 
 const router = express.Router();
 
 // 所有路由都需要认证
-router.use(authenticateToken);
+router.use(authMiddleware);
 
 /**
  * GET /api/account/info

@@ -7,7 +7,7 @@
  * - 腾讯云SMS
  * - 开发环境模拟模式
  */
-import { logger } from '../../shared/utils/logger.js';
+import { logger } from '../../../middleware/logger.js';
 
 export class SmsService {
   constructor(config = {}) {

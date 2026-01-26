@@ -203,14 +203,21 @@ export async function initDatabases() {
   try {
     console.log('[Database] 正在初始化数据库连接...');
 
-    // 连接MongoDB
-    await mongoManager.connect();
+    // 检查是否使用内存存储
+    const dbType = process.env.DB_TYPE || 'memory';
+
+    if (dbType === 'mongodb') {
+      // 连接MongoDB
+      await mongoManager.connect();
+    } else {
+      console.log('[Database] 使用内存存储，跳过MongoDB连接');
+    }
 
     // 连接Redis（可选）
     try {
       await redisManager.connect();
     } catch (error) {
-      console.warn('[Database] Redis连接失败，将继续使用MongoDB:', error.message);
+      console.warn('[Database] Redis连接失败，将继续运行:', error.message);
     }
 
     console.log('[Database] 数据库连接初始化完成');

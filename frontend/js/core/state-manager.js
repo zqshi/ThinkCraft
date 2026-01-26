@@ -225,7 +225,6 @@ class StateManager {
     }
 
     this.notify();
-    - ${agentName}`);
   }
 
   /**

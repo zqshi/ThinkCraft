@@ -5,7 +5,7 @@
 import { Username } from '../domain/value-objects/username.vo.js';
 import { Email } from '../domain/value-objects/email.vo.js';
 import { PhoneVerificationUseCase } from './phone-verification.use-case.js';
-import { logger } from '../../../shared/utils/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class AccountManagementUseCase {
   constructor(userRepository, phoneVerificationUseCase = null) {

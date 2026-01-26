@@ -3,7 +3,6 @@
  * 管理项目的工作流阶段和状态
  */
 import { Entity } from '../../../../shared/domain/entity.base.js';
-import { WorkflowStage } from './workflow-stage.entity.js';
 
 export class Workflow extends Entity {
   constructor(id, stages = [], currentStageId = null, isCustom = false) {

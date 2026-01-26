@@ -1,7 +1,7 @@
 /**
  * Report聚合根
  */
-import { AggregateRoot } from '../../../../shared/domain/aggregate-root.base.js';
+import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { ReportId } from './value-objects/report-id.vo.js';
 import { ReportType } from './value-objects/report-type.vo.js';
 import { ReportStatus } from './value-objects/report-status.vo.js';

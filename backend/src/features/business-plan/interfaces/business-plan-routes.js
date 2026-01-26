@@ -3,7 +3,7 @@
  * 支持单章节生成和批量生成
  */
 import express from 'express';
-import { callDeepSeekAPI, getCostStats } from '../../../../../../config/deepseek.js';
+import { callDeepSeekAPI, getCostStats } from '../../../../config/deepseek.js';
 
 const router = express.Router();
 
@@ -294,8 +294,6 @@ async function generateSingleChapter(chapterId, conversationHistory) {
     const agent = CHAPTER_AGENTS[chapterId];
     const conversation = formatConversation(conversationHistory);
     const prompt = promptTemplate.replace('{CONVERSATION}', conversation);
-
-    `);
 
     // 调用DeepSeek API
     const result = await callDeepSeekAPI(

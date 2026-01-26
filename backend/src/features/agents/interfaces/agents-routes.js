@@ -3,7 +3,7 @@
  * 支持Agent雇佣、任务分配、工作协同
  */
 import express from 'express';
-import { callDeepSeekAPI } from '../../../../../../config/deepseek.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 
 const router = express.Router();
 
@@ -475,8 +475,6 @@ router.post('/team-collaboration', async (req, res, next) => {
                 error: '未找到指定的Agent'
             });
         }
-
-        .join(', ')}`);
 
         // 更新所有Agent状态
         selectedAgents.forEach(a => a.status = 'working');

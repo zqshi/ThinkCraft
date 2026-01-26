@@ -75,7 +75,7 @@ export class InMemoryChatRepository extends IChatRepository {
                     },
                     {
                         id: 'msg_005',
-                        content: '```javascript\n// 用户认证模块\nconst authModule = {\n  login: async (email, password) =\u003e {},\n  register: async (userData) =\u003e {},\n  resetPassword: async (email) =\u003e {}\n};\n```',
+                        content: '```javascript\n// 用户认证模块\nconst authModule = {\n  login: async (email, password) => {},\n  register: async (userData) => {},\n  resetPassword: async (email) => {}\n};\n```',
                         type: 'code',
                         status: 'sent',
                         sender: 'assistant',
@@ -112,7 +112,7 @@ export class InMemoryChatRepository extends IChatRepository {
             }
         ];
 
-        mockChats.forEach(chat =\u003e {
+        mockChats.forEach(chat => {
             const chatAggregate = Chat.fromJSON(chat);
             this._chats.set(chat.id, chatAggregate);
         });
@@ -153,7 +153,7 @@ export class InMemoryChatRepository extends IChatRepository {
      * 查找置顶的聊天
      */
     async findPinned() {
-        return Array.from(this._chats.values()).filter(chat =\u003e chat.isPinned);
+        return Array.from(this._chats.values()).filter(chat => chat.isPinned);
     }
 
     /**
@@ -164,8 +164,8 @@ export class InMemoryChatRepository extends IChatRepository {
             return [];
         }
 
-        return Array.from(this._chats.values()).filter(chat =\u003e {
-            return tags.some(tag =\u003e chat.tags.includes(tag));
+        return Array.from(this._chats.values()).filter(chat => {
+            return tags.some(tag => chat.tags.includes(tag));
         });
     }
 
@@ -173,7 +173,7 @@ export class InMemoryChatRepository extends IChatRepository {
      * 根据状态查找聊天
      */
     async findByStatus(status) {
-        return Array.from(this._chats.values()).filter(chat =\u003e chat.status.value === status);
+        return Array.from(this._chats.values()).filter(chat => chat.status.value === status);
     }
 
     /**
@@ -222,7 +222,7 @@ export class InMemoryChatRepository extends IChatRepository {
             }
 
             // 搜索内容
-            const hasMatchingMessage = chat.messages.some(message =\u003e
+            const hasMatchingMessage = chat.messages.some(message =>
                 message.content.toLowerCase().includes(lowerKeyword)
             );
 

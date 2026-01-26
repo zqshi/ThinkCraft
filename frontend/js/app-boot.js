@@ -165,7 +165,11 @@
                     throw new Error(data.error || '未知错误');
                 }
 
-                const aiContent = data.data.content;
+                const aiContent = data.data.content || data.data.message;
+
+                if (!aiContent) {
+                    throw new Error('AI返回的内容为空');
+                }
 
                 if (state.settings.saveHistory && chatId !== null) {
                     const index = state.chats.findIndex(c => c.id == chatId);
@@ -394,6 +398,15 @@
             state.typingChatId = targetChatId;
             state.isTyping = true;
             let i = 0;
+
+            // 防御性检查：确保 text 不是 undefined 或 null
+            if (!text || typeof text !== 'string') {
+                console.error('[typeWriterWithCompletion] Invalid text:', text);
+                textElement.textContent = '错误：收到无效的消息内容';
+                state.isTyping = false;
+                state.typingChatId = null;
+                return;
+            }
 
             // 检测并移除标记
             let displayText = text;
@@ -912,7 +925,7 @@
             const chat = state.chats.find(c => c.id == targetId);  // 使用 == 而非 === 做宽松比较
 
             if (!chat) {
-                `));
+                console.error('Chat not found:', id);
                 return;
             }
 
@@ -1790,11 +1803,10 @@
                             }
                         }
                     });
-
-                    .filter(k => generatedReports[k]));
                 }
             } catch (error) {
-                }
+                console.error('Failed to load reports:', error);
+            }
         }
 
         // 显示商业计划书模态框
@@ -4045,7 +4057,7 @@
                 <div class="project-section">
                     <div class="project-section-header">
                         <h3>🤖 AI协同任务</h3>
-                        <button class="btn-primary" onclick="startTeamCollaboration('${project.id}')">
+                        <button class="btn-primary" onclick="startProjectTeamCollaboration('${project.id}')">
                             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
                             </svg>
@@ -4174,7 +4186,7 @@
                         <div class="agent-card-skills">${skillsHTML}</div>
                         <div class="agent-card-actions">
                             <button class="hire-btn ${isHired ? 'hired' : ''}"
-                                    onclick="hireAgent('${agent.id}')"
+                                    onclick="hireTeamAgent('${agent.id}')"
                                     ${isHired ? 'disabled' : ''}>
                                 ${isHired ? '✓ 已雇佣' : '雇佣'}
                             </button>
@@ -4223,7 +4235,7 @@
                         <div class="agent-card-desc">${agent.description}</div>
                         <div class="agent-card-skills">${skillsHTML}</div>
                         <div class="agent-card-actions">
-                            <button class="btn-secondary" onclick="fireAgent('${agent.id}')">
+                            <button class="btn-secondary" onclick="fireTeamAgent('${agent.id}')">
                                 解雇
                             </button>
                         </div>
@@ -4235,7 +4247,7 @@
         }
 
         // 雇佣员工
-        function hireAgent(agentId) {
+        function hireTeamAgent(agentId) {
             const agent = AVAILABLE_AGENTS.find(a => a.id === agentId);
             if (!agent) return;
 
@@ -4256,8 +4268,8 @@
             alert(`✅ 成功雇佣 ${agent.name}`);
         }
 
-        // 解雇员工
-        function fireAgent(agentId) {
+        // 解雇员工（团队空间）
+        function fireTeamAgent(agentId) {
             const agent = state.teamSpace.agents.find(a => a.id === agentId);
             if (!agent) return;
 
@@ -4796,16 +4808,6 @@
             renderKnowledgeOrgTree();
         }
 
-        function onKnowledgeSearch(keyword) {
-            stateManager.setKnowledgeSearchKeyword(keyword);
-            renderKnowledgeList();
-        }
-
-        function onKnowledgeTypeFilter(type) {
-            stateManager.setKnowledgeTypeFilter(type);
-            renderKnowledgeList();
-        }
-
         async function viewKnowledge(id) {
             const item = await storageManager.getKnowledge(id);
             if (!item) {
@@ -5186,8 +5188,8 @@
                 }
         }
 
-        // 启动团队协同
-        async function startTeamCollaboration(projectId) {
+        // 启动项目团队协同
+        async function startProjectTeamCollaboration(projectId) {
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
@@ -5609,16 +5611,21 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                 localStorage.setItem('thinkcraft_settings', JSON.stringify(state.settings));
             }
 
-            document.getElementById('darkModeToggle').checked = state.settings.darkMode;
-            document.getElementById('saveHistoryToggle').checked = state.settings.saveHistory;
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const saveHistoryToggle = document.getElementById('saveHistoryToggle');
+            const enableTeamToggle = document.getElementById('enableTeamToggle');
+            const enableTeamToggle2 = document.getElementById('enableTeamToggle2');
+
+            if (darkModeToggle) darkModeToggle.checked = state.settings.darkMode;
+            if (saveHistoryToggle) saveHistoryToggle.checked = state.settings.saveHistory;
 
             // 初始化团队空间数据
             initTeamSpace();
 
             // 同步团队功能开关状态
             const enableTeam = state.settings.enableTeam || false;
-            document.getElementById('enableTeamToggle').checked = enableTeam;
-            document.getElementById('enableTeamToggle2').checked = enableTeam;
+            if (enableTeamToggle) enableTeamToggle.checked = enableTeam;
+            if (enableTeamToggle2) enableTeamToggle2.checked = enableTeam;
 
             // 根据设置显示/隐藏团队Tab
             updateTeamTabVisibility();
@@ -5806,7 +5813,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                         <div class="member-role">${member.role}</div>
                     </div>
                     ${member.type === 'agent' ? `
-                        <button class="btn-secondary" onclick="fireAgent('${member.id}')" style="padding: 6px 12px; font-size: 13px; margin-left: auto;">
+                        <button class="btn-secondary" onclick="fireProjectAgent('${member.id}')" style="padding: 6px 12px; font-size: 13px; margin-left: auto;">
                             解雇
                         </button>
                     ` : ''}
@@ -6003,7 +6010,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             document.getElementById('projectMemberCount').textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
         }
 
-        function fireAgent(agentId) {
+        function fireProjectAgent(agentId) {
             if (!confirm('确定要将该数字员工从项目中移除吗？')) {
                 return;
             }
@@ -6609,8 +6616,6 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                     mainInput.value = content.trim();
                     autoResize(mainInput);
                     mainInput.focus();
-
-                    );
                 }
             }
 
@@ -6648,13 +6653,13 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
-            initFloatingBallDrag();  // 初始化悬浮球拖拽
+            // initFloatingBallDrag();  // TODO: 初始化悬浮球拖拽（函数未定义）
         });
         if (window.deviceDetector?.initialized) {
             initChatItemLongPress();
             initShareCardDoubleTap();
             initInputGestures();  // 初始化输入框手势
-            initFloatingBallDrag();  // 初始化悬浮球拖拽
+            // initFloatingBallDrag();  // TODO: 初始化悬浮球拖拽（函数未定义）
         }
 
         // ==================== 输入框手势快捷操作 ====================
@@ -6895,3 +6900,28 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         });
 
         
+
+// 暴露团队空间函数到全局作用域
+window.hireTeamAgent = hireTeamAgent;
+window.fireTeamAgent = fireTeamAgent;
+window.fireProjectAgent = fireProjectAgent;
+
+// 暴露核心函数到全局作用域
+window.loadChats = loadChats;
+window.loadSettings = loadSettings;
+window.focusInput = focusInput;
+window.updateUserNameDisplay = updateUserNameDisplay;
+window.autoResize = autoResize;
+window.handleKeyDown = handleKeyDown;
+window.handleKeyUp = handleKeyUp;
+window.sendMessage = sendMessage;
+window.showSettings = showSettings;
+window.startNewChat = startNewChat;
+window.switchSidebarTab = switchSidebarTab;
+window.toggleSidebar = toggleSidebar;
+window.openBottomSettings = openBottomSettings;
+window.handleCamera = handleCamera;
+window.handleImageUpload = handleImageUpload;
+window.switchToTextMode = switchToTextMode;
+window.switchToVoiceMode = switchToVoiceMode;
+window.startProjectTeamCollaboration = startProjectTeamCollaboration;
