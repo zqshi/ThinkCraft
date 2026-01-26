@@ -7,6 +7,7 @@ import { User } from '../domain/user.aggregate.js';
 import { UserId } from '../domain/value-objects/user-id.vo.js';
 import { Username } from '../domain/value-objects/username.vo.js';
 import { Email } from '../domain/value-objects/email.vo.js';
+import { Phone } from '../domain/value-objects/phone.vo.js';
 import { Password } from '../domain/value-objects/password.vo.js';
 import { UserStatus } from '../domain/value-objects/user-status.vo.js';
 import { UserModel } from './user.model.js';
@@ -20,6 +21,8 @@ export class UserMongoRepository extends UserRepository {
       userId: user.id.value,
       username: user.username.value,
       email: user.email.value,
+      phone: user.phone ? user.phone.value : null,
+      phoneVerified: user.phoneVerified || false,
       passwordHash: user.password.hash,
       status: user.status.value,
       lastLoginAt: user.lastLoginAt,
@@ -51,10 +54,12 @@ export class UserMongoRepository extends UserRepository {
       new Username(doc.username),
       new Email(doc.email),
       Password.fromHash(doc.passwordHash),
-      UserStatus.fromString(doc.status)
+      UserStatus.fromString(doc.status),
+      doc.phone ? new Phone(doc.phone) : null
     );
 
     // 设置其他属性
+    user._phoneVerified = doc.phoneVerified || false;
     user._lastLoginAt = doc.lastLoginAt;
     user._loginAttempts = doc.loginAttempts;
     user._lockedUntil = doc.lockedUntil;
@@ -110,6 +115,20 @@ export class UserMongoRepository extends UserRepository {
       return this.toDomain(doc);
     } catch (error) {
       console.error('[UserMongoRepository] findByEmail error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据手机号查找用户
+   */
+  async findByPhone(phone) {
+    try {
+      const phoneValue = typeof phone === 'string' ? phone.trim() : phone;
+      const doc = await UserModel.findOne({ phone: phoneValue });
+      return this.toDomain(doc);
+    } catch (error) {
+      console.error('[UserMongoRepository] findByPhone error:', error);
       throw error;
     }
   }

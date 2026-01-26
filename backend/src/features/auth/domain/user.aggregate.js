@@ -6,6 +6,7 @@ import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { UserId } from './value-objects/user-id.vo.js';
 import { Username } from './value-objects/username.vo.js';
 import { Email } from './value-objects/email.vo.js';
+import { Phone } from './value-objects/phone.vo.js';
 import { Password } from './value-objects/password.vo.js';
 import { UserStatus } from './value-objects/user-status.vo.js';
 import { UserLoggedInEvent } from './events/user-logged-in.event.js';
@@ -13,12 +14,14 @@ import { UserLoggedOutEvent } from './events/user-logged-out.event.js';
 import { UserCreatedEvent } from './events/user-created.event.js';
 
 export class User extends AggregateRoot {
-  constructor(id, username, email, password, status = UserStatus.ACTIVE) {
+  constructor(id, username, email, password, status = UserStatus.ACTIVE, phone = null) {
     super(id);
     this._username = username;
     this._email = email;
     this._password = password;
     this._status = status;
+    this._phone = phone;
+    this._phoneVerified = false;
     this._lastLoginAt = null;
     this._loginAttempts = 0;
     this._lockedUntil = null;
@@ -123,6 +126,37 @@ export class User extends AggregateRoot {
   }
 
   /**
+   * 绑定手机号
+   */
+  bindPhone(phone) {
+    if (this._phone) {
+      throw new Error('手机号已绑定');
+    }
+
+    this._phone = new Phone(phone);
+    this._phoneVerified = false;
+  }
+
+  /**
+   * 验证手机号
+   */
+  verifyPhone() {
+    if (!this._phone) {
+      throw new Error('未绑定手机号');
+    }
+
+    this._phoneVerified = true;
+  }
+
+  /**
+   * 更换手机号
+   */
+  changePhone(newPhone) {
+    this._phone = new Phone(newPhone);
+    this._phoneVerified = false;
+  }
+
+  /**
    * 验证用户状态
    */
   validate() {
@@ -142,6 +176,12 @@ export class User extends AggregateRoot {
   get email() {
     return this._email;
   }
+  get phone() {
+    return this._phone;
+  }
+  get phoneVerified() {
+    return this._phoneVerified;
+  }
   get status() {
     return this._status;
   }
@@ -160,6 +200,8 @@ export class User extends AggregateRoot {
       ...super.toJSON(),
       username: this._username.value,
       email: this._email.value,
+      phone: this._phone ? this._phone.value : null,
+      phoneVerified: this._phoneVerified,
       status: this._status.value,
       lastLoginAt: this._lastLoginAt,
       loginAttempts: this._loginAttempts,

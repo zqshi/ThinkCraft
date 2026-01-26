@@ -34,6 +34,16 @@ const userSchema = new mongoose.Schema(
       index: true
     },
 
+    // 手机号
+    phone: {
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true, // 允许多个null值
+      trim: true,
+      index: true
+    },
+
     // 密码哈希
     passwordHash: {
       type: String,
@@ -69,6 +79,12 @@ const userSchema = new mongoose.Schema(
 
     // 邮箱验证状态
     emailVerified: {
+      type: Boolean,
+      default: false
+    },
+
+    // 手机验证状态
+    phoneVerified: {
       type: Boolean,
       default: false
     },

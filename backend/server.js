@@ -22,6 +22,9 @@ import projectsRouter from './routes/projects.js';
 import workflowRouter from './routes/workflow.js';
 import workflowRecommendationRouter from './routes/workflow-recommendation.js';
 import authRouter from './routes/auth.js';
+import verificationRouter from './routes/verification.js';
+import passwordResetRouter from './routes/password-reset.js';
+import accountRouter from './routes/account.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 import { initDatabases, closeDatabases } from './config/database.js';
@@ -126,6 +129,15 @@ app.use('/api/workflow-recommendation', workflowRecommendationRouter);
 
 // 认证接口
 app.use('/api/auth', authRouter);
+
+// 验证码接口
+app.use('/api/verification', verificationRouter);
+
+// 密码重置接口
+app.use('/api/password-reset', passwordResetRouter);
+
+// 账号管理接口
+app.use('/api/account', accountRouter);
 
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));
