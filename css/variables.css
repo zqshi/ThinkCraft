@@ -4,169 +4,169 @@
  */
 
 :root {
-    /* ==================== 间距系统 ==================== */
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
-    --spacing-2xl: 48px;
+  /* ==================== 间距系统 ==================== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
 
-    /* ==================== 字体系统 ==================== */
-    --font-size-xs: 12px;
-    --font-size-sm: 14px;
-    --font-size-md: 16px;
-    --font-size-lg: 18px;
-    --font-size-xl: 24px;
-    --font-size-2xl: 32px;
+  /* ==================== 字体系统 ==================== */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
 
-    /* ==================== 触摸目标（WCAG 2.1标准）==================== */
-    --touch-target-min: 44px;  /* 最小触摸区域：44x44px */
-    --touch-target-comfortable: 48px;  /* 舒适触摸区域：48x48px */
+  /* ==================== 触摸目标（WCAG 2.1标准）==================== */
+  --touch-target-min: 44px; /* 最小触摸区域：44x44px */
+  --touch-target-comfortable: 48px; /* 舒适触摸区域：48x48px */
 
-    /* ==================== 弹窗尺寸 ==================== */
-    --modal-width-mobile: 100vw;
-    --modal-width-tablet: 90vw;
-    --modal-width-desktop: 1000px;
-    --modal-height-mobile: 100vh;
-    --modal-height-tablet: 90vh;
-    --modal-height-desktop: 85vh;
+  /* ==================== 弹窗尺寸 ==================== */
+  --modal-width-mobile: 100vw;
+  --modal-width-tablet: 90vw;
+  --modal-width-desktop: 1000px;
+  --modal-height-mobile: 100vh;
+  --modal-height-tablet: 90vh;
+  --modal-height-desktop: 85vh;
 
-    /* ==================== 断点（仅用于JS）==================== */
-    --breakpoint-sm: 480px;
-    --breakpoint-md: 640px;
-    --breakpoint-lg: 896px;
-    --breakpoint-xl: 1024px;
-    --breakpoint-2xl: 1366px;
-    --breakpoint-3xl: 1920px;
+  /* ==================== 断点（仅用于JS）==================== */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 640px;
+  --breakpoint-lg: 896px;
+  --breakpoint-xl: 1024px;
+  --breakpoint-2xl: 1366px;
+  --breakpoint-3xl: 1920px;
 
-    /* ==================== Safe Area（iOS刘海屏和手势条）==================== */
-    --safe-area-top: env(safe-area-inset-top, 0px);
-    --safe-area-right: env(safe-area-inset-right, 0px);
-    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-area-left: env(safe-area-inset-left, 0px);
+  /* ==================== Safe Area（iOS刘海屏和手势条）==================== */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 
-    /* ==================== 动画时长 ==================== */
-    --animation-duration-fast: 0.15s;
-    --animation-duration-normal: 0.3s;
-    --animation-duration-slow: 0.5s;
+  /* ==================== 动画时长 ==================== */
+  --animation-duration-fast: 0.15s;
+  --animation-duration-normal: 0.3s;
+  --animation-duration-slow: 0.5s;
 
-    /* ==================== Z-index层级 ==================== */
-    --z-index-dropdown: 100;
-    --z-index-sidebar: 200;
-    --z-index-modal-backdrop: 1000;
-    --z-index-modal: 1010;
-    --z-index-toast: 2000;
+  /* ==================== Z-index层级 ==================== */
+  --z-index-dropdown: 100;
+  --z-index-sidebar: 200;
+  --z-index-modal-backdrop: 1000;
+  --z-index-modal: 1010;
+  --z-index-toast: 2000;
 
-    /* ==================== 圆角 ==================== */
-    --border-radius-sm: 8px;
-    --border-radius-md: 12px;
-    --border-radius-lg: 16px;
-    --border-radius-xl: 20px;
-    --border-radius-full: 9999px;
+  /* ==================== 圆角 ==================== */
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 20px;
+  --border-radius-full: 9999px;
 
-    /* ==================== 阴影 ==================== */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  /* ==================== 阴影 ==================== */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
 
-    /* ==================== 颜色（暗黑模式支持）==================== */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f9fafb;
-    --bg-tertiary: #f3f4f6;
-    --text-primary: #111827;
-    --text-secondary: #6b7280;
-    --text-tertiary: #9ca3af;
-    --border: #e5e7eb;
-    --border-light: #f3f4f6;
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --primary-light: #818cf8;
-    --error: #ef4444;
-    --success: #10b981;
-    --warning: #f59e0b;
+  /* ==================== 颜色（暗黑模式支持）==================== */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border: #e5e7eb;
+  --border-light: #f3f4f6;
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --primary-light: #818cf8;
+  --error: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
 }
 
 /* ==================== 小屏手机 (< 480px) ==================== */
 @media (max-width: 480px) {
-    :root {
-        --spacing-md: 12px;
-        --spacing-lg: 16px;
-        --spacing-xl: 24px;
-        --font-size-sm: 13px;
-        --font-size-md: 15px;
-        --font-size-lg: 17px;
-        --modal-width-mobile: 100vw;
-    }
+  :root {
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --font-size-sm: 13px;
+    --font-size-md: 15px;
+    --font-size-lg: 17px;
+    --modal-width-mobile: 100vw;
+  }
 }
 
 /* ==================== 标准手机 (481px - 640px) ==================== */
 @media (min-width: 481px) and (max-width: 640px) {
-    :root {
-        --spacing-md: 14px;
-        --font-size-md: 16px;
-    }
+  :root {
+    --spacing-md: 14px;
+    --font-size-md: 16px;
+  }
 }
 
 /* ==================== 平板 (641px - 1024px) ==================== */
 @media (min-width: 641px) and (max-width: 1024px) {
-    :root {
-        --modal-width-tablet: 85vw;
-        --font-size-lg: 20px;
-        --font-size-xl: 26px;
-    }
+  :root {
+    --modal-width-tablet: 85vw;
+    --font-size-lg: 20px;
+    --font-size-xl: 26px;
+  }
 }
 
 /* ==================== 小笔记本 (1025px - 1366px) ==================== */
 @media (min-width: 1025px) and (max-width: 1366px) {
-    :root {
-        --modal-width-desktop: 900px;
-        --spacing-xl: 36px;
-    }
+  :root {
+    --modal-width-desktop: 900px;
+    --spacing-xl: 36px;
+  }
 }
 
 /* ==================== 标准桌面 (1367px - 1920px) ==================== */
 @media (min-width: 1367px) and (max-width: 1920px) {
-    :root {
-        --modal-width-desktop: 1000px;
-        --spacing-xl: 40px;
-    }
+  :root {
+    --modal-width-desktop: 1000px;
+    --spacing-xl: 40px;
+  }
 }
 
 /* ==================== 超大屏/4K (> 1920px) ==================== */
 @media (min-width: 1921px) {
-    :root {
-        --modal-width-desktop: 1400px;
-        --spacing-xl: 48px;
-        --spacing-2xl: 64px;
-        --font-size-xl: 28px;
-        --font-size-2xl: 36px;
-    }
+  :root {
+    --modal-width-desktop: 1400px;
+    --spacing-xl: 48px;
+    --spacing-2xl: 64px;
+    --font-size-xl: 28px;
+    --font-size-2xl: 36px;
+  }
 }
 
 /* ==================== 暗黑模式 ==================== */
 @media (prefers-color-scheme: dark) {
-    :root {
-        --bg-primary: #1f2937;
-        --bg-secondary: #111827;
-        --bg-tertiary: #0f172a;
-        --text-primary: #f9fafb;
-        --text-secondary: #9ca3af;
-        --text-tertiary: #6b7280;
-        --border: #374151;
-        --border-light: #4b5563;
-        --primary: #818cf8;
-        --primary-dark: #6366f1;
-        --primary-light: #a5b4fc;
-    }
+  :root {
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --bg-tertiary: #0f172a;
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --text-tertiary: #6b7280;
+    --border: #374151;
+    --border-light: #4b5563;
+    --primary: #818cf8;
+    --primary-dark: #6366f1;
+    --primary-light: #a5b4fc;
+  }
 }
 
 /* ==================== 性能优化：减少动画 ==================== */
 @media (prefers-reduced-motion: reduce) {
-    :root {
-        --animation-duration-fast: 0.01ms;
-        --animation-duration-normal: 0.01ms;
-        --animation-duration-slow: 0.01ms;
-    }
+  :root {
+    --animation-duration-fast: 0.01ms;
+    --animation-duration-normal: 0.01ms;
+    --animation-duration-slow: 0.01ms;
+  }
 }

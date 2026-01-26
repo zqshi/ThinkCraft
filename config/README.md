@@ -20,13 +20,15 @@
 
 ```javascript
 // 修改这里切换不同的预设
-const DEFAULT_PROMPT = 'default';  // 改为其他预设的key
+const DEFAULT_PROMPT = 'default'; // 改为其他预设的key
 ```
 
 **可用预设：**
+
 - `default` - 当前默认的系统提示词
 
 **示例：**
+
 ```javascript
 // 切换为自定义模式
 const DEFAULT_PROMPT = 'my_custom_prompt';
@@ -38,15 +40,15 @@ const DEFAULT_PROMPT = 'my_custom_prompt';
 
 ```javascript
 const SYSTEM_PROMPTS = {
-    default: `你是ThinkCraft AI思维助手...
+  default: `你是ThinkCraft AI思维助手...
 
     // 在这里修改提示词内容
     你的使命：
     - 帮助用户...
     - 提出建设性的问题...
-    `,
+    `
 
-    // 其他预设...
+  // 其他预设...
 };
 ```
 
@@ -56,11 +58,11 @@ const SYSTEM_PROMPTS = {
 
 ```javascript
 const SYSTEM_PROMPTS = {
-    default: `...`,
-    business_consultant: `...`,
+  default: `...`,
+  business_consultant: `...`,
 
-    // 添加你的新预设
-    my_custom_prompt: `你是XXX...
+  // 添加你的新预设
+  my_custom_prompt: `你是XXX...
 
     你的特点：
     - XXX
@@ -69,11 +71,12 @@ const SYSTEM_PROMPTS = {
     引导方式：
     1. XXX
     2. XXX
-    `,
+    `
 };
 ```
 
 然后设置为默认：
+
 ```javascript
 const DEFAULT_PROMPT = 'my_custom_prompt';
 ```
@@ -125,6 +128,7 @@ const DEFAULT_PROMPT = 'my_custom_prompt';
 ### 示例模板
 
 **最小化模板：**
+
 ```javascript
 my_prompt: `你是[角色名称]，[一句话定位]。
 
@@ -139,10 +143,11 @@ my_prompt: `你是[角色名称]，[一句话定位]。
 引导思路：
 1. [步骤1]
 2. [步骤2]
-3. [步骤3]`
+3. [步骤3]`;
 ```
 
 **完整模板：**
+
 ```javascript
 my_prompt: `你是[角色名称]，[详细背景介绍]。
 
@@ -168,7 +173,7 @@ my_prompt: `你是[角色名称]，[详细背景介绍]。
 
 输出：[最终交付什么]
 
-记住：[核心原则或座右铭]`
+记住：[核心原则或座右铭]`;
 ```
 
 ### 设计原则
@@ -222,7 +227,7 @@ default_v3: `...`,
 ```javascript
 // 示例：检测用户背景后切换
 if (userMessage.includes('技术')) {
-    currentPrompt = SYSTEM_PROMPTS.tech_product_expert;
+  currentPrompt = SYSTEM_PROMPTS.tech_product_expert;
 }
 ```
 
@@ -270,24 +275,31 @@ default_ja: `あなたはThinkCraft...`,
 ## 🐛 常见问题
 
 ### Q: 修改后没生效？
+
 A: 确保：
+
 1. 保存了文件
 2. 刷新了浏览器（强制刷新：Cmd+Shift+R）
 3. 开始了**新对话**（不是继续旧对话）
 
 ### Q: 提示词太长会有问题吗？
+
 A: DeepSeek支持长提示词，但建议：
+
 - 控制在500字以内
 - 重点突出，避免冗余
 
 ### Q: 如何测试新提示词？
+
 A:
+
 1. 保存修改
 2. 刷新页面
 3. 发送测试消息："你好，介绍一下你自己"
 4. 观察AI的自我介绍是否符合预期
 
 ### Q: 能否在对话中切换？
+
 A: 当前版本不支持，需要刷新页面。未来可以添加这个功能。
 
 ---
@@ -295,15 +307,18 @@ A: 当前版本不支持，需要刷新页面。未来可以添加这个功能�
 ## 📚 参考资源
 
 **提示词工程：**
+
 - [OpenAI Prompt Engineering Guide](https://platform.openai.com/docs/guides/prompt-engineering)
 - [Anthropic Prompt Engineering](https://docs.anthropic.com/claude/docs/prompt-engineering)
 
 **商业分析框架：**
+
 - 精益画布（Lean Canvas）
 - 商业模式画布（Business Model Canvas）
 - 价值主张画布（Value Proposition Canvas）
 
 **创业方法论：**
+
 - 精益创业（Lean Startup）
 - 客户开发（Customer Development）
 - 工作要做（Jobs To Be Done）

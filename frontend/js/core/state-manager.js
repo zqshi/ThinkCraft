@@ -197,8 +197,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
-    console.log(`[StateManager] 开始生成 ${type}，共 ${chapters.length} 个章节`);
-  }
+    }
 
   /**
    * 更新生成进度
@@ -226,7 +225,7 @@ class StateManager {
     }
 
     this.notify();
-    console.log(`[StateManager] 进度更新: ${current}/${total} (${percentage}%) - ${agentName}`);
+    - ${agentName}`);
   }
 
   /**
@@ -246,8 +245,6 @@ class StateManager {
     }
 
     const duration = ((this.state.generation.endTime - this.state.generation.startTime) / 1000).toFixed(1);
-    console.log(`[StateManager] 生成完成，耗时 ${duration} 秒`);
-
     this.notify();
   }
 
@@ -262,8 +259,7 @@ class StateManager {
       timestamp: Date.now()
     };
     this.notify();
-    console.error(`[StateManager] 生成失败:`, error);
-  }
+    }
 
   /**
    * 重置生成状态（支持重新生成）
@@ -285,8 +281,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
-    console.log(`[StateManager] 生成状态已重置`);
-  }
+    }
 
   /**
    * 显示章节选择（状态转换）
@@ -322,8 +317,7 @@ class StateManager {
       error: null
     };
     this.notify();
-    console.log(`[StateManager] 开始Demo生成流程`);
-  }
+    }
 
   /**
    * 更新Demo步骤状态
@@ -345,8 +339,7 @@ class StateManager {
     }
 
     this.notify();
-    console.log(`[StateManager] Demo步骤更新: ${stepId} - ${status}`);
-  }
+    }
 
   /**
    * 设置Demo类型分析结果
@@ -368,8 +361,7 @@ class StateManager {
     this.state.demo.status = 'completed';
     this.state.demo.results.code = finalCode;
     this.notify();
-    console.log(`[StateManager] Demo生成完成`);
-  }
+    }
 
   /**
    * Demo生成出错
@@ -382,8 +374,7 @@ class StateManager {
       timestamp: Date.now()
     };
     this.notify();
-    console.error(`[StateManager] Demo生成失败:`, error);
-  }
+    }
 
   /**
    * 重置Demo状态
@@ -429,7 +420,6 @@ class StateManager {
     this.updateInspirationStats();
     this.notify();
 
-    console.log(`[StateManager] 新增灵感: ${item.id}`);
     return item;
   }
 
@@ -444,10 +434,8 @@ class StateManager {
       Object.assign(item, updates, { updatedAt: Date.now() });
       this.updateInspirationStats();
       this.notify();
-      console.log(`[StateManager] 更新灵感: ${id}`);
       return item;
     }
-    console.warn(`[StateManager] 灵感不存在: ${id}`);
     return null;
   }
 
@@ -463,10 +451,8 @@ class StateManager {
       this.state.inspiration.totalCount = this.state.inspiration.items.length;
       this.updateInspirationStats();
       this.notify();
-      console.log(`[StateManager] 删除灵感: ${id}`);
       return true;
     }
-    console.warn(`[StateManager] 灵感不存在: ${id}`);
     return false;
   }
 
@@ -530,8 +516,7 @@ class StateManager {
   setInspirationMode(mode) {
     this.state.inspiration.mode = mode;
     this.notify();
-    console.log(`[StateManager] 灵感模式: ${mode}`);
-  }
+    }
 
   /**
    * 展开灵感为完整对话
@@ -541,7 +526,6 @@ class StateManager {
   expandToChat(inspirationId) {
     const inspiration = this.getInspirationById(inspirationId);
     if (!inspiration) {
-      console.warn(`[StateManager] 灵感不存在: ${inspirationId}`);
       return false;
     }
 
@@ -550,7 +534,6 @@ class StateManager {
       status: 'processing'
     });
 
-    console.log(`[StateManager] 展开灵感为对话: ${inspirationId}`);
     return true;
   }
 
@@ -583,8 +566,7 @@ class StateManager {
     this.state.inspiration.totalCount = this.state.inspiration.items.length;
     this.updateInspirationStats();
     this.notify();
-    console.log(`[StateManager] 加载 ${items.length} 条灵感`);
-  }
+    }
 
   /**
    * 搜索灵感
@@ -622,8 +604,7 @@ class StateManager {
   setKnowledgeViewMode(mode) {
     this.state.knowledge.viewMode = mode;
     this.notify();
-    console.log(`[StateManager] 知识库视图模式: ${mode}`);
-  }
+    }
 
   /**
    * 设置知识库组织方式
@@ -632,8 +613,7 @@ class StateManager {
   setKnowledgeOrganization(type) {
     this.state.knowledge.organizationType = type;
     this.notify();
-    console.log(`[StateManager] 知识库组织方式: ${type}`);
-  }
+    }
 
   /**
    * 设置项目过滤
@@ -643,8 +623,7 @@ class StateManager {
     this.state.knowledge.currentProjectId = projectId;
     this.state.knowledge.filter.projectId = projectId;
     this.notify();
-    console.log(`[StateManager] 知识库项目过滤: ${projectId}`);
-  }
+    }
 
   /**
    * 添加知识条目
@@ -655,7 +634,6 @@ class StateManager {
     this.state.knowledge.items.unshift(item);
     this.updateKnowledgeStats();
     this.notify();
-    console.log(`[StateManager] 新增知识: ${item.id}`);
     return item;
   }
 
@@ -671,10 +649,8 @@ class StateManager {
       Object.assign(item, updates, { updatedAt: Date.now() });
       this.updateKnowledgeStats();
       this.notify();
-      console.log(`[StateManager] 更新知识: ${id}`);
       return item;
     }
-    console.warn(`[StateManager] 知识不存在: ${id}`);
     return null;
   }
 
@@ -689,10 +665,8 @@ class StateManager {
       this.state.knowledge.items.splice(index, 1);
       this.updateKnowledgeStats();
       this.notify();
-      console.log(`[StateManager] 删除知识: ${id}`);
       return true;
     }
-    console.warn(`[StateManager] 知识不存在: ${id}`);
     return false;
   }
 
@@ -704,8 +678,7 @@ class StateManager {
     this.state.knowledge.items = items || [];
     this.updateKnowledgeStats();
     this.notify();
-    console.log(`[StateManager] 加载 ${items.length} 条知识`);
-  }
+    }
 
   /**
    * 根据标签筛选知识
@@ -853,8 +826,7 @@ class StateManager {
     this.state.knowledge.searchKeyword = '';
     this.state.knowledge.selectedTags = [];
     this.notify();
-    console.log(`[StateManager] 重置知识库过滤条件`);
-  }
+    }
 
   // ========== 设置管理 ==========
 
@@ -879,8 +851,7 @@ class StateManager {
         this.state.settings = { ...this.state.settings, ...settings };
       }
     } catch (error) {
-      console.error('[StateManager] 加载设置失败:', error);
-    }
+      }
   }
 
   /**
@@ -890,8 +861,7 @@ class StateManager {
     try {
       localStorage.setItem('thinkcraft_settings', JSON.stringify(this.state.settings));
     } catch (error) {
-      console.error('[StateManager] 保存设置失败:', error);
-    }
+      }
   }
 
   // ========== 工具方法 ==========
@@ -943,23 +913,11 @@ class StateManager {
    * 调试：打印当前状态
    */
   debug() {
-    console.log('===== ThinkCraft State =====');
-    console.log('对话:', {
-      currentChat: this.state.currentChat,
-      messageCount: this.state.messages.length,
-      isTyping: this.state.isTyping,
-      isLoading: this.state.isLoading
-    });
-    console.log('生成:', this.state.generation);
-    console.log('Demo:', this.state.demo);
-    console.log('设置:', this.state.settings);
-    console.log('============================');
-  }
+    }
 }
 
 // 导出单例实例
 if (typeof window !== 'undefined') {
   window.StateManager = StateManager;
   window.stateManager = new StateManager();
-  console.log('[StateManager] 状态管理器已初始化');
-}
+  }

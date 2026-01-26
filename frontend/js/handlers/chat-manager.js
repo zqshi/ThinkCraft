@@ -33,13 +33,11 @@ export function startNewChat() {
         const isOverlayMode = window.getComputedStyle(menuToggle).display !== 'none';
         if (isOverlayMode && sidebar.classList.contains('active')) {
             sidebar.classList.remove('active');
-            console.log('[对话] 移动端自动关闭侧边栏');
-        }
+            }
     }
 
     focusInput();
-    console.log('[对话] 开始新对话');
-}
+    }
 
 /**
  * 防抖保存函数
@@ -88,8 +86,7 @@ export function saveCurrentChat() {
 
         appState.currentChat = chatId;
         appState.chats.unshift(chat);
-        console.log('[对话] 创建新对话:', chatId);
-    } else {
+        } else {
         const index = appState.chats.findIndex(c => c.id == appState.currentChat);
         if (index !== -1) {
             appState.chats[index] = {
@@ -101,9 +98,7 @@ export function saveCurrentChat() {
                 analysisCompleted: appState.analysisCompleted,
                 updatedAt: now
             };
-            console.log('[对话] 更新对话:', appState.currentChat);
-        } else {
-            console.error('[对话] 找不到对话ID:', appState.currentChat);
+            } else {
             const chat = {
                 id: appState.currentChat,
                 title: title,
@@ -224,8 +219,7 @@ export function loadChat(id) {
     const chat = appState.chats.find(c => c.id == targetId);
 
     if (!chat) {
-        console.error('[对话] 找不到对话:', id, '类型:', typeof id);
-        console.log('[对话] 当前所有对话ID:', appState.chats.map(c => `${c.id} (${typeof c.id})`));
+        `));
         return;
     }
 
@@ -276,13 +270,11 @@ export function loadChat(id) {
         const isOverlayMode = window.getComputedStyle(menuToggle).display !== 'none';
         if (isOverlayMode && sidebar.classList.contains('active')) {
             sidebar.classList.remove('active');
-            console.log('[对话] 移动端自动关闭侧边栏');
-        }
+            }
     }
 
     loadChats();
-    console.log('[对话] 加载对话:', chat.id, '步骤:', appState.conversationStep);
-}
+    }
 
 /**
  * 删除对话

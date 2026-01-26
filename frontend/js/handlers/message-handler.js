@@ -124,7 +124,6 @@ export async function sendMessage() {
         }
 
     } catch (error) {
-        console.error('API调用失败:', error);
         const errorMsg = `抱歉，出现了错误：${error.message}\n\n请检查：\n1. 后端服务是否已启动（npm start）\n2. .env文件中的DEEPSEEK_API_KEY是否配置正确\n3. 网络连接是否正常`;
         if (appState.settings.saveHistory && chatId !== null) {
             const index = appState.chats.findIndex(c => c.id == chatId);
@@ -300,14 +299,12 @@ export function typeWriter(element, text, speed = 30, chatId = null) {
 
             // 打字机效果完成后，渲染Markdown
             if (window.markdownRenderer) {
-                console.log('[TypeWriter] 开始渲染Markdown');
                 const renderedHTML = window.markdownRenderer.render(text);
-                console.log('[TypeWriter] 渲染完成:', renderedHTML.substring(0, 100));
+                );
                 element.innerHTML = renderedHTML;
                 element.classList.add('markdown-content');
             } else {
-                console.warn('[TypeWriter] markdownRenderer 未找到');
-            }
+                }
         }
     }, speed);
 }

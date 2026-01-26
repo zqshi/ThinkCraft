@@ -15,6 +15,7 @@
 ## 🚀 快速开始
 
 ### 方式一：纯前端预览（无需后端）
+
 ```bash
 # 在项目根目录
 python3 -m http.server 8000
@@ -25,6 +26,7 @@ python3 -m http.server 8000
 - 登录/注册目前为演示模式（存储在浏览器本地）
 
 ### 方式二：启动后端（解锁真实AI能力）
+
 ```bash
 cd backend
 npm install
@@ -32,6 +34,7 @@ npm run dev
 ```
 
 在 `backend/.env` 中设置：
+
 ```
 DEEPSEEK_API_KEY=your_api_key_here
 PORT=3000
@@ -43,16 +46,19 @@ FRONTEND_URL=http://localhost:8000
 ## 🧩 主要模块
 
 ### 前端
+
 - **入口页面**：`OS.html`、`login.html`、`register.html`、`index.html`
 - **核心逻辑**：`frontend/js/`（state、api、handlers、modules、components）
 - **样式**：`css/` + `frontend/css/inline.css`
 
 ### 后端
+
 - **服务入口**：`backend/server.js`
 - **路由**：`backend/routes/`
 - **AI配置**：`backend/config/deepseek.js`
 
 ### 提示词与配置
+
 - **系统提示词**：`config/system-prompts.js`
 - **报告提示词**：`config/report-prompts.js`
 - **更多说明**：`config/README.md`

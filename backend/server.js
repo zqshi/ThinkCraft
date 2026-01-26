@@ -141,31 +141,15 @@ app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log(`🚀 ThinkCraft 后端服务已启动`);
-    console.log(`📍 监听端口: ${PORT}`);
-    console.log(`🌐 前端地址: ${FRONTEND_URL}`);
-    console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🤖 API: DeepSeek Chat`);
-    console.log('='.repeat(50));
-    console.log(`\n健康检查:       http://localhost:${PORT}/api/health`);
-    console.log(`对话接口:       http://localhost:${PORT}/api/chat`);
-    console.log(`报告生成:       http://localhost:${PORT}/api/report/generate`);
-    console.log(`商业计划书:     http://localhost:${PORT}/api/business-plan/generate-batch`);
-    console.log(`视觉分析:       http://localhost:${PORT}/api/vision/analyze`);
-    console.log(`PDF导出:        http://localhost:${PORT}/api/pdf-export/report`);
-    console.log(`分享链接:       http://localhost:${PORT}/api/share/create`);
-    console.log(`Demo生成:       http://localhost:${PORT}/api/demo-generator/generate`);
-    console.log(`数字员工:       http://localhost:${PORT}/api/agents/types\n`);
-});
+    );
+    );
+    });
 
 // 优雅关闭
 process.on('SIGTERM', () => {
-    console.log('\n收到 SIGTERM 信号，正在关闭服务器...');
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
-    console.log('\n收到 SIGINT 信号，正在关闭服务器...');
     process.exit(0);
 });

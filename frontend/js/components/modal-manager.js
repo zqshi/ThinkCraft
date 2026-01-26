@@ -21,7 +21,9 @@ class ModalManager {
    * 初始化：注册所有模态框并绑定事件
    */
   initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      return;
+    }
 
     // 查找所有模态框元素
     document.querySelectorAll('.modal').forEach(modalElement => {
@@ -32,14 +34,13 @@ class ModalManager {
     });
 
     // 绑定全局ESC键关闭
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && this.stack.length > 0) {
         this.close(this.stack[this.stack.length - 1]);
       }
     });
 
     this.initialized = true;
-    console.log(`[ModalManager] 已注册 ${this.modals.size} 个模态框`);
   }
 
   /**
@@ -49,11 +50,10 @@ class ModalManager {
    */
   register(id, element) {
     if (this.modals.has(id)) {
-      console.warn(`[ModalManager] 模态框 ${id} 已存在，将被覆盖`);
     }
 
     // 绑定点击背景关闭
-    element.addEventListener('click', (e) => {
+    element.addEventListener('click', e => {
       if (e.target === element) {
         this.close(id);
       }
@@ -66,8 +66,6 @@ class ModalManager {
       onOpen: null,
       onClose: null
     });
-
-    console.log(`[ModalManager] 注册模态框: ${id}`);
   }
 
   /**
@@ -79,12 +77,10 @@ class ModalManager {
     const modal = this.modals.get(id);
 
     if (!modal) {
-      console.error(`[ModalManager] 模态框 ${id} 不存在`);
       return;
     }
 
     if (modal.isOpen) {
-      console.warn(`[ModalManager] 模态框 ${id} 已经打开`);
       return;
     }
 
@@ -119,8 +115,6 @@ class ModalManager {
     if (window.deviceDetector?.deviceType.isMobile) {
       this.enableSwipeToDismiss(id);
     }
-
-    console.log(`[ModalManager] 打开模态框: ${id}`);
   }
 
   /**
@@ -131,12 +125,10 @@ class ModalManager {
     const modal = this.modals.get(id);
 
     if (!modal) {
-      console.error(`[ModalManager] 模态框 ${id} 不存在`);
       return;
     }
 
     if (!modal.isOpen) {
-      console.warn(`[ModalManager] 模态框 ${id} 已经关闭`);
       return;
     }
 
@@ -160,8 +152,6 @@ class ModalManager {
     if (this.stack.length === 0) {
       document.body.style.overflow = '';
     }
-
-    console.log(`[ModalManager] 关闭模态框: ${id}`);
   }
 
   /**
@@ -171,7 +161,6 @@ class ModalManager {
     // 复制堆栈，避免遍历时修改
     const modalsToClose = [...this.stack];
     modalsToClose.forEach(id => this.close(id));
-    console.log(`[ModalManager] 关闭所有模态框`);
   }
 
   /**
@@ -180,7 +169,9 @@ class ModalManager {
    */
   toggle(id) {
     const modal = this.modals.get(id);
-    if (!modal) return;
+    if (!modal) {
+      return;
+    }
 
     if (modal.isOpen) {
       this.close(id);
@@ -216,13 +207,11 @@ class ModalManager {
   updateContent(id, selector, content) {
     const modal = this.modals.get(id);
     if (!modal) {
-      console.error(`[ModalManager] 模态框 ${id} 不存在`);
       return;
     }
 
     const target = modal.element.querySelector(selector);
     if (!target) {
-      console.error(`[ModalManager] 在模态框 ${id} 中找不到选择器 ${selector}`);
       return;
     }
 
@@ -232,8 +221,6 @@ class ModalManager {
       target.innerHTML = '';
       target.appendChild(content);
     }
-
-    console.log(`[ModalManager] 更新模态框 ${id} 的内容`);
   }
 
   /**
@@ -252,7 +239,9 @@ class ModalManager {
    */
   setLoading(id, loading) {
     const modal = this.modals.get(id);
-    if (!modal) return;
+    if (!modal) {
+      return;
+    }
 
     if (loading) {
       modal.element.classList.add('loading');
@@ -310,7 +299,9 @@ class ModalManager {
         // 关闭后移除DOM
         modalElement.remove();
         this.modals.delete(tempId);
-        if (config.onClose) config.onClose();
+        if (config.onClose) {
+          config.onClose();
+        }
       }
     });
 
@@ -340,7 +331,9 @@ class ModalManager {
       document.getElementById('confirm-btn')?.addEventListener('click', () => {
         const modalId = document.getElementById('confirm-btn').closest('.modal').id;
         this.close(modalId);
-        if (onConfirm) onConfirm();
+        if (onConfirm) {
+          onConfirm();
+        }
       });
     }, 0);
   }
@@ -403,12 +396,11 @@ class ModalManager {
 
     const modalContent = modal.element.querySelector('.modal-content');
     if (!modalContent) {
-      console.warn(`[ModalManager] 模态框 ${id} 没有找到 .modal-content 元素`);
       return;
     }
 
     let isDragging = false;
-    let initialTransform = 0;
+    const initialTransform = 0;
 
     window.gestureHandler.registerSwipe(modalContent, {
       onSwipeMove: (deltaX, deltaY) => {
@@ -419,7 +411,7 @@ class ModalManager {
           modalContent.style.transition = 'none';
 
           // 计算透明度（滑动距离越大越透明）
-          const opacity = 1 - (deltaY / window.innerHeight);
+          const opacity = 1 - deltaY / window.innerHeight;
           modal.element.style.backgroundColor = `rgba(0, 0, 0, ${0.5 * opacity})`;
         }
       },
@@ -455,10 +447,8 @@ class ModalManager {
         }
       },
 
-      preventScroll: false  // 允许内容滚动
+      preventScroll: false // 允许内容滚动
     });
-
-    console.log(`[ModalManager] 已启用滑动关闭: ${id}`);
   }
 }
 
@@ -466,5 +456,4 @@ class ModalManager {
 if (typeof window !== 'undefined') {
   window.ModalManager = ModalManager;
   window.modalManager = new ModalManager();
-  console.log('[ModalManager] 模态框管理器已初始化');
 }

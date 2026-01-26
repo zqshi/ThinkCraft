@@ -4,594 +4,571 @@
  */
 
 class ProjectManager {
-    constructor() {
-        this.projects = [];
-        this.currentProject = null;
-        this.currentProjectId = null;
-        this.memberModalProjectId = null;
-        this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
-        this.storageManager = window.storageManager;
+  constructor() {
+    this.projects = [];
+    this.currentProject = null;
+    this.currentProjectId = null;
+    this.memberModalProjectId = null;
+    this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
+    this.storageManager = window.storageManager;
+  }
 
-        console.log('[ProjectManager] 项目管理器已初始化');
+  /**
+   * 初始化：加载所有项目
+   */
+  async init() {
+    try {
+      await this.loadProjects();
+    } catch (error) {}
+  }
+
+  /**
+   * 加载所有项目（从本地存储）
+   */
+  async loadProjects() {
+    try {
+      this.projects = await this.storageManager.getAllProjects();
+
+      await this.ensureMockProjects();
+      this.projects = await this.storageManager.getAllProjects();
+
+      // 更新全局状态
+      if (window.setProjects) {
+        window.setProjects(this.projects);
+      }
+
+      return this.projects;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async ensureMockProjects() {
+    if (!this.storageManager) {
+      return;
     }
 
-    /**
-     * 初始化：加载所有项目
-     */
-    async init() {
-        try {
-            await this.loadProjects();
-            console.log(`[ProjectManager] 加载了 ${this.projects.length} 个项目`);
-        } catch (error) {
-            console.error('[ProjectManager] 初始化失败:', error);
-        }
-    }
+    const existingProjects = this.projects || [];
+    const existingIds = new Set(existingProjects.map(project => project.id));
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
 
-    /**
-     * 加载所有项目（从本地存储）
-     */
-    async loadProjects() {
-        try {
-            this.projects = await this.storageManager.getAllProjects();
+    const demoProject = {
+      id: 'project_demo_001',
+      name: '智能健身APP Demo',
+      description: 'AI个性化健身指导应用的Demo展示',
+      mode: 'demo',
+      status: 'active',
+      ideaId: 'demo_fitness_app',
+      linkedIdeas: [],
+      assignedAgents: ['agent_004', 'agent_006'],
+      members: [{ id: 'member_001', name: '陈念', role: '业务负责人' }],
+      createdAt: now - 7 * day,
+      updatedAt: now - 2 * day,
+      demo: {
+        type: 'web',
+        previewUrl: 'https://example.com/demo/fitness',
+        downloadUrl: '',
+        generatedAt: now - 2 * day
+      }
+    };
 
-            await this.ensureMockProjects();
-            this.projects = await this.storageManager.getAllProjects();
-
-            // 更新全局状态
-            if (window.setProjects) {
-                window.setProjects(this.projects);
-            }
-
-            return this.projects;
-        } catch (error) {
-            console.error('[ProjectManager] 加载项目失败:', error);
-            return [];
-        }
-    }
-
-    async ensureMockProjects() {
-        if (!this.storageManager) {
-            return;
-        }
-
-        const existingProjects = this.projects || [];
-        const existingIds = new Set(existingProjects.map(project => project.id));
-        const now = Date.now();
-        const day = 24 * 60 * 60 * 1000;
-
-        const demoProject = {
-            id: 'project_demo_001',
-            name: '智能健身APP Demo',
-            description: 'AI个性化健身指导应用的Demo展示',
-            mode: 'demo',
+    const devProject = {
+      id: 'project_dev_001',
+      name: '在线教育平台 · 协同开发',
+      description: '面向K12的互动式在线学习平台',
+      mode: 'development',
+      status: 'active',
+      ideaId: 'chat_001',
+      linkedIdeas: [],
+      assignedAgents: ['agent_001', 'agent_002', 'agent_004', 'agent_005'],
+      members: [
+        { id: 'member_002', name: '李默', role: '项目经理' },
+        { id: 'member_003', name: '周禾', role: '运营负责人' }
+      ],
+      createdAt: now - 12 * day,
+      updatedAt: now - Number(day),
+      workflow: {
+        currentStageId: 'design',
+        stages: [
+          {
+            id: 'requirement',
+            status: 'completed',
+            artifacts: [
+              { id: 'artifact-req-001', name: '需求规格说明', type: 'prd' },
+              { id: 'artifact-req-002', name: '用户画像与场景', type: 'analysis' }
+            ]
+          },
+          {
+            id: 'design',
             status: 'active',
-            ideaId: 'demo_fitness_app',
-            linkedIdeas: [],
-            assignedAgents: ['agent_004', 'agent_006'],
-            members: [
-                { id: 'member_001', name: '陈念', role: '业务负责人' }
-            ],
-            createdAt: now - 7 * day,
-            updatedAt: now - 2 * day,
-            demo: {
-                type: 'web',
-                previewUrl: 'https://example.com/demo/fitness',
-                downloadUrl: '',
-                generatedAt: now - 2 * day
-            }
-        };
+            artifacts: []
+          },
+          {
+            id: 'architecture',
+            status: 'pending',
+            artifacts: []
+          },
+          {
+            id: 'development',
+            status: 'pending',
+            artifacts: []
+          },
+          {
+            id: 'testing',
+            status: 'pending',
+            artifacts: []
+          }
+        ],
+        isCustom: false
+      }
+    };
 
-        const devProject = {
-            id: 'project_dev_001',
-            name: '在线教育平台 · 协同开发',
-            description: '面向K12的互动式在线学习平台',
-            mode: 'development',
-            status: 'active',
-            ideaId: 'chat_001',
-            linkedIdeas: [],
-            assignedAgents: ['agent_001', 'agent_002', 'agent_004', 'agent_005'],
-            members: [
-                { id: 'member_002', name: '李默', role: '项目经理' },
-                { id: 'member_003', name: '周禾', role: '运营负责人' }
-            ],
-            createdAt: now - 12 * day,
-            updatedAt: now - 1 * day,
-            workflow: {
-                currentStageId: 'design',
-                stages: [
-                    {
-                        id: 'requirement',
-                        status: 'completed',
-                        artifacts: [
-                            { id: 'artifact-req-001', name: '需求规格说明', type: 'prd' },
-                            { id: 'artifact-req-002', name: '用户画像与场景', type: 'analysis' }
-                        ]
-                    },
-                    {
-                        id: 'design',
-                        status: 'active',
-                        artifacts: []
-                    },
-                    {
-                        id: 'architecture',
-                        status: 'pending',
-                        artifacts: []
-                    },
-                    {
-                        id: 'development',
-                        status: 'pending',
-                        artifacts: []
-                    },
-                    {
-                        id: 'testing',
-                        status: 'pending',
-                        artifacts: []
-                    }
-                ],
-                isCustom: false
-            }
-        };
+    const artifacts = [
+      {
+        id: 'artifact-req-001',
+        projectId: devProject.id,
+        stageId: 'requirement',
+        type: 'prd',
+        name: '需求规格说明',
+        agentName: '产品经理',
+        content: '需求规格说明（示例）：目标用户、核心功能、验收标准、里程碑等。'
+      },
+      {
+        id: 'artifact-req-002',
+        projectId: devProject.id,
+        stageId: 'requirement',
+        type: 'analysis',
+        name: '用户画像与场景',
+        agentName: '用户研究员',
+        content: '用户画像与使用场景（示例）：目标人群、痛点、学习路径。'
+      }
+    ];
 
-        const artifacts = [
-            {
-                id: 'artifact-req-001',
-                projectId: devProject.id,
-                stageId: 'requirement',
-                type: 'prd',
-                name: '需求规格说明',
-                agentName: '产品经理',
-                content: '需求规格说明（示例）：目标用户、核心功能、验收标准、里程碑等。'
-            },
-            {
-                id: 'artifact-req-002',
-                projectId: devProject.id,
-                stageId: 'requirement',
-                type: 'analysis',
-                name: '用户画像与场景',
-                agentName: '用户研究员',
-                content: '用户画像与使用场景（示例）：目标人群、痛点、学习路径。'
-            }
-        ];
-
-        const existingDemo = existingProjects.find(project => project.id === demoProject.id);
-        if (!existingDemo) {
-            await this.storageManager.saveProject(demoProject);
-        } else {
-            const patch = {
-                assignedAgents: existingDemo.assignedAgents?.length ? existingDemo.assignedAgents : demoProject.assignedAgents,
-                members: existingDemo.members?.length ? existingDemo.members : demoProject.members,
-                demo: existingDemo.demo || demoProject.demo
-            };
-            await this.storageManager.saveProject({ ...existingDemo, ...patch });
-        }
-
-        const existingDev = existingProjects.find(project => project.id === devProject.id);
-        if (!existingDev) {
-            await this.storageManager.saveProject(devProject);
-            await this.storageManager.saveArtifacts(artifacts);
-            await this.storageManager.saveKnowledgeItems(this.buildKnowledgeFromArtifacts(devProject.id, artifacts));
-        } else {
-            const patchedWorkflow = this.patchWorkflowArtifacts(existingDev.workflow, devProject.workflow);
-            const defaultDevAgents = devProject.assignedAgents;
-            const validAgentIds = this.getValidAgentIds();
-            const currentAgents = existingDev.assignedAgents || [];
-            const hasValidAgents = currentAgents.some(id => validAgentIds.has(id));
-            const patch = {
-                assignedAgents: currentAgents.length && hasValidAgents ? currentAgents : defaultDevAgents,
-                members: existingDev.members?.length ? existingDev.members : devProject.members,
-                workflow: existingDev.workflow ? patchedWorkflow : devProject.workflow
-            };
-            await this.storageManager.saveProject({ ...existingDev, ...patch });
-            await this.storageManager.saveArtifacts(artifacts);
-            await this.storageManager.saveKnowledgeItems(this.buildKnowledgeFromArtifacts(devProject.id, artifacts));
-        }
-
-        console.log('[ProjectManager] 已写入项目空间Mock数据');
+    const existingDemo = existingProjects.find(project => project.id === demoProject.id);
+    if (!existingDemo) {
+      await this.storageManager.saveProject(demoProject);
+    } else {
+      const patch = {
+        assignedAgents: existingDemo.assignedAgents?.length
+          ? existingDemo.assignedAgents
+          : demoProject.assignedAgents,
+        members: existingDemo.members?.length ? existingDemo.members : demoProject.members,
+        demo: existingDemo.demo || demoProject.demo
+      };
+      await this.storageManager.saveProject({ ...existingDemo, ...patch });
     }
 
-    buildKnowledgeFromArtifacts(projectId, artifacts) {
-        const docTypeMap = {
-            'prd': 'prd',
-            'ui-design': 'design',
-            'architecture-doc': 'tech',
-            'test-report': 'analysis',
-            'deploy-doc': 'tech',
-            'marketing-plan': 'analysis'
-        };
+    const existingDev = existingProjects.find(project => project.id === devProject.id);
+    if (!existingDev) {
+      await this.storageManager.saveProject(devProject);
+      await this.storageManager.saveArtifacts(artifacts);
+      await this.storageManager.saveKnowledgeItems(
+        this.buildKnowledgeFromArtifacts(devProject.id, artifacts)
+      );
+    } else {
+      const patchedWorkflow = this.patchWorkflowArtifacts(
+        existingDev.workflow,
+        devProject.workflow
+      );
+      const defaultDevAgents = devProject.assignedAgents;
+      const validAgentIds = this.getValidAgentIds();
+      const currentAgents = existingDev.assignedAgents || [];
+      const hasValidAgents = currentAgents.some(id => validAgentIds.has(id));
+      const patch = {
+        assignedAgents: currentAgents.length && hasValidAgents ? currentAgents : defaultDevAgents,
+        members: existingDev.members?.length ? existingDev.members : devProject.members,
+        workflow: existingDev.workflow ? patchedWorkflow : devProject.workflow
+      };
+      await this.storageManager.saveProject({ ...existingDev, ...patch });
+      await this.storageManager.saveArtifacts(artifacts);
+      await this.storageManager.saveKnowledgeItems(
+        this.buildKnowledgeFromArtifacts(devProject.id, artifacts)
+      );
+    }
+  }
 
-        return artifacts
-            .filter(artifact => docTypeMap[artifact.type])
-            .map(artifact => ({
-                id: `knowledge-${artifact.id}`,
-                title: artifact.name || '未命名文档',
-                type: docTypeMap[artifact.type],
-                scope: 'project',
-                projectId,
-                content: artifact.content || '',
-                tags: [artifact.type, artifact.stageId].filter(Boolean),
-                createdAt: artifact.createdAt || Date.now()
-            }));
+  buildKnowledgeFromArtifacts(projectId, artifacts) {
+    const docTypeMap = {
+      prd: 'prd',
+      'ui-design': 'design',
+      'architecture-doc': 'tech',
+      'test-report': 'analysis',
+      'deploy-doc': 'tech',
+      'marketing-plan': 'analysis'
+    };
+
+    return artifacts
+      .filter(artifact => docTypeMap[artifact.type])
+      .map(artifact => ({
+        id: `knowledge-${artifact.id}`,
+        title: artifact.name || '未命名文档',
+        type: docTypeMap[artifact.type],
+        scope: 'project',
+        projectId,
+        content: artifact.content || '',
+        tags: [artifact.type, artifact.stageId].filter(Boolean),
+        createdAt: artifact.createdAt || Date.now()
+      }));
+  }
+
+  getValidAgentIds() {
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const ids = agentMarket.map(agent => agent.id);
+    if (ids.length > 0) {
+      return new Set(ids);
+    }
+    return new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006']);
+  }
+
+  patchWorkflowArtifacts(workflow, templateWorkflow) {
+    if (!workflow || !Array.isArray(workflow.stages)) {
+      return templateWorkflow;
+    }
+    if (!templateWorkflow || !Array.isArray(templateWorkflow.stages)) {
+      return workflow;
     }
 
-    getValidAgentIds() {
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const ids = agentMarket.map(agent => agent.id);
-        if (ids.length > 0) {
-            return new Set(ids);
+    const templateMap = new Map(templateWorkflow.stages.map(stage => [stage.id, stage]));
+    const patchedStages = workflow.stages.map(stage => {
+      const templateStage = templateMap.get(stage.id);
+      if (!templateStage || !Array.isArray(stage.artifacts)) {
+        return stage;
+      }
+      const patchedArtifacts = stage.artifacts.map(artifact => {
+        if (artifact.type) {
+          return artifact;
         }
-        return new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006']);
+        const templateArtifact = templateStage.artifacts?.find(item => item.id === artifact.id);
+        return templateArtifact
+          ? { ...artifact, type: templateArtifact.type }
+          : { ...artifact, type: 'document' };
+      });
+      return { ...stage, artifacts: patchedArtifacts };
+    });
+
+    return { ...workflow, stages: patchedStages };
+  }
+
+  /**
+   * 创建项目（从创意）
+   * @param {String} ideaId - 创意ID（对话ID）
+   * @param {String} mode - 'demo' | 'development'
+   * @param {String} name - 项目名称
+   * @returns {Promise<Object>} 项目对象
+   */
+  async createProject(ideaId, mode, name) {
+    try {
+      // 检查该创意是否已创建项目
+      const existing = await this.storageManager.getProjectByIdeaId(ideaId);
+      if (existing) {
+        throw new Error('该创意已创建项目');
+      }
+
+      // 调用后端API创建项目
+      const response = await fetch(`${this.apiUrl}/api/projects/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ideaId, mode, name })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '创建项目失败');
+      }
+
+      const result = await response.json();
+      const project = result.data.project;
+
+      // 保存到本地存储
+      await this.storageManager.saveProject(project);
+
+      // 更新内存
+      this.projects.unshift(project);
+
+      // 更新全局状态
+      if (window.addProject) {
+        window.addProject(project);
+      }
+
+      return project;
+    } catch (error) {
+      throw error;
     }
+  }
 
-    patchWorkflowArtifacts(workflow, templateWorkflow) {
-        if (!workflow || !Array.isArray(workflow.stages)) {
-            return templateWorkflow;
-        }
-        if (!templateWorkflow || !Array.isArray(templateWorkflow.stages)) {
-            return workflow;
-        }
+  /**
+   * 获取项目详情
+   * @param {String} projectId - 项目ID
+   * @returns {Promise<Object>} 项目对象
+   */
+  async getProject(projectId) {
+    try {
+      // 先从本地获取
+      const project = await this.storageManager.getProject(projectId);
+      if (project) {
+        return project;
+      }
 
-        const templateMap = new Map(templateWorkflow.stages.map(stage => [stage.id, stage]));
-        const patchedStages = workflow.stages.map(stage => {
-            const templateStage = templateMap.get(stage.id);
-            if (!templateStage || !Array.isArray(stage.artifacts)) {
-                return stage;
-            }
-            const patchedArtifacts = stage.artifacts.map(artifact => {
-                if (artifact.type) {
-                    return artifact;
-                }
-                const templateArtifact = templateStage.artifacts?.find(item => item.id === artifact.id);
-                return templateArtifact ? { ...artifact, type: templateArtifact.type } : { ...artifact, type: 'document' };
-            });
-            return { ...stage, artifacts: patchedArtifacts };
+      // 如果本地没有，从后端获取
+      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`);
+      if (!response.ok) {
+        throw new Error('项目不存在');
+      }
+
+      const result = await response.json();
+      return result.data.project;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 根据创意ID获取项目
+   * @param {String} ideaId - 创意ID
+   * @returns {Promise<Object|null>} 项目对象
+   */
+  async getProjectByIdeaId(ideaId) {
+    return await this.storageManager.getProjectByIdeaId(ideaId);
+  }
+
+  /**
+   * 更新项目
+   * @param {String} projectId - 项目ID
+   * @param {Object} updates - 更新内容
+   */
+  async updateProject(projectId, updates) {
+    try {
+      // 调用后端API
+      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || '更新项目失败');
+      }
+
+      const result = await response.json();
+      const project = result.data.project;
+
+      // 更新本地存储
+      await this.storageManager.saveProject(project);
+
+      // 更新内存
+      const index = this.projects.findIndex(p => p.id === projectId);
+      if (index !== -1) {
+        this.projects[index] = project;
+      }
+
+      // 更新全局状态
+      if (window.updateProject) {
+        window.updateProject(projectId, updates);
+      }
+
+      this.refreshProjectPanel(project);
+
+      return project;
+    } catch (error) {
+      const existing = await this.storageManager.getProject(projectId);
+      if (!existing) {
+        throw error;
+      }
+      const project = { ...existing, ...updates, updatedAt: Date.now() };
+      await this.storageManager.saveProject(project);
+
+      const index = this.projects.findIndex(p => p.id === projectId);
+      if (index !== -1) {
+        this.projects[index] = project;
+      }
+      if (window.updateProject) {
+        window.updateProject(projectId, updates);
+      }
+      this.refreshProjectPanel(project);
+      return project;
+    }
+  }
+
+  /**
+   * 删除项目
+   * @param {String} projectId - 项目ID
+   */
+  async deleteProject(projectId) {
+    try {
+      try {
+        const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
+          method: 'DELETE'
         });
-
-        return { ...workflow, stages: patchedStages };
-    }
-
-    /**
-     * 创建项目（从创意）
-     * @param {String} ideaId - 创意ID（对话ID）
-     * @param {String} mode - 'demo' | 'development'
-     * @param {String} name - 项目名称
-     * @returns {Promise<Object>} 项目对象
-     */
-    async createProject(ideaId, mode, name) {
-        try {
-            // 检查该创意是否已创建项目
-            const existing = await this.storageManager.getProjectByIdeaId(ideaId);
-            if (existing) {
-                throw new Error('该创意已创建项目');
-            }
-
-            // 调用后端API创建项目
-            const response = await fetch(`${this.apiUrl}/api/projects/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ideaId, mode, name })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '创建项目失败');
-            }
-
-            const result = await response.json();
-            const project = result.data.project;
-
-            // 保存到本地存储
-            await this.storageManager.saveProject(project);
-
-            // 更新内存
-            this.projects.unshift(project);
-
-            // 更新全局状态
-            if (window.addProject) {
-                window.addProject(project);
-            }
-
-            console.log(`[ProjectManager] 创建项目成功: ${project.id}`);
-
-            return project;
-        } catch (error) {
-            console.error('[ProjectManager] 创建项目失败:', error);
-            throw error;
+        if (!response.ok) {
         }
-    }
+      } catch (error) {}
 
-    /**
-     * 获取项目详情
-     * @param {String} projectId - 项目ID
-     * @returns {Promise<Object>} 项目对象
-     */
-    async getProject(projectId) {
-        try {
-            // 先从本地获取
-            const project = await this.storageManager.getProject(projectId);
-            if (project) {
-                return project;
-            }
+      // 删除本地存储
+      await this.storageManager.deleteProject(projectId);
 
-            // 如果本地没有，从后端获取
-            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`);
-            if (!response.ok) {
-                throw new Error('项目不存在');
-            }
+      // 更新内存
+      this.projects = this.projects.filter(p => p.id !== projectId);
 
-            const result = await response.json();
-            return result.data.project;
-        } catch (error) {
-            console.error('[ProjectManager] 获取项目失败:', error);
-            throw error;
-        }
-    }
+      // 更新全局状态
+      if (window.removeProject) {
+        window.removeProject(projectId);
+      }
 
-    /**
-     * 根据创意ID获取项目
-     * @param {String} ideaId - 创意ID
-     * @returns {Promise<Object|null>} 项目对象
-     */
-    async getProjectByIdeaId(ideaId) {
-        return await this.storageManager.getProjectByIdeaId(ideaId);
-    }
-
-    /**
-     * 更新项目
-     * @param {String} projectId - 项目ID
-     * @param {Object} updates - 更新内容
-     */
-    async updateProject(projectId, updates) {
-        try {
-            // 调用后端API
-            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.error || '更新项目失败');
-            }
-
-            const result = await response.json();
-            const project = result.data.project;
-
-            // 更新本地存储
-            await this.storageManager.saveProject(project);
-
-            // 更新内存
-            const index = this.projects.findIndex(p => p.id === projectId);
-            if (index !== -1) {
-                this.projects[index] = project;
-            }
-
-            // 更新全局状态
-            if (window.updateProject) {
-                window.updateProject(projectId, updates);
-            }
-
-            this.refreshProjectPanel(project);
-
-            console.log(`[ProjectManager] 更新项目成功: ${projectId}`);
-
-            return project;
-        } catch (error) {
-            console.warn('[ProjectManager] 后端不可用，使用本地更新:', error.message);
-            const existing = await this.storageManager.getProject(projectId);
-            if (!existing) {
-                throw error;
-            }
-            const project = { ...existing, ...updates, updatedAt: Date.now() };
-            await this.storageManager.saveProject(project);
-
-            const index = this.projects.findIndex(p => p.id === projectId);
-            if (index !== -1) {
-                this.projects[index] = project;
-            }
-            if (window.updateProject) {
-                window.updateProject(projectId, updates);
-            }
-            this.refreshProjectPanel(project);
-            return project;
-        }
-    }
-
-    /**
-     * 删除项目
-     * @param {String} projectId - 项目ID
-     */
-    async deleteProject(projectId) {
-        try {
-            try {
-                const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
-                    method: 'DELETE'
-                });
-                if (!response.ok) {
-                    console.warn('[ProjectManager] 后端删除失败，将继续清理本地数据');
-                }
-            } catch (error) {
-                console.warn('[ProjectManager] 后端删除失败，将继续清理本地数据:', error);
-            }
-
-            // 删除本地存储
-            await this.storageManager.deleteProject(projectId);
-
-            // 更新内存
-            this.projects = this.projects.filter(p => p.id !== projectId);
-
-            // 更新全局状态
-            if (window.removeProject) {
-                window.removeProject(projectId);
-            }
-
-            if (this.currentProjectId === projectId) {
-                this.closeProjectPanel();
-            }
-
-            this.renderProjectList('projectListContainer');
-
-            console.log(`[ProjectManager] 删除项目成功: ${projectId}`);
-
-        } catch (error) {
-            console.error('[ProjectManager] 删除项目失败:', error);
-            throw error;
-        }
-    }
-
-    confirmDeleteCurrentProject() {
-        if (!this.currentProjectId) {
-            return;
-        }
-        const projectName = this.currentProject?.name || '该项目';
-        const confirmed = window.confirm(`确定要删除 "${projectName}" 吗？\n\n此操作不可恢复。`);
-        if (!confirmed) {
-            return;
-        }
-        this.deleteProject(this.currentProjectId);
-    }
-
-    editCurrentProjectName() {
-        if (!this.currentProjectId || !this.currentProject) {
-            return;
-        }
-        const newName = window.prompt('修改项目名称：', this.currentProject.name || '');
-        if (!newName || !newName.trim()) {
-            return;
-        }
-        if (newName.trim() === this.currentProject.name) {
-            return;
-        }
-        this.updateProject(this.currentProjectId, { name: newName.trim() })
-            .then(updated => {
-                const viewProject = updated || { ...this.currentProject, name: newName.trim() };
-                this.currentProject = viewProject;
-                this.renderProjectList('projectListContainer');
-                this.refreshProjectPanel(viewProject);
-            })
-            .catch(error => {
-                console.error('[ProjectManager] 更新项目名称失败:', error);
-            });
-    }
-
-    openProjectKnowledgePanel() {
-        if (!this.currentProjectId) {
-            return;
-        }
-        showKnowledgeBase('project', this.currentProjectId);
-    }
-
-    openIdeaChat(chatId) {
-        if (!chatId) {
-            return;
-        }
+      if (this.currentProjectId === projectId) {
         this.closeProjectPanel();
-        if (typeof window.loadChat === 'function') {
-            window.loadChat(chatId);
-        } else {
-            console.error('[ProjectManager] loadChat 未定义');
+      }
+
+      this.renderProjectList('projectListContainer');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  confirmDeleteCurrentProject() {
+    if (!this.currentProjectId) {
+      return;
+    }
+    const projectName = this.currentProject?.name || '该项目';
+    const confirmed = window.confirm(`确定要删除 "${projectName}" 吗？\n\n此操作不可恢复。`);
+    if (!confirmed) {
+      return;
+    }
+    this.deleteProject(this.currentProjectId);
+  }
+
+  editCurrentProjectName() {
+    if (!this.currentProjectId || !this.currentProject) {
+      return;
+    }
+    const newName = window.prompt('修改项目名称：', this.currentProject.name || '');
+    if (!newName || !newName.trim()) {
+      return;
+    }
+    if (newName.trim() === this.currentProject.name) {
+      return;
+    }
+    this.updateProject(this.currentProjectId, { name: newName.trim() })
+      .then(updated => {
+        const viewProject = updated || { ...this.currentProject, name: newName.trim() };
+        this.currentProject = viewProject;
+        this.renderProjectList('projectListContainer');
+        this.refreshProjectPanel(viewProject);
+      })
+      .catch(error => {});
+  }
+
+  openProjectKnowledgePanel() {
+    if (!this.currentProjectId) {
+      return;
+    }
+    showKnowledgeBase('project', this.currentProjectId);
+  }
+
+  openIdeaChat(chatId) {
+    if (!chatId) {
+      return;
+    }
+    this.closeProjectPanel();
+    if (typeof window.loadChat === 'function') {
+      window.loadChat(chatId);
+    } else {
+    }
+  }
+
+  /**
+   * 升级项目模式（Demo → Development）
+   * @param {String} projectId - 项目ID
+   * @returns {Promise<Object>} 升级后的项目
+   */
+  async upgradeProject(projectId) {
+    try {
+      const existingProject = await this.getProject(projectId);
+      const readiness = this.evaluateUpgradeReadiness(existingProject);
+      if (readiness.missingRoles.length > 0) {
+        const shouldContinue = await this.confirmUpgradeWithMissingRoles(projectId, readiness);
+        if (!shouldContinue) {
+          return;
         }
+      }
+
+      // 调用后端API
+      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}/upgrade`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '升级失败');
+      }
+
+      const result = await response.json();
+      const project = result.data.project;
+
+      // 更新本地存储
+      await this.storageManager.saveProject(project);
+
+      // 更新内存
+      const index = this.projects.findIndex(p => p.id === projectId);
+      if (index !== -1) {
+        this.projects[index] = project;
+      }
+
+      this.refreshProjectPanel(project);
+
+      return project;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 为项目关联Demo
+   * @param {String} projectId - 项目ID
+   * @param {Object} demoData - Demo数据
+   */
+  async linkDemo(projectId, demoData) {
+    try {
+      const project = await this.storageManager.getProject(projectId);
+      if (!project) {
+        throw new Error('项目不存在');
+      }
+
+      // 更新项目的demo数据
+      project.demo = {
+        type: demoData.demoType,
+        code: demoData.code || null,
+        previewUrl: demoData.previewUrl,
+        downloadUrl: demoData.downloadUrl,
+        generatedAt: demoData.generatedAt || Date.now()
+      };
+
+      // 保存到本地
+      await this.storageManager.saveProject(project);
+
+      // 更新后端
+      await this.updateProject(projectId, { demo: project.demo });
+
+      this.refreshProjectPanel(project);
+
+      return project;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 渲染项目列表
+   * @param {String} containerId - 容器元素ID
+   */
+  renderProjectList(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      return;
     }
 
-    /**
-     * 升级项目模式（Demo → Development）
-     * @param {String} projectId - 项目ID
-     * @returns {Promise<Object>} 升级后的项目
-     */
-    async upgradeProject(projectId) {
-        try {
-            const existingProject = await this.getProject(projectId);
-            const readiness = this.evaluateUpgradeReadiness(existingProject);
-            if (readiness.missingRoles.length > 0) {
-                const shouldContinue = await this.confirmUpgradeWithMissingRoles(projectId, readiness);
-                if (!shouldContinue) {
-                    return;
-                }
-            }
-
-            // 调用后端API
-            const response = await fetch(`${this.apiUrl}/api/projects/${projectId}/upgrade`, {
-                method: 'POST'
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '升级失败');
-            }
-
-            const result = await response.json();
-            const project = result.data.project;
-
-            // 更新本地存储
-            await this.storageManager.saveProject(project);
-
-            // 更新内存
-            const index = this.projects.findIndex(p => p.id === projectId);
-            if (index !== -1) {
-                this.projects[index] = project;
-            }
-
-            this.refreshProjectPanel(project);
-
-            console.log(`[ProjectManager] 项目升级成功: ${projectId}`);
-
-            return project;
-        } catch (error) {
-            console.error('[ProjectManager] 项目升级失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 为项目关联Demo
-     * @param {String} projectId - 项目ID
-     * @param {Object} demoData - Demo数据
-     */
-    async linkDemo(projectId, demoData) {
-        try {
-            const project = await this.storageManager.getProject(projectId);
-            if (!project) {
-                throw new Error('项目不存在');
-            }
-
-            // 更新项目的demo数据
-            project.demo = {
-                type: demoData.demoType,
-                code: demoData.code || null,
-                previewUrl: demoData.previewUrl,
-                downloadUrl: demoData.downloadUrl,
-                generatedAt: demoData.generatedAt || Date.now()
-            };
-
-            // 保存到本地
-            await this.storageManager.saveProject(project);
-
-            // 更新后端
-            await this.updateProject(projectId, { demo: project.demo });
-
-            this.refreshProjectPanel(project);
-
-            console.log(`[ProjectManager] Demo已关联到项目: ${projectId}`);
-
-            return project;
-        } catch (error) {
-            console.error('[ProjectManager] 关联Demo失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 渲染项目列表
-     * @param {String} containerId - 容器元素ID
-     */
-    renderProjectList(containerId) {
-        const container = document.getElementById(containerId);
-        if (!container) {
-            console.error(`[ProjectManager] 容器不存在: ${containerId}`);
-            return;
-        }
-
-        const headerHTML = `
+    const headerHTML = `
             <div class="project-list-header">
                 <div class="project-list-title">
                     项目空间
@@ -603,8 +580,8 @@ class ProjectManager {
             </div>
         `;
 
-        if (this.projects.length === 0) {
-            container.innerHTML = `
+    if (this.projects.length === 0) {
+      container.innerHTML = `
                 <div class="project-list">
                     ${headerHTML}
                     <div class="project-list-empty">
@@ -616,12 +593,12 @@ class ProjectManager {
                     </div>
                 </div>
             `;
-            return;
-        }
+      return;
+    }
 
-        const projectCardsHTML = this.projects.map(project => this.renderProjectCard(project)).join('');
+    const projectCardsHTML = this.projects.map(project => this.renderProjectCard(project)).join('');
 
-        container.innerHTML = `
+    container.innerHTML = `
             <div class="project-list">
                 ${headerHTML}
                 <div class="project-list-grid">
@@ -629,44 +606,49 @@ class ProjectManager {
                 </div>
             </div>
         `;
-    }
+  }
 
-    /**
-     * 渲染单个项目卡片
-     * @param {Object} project - 项目对象
-     * @returns {String} HTML字符串
-     */
-    renderProjectCard(project) {
-        const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
-        const statusText = {
-            planning: '规划中',
-            active: '进行中',
-            completed: '已完成',
-            archived: '已归档'
-        }[project.status] || project.status;
+  /**
+   * 渲染单个项目卡片
+   * @param {Object} project - 项目对象
+   * @returns {String} HTML字符串
+   */
+  renderProjectCard(project) {
+    const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
+    const statusText =
+      {
+        planning: '规划中',
+        active: '进行中',
+        completed: '已完成',
+        archived: '已归档'
+      }[project.status] || project.status;
 
-        const timeAgo = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
-        const isActive = this.currentProjectId === project.id;
-        const statusClass = `status-${project.status || 'planning'}`;
-        const memberCount = (project.assignedAgents || []).length;
-        const ideaCount = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean)).size;
-        const stageCount = project.workflow?.stages?.length || 0;
-        const completedStages = (project.workflow?.stages || []).filter(stage => stage.status === 'completed').length;
-        const pendingStages = Math.max(stageCount - completedStages, 0);
-        const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
-        const progress = this.calculateWorkflowProgress(project.workflow);
-        const metaItems = project.mode === 'demo'
-            ? [`更新 ${timeAgo}`, `Demo ${demoStatus}`]
-            : [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`];
+    const timeAgo = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
+    const isActive = this.currentProjectId === project.id;
+    const statusClass = `status-${project.status || 'planning'}`;
+    const memberCount = (project.assignedAgents || []).length;
+    const ideaCount = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean))
+      .size;
+    const stageCount = project.workflow?.stages?.length || 0;
+    const completedStages = (project.workflow?.stages || []).filter(
+      stage => stage.status === 'completed'
+    ).length;
+    const pendingStages = Math.max(stageCount - completedStages, 0);
+    const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
+    const progress = this.calculateWorkflowProgress(project.workflow);
+    const metaItems =
+      project.mode === 'demo'
+        ? [`更新 ${timeAgo}`, `Demo ${demoStatus}`]
+        : [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`];
 
-        let contentHTML = '';
+    let contentHTML = '';
 
-        if (project.mode === 'demo') {
-            contentHTML = `
+    if (project.mode === 'demo') {
+      contentHTML = `
                 <div class="project-card-note">Demo 状态：${demoStatus}</div>
             `;
-        } else {
-            contentHTML = `
+    } else {
+      contentHTML = `
                 <div class="project-card-progress-row">
                     <div class="project-card-progress-label">进度 ${progress}%</div>
                     <div class="project-card-progress">
@@ -674,9 +656,9 @@ class ProjectManager {
                     </div>
                 </div>
             `;
-        }
+    }
 
-        return `
+    return `
             <div class="project-card${isActive ? ' active' : ''}" data-project-id="${project.id}" onclick="projectManager.openProject('${project.id}')">
                 <div class="project-card-head">
                     <div class="project-card-title-row">
@@ -687,10 +669,14 @@ class ProjectManager {
                         <span class="project-pill">${modeText}</span>
                     </div>
                     <div class="project-card-meta">
-                        ${metaItems.map((item, index) => `
+                        ${metaItems
+    .map(
+      (item, index) => `
                             ${index ? '<span class="project-card-meta-dot"></span>' : ''}
                             <span>${item}</span>
-                        `).join('')}
+                        `
+    )
+    .join('')}
                     </div>
                 </div>
                 <div class="project-card-kpis">
@@ -710,158 +696,170 @@ class ProjectManager {
                 ${contentHTML}
             </div>
         `;
+  }
+
+  /**
+   * 计算工作流进度
+   * @param {Object} workflow - 工作流对象
+   * @returns {Number} 进度百分比
+   */
+  calculateWorkflowProgress(workflow) {
+    if (!workflow || !workflow.stages || workflow.stages.length === 0) {
+      return 0;
     }
 
-    /**
-     * 计算工作流进度
-     * @param {Object} workflow - 工作流对象
-     * @returns {Number} 进度百分比
-     */
-    calculateWorkflowProgress(workflow) {
-        if (!workflow || !workflow.stages || workflow.stages.length === 0) {
-            return 0;
-        }
+    const completedStages = workflow.stages.filter(s => s.status === 'completed').length;
+    return Math.round((completedStages / workflow.stages.length) * 100);
+  }
 
-        const completedStages = workflow.stages.filter(s => s.status === 'completed').length;
-        return Math.round((completedStages / workflow.stages.length) * 100);
+  /**
+   * 格式化时间
+   * @param {Number} timestamp - 时间戳
+   * @returns {String} 相对时间
+   */
+  formatTimeAgo(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days}天前`;
+    }
+    if (hours > 0) {
+      return `${hours}小时前`;
+    }
+    if (minutes > 0) {
+      return `${minutes}分钟前`;
+    }
+    return '刚刚';
+  }
+
+  /**
+   * HTML转义
+   * @param {String} text - 文本
+   * @returns {String} 转义后的文本
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * 刷新项目面板
+   * @param {Object} project - 项目对象
+   */
+  refreshProjectPanel(project) {
+    if (!project || !this.currentProjectId || project.id !== this.currentProjectId) {
+      return;
     }
 
-    /**
-     * 格式化时间
-     * @param {Number} timestamp - 时间戳
-     * @returns {String} 相对时间
-     */
-    formatTimeAgo(timestamp) {
-        const now = Date.now();
-        const diff = now - timestamp;
+    this.currentProject = project;
+    this.renderProjectPanel(project);
+    this.updateProjectSelection(project.id);
+  }
 
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
+  /**
+   * 更新项目选中状态
+   * @param {String|null} projectId - 项目ID
+   */
+  updateProjectSelection(projectId) {
+    document.querySelectorAll('[data-project-id]').forEach(card => {
+      card.classList.toggle('active', card.dataset.projectId === projectId);
+    });
+  }
 
-        if (days > 0) return `${days}天前`;
-        if (hours > 0) return `${hours}小时前`;
-        if (minutes > 0) return `${minutes}分钟前`;
-        return '刚刚';
+  /**
+   * 显示项目右侧面板
+   * @param {Object} project - 项目对象
+   */
+  renderProjectPanel(project) {
+    const panel = document.getElementById('projectPanel');
+    const title = document.getElementById('projectPanelTitle');
+    const body = document.getElementById('projectPanelBody');
+    const mainContent = document.querySelector('.main-content');
+    const chatContainer = document.getElementById('chatContainer');
+    const knowledgePanel = document.getElementById('knowledgePanel');
+
+    if (!panel || !body || !title) {
+      this.renderWorkflowDetails(project);
+      return;
     }
 
-    /**
-     * HTML转义
-     * @param {String} text - 文本
-     * @returns {String} 转义后的文本
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
+    const statusText =
+      {
+        planning: '规划中',
+        active: '进行中',
+        completed: '已完成',
+        archived: '已归档'
+      }[project.status] || project.status;
 
-    /**
-     * 刷新项目面板
-     * @param {Object} project - 项目对象
-     */
-    refreshProjectPanel(project) {
-        if (!project || !this.currentProjectId || project.id !== this.currentProjectId) {
-            return;
-        }
+    const workflowReady = Boolean(window.workflowExecutor);
+    const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
+    const updatedAt = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
 
-        this.currentProject = project;
-        this.renderProjectPanel(project);
-        this.updateProjectSelection(project.id);
-    }
+    const progress = this.calculateWorkflowProgress(project.workflow);
+    const memberCount = (project.assignedAgents || []).length;
+    const ideaCount = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean))
+      .size;
+    const stageCount = project.workflow?.stages?.length || 0;
+    const completedStages = (project.workflow?.stages || []).filter(
+      stage => stage.status === 'completed'
+    ).length;
+    const pendingStages = Math.max(stageCount - completedStages, 0);
+    const statusClass = `status-${project.status || 'planning'}`;
 
-    /**
-     * 更新项目选中状态
-     * @param {String|null} projectId - 项目ID
-     */
-    updateProjectSelection(projectId) {
-        document.querySelectorAll('[data-project-id]').forEach(card => {
-            card.classList.toggle('active', card.dataset.projectId === projectId);
-        });
-    }
+    const stagesHTML = (project.workflow?.stages || [])
+      .map(stage => {
+        const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+        const statusTextMap = {
+          pending: '未开始',
+          active: '进行中',
+          completed: '已完成'
+        };
+        const statusColor =
+          {
+            pending: '#9ca3af',
+            active: '#3b82f6',
+            completed: '#10b981'
+          }[stage.status] || '#9ca3af';
 
-    /**
-     * 显示项目右侧面板
-     * @param {Object} project - 项目对象
-     */
-    renderProjectPanel(project) {
-        const panel = document.getElementById('projectPanel');
-        const title = document.getElementById('projectPanelTitle');
-        const body = document.getElementById('projectPanelBody');
-        const mainContent = document.querySelector('.main-content');
-        const chatContainer = document.getElementById('chatContainer');
-        const knowledgePanel = document.getElementById('knowledgePanel');
+        const displayArtifacts = this.getDisplayArtifacts(stage);
+        const artifactsHTML = this.renderStageArtifacts(stage, project.id, displayArtifacts);
 
-        if (!panel || !body || !title) {
-            this.renderWorkflowDetails(project);
-            return;
-        }
-
-        const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
-        const statusText = {
-            planning: '规划中',
-            active: '进行中',
-            completed: '已完成',
-            archived: '已归档'
-        }[project.status] || project.status;
-
-        const workflowReady = !!window.workflowExecutor;
-        const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
-        const updatedAt = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
-
-        const progress = this.calculateWorkflowProgress(project.workflow);
-        const memberCount = (project.assignedAgents || []).length;
-        const ideaCount = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean)).size;
-        const stageCount = project.workflow?.stages?.length || 0;
-        const completedStages = (project.workflow?.stages || []).filter(stage => stage.status === 'completed').length;
-        const pendingStages = Math.max(stageCount - completedStages, 0);
-        const statusClass = `status-${project.status || 'planning'}`;
-
-        const stagesHTML = (project.workflow?.stages || []).map(stage => {
-            const definition = window.workflowExecutor?.getStageDefinition(stage.id);
-            const statusTextMap = {
-                pending: '未开始',
-                active: '进行中',
-                completed: '已完成'
-            };
-            const statusColor = {
-                pending: '#9ca3af',
-                active: '#3b82f6',
-                completed: '#10b981'
-            }[stage.status] || '#9ca3af';
-
-            const displayArtifacts = this.getDisplayArtifacts(stage);
-            const artifactsHTML = this.renderStageArtifacts(stage, project.id, displayArtifacts);
-
-            let actionHTML = '';
-            if (stage.status === 'pending') {
-                actionHTML = workflowReady
-                    ? `
+        let actionHTML = '';
+        if (stage.status === 'pending') {
+          actionHTML = workflowReady
+            ? `
                         <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}')">
                             开始执行
                         </button>
                     `
-                    : `
+            : `
                         <button class="btn-secondary" disabled title="工作流执行器未就绪">
                             开始执行
                         </button>
                     `;
-            } else if (stage.status === 'completed') {
-                if (displayArtifacts.length > 3) {
-                    actionHTML = `
+        } else if (stage.status === 'completed') {
+          if (displayArtifacts.length > 3) {
+            actionHTML = `
                         <button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">
                             查看交付物 (${displayArtifacts.length})
                         </button>
                     `;
-                } else {
-                    actionHTML = '';
-                }
-            } else {
-                actionHTML = `<button class="btn-secondary" disabled>执行中...</button>`;
-            }
+          } else {
+            actionHTML = '';
+          }
+        } else {
+          actionHTML = '<button class="btn-secondary" disabled>执行中...</button>';
+        }
 
-            return `
+        return `
                 <div class="project-stage-item">
                     <div class="project-stage-title">${definition?.name || stage.name}</div>
                     <div class="project-stage-meta">
@@ -871,17 +869,22 @@ class ProjectManager {
                         <span>${definition?.description || ''}</span>
                     </div>
                     ${artifactsHTML}
-                    ${actionHTML ? `
+                    ${
+  actionHTML
+    ? `
                         <div class="project-panel-actions">
                             ${actionHTML}
                         </div>
-                    ` : ''}
+                    `
+    : ''
+}
                 </div>
             `;
-        }).join('');
+      })
+      .join('');
 
-        const demoProgress = demoStatus === '已生成' ? 100 : 0;
-        const workflowSummarySection = `
+    const demoProgress = demoStatus === '已生成' ? 100 : 0;
+    const workflowSummarySection = `
             <div class="project-panel-section project-panel-card">
                 <div class="project-panel-section-title">协同开发执行</div>
                 <div class="project-panel-progress">
@@ -897,7 +900,7 @@ class ProjectManager {
                 </div>
             </div>
         `;
-        const workflowStagesSection = `
+    const workflowStagesSection = `
             <div class="project-panel-section project-panel-card project-panel-span-2">
                 <div class="project-panel-section-title">流程阶段</div>
                 <div class="project-stage-list">
@@ -905,7 +908,7 @@ class ProjectManager {
                 </div>
             </div>
         `;
-        const demoSummarySection = `
+    const demoSummarySection = `
             <div class="project-panel-section project-panel-card">
                 <div class="project-panel-section-title">Demo 状态</div>
                 <div class="project-panel-progress">
@@ -917,24 +920,29 @@ class ProjectManager {
                     </div>
                 </div>
                 <div class="project-panel-actions">
-                    ${project.demo && project.demo.previewUrl ? `
+                    ${
+  project.demo && project.demo.previewUrl
+    ? `
                         <button class="btn-primary" onclick="projectManager.previewDemo('${project.id}')">预览 Demo</button>
                         <button class="btn-secondary" onclick="projectManager.regenerateDemo('${project.id}')">重新生成</button>
                         <button class="btn-secondary" onclick="projectManager.upgradeProject('${project.id}')">升级为协同开发</button>
-                    ` : `
+                    `
+    : `
                         <button class="btn-primary" onclick="projectManager.startDemoGeneration('${project.id}')">生成 Demo</button>
                         <button class="btn-secondary" onclick="projectManager.upgradeProject('${project.id}')">直接升级协同开发</button>
-                    `}
+                    `
+}
                 </div>
             </div>
         `;
-        const workflowSection = project.mode === 'development'
-            ? `${workflowSummarySection}${workflowStagesSection}`
-            : demoSummarySection;
+    const workflowSection =
+      project.mode === 'development'
+        ? `${workflowSummarySection}${workflowStagesSection}`
+        : demoSummarySection;
 
-        title.textContent = project.name;
+    title.textContent = project.name;
 
-        body.innerHTML = `
+    body.innerHTML = `
             <div class="project-panel-hero">
                 <div class="project-panel-badges">
                     <span class="project-pill ${statusClass}">${statusText}</span>
@@ -985,39 +993,41 @@ class ProjectManager {
             </div>
         `;
 
-        panel.style.display = 'flex';
-        panel.classList.add('active');
-        if (mainContent) {
-            mainContent.classList.add('project-panel-open');
-        }
-        if (chatContainer) {
-            chatContainer.style.display = 'none';
-        }
-        if (knowledgePanel) {
-            knowledgePanel.style.display = 'none';
-        }
-
-        this.renderProjectMembersPanel(project);
-        this.renderProjectIdeasPanel(project);
-        this.renderProjectKnowledgePanel(project);
+    panel.style.display = 'flex';
+    panel.classList.add('active');
+    if (mainContent) {
+      mainContent.classList.add('project-panel-open');
+    }
+    if (chatContainer) {
+      chatContainer.style.display = 'none';
+    }
+    if (knowledgePanel) {
+      knowledgePanel.style.display = 'none';
     }
 
-    renderStageArtifacts(stage, projectId, displayArtifacts) {
-        if (stage.status !== 'completed') {
-            return '';
-        }
+    this.renderProjectMembersPanel(project);
+    this.renderProjectIdeasPanel(project);
+    this.renderProjectKnowledgePanel(project);
+  }
 
-        if (!displayArtifacts || displayArtifacts.length === 0) {
-            return '';
-        }
+  renderStageArtifacts(stage, projectId, displayArtifacts) {
+    if (stage.status !== 'completed') {
+      return '';
+    }
 
-        if (displayArtifacts.length > 3) {
-            return '';
-        }
+    if (!displayArtifacts || displayArtifacts.length === 0) {
+      return '';
+    }
 
-        return `
+    if (displayArtifacts.length > 3) {
+      return '';
+    }
+
+    return `
             <div class="project-panel-list" style="margin-top: 10px;">
-                ${displayArtifacts.map(artifact => `
+                ${displayArtifacts
+    .map(
+      artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -1027,80 +1037,94 @@ class ProjectManager {
                             查看
                         </button>
                     </div>
-                `).join('')}
+                `
+    )
+    .join('')}
             </div>
         `;
+  }
+
+  getDocArtifacts(stage) {
+    const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+    const docTypes = new Set([
+      'prd',
+      'ui-design',
+      'architecture-doc',
+      'test-report',
+      'deploy-doc',
+      'marketing-plan',
+      'document'
+    ]);
+    return artifacts
+      .map(artifact => ({
+        ...artifact,
+        type: artifact.type || 'document'
+      }))
+      .filter(artifact => docTypes.has(artifact.type));
+  }
+
+  getDisplayArtifacts(stage) {
+    const docArtifacts = this.getDocArtifacts(stage);
+    if (docArtifacts.length > 0) {
+      return docArtifacts;
+    }
+    const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+    return artifacts.map(artifact => ({
+      ...artifact,
+      type: artifact.type || 'document'
+    }));
+  }
+
+  async openKnowledgeFromArtifact(projectId, artifactId) {
+    if (!this.storageManager || !window.modalManager) {
+      return;
     }
 
-    getDocArtifacts(stage) {
-        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
-        const docTypes = new Set(['prd', 'ui-design', 'architecture-doc', 'test-report', 'deploy-doc', 'marketing-plan', 'document']);
-        return artifacts
-            .map(artifact => ({
-                ...artifact,
-                type: artifact.type || 'document'
-            }))
-            .filter(artifact => docTypes.has(artifact.type));
+    const knowledgeId = `knowledge-${artifactId}`;
+    let item = await this.storageManager.getKnowledge(knowledgeId);
+    if (!item) {
+      const artifact = await this.storageManager.getArtifact(artifactId);
+      if (!artifact) {
+        window.modalManager.alert('未找到交付物内容', 'warning');
+        return;
+      }
+      item = {
+        title: artifact.name || '交付物',
+        content: artifact.content || ''
+      };
     }
 
-    getDisplayArtifacts(stage) {
-        const docArtifacts = this.getDocArtifacts(stage);
-        if (docArtifacts.length > 0) {
-            return docArtifacts;
-        }
-        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
-        return artifacts.map(artifact => ({
-            ...artifact,
-            type: artifact.type || 'document'
-        }));
-    }
-
-    async openKnowledgeFromArtifact(projectId, artifactId) {
-        if (!this.storageManager || !window.modalManager) {
-            return;
-        }
-
-        const knowledgeId = `knowledge-${artifactId}`;
-        let item = await this.storageManager.getKnowledge(knowledgeId);
-        if (!item) {
-            const artifact = await this.storageManager.getArtifact(artifactId);
-            if (!artifact) {
-                window.modalManager.alert('未找到交付物内容', 'warning');
-                return;
-            }
-            item = {
-                title: artifact.name || '交付物',
-                content: artifact.content || ''
-            };
-        }
-
-        const rendered = window.markdownRenderer ? window.markdownRenderer.render(item.content || '') : (item.content || '');
-        const contentHTML = `
+    const rendered = window.markdownRenderer
+      ? window.markdownRenderer.render(item.content || '')
+      : item.content || '';
+    const contentHTML = `
             <div style="display: grid; gap: 12px;">
                 <div style="font-size: 18px; font-weight: 600;">${this.escapeHtml(item.title || '知识条目')}</div>
                 <div class="markdown-body">${rendered}</div>
             </div>
         `;
-        window.modalManager.showCustomModal('知识查看', contentHTML, 'knowledgeDetailModal');
+    window.modalManager.showCustomModal('知识查看', contentHTML, 'knowledgeDetailModal');
+  }
+
+  showStageArtifactsModal(projectId, stageId) {
+    const project = this.currentProjectId === projectId ? this.currentProject : null;
+    const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+    const artifacts = stage ? this.getDisplayArtifacts(stage) : [];
+
+    if (!window.modalManager) {
+      return;
     }
 
-    showStageArtifactsModal(projectId, stageId) {
-        const project = this.currentProjectId === projectId ? this.currentProject : null;
-        const stage = project?.workflow?.stages?.find(s => s.id === stageId);
-        const artifacts = stage ? this.getDisplayArtifacts(stage) : [];
+    if (artifacts.length === 0) {
+      window.modalManager.alert('暂无交付物', 'info');
+      return;
+    }
 
-        if (!window.modalManager) {
-            return;
-        }
-
-        if (artifacts.length === 0) {
-            window.modalManager.alert('暂无交付物', 'info');
-            return;
-        }
-
-        const listHTML = `
+    const listHTML = `
             <div style="display: grid; gap: 10px;">
-                ${artifacts.map(artifact => `
+                ${artifacts
+    .map(
+      artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -1110,74 +1134,82 @@ class ProjectManager {
                             查看
                         </button>
                     </div>
-                `).join('')}
+                `
+    )
+    .join('')}
             </div>
         `;
 
-        window.modalManager.showCustomModal('交付物列表', listHTML, 'stageArtifactsModal');
+    window.modalManager.showCustomModal('交付物列表', listHTML, 'stageArtifactsModal');
+  }
+
+  /**
+   * 关闭项目右侧面板
+   */
+  closeProjectPanel() {
+    const panel = document.getElementById('projectPanel');
+    const body = document.getElementById('projectPanelBody');
+    const mainContent = document.querySelector('.main-content');
+    const chatContainer = document.getElementById('chatContainer');
+
+    if (panel) {
+      panel.classList.remove('active');
+      panel.style.display = 'none';
+    }
+    if (body) {
+      body.innerHTML = '';
+    }
+    if (mainContent) {
+      mainContent.classList.remove('project-panel-open');
+    }
+    if (chatContainer) {
+      chatContainer.style.display = 'flex';
     }
 
-    /**
-     * 关闭项目右侧面板
-     */
-    closeProjectPanel() {
-        const panel = document.getElementById('projectPanel');
-        const body = document.getElementById('projectPanelBody');
-        const mainContent = document.querySelector('.main-content');
-        const chatContainer = document.getElementById('chatContainer');
+    this.currentProjectId = null;
+    this.currentProject = null;
+    this.updateProjectSelection(null);
+  }
 
-        if (panel) {
-            panel.classList.remove('active');
-            panel.style.display = 'none';
-        }
-        if (body) {
-            body.innerHTML = '';
-        }
-        if (mainContent) {
-            mainContent.classList.remove('project-panel-open');
-        }
-        if (chatContainer) {
-            chatContainer.style.display = 'flex';
-        }
-
-        this.currentProjectId = null;
-        this.currentProject = null;
-        this.updateProjectSelection(null);
+  /**
+   * 渲染项目成员（右侧面板）
+   * @param {Object} project - 项目对象
+   */
+  renderProjectMembersPanel(project) {
+    const container = document.getElementById('projectPanelMembers');
+    if (!container) {
+      return;
     }
 
-    /**
-     * 渲染项目成员（右侧面板）
-     * @param {Object} project - 项目对象
-     */
-    renderProjectMembersPanel(project) {
-        const container = document.getElementById('projectPanelMembers');
-        if (!container) return;
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const assignedIds = project.assignedAgents || [];
+    const assignedMembers = assignedIds
+      .map(id => agentMarket.find(agent => agent.id === id))
+      .filter(Boolean);
+    const customMembers = Array.isArray(project.members) ? project.members : [];
+    const members = [
+      ...assignedMembers.map(member => ({ ...member, _source: 'market' })),
+      ...customMembers.map(member => ({
+        id: member.id || member.name,
+        name: member.name || '未命名成员',
+        role: member.role || '项目成员',
+        avatar: member.avatar || '👤',
+        desc: member.desc || '参与项目协作与推进',
+        skills: member.skills || [],
+        _source: 'custom'
+      }))
+    ];
 
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const assignedIds = project.assignedAgents || [];
-        const assignedMembers = assignedIds.map(id => agentMarket.find(agent => agent.id === id)).filter(Boolean);
-        const customMembers = Array.isArray(project.members) ? project.members : [];
-        const members = [
-            ...assignedMembers.map(member => ({ ...member, _source: 'market' })),
-            ...customMembers.map(member => ({
-                id: member.id || member.name,
-                name: member.name || '未命名成员',
-                role: member.role || '项目成员',
-                avatar: member.avatar || '👤',
-                desc: member.desc || '参与项目协作与推进',
-                skills: member.skills || [],
-                _source: 'custom'
-            }))
-        ];
+    if (members.length === 0) {
+      container.classList.add('is-empty');
+      container.innerHTML = '<div class="project-panel-empty centered">暂未添加成员</div>';
+      return;
+    }
 
-        if (members.length === 0) {
-            container.classList.add('is-empty');
-            container.innerHTML = '<div class="project-panel-empty centered">暂未添加成员</div>';
-            return;
-        }
-
-        container.classList.remove('is-empty');
-        container.innerHTML = members.map(agent => `
+    container.classList.remove('is-empty');
+    container.innerHTML = members
+      .map(
+        agent => `
             <div class="agent-card hired">
                 <div class="agent-card-header">
                     <div class="agent-card-avatar">${agent.avatar}</div>
@@ -1191,29 +1223,35 @@ class ProjectManager {
                     ${(agent.skills || []).map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                 </div>
             </div>
-        `).join('');
+        `
+      )
+      .join('');
+  }
+
+  /**
+   * 渲染创意列表（右侧面板）
+   * @param {Object} project - 项目对象
+   */
+  async renderProjectIdeasPanel(project) {
+    const container = document.getElementById('projectPanelIdeas');
+    if (!container) {
+      return;
     }
 
-    /**
-     * 渲染创意列表（右侧面板）
-     * @param {Object} project - 项目对象
-     */
-    async renderProjectIdeasPanel(project) {
-        const container = document.getElementById('projectPanelIdeas');
-        if (!container) return;
+    const ideaIds = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean));
+    if (ideaIds.size === 0) {
+      container.innerHTML = '<div class="project-panel-empty">暂无引入创意</div>';
+      return;
+    }
 
-        const ideaIds = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean));
-        if (ideaIds.size === 0) {
-            container.innerHTML = '<div class="project-panel-empty">暂无引入创意</div>';
-            return;
+    const ideaCards = [];
+    for (const ideaId of ideaIds) {
+      try {
+        const chat = await this.storageManager.getChat(ideaId);
+        if (!chat) {
+          continue;
         }
-
-        const ideaCards = [];
-        for (const ideaId of ideaIds) {
-            try {
-                const chat = await this.storageManager.getChat(ideaId);
-                if (!chat) continue;
-                ideaCards.push(`
+        ideaCards.push(`
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">💡 ${this.escapeHtml(chat.title || '未命名创意')}</div>
@@ -1224,63 +1262,67 @@ class ProjectManager {
                         </button>
                     </div>
                 `);
-            } catch (error) {
-                console.error('[ProjectManager] 读取创意失败:', error);
-            }
-        }
-
-        container.innerHTML = ideaCards.length > 0
-            ? ideaCards.join('')
-            : '<div class="project-panel-empty">暂无引入创意</div>';
+      } catch (error) {}
     }
 
-    /**
-     * 渲染知识库摘要（右侧面板）
-     * @param {Object} project - 项目对象
-     */
-    async renderProjectKnowledgePanel(project) {
-        const container = document.getElementById('projectPanelKnowledge');
-        if (!container || !this.storageManager) return;
+    container.innerHTML =
+      ideaCards.length > 0
+        ? ideaCards.join('')
+        : '<div class="project-panel-empty">暂无引入创意</div>';
+  }
 
-        try {
-            const items = await this.storageManager.getKnowledgeByProject(project.id);
-            if (!items || items.length === 0) {
-                container.innerHTML = '<div class="project-panel-empty">暂无知识沉淀</div>';
-                return;
-            }
+  /**
+   * 渲染知识库摘要（右侧面板）
+   * @param {Object} project - 项目对象
+   */
+  async renderProjectKnowledgePanel(project) {
+    const container = document.getElementById('projectPanelKnowledge');
+    if (!container || !this.storageManager) {
+      return;
+    }
 
-            const previewItems = items.slice(0, 4).map(item => `
+    try {
+      const items = await this.storageManager.getKnowledgeByProject(project.id);
+      if (!items || items.length === 0) {
+        container.innerHTML = '<div class="project-panel-empty">暂无知识沉淀</div>';
+        return;
+      }
+
+      const previewItems = items.slice(0, 4).map(
+        item => `
                 <div class="project-panel-item">
                     <div class="project-panel-item-main">
                         <div class="project-panel-item-title">${this.escapeHtml(item.title || '未命名内容')}</div>
                         <div class="project-panel-item-sub">${this.formatTimeAgo(item.createdAt || Date.now())}</div>
                     </div>
                 </div>
-            `);
+            `
+      );
 
-            container.innerHTML = previewItems.join('');
-        } catch (error) {
-            console.error('[ProjectManager] 获取项目知识失败:', error);
-            container.innerHTML = '<div class="project-panel-empty">加载失败</div>';
-        }
+      container.innerHTML = previewItems.join('');
+    } catch (error) {
+      container.innerHTML = '<div class="project-panel-empty">加载失败</div>';
+    }
+  }
+
+  /**
+   * 显示成员管理弹窗
+   * @param {String} projectId - 项目ID
+   */
+  async showMemberModal(projectId) {
+    if (!window.modalManager) {
+      alert('成员管理功能暂不可用');
+      return;
     }
 
-    /**
-     * 显示成员管理弹窗
-     * @param {String} projectId - 项目ID
-     */
-    async showMemberModal(projectId) {
-        if (!window.modalManager) {
-            alert('成员管理功能暂不可用');
-            return;
-        }
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return;
+    }
 
-        const project = await this.getProject(projectId);
-        if (!project) return;
+    this.memberModalProjectId = projectId;
 
-        this.memberModalProjectId = projectId;
-
-        const modalHTML = `
+    const modalHTML = `
             <div class="report-tabs">
                 <button class="report-tab active" onclick="projectManager.switchMemberModalTab('market')">雇佣市场</button>
                 <button class="report-tab" onclick="projectManager.switchMemberModalTab('hired')">已雇佣</button>
@@ -1293,46 +1335,61 @@ class ProjectManager {
             </div>
         `;
 
-        window.modalManager.showCustomModal('项目成员管理', modalHTML, 'projectMemberModal');
-        this.switchMemberModalTab('market');
+    window.modalManager.showCustomModal('项目成员管理', modalHTML, 'projectMemberModal');
+    this.switchMemberModalTab('market');
+  }
+
+  switchMemberModalTab(tab) {
+    const modal = document.getElementById('projectMemberModal');
+    if (!modal) {
+      return;
     }
 
-    switchMemberModalTab(tab) {
-        const modal = document.getElementById('projectMemberModal');
-        if (!modal) return;
+    const tabs = modal.querySelectorAll('.report-tab');
+    const marketTab = document.getElementById('memberMarketTab');
+    const hiredTab = document.getElementById('memberHiredTab');
 
-        const tabs = modal.querySelectorAll('.report-tab');
-        const marketTab = document.getElementById('memberMarketTab');
-        const hiredTab = document.getElementById('memberHiredTab');
+    tabs.forEach(t => t.classList.remove('active'));
 
-        tabs.forEach(t => t.classList.remove('active'));
+    if (tab === 'market') {
+      tabs[0]?.classList.add('active');
+      if (marketTab) {
+        marketTab.classList.add('active');
+      }
+      if (hiredTab) {
+        hiredTab.classList.remove('active');
+      }
+      this.renderMemberMarket();
+    } else {
+      tabs[1]?.classList.add('active');
+      if (marketTab) {
+        marketTab.classList.remove('active');
+      }
+      if (hiredTab) {
+        hiredTab.classList.add('active');
+      }
+      this.renderMemberHired();
+    }
+  }
 
-        if (tab === 'market') {
-            tabs[0]?.classList.add('active');
-            if (marketTab) marketTab.classList.add('active');
-            if (hiredTab) hiredTab.classList.remove('active');
-            this.renderMemberMarket();
-        } else {
-            tabs[1]?.classList.add('active');
-            if (marketTab) marketTab.classList.remove('active');
-            if (hiredTab) hiredTab.classList.add('active');
-            this.renderMemberHired();
-        }
+  async renderMemberMarket() {
+    const container = document.getElementById('memberMarketList');
+    if (!container) {
+      return;
     }
 
-    async renderMemberMarket() {
-        const container = document.getElementById('memberMarketList');
-        if (!container) return;
+    const project = await this.getProject(this.memberModalProjectId);
+    if (!project) {
+      return;
+    }
 
-        const project = await this.getProject(this.memberModalProjectId);
-        if (!project) return;
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const hiredIds = project.assignedAgents || [];
 
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const hiredIds = project.assignedAgents || [];
-
-        container.innerHTML = agentMarket.map(agent => {
-            const isHired = hiredIds.includes(agent.id);
-            return `
+    container.innerHTML = agentMarket
+      .map(agent => {
+        const isHired = hiredIds.includes(agent.id);
+        return `
                 <div class="agent-card ${isHired ? 'hired' : ''}">
                     <div class="agent-card-header">
                         <div class="agent-card-avatar">${agent.avatar}</div>
@@ -1346,44 +1403,55 @@ class ProjectManager {
                         ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                     </div>
                     <div class="agent-card-actions">
-                        ${isHired
-                            ? `<button class="hire-btn hired" disabled>✓ 已加入</button>`
-                            : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入团队</button>`
-                        }
+                        ${
+  isHired
+    ? '<button class="hire-btn hired" disabled>✓ 已加入</button>'
+    : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入团队</button>`
+}
                     </div>
                 </div>
             `;
-        }).join('');
+      })
+      .join('');
+  }
+
+  async renderMemberHired() {
+    const container = document.getElementById('memberHiredList');
+    if (!container) {
+      return;
     }
 
-    async renderMemberHired() {
-        const container = document.getElementById('memberHiredList');
-        if (!container) return;
+    const project = await this.getProject(this.memberModalProjectId);
+    if (!project) {
+      return;
+    }
 
-        const project = await this.getProject(this.memberModalProjectId);
-        if (!project) return;
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const hiredIds = project.assignedAgents || [];
+    const hiredAgents = agentMarket.filter(agent => hiredIds.includes(agent.id));
+    const customMembers = Array.isArray(project.members) ? project.members : [];
+    const customAgents = customMembers.map(member => ({
+      id: member.id || member.name,
+      name: member.name || '未命名成员',
+      role: member.role || '项目成员',
+      avatar: member.avatar || '👤',
+      desc: member.desc || '参与项目协作与推进',
+      skills: member.skills || [],
+      isCustom: true
+    }));
+    const mergedAgents = [
+      ...hiredAgents,
+      ...customAgents.filter(member => !hiredIds.includes(member.id))
+    ];
 
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const hiredIds = project.assignedAgents || [];
-        const hiredAgents = agentMarket.filter(agent => hiredIds.includes(agent.id));
-        const customMembers = Array.isArray(project.members) ? project.members : [];
-        const customAgents = customMembers.map(member => ({
-            id: member.id || member.name,
-            name: member.name || '未命名成员',
-            role: member.role || '项目成员',
-            avatar: member.avatar || '👤',
-            desc: member.desc || '参与项目协作与推进',
-            skills: member.skills || [],
-            isCustom: true
-        }));
-        const mergedAgents = [...hiredAgents, ...customAgents.filter(member => !hiredIds.includes(member.id))];
+    if (mergedAgents.length === 0) {
+      container.innerHTML = '<div class="project-panel-empty">暂无雇佣成员</div>';
+      return;
+    }
 
-        if (mergedAgents.length === 0) {
-            container.innerHTML = '<div class="project-panel-empty">暂无雇佣成员</div>';
-            return;
-        }
-
-        container.innerHTML = mergedAgents.map(agent => `
+    container.innerHTML = mergedAgents
+      .map(
+        agent => `
             <div class="agent-card hired">
                 <div class="agent-card-header">
                     <div class="agent-card-avatar">${agent.avatar}</div>
@@ -1397,80 +1465,92 @@ class ProjectManager {
                     ${agent.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                 </div>
                 <div class="agent-card-actions">
-                    ${agent.isCustom
-                        ? '<button class="btn-secondary" disabled>项目成员</button>'
-                        : `<button class="btn-secondary" onclick="projectManager.fireAgentFromProject('${project.id}', '${agent.id}')">解雇</button>`
-                    }
+                    ${
+  agent.isCustom
+    ? '<button class="btn-secondary" disabled>项目成员</button>'
+    : `<button class="btn-secondary" onclick="projectManager.fireAgentFromProject('${project.id}', '${agent.id}')">解雇</button>`
+}
                 </div>
             </div>
-        `).join('');
+        `
+      )
+      .join('');
+  }
+
+  async hireAgentToProject(projectId, agentId) {
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return;
     }
 
-    async hireAgentToProject(projectId, agentId) {
-        const project = await this.getProject(projectId);
-        if (!project) return;
+    const assignedAgents = Array.from(new Set([...(project.assignedAgents || []), agentId]));
+    const updatedProject = await this.updateProject(projectId, { assignedAgents });
+    const viewProject = updatedProject || { ...project, assignedAgents };
+    this.renderProjectMembersPanel(viewProject);
+    this.renderMemberMarket();
+    this.renderMemberHired();
+  }
 
-        const assignedAgents = Array.from(new Set([...(project.assignedAgents || []), agentId]));
-        const updatedProject = await this.updateProject(projectId, { assignedAgents });
-        const viewProject = updatedProject || { ...project, assignedAgents };
-        this.renderProjectMembersPanel(viewProject);
-        this.renderMemberMarket();
-        this.renderMemberHired();
+  async fireAgentFromProject(projectId, agentId) {
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return;
     }
 
-    async fireAgentFromProject(projectId, agentId) {
-        const project = await this.getProject(projectId);
-        if (!project) return;
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const agent = agentMarket.find(item => item.id === agentId);
+    const agentName = agent?.name || '该成员';
 
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const agent = agentMarket.find(item => item.id === agentId);
-        const agentName = agent?.name || '该成员';
-
-        const confirmed = window.confirm(`确定要将 ${agentName} 从项目中移除吗？`);
-        if (!confirmed) {
-            return;
-        }
-
-        if (project.mode === 'development') {
-            const warnConfirmed = window.confirm('当前为协同开发模式，移除成员可能影响流程执行与交付质量。确认继续移除？');
-            if (!warnConfirmed) {
-                return;
-            }
-        }
-
-        const assignedAgents = (project.assignedAgents || []).filter(id => id !== agentId);
-        const updatedProject = await this.updateProject(projectId, { assignedAgents });
-        const viewProject = updatedProject || { ...project, assignedAgents };
-        this.renderProjectMembersPanel(viewProject);
-        this.renderMemberMarket();
-        this.renderMemberHired();
+    const confirmed = window.confirm(`确定要将 ${agentName} 从项目中移除吗？`);
+    if (!confirmed) {
+      return;
     }
 
-    /**
-     * 引入创意弹窗
-     * @param {String} projectId - 项目ID
-     */
-    async showLinkIdeaDialog(projectId) {
-        if (!window.modalManager) {
-            alert('创意引入功能暂不可用');
-            return;
-        }
+    if (project.mode === 'development') {
+      const warnConfirmed = window.confirm(
+        '当前为协同开发模式，移除成员可能影响流程执行与交付质量。确认继续移除？'
+      );
+      if (!warnConfirmed) {
+        return;
+      }
+    }
 
-        const project = await this.getProject(projectId);
-        if (!project) return;
+    const assignedAgents = (project.assignedAgents || []).filter(id => id !== agentId);
+    const updatedProject = await this.updateProject(projectId, { assignedAgents });
+    const viewProject = updatedProject || { ...project, assignedAgents };
+    this.renderProjectMembersPanel(viewProject);
+    this.renderMemberMarket();
+    this.renderMemberHired();
+  }
 
-        const chats = await this.storageManager.getAllChats();
-        const analyzedChats = chats.filter(chat => chat.analysisCompleted);
+  /**
+   * 引入创意弹窗
+   * @param {String} projectId - 项目ID
+   */
+  async showLinkIdeaDialog(projectId) {
+    if (!window.modalManager) {
+      alert('创意引入功能暂不可用');
+      return;
+    }
 
-        if (analyzedChats.length === 0) {
-            window.modalManager.alert('暂无可用创意，请先在对话中完成创意分析', 'info');
-            return;
-        }
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return;
+    }
 
-        const linkedSet = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean));
-        const ideaListHTML = analyzedChats.map(chat => {
-            const isLinked = linkedSet.has(chat.id);
-            return `
+    const chats = await this.storageManager.getAllChats();
+    const analyzedChats = chats.filter(chat => chat.analysisCompleted);
+
+    if (analyzedChats.length === 0) {
+      window.modalManager.alert('暂无可用创意，请先在对话中完成创意分析', 'info');
+      return;
+    }
+
+    const linkedSet = new Set([project.ideaId, ...(project.linkedIdeas || [])].filter(Boolean));
+    const ideaListHTML = analyzedChats
+      .map(chat => {
+        const isLinked = linkedSet.has(chat.id);
+        return `
                 <label class="idea-item ${isLinked ? 'disabled' : ''}" style="display: flex; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; cursor: ${isLinked ? 'not-allowed' : 'pointer'}; opacity: ${isLinked ? '0.5' : '1'};">
                     <input type="radio" name="linkedIdea" value="${chat.id}" ${isLinked ? 'disabled' : ''} style="margin-top: 4px;">
                     <div style="flex: 1;">
@@ -1479,9 +1559,10 @@ class ProjectManager {
                     </div>
                 </label>
             `;
-        }).join('');
+      })
+      .join('');
 
-        const dialogHTML = `
+    const dialogHTML = `
             <div style="max-height: 60vh; overflow-y: auto; padding: 4px;">
                 <div style="margin-bottom: 16px; color: var(--text-secondary); font-size: 14px;">
                     选择一个已完成分析的创意引入项目：
@@ -1496,84 +1577,94 @@ class ProjectManager {
             </div>
         `;
 
-        window.modalManager.showCustomModal('引入创意', dialogHTML, 'linkIdeaDialog');
+    window.modalManager.showCustomModal('引入创意', dialogHTML, 'linkIdeaDialog');
+  }
+
+  async confirmLinkIdea(projectId) {
+    const selected = document.querySelector('input[name="linkedIdea"]:checked');
+    if (!selected) {
+      window.modalManager.alert('请选择一个创意', 'warning');
+      return;
     }
 
-    async confirmLinkIdea(projectId) {
-        const selected = document.querySelector('input[name="linkedIdea"]:checked');
-        if (!selected) {
-            window.modalManager.alert('请选择一个创意', 'warning');
-            return;
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return;
+    }
+
+    const ideaId = selected.value;
+    const linkedIdeas = Array.from(new Set([...(project.linkedIdeas || []), ideaId]));
+
+    const updatedProject = await this.updateProject(projectId, { linkedIdeas });
+    const viewProject = updatedProject || { ...project, linkedIdeas };
+    await this.saveIdeaKnowledge(projectId, ideaId);
+
+    window.modalManager.close('linkIdeaDialog');
+    this.renderProjectIdeasPanel(viewProject);
+    this.renderProjectKnowledgePanel(viewProject);
+  }
+
+  async saveIdeaKnowledge(projectId, ideaId) {
+    if (!this.storageManager) {
+      return;
+    }
+
+    try {
+      const chat = await this.storageManager.getChat(ideaId);
+      if (!chat) {
+        return;
+      }
+
+      await this.storageManager.saveKnowledge({
+        projectId,
+        scope: 'project',
+        type: 'idea',
+        title: chat.title || '创意摘要',
+        content:
+          chat.messages
+            ?.slice(0, 3)
+            .map(m => `${m.role}: ${m.content}`)
+            .join('\n') || '',
+        tags: ['创意引入'],
+        createdAt: Date.now()
+      });
+    } catch (error) {}
+  }
+
+  /**
+   * 显示创建项目对话框
+   */
+  async showCreateProjectDialog() {
+    try {
+      // 获取所有对话
+      const chats = await this.storageManager.getAllChats();
+
+      // 筛选已完成分析的对话
+      const analyzedChats = chats.filter(chat => chat.analysisCompleted);
+
+      if (analyzedChats.length === 0) {
+        if (window.modalManager) {
+          window.modalManager.alert(
+            '暂无可用创意<br><br>请先在对话中完成创意分析，然后再创建项目',
+            'info'
+          );
+        } else {
+          alert('暂无可用创意\n\n请先在对话中完成创意分析，然后再创建项目');
         }
+        return;
+      }
 
-        const project = await this.getProject(projectId);
-        if (!project) return;
+      // 检查哪些创意已经创建过项目
+      const chatIdsWithProjects = new Set(this.projects.map(p => p.ideaId));
 
-        const ideaId = selected.value;
-        const linkedIdeas = Array.from(new Set([...(project.linkedIdeas || []), ideaId]));
+      // 显示创意选择对话框
+      const ideaListHTML = analyzedChats
+        .map(chat => {
+          const hasProject = chatIdsWithProjects.has(chat.id);
+          const disabledClass = hasProject ? 'disabled' : '';
+          const disabledAttr = hasProject ? 'disabled' : '';
 
-        const updatedProject = await this.updateProject(projectId, { linkedIdeas });
-        const viewProject = updatedProject || { ...project, linkedIdeas };
-        await this.saveIdeaKnowledge(projectId, ideaId);
-
-        window.modalManager.close('linkIdeaDialog');
-        this.renderProjectIdeasPanel(viewProject);
-        this.renderProjectKnowledgePanel(viewProject);
-    }
-
-    async saveIdeaKnowledge(projectId, ideaId) {
-        if (!this.storageManager) return;
-
-        try {
-            const chat = await this.storageManager.getChat(ideaId);
-            if (!chat) return;
-
-            await this.storageManager.saveKnowledge({
-                projectId,
-                scope: 'project',
-                type: 'idea',
-                title: chat.title || '创意摘要',
-                content: chat.messages?.slice(0, 3).map(m => `${m.role}: ${m.content}`).join('\n') || '',
-                tags: ['创意引入'],
-                createdAt: Date.now()
-            });
-        } catch (error) {
-            console.error('[ProjectManager] 保存创意知识失败:', error);
-        }
-    }
-
-    /**
-     * 显示创建项目对话框
-     */
-    async showCreateProjectDialog() {
-        try {
-            console.log('[ProjectManager] 显示创建项目对话框');
-
-            // 获取所有对话
-            const chats = await this.storageManager.getAllChats();
-
-            // 筛选已完成分析的对话
-            const analyzedChats = chats.filter(chat => chat.analysisCompleted);
-
-            if (analyzedChats.length === 0) {
-                if (window.modalManager) {
-                    window.modalManager.alert('暂无可用创意<br><br>请先在对话中完成创意分析，然后再创建项目', 'info');
-                } else {
-                    alert('暂无可用创意\n\n请先在对话中完成创意分析，然后再创建项目');
-                }
-                return;
-            }
-
-            // 检查哪些创意已经创建过项目
-            const chatIdsWithProjects = new Set(this.projects.map(p => p.ideaId));
-
-            // 显示创意选择对话框
-            const ideaListHTML = analyzedChats.map(chat => {
-                const hasProject = chatIdsWithProjects.has(chat.id);
-                const disabledClass = hasProject ? 'disabled' : '';
-                const disabledAttr = hasProject ? 'disabled' : '';
-
-                return `
+          return `
                     <label class="idea-item ${disabledClass}" style="display: flex; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; cursor: ${hasProject ? 'not-allowed' : 'pointer'}; opacity: ${hasProject ? '0.5' : '1'};">
                         <input type="radio" name="selectedIdea" value="${chat.id}" ${disabledAttr} style="margin-top: 4px;">
                         <div style="flex: 1;">
@@ -1585,9 +1676,10 @@ class ProjectManager {
                         </div>
                     </label>
                 `;
-            }).join('');
+        })
+        .join('');
 
-            const dialogHTML = `
+      const dialogHTML = `
                 <div style="max-height: 60vh; overflow-y: auto; padding: 4px;">
                     <div style="margin-bottom: 16px; color: var(--text-secondary); font-size: 14px;">
                         选择一个已完成分析的创意来创建项目：
@@ -1617,266 +1709,257 @@ class ProjectManager {
                 </div>
             `;
 
-            // 使用modalManager显示对话框
-            if (window.modalManager) {
-                window.modalManager.showCustomModal('创建项目', dialogHTML, 'createProjectDialog');
-            } else {
-                // 降级处理：使用简单的prompt
-                const chatTitles = analyzedChats.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
-                const choice = prompt(`选择创意（输入序号）：\n\n${chatTitles}`);
-                if (choice) {
-                    const index = parseInt(choice) - 1;
-                    if (index >= 0 && index < analyzedChats.length) {
-                        const chat = analyzedChats[index];
-                        const mode = confirm('选择开发模式：\n\n确定 = Demo模式\n取消 = 协同开发模式') ? 'demo' : 'development';
-                        await this.createProjectFromIdea(chat.id, mode, chat.title);
-                    }
-                }
-            }
-
-        } catch (error) {
-            console.error('[ProjectManager] 显示创建项目对话框失败:', error);
-            alert('显示对话框失败: ' + error.message);
+      // 使用modalManager显示对话框
+      if (window.modalManager) {
+        window.modalManager.showCustomModal('创建项目', dialogHTML, 'createProjectDialog');
+      } else {
+        // 降级处理：使用简单的prompt
+        const chatTitles = analyzedChats.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
+        const choice = prompt(`选择创意（输入序号）：\n\n${chatTitles}`);
+        if (choice) {
+          const index = parseInt(choice) - 1;
+          if (index >= 0 && index < analyzedChats.length) {
+            const chat = analyzedChats[index];
+            const mode = confirm('选择开发模式：\n\n确定 = Demo模式\n取消 = 协同开发模式')
+              ? 'demo'
+              : 'development';
+            await this.createProjectFromIdea(chat.id, mode, chat.title);
+          }
         }
+      }
+    } catch (error) {
+      alert('显示对话框失败: ' + error.message);
+    }
+  }
+
+  /**
+   * 确认创建项目
+   */
+  async confirmCreateProject() {
+    try {
+      // 获取选中的创意
+      const selectedIdeaInput = document.querySelector('input[name="selectedIdea"]:checked');
+      if (!selectedIdeaInput) {
+        if (window.modalManager) {
+          window.modalManager.alert('请选择一个创意', 'warning');
+        } else {
+          alert('请选择一个创意');
+        }
+        return;
+      }
+
+      const ideaId = selectedIdeaInput.value;
+
+      // 获取选中的模式
+      const selectedModeInput = document.querySelector('input[name="projectMode"]:checked');
+      const mode = selectedModeInput ? selectedModeInput.value : 'demo';
+
+      // 获取创意标题
+      const chat = await this.storageManager.getChat(ideaId);
+      const projectName = chat ? `${chat.title} - 项目` : '新项目';
+
+      // 关闭对话框
+      if (window.modalManager) {
+        window.modalManager.close('createProjectDialog');
+      }
+
+      // 如果是协同开发模式，显示工作流推荐
+      if (mode === 'development' && window.workflowRecommendationManager) {
+        await window.workflowRecommendationManager.showRecommendationDialog(
+          projectName,
+          ideaId,
+          async selectedStages => {
+            // 创建项目并设置自定义工作流
+            await this.createProjectWithWorkflow(ideaId, mode, projectName, selectedStages);
+          }
+        );
+      } else {
+        // Demo模式或不支持推荐，直接创建
+        await this.createProjectFromIdea(ideaId, mode, projectName);
+      }
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.alert('创建项目失败: ' + error.message, 'error');
+      } else {
+        alert('创建项目失败: ' + error.message);
+      }
+    }
+  }
+
+  /**
+   * 创建项目并设置自定义工作流
+   * @param {String} ideaId - 创意ID
+   * @param {String} mode - 模式
+   * @param {String} name - 项目名称
+   * @param {Array<String>} selectedStages - 选中的阶段ID
+   */
+  async createProjectWithWorkflow(ideaId, mode, name, selectedStages) {
+    try {
+      // 创建项目
+      const project = await this.createProject(ideaId, mode, name);
+
+      // 如果有自定义阶段，更新工作流
+      if (selectedStages && selectedStages.length > 0 && project.workflow) {
+        // 过滤出选中的阶段
+        project.workflow.stages = project.workflow.stages.filter(stage =>
+          selectedStages.includes(stage.id)
+        );
+
+        // 保存更新后的项目
+        await this.storageManager.saveProject(project);
+      }
+
+      // 刷新项目列表
+      await this.loadProjects();
+      this.renderProjectList('projectListContainer');
+
+      // 显示成功提示
+      if (window.modalManager) {
+        const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
+        window.modalManager.alert(
+          `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}<br>阶段数：${selectedStages.length}`,
+          'success'
+        );
+      } else {
+        alert('项目创建成功！');
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 从创意创建项目
+   * @param {String} ideaId - 创意ID
+   * @param {String} mode - 模式
+   * @param {String} name - 项目名称
+   */
+  async createProjectFromIdea(ideaId, mode, name) {
+    try {
+      // 创建项目
+      const project = await this.createProject(ideaId, mode, name);
+
+      // 刷新项目列表
+      await this.loadProjects();
+      this.renderProjectList('projectListContainer');
+
+      // 显示成功提示
+      if (window.modalManager) {
+        const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
+        window.modalManager.alert(
+          `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}`,
+          'success'
+        );
+      } else {
+        alert('项目创建成功！');
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 打开项目详情
+   * @param {String} projectId - 项目ID
+   */
+  async openProject(projectId) {
+    try {
+      // 获取项目详情
+      const project = await this.getProject(projectId);
+      if (!project) {
+        throw new Error('项目不存在');
+      }
+
+      this.currentProjectId = projectId;
+      this.currentProject = project;
+
+      // 更新全局状态
+      if (window.setCurrentProject) {
+        window.setCurrentProject(project);
+      }
+
+      // 右侧面板展示
+      this.renderProjectPanel(project);
+      this.updateProjectSelection(projectId);
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.alert('打开项目失败: ' + error.message, 'error');
+      } else {
+        alert('打开项目失败: ' + error.message);
+      }
+    }
+  }
+
+  /**
+   * 渲染工作流详情页
+   * @param {Object} project - 项目对象
+   */
+  renderWorkflowDetails(project) {
+    // 使用modalManager显示工作流详情
+    if (!window.modalManager) {
+      return;
     }
 
-    /**
-     * 确认创建项目
-     */
-    async confirmCreateProject() {
-        try {
-            // 获取选中的创意
-            const selectedIdeaInput = document.querySelector('input[name="selectedIdea"]:checked');
-            if (!selectedIdeaInput) {
-                if (window.modalManager) {
-                    window.modalManager.alert('请选择一个创意', 'warning');
-                } else {
-                    alert('请选择一个创意');
-                }
-                return;
-            }
-
-            const ideaId = selectedIdeaInput.value;
-
-            // 获取选中的模式
-            const selectedModeInput = document.querySelector('input[name="projectMode"]:checked');
-            const mode = selectedModeInput ? selectedModeInput.value : 'demo';
-
-            // 获取创意标题
-            const chat = await this.storageManager.getChat(ideaId);
-            const projectName = chat ? `${chat.title} - 项目` : '新项目';
-
-            // 关闭对话框
-            if (window.modalManager) {
-                window.modalManager.close('createProjectDialog');
-            }
-
-            // 如果是协同开发模式，显示工作流推荐
-            if (mode === 'development' && window.workflowRecommendationManager) {
-                await window.workflowRecommendationManager.showRecommendationDialog(
-                    projectName,
-                    ideaId,
-                    async (selectedStages) => {
-                        // 创建项目并设置自定义工作流
-                        await this.createProjectWithWorkflow(ideaId, mode, projectName, selectedStages);
-                    }
-                );
-            } else {
-                // Demo模式或不支持推荐，直接创建
-                await this.createProjectFromIdea(ideaId, mode, projectName);
-            }
-
-        } catch (error) {
-            console.error('[ProjectManager] 创建项目失败:', error);
-            if (window.modalManager) {
-                window.modalManager.alert('创建项目失败: ' + error.message, 'error');
-            } else {
-                alert('创建项目失败: ' + error.message);
-            }
-        }
+    const workflowReady = Boolean(window.workflowExecutor);
+    if (!project.workflow || !project.workflow.stages) {
+      window.modalManager.alert('项目工作流不存在或未加载', 'warning');
+      return;
     }
 
-    /**
-     * 创建项目并设置自定义工作流
-     * @param {String} ideaId - 创意ID
-     * @param {String} mode - 模式
-     * @param {String} name - 项目名称
-     * @param {Array<String>} selectedStages - 选中的阶段ID
-     */
-    async createProjectWithWorkflow(ideaId, mode, name, selectedStages) {
-        try {
-            // 创建项目
-            const project = await this.createProject(ideaId, mode, name);
+    const progress = this.calculateWorkflowProgress(project.workflow);
 
-            // 如果有自定义阶段，更新工作流
-            if (selectedStages && selectedStages.length > 0 && project.workflow) {
-                // 过滤出选中的阶段
-                project.workflow.stages = project.workflow.stages.filter(stage =>
-                    selectedStages.includes(stage.id)
-                );
+    // 渲染阶段卡片
+    const stagesHTML = project.workflow.stages
+      .map((stage, index) => {
+        const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+        const statusText =
+          {
+            pending: '未开始',
+            active: '进行中',
+            completed: '已完成'
+          }[stage.status] || stage.status;
 
-                // 保存更新后的项目
-                await this.storageManager.saveProject(project);
-            }
+        const statusColor =
+          {
+            pending: '#9ca3af',
+            active: '#3b82f6',
+            completed: '#10b981'
+          }[stage.status] || '#9ca3af';
 
-            // 刷新项目列表
-            await this.loadProjects();
-            this.renderProjectList('projectListContainer');
+        const artifactCount = stage.artifacts?.length || 0;
 
-            // 显示成功提示
-            if (window.modalManager) {
-                const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
-                window.modalManager.alert(
-                    `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}<br>阶段数：${selectedStages.length}`,
-                    'success'
-                );
-            } else {
-                alert('项目创建成功！');
-            }
-
-            console.log('[ProjectManager] 项目创建成功:', project.id);
-
-        } catch (error) {
-            console.error('[ProjectManager] 创建项目失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 从创意创建项目
-     * @param {String} ideaId - 创意ID
-     * @param {String} mode - 模式
-     * @param {String} name - 项目名称
-     */
-    async createProjectFromIdea(ideaId, mode, name) {
-        try {
-            // 创建项目
-            const project = await this.createProject(ideaId, mode, name);
-
-            // 刷新项目列表
-            await this.loadProjects();
-            this.renderProjectList('projectListContainer');
-
-            // 显示成功提示
-            if (window.modalManager) {
-                const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
-                window.modalManager.alert(`项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}`, 'success');
-            } else {
-                alert('项目创建成功！');
-            }
-
-            console.log('[ProjectManager] 项目创建成功:', project.id);
-
-        } catch (error) {
-            console.error('[ProjectManager] 创建项目失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 打开项目详情
-     * @param {String} projectId - 项目ID
-     */
-    async openProject(projectId) {
-        try {
-            console.log('[ProjectManager] 打开项目:', projectId);
-
-            // 获取项目详情
-            const project = await this.getProject(projectId);
-            if (!project) {
-                throw new Error('项目不存在');
-            }
-
-            this.currentProjectId = projectId;
-            this.currentProject = project;
-
-            // 更新全局状态
-            if (window.setCurrentProject) {
-                window.setCurrentProject(project);
-            }
-
-            // 右侧面板展示
-            this.renderProjectPanel(project);
-            this.updateProjectSelection(projectId);
-
-        } catch (error) {
-            console.error('[ProjectManager] 打开项目失败:', error);
-            if (window.modalManager) {
-                window.modalManager.alert('打开项目失败: ' + error.message, 'error');
-            } else {
-                alert('打开项目失败: ' + error.message);
-            }
-        }
-    }
-
-    /**
-     * 渲染工作流详情页
-     * @param {Object} project - 项目对象
-     */
-    renderWorkflowDetails(project) {
-        // 使用modalManager显示工作流详情
-        if (!window.modalManager) {
-            console.error('[ProjectManager] modalManager不可用');
-            return;
-        }
-
-        const workflowReady = !!window.workflowExecutor;
-        if (!project.workflow || !project.workflow.stages) {
-            window.modalManager.alert('项目工作流不存在或未加载', 'warning');
-            return;
-        }
-
-        const progress = this.calculateWorkflowProgress(project.workflow);
-
-        // 渲染阶段卡片
-        const stagesHTML = project.workflow.stages.map((stage, index) => {
-            const definition = window.workflowExecutor?.getStageDefinition(stage.id);
-            const statusText = {
-                'pending': '未开始',
-                'active': '进行中',
-                'completed': '已完成'
-            }[stage.status] || stage.status;
-
-            const statusColor = {
-                'pending': '#9ca3af',
-                'active': '#3b82f6',
-                'completed': '#10b981'
-            }[stage.status] || '#9ca3af';
-
-            const artifactCount = stage.artifacts?.length || 0;
-
-            let actionHTML = '';
-            if (stage.status === 'pending') {
-                actionHTML = workflowReady
-                    ? `
+        let actionHTML = '';
+        if (stage.status === 'pending') {
+          actionHTML = workflowReady
+            ? `
                         <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);">
                             开始执行
                         </button>
                     `
-                    : `
+            : `
                         <button class="btn-secondary" disabled title="工作流执行器未就绪">
                             开始执行
                         </button>
                     `;
-            } else if (stage.status === 'completed') {
-                actionHTML = workflowReady
-                    ? `
+        } else if (stage.status === 'completed') {
+          actionHTML = workflowReady
+            ? `
                         <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')">
                             查看交付物 (${artifactCount})
                         </button>
                     `
-                    : `
+            : `
                         <button class="btn-secondary" disabled title="工作流执行器未就绪">
                             查看交付物 (${artifactCount})
                         </button>
                     `;
-            } else {
-                actionHTML = `
+        } else {
+          actionHTML = `
                     <button class="btn-secondary" disabled>执行中...</button>
                 `;
-            }
+        }
 
-            return `
+        return `
                 <div class="stage-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: white; border-left: 4px solid ${definition?.color || '#667eea'}; margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 12px;">
@@ -1895,9 +1978,10 @@ class ProjectManager {
                     </div>
                 </div>
             `;
-        }).join('');
+      })
+      .join('');
 
-        const contentHTML = `
+    const contentHTML = `
             <div style="max-height: 70vh; overflow-y: auto; padding: 4px;">
                 <!-- 项目信息卡片 -->
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; color: white;">
@@ -1940,171 +2024,171 @@ class ProjectManager {
             </div>
         `;
 
-        window.modalManager.showCustomModal(
-            '🎯 项目工作流',
-            contentHTML,
-            'workflowDetails'
+    window.modalManager.showCustomModal('🎯 项目工作流', contentHTML, 'workflowDetails');
+  }
+
+  /**
+   * 执行所有阶段
+   * @param {String} projectId - 项目ID
+   */
+  async executeAllStages(projectId) {
+    try {
+      if (!window.workflowExecutor) {
+        if (window.modalManager) {
+          window.modalManager.alert('工作流执行器未就绪，请稍后重试', 'warning');
+        }
+        return;
+      }
+
+      const project = await this.getProject(projectId);
+      if (!project || !project.workflow) {
+        throw new Error('项目工作流不存在');
+      }
+
+      // 获取所有未完成的阶段
+      const pendingStages = project.workflow.stages
+        .filter(s => s.status === 'pending')
+        .map(s => s.id);
+
+      if (pendingStages.length === 0) {
+        if (window.modalManager) {
+          window.modalManager.alert('所有阶段已完成！', 'success');
+        }
+        return;
+      }
+
+      // 确认执行
+      const confirmed = confirm(
+        `将执行 ${pendingStages.length} 个阶段，这可能需要一些时间，是否继续？`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      // 关闭详情页
+      if (window.modalManager) {
+        window.modalManager.close('workflowDetails');
+      }
+
+      // 显示执行提示
+      if (window.modalManager) {
+        window.modalManager.alert('正在批量执行工作流，请稍候...', 'info');
+      }
+
+      // 获取创意对话内容
+      const chat = await this.storageManager.getChat(project.ideaId);
+      const conversation = chat
+        ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
+        : '';
+
+      // 调用workflowExecutor批量执行
+      const result = await window.workflowExecutor.executeBatch(
+        projectId,
+        pendingStages,
+        conversation
+      );
+
+      // 显示成功提示
+      if (window.modalManager) {
+        window.modalManager.close();
+        window.modalManager.alert(
+          `工作流执行完成！<br><br>完成了 ${pendingStages.length} 个阶段<br>消耗 ${result.totalTokens} tokens`,
+          'success'
         );
+      }
+
+      // 刷新项目列表
+      await this.loadProjects();
+      this.renderProjectList('projectListContainer');
+      this.refreshProjectPanel(await this.getProject(projectId));
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.close();
+        window.modalManager.alert('执行失败: ' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 预览Demo
+   * @param {String} projectId - 项目ID
+   */
+  async previewDemo(projectId) {
+    try {
+      const project = await this.getProject(projectId);
+      if (project.demo && project.demo.previewUrl) {
+        window.open(project.demo.previewUrl, '_blank');
+      }
+    } catch (error) {
+      alert('预览失败');
+    }
+  }
+
+  /**
+   * 重新生成Demo
+   * @param {String} projectId - 项目ID
+   */
+  regenerateDemo(projectId) {
+    this.startDemoGeneration(projectId);
+  }
+
+  /**
+   * 开始生成Demo
+   * @param {String} projectId - 项目ID
+   */
+  startDemoGeneration(projectId) {
+    window.currentDemoProjectId = projectId;
+    const modal = document.getElementById('demoTypeModal');
+    if (modal) {
+      modal.classList.add('active');
+      return;
+    }
+    if (typeof window.startDemoGeneration === 'function') {
+      window.startDemoGeneration();
+      return;
+    }
+    alert('Demo生成功能暂不可用');
+  }
+
+  /**
+   * 评估升级协同开发所需角色
+   * @param {Object} project - 项目对象
+   * @returns {Object} 评估结果
+   */
+  evaluateUpgradeReadiness(project) {
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const assigned = project?.assignedAgents || [];
+    const assignedRoles = assigned
+      .map(id => agentMarket.find(agent => agent.id === id))
+      .filter(Boolean)
+      .map(agent => agent.role);
+
+    const requiredRoles = ['产品经理', '技术架构师', 'UI/UX设计师'];
+    const missingRoles = requiredRoles.filter(role => !assignedRoles.includes(role));
+    const suggestions = agentMarket.filter(agent => missingRoles.includes(agent.role));
+
+    return { missingRoles, suggestions };
+  }
+
+  confirmUpgradeWithMissingRoles(projectId, readiness) {
+    if (!window.modalManager) {
+      const proceed = confirm(`缺少角色：${readiness.missingRoles.join('、')}。\n仍要继续升级吗？`);
+      if (!proceed) {
+        this.showMemberModal(projectId);
+      }
+      return Promise.resolve(proceed);
     }
 
-    /**
-     * 执行所有阶段
-     * @param {String} projectId - 项目ID
-     */
-    async executeAllStages(projectId) {
-        try {
-            if (!window.workflowExecutor) {
-                if (window.modalManager) {
-                    window.modalManager.alert('工作流执行器未就绪，请稍后重试', 'warning');
-                }
-                return;
-            }
+    return new Promise(resolve => {
+      this.pendingUpgradeResolver = resolve;
+      const suggestionHTML =
+        readiness.suggestions.length > 0
+          ? readiness.suggestions
+            .map(agent => `<div>${agent.avatar} ${agent.name} · ${agent.role}</div>`)
+            .join('')
+          : '<div>暂无匹配的雇佣建议</div>';
 
-            const project = await this.getProject(projectId);
-            if (!project || !project.workflow) {
-                throw new Error('项目工作流不存在');
-            }
-
-            // 获取所有未完成的阶段
-            const pendingStages = project.workflow.stages
-                .filter(s => s.status === 'pending')
-                .map(s => s.id);
-
-            if (pendingStages.length === 0) {
-                if (window.modalManager) {
-                    window.modalManager.alert('所有阶段已完成！', 'success');
-                }
-                return;
-            }
-
-            // 确认执行
-            const confirmed = confirm(`将执行 ${pendingStages.length} 个阶段，这可能需要一些时间，是否继续？`);
-            if (!confirmed) return;
-
-            // 关闭详情页
-            if (window.modalManager) {
-                window.modalManager.close('workflowDetails');
-            }
-
-            // 显示执行提示
-            if (window.modalManager) {
-                window.modalManager.alert('正在批量执行工作流，请稍候...', 'info');
-            }
-
-            // 获取创意对话内容
-            const chat = await this.storageManager.getChat(project.ideaId);
-            const conversation = chat ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n') : '';
-
-            // 调用workflowExecutor批量执行
-            const result = await window.workflowExecutor.executeBatch(
-                projectId,
-                pendingStages,
-                conversation
-            );
-
-            // 显示成功提示
-            if (window.modalManager) {
-                window.modalManager.close();
-                window.modalManager.alert(
-                    `工作流执行完成！<br><br>完成了 ${pendingStages.length} 个阶段<br>消耗 ${result.totalTokens} tokens`,
-                    'success'
-                );
-            }
-
-            // 刷新项目列表
-            await this.loadProjects();
-            this.renderProjectList('projectListContainer');
-            this.refreshProjectPanel(await this.getProject(projectId));
-
-        } catch (error) {
-            console.error('[ProjectManager] 执行工作流失败:', error);
-            if (window.modalManager) {
-                window.modalManager.close();
-                window.modalManager.alert('执行失败: ' + error.message, 'error');
-            }
-        }
-    }
-
-    /**
-     * 预览Demo
-     * @param {String} projectId - 项目ID
-     */
-    async previewDemo(projectId) {
-        try {
-            const project = await this.getProject(projectId);
-            if (project.demo && project.demo.previewUrl) {
-                window.open(project.demo.previewUrl, '_blank');
-            }
-        } catch (error) {
-            console.error('[ProjectManager] 预览Demo失败:', error);
-            alert('预览失败');
-        }
-    }
-
-    /**
-     * 重新生成Demo
-     * @param {String} projectId - 项目ID
-     */
-    regenerateDemo(projectId) {
-        console.log('[ProjectManager] 重新生成Demo:', projectId);
-        this.startDemoGeneration(projectId);
-    }
-
-    /**
-     * 开始生成Demo
-     * @param {String} projectId - 项目ID
-     */
-    startDemoGeneration(projectId) {
-        console.log('[ProjectManager] 开始生成Demo:', projectId);
-        window.currentDemoProjectId = projectId;
-        const modal = document.getElementById('demoTypeModal');
-        if (modal) {
-            modal.classList.add('active');
-            return;
-        }
-        if (typeof window.startDemoGeneration === 'function') {
-            window.startDemoGeneration();
-            return;
-        }
-        alert('Demo生成功能暂不可用');
-    }
-
-    /**
-     * 评估升级协同开发所需角色
-     * @param {Object} project - 项目对象
-     * @returns {Object} 评估结果
-     */
-    evaluateUpgradeReadiness(project) {
-        const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
-        const assigned = project?.assignedAgents || [];
-        const assignedRoles = assigned
-            .map(id => agentMarket.find(agent => agent.id === id))
-            .filter(Boolean)
-            .map(agent => agent.role);
-
-        const requiredRoles = ['产品经理', '技术架构师', 'UI/UX设计师'];
-        const missingRoles = requiredRoles.filter(role => !assignedRoles.includes(role));
-        const suggestions = agentMarket.filter(agent => missingRoles.includes(agent.role));
-
-        return { missingRoles, suggestions };
-    }
-
-    confirmUpgradeWithMissingRoles(projectId, readiness) {
-        if (!window.modalManager) {
-            const proceed = confirm(`缺少角色：${readiness.missingRoles.join('、')}。\n仍要继续升级吗？`);
-            if (!proceed) {
-                this.showMemberModal(projectId);
-            }
-            return Promise.resolve(proceed);
-        }
-
-        return new Promise(resolve => {
-            this.pendingUpgradeResolver = resolve;
-            const suggestionHTML = readiness.suggestions.length > 0
-                ? readiness.suggestions.map(agent => `<div>${agent.avatar} ${agent.name} · ${agent.role}</div>`).join('')
-                : '<div>暂无匹配的雇佣建议</div>';
-
-            const modalHTML = `
+      const modalHTML = `
                 <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
                     升级为协同开发需要补齐以下角色：
                 </div>
@@ -2118,35 +2202,33 @@ class ProjectManager {
                 </div>
             `;
 
-            window.modalManager.showCustomModal('协同升级评估', modalHTML, 'upgradeRoleCheck');
-        });
-    }
+      window.modalManager.showCustomModal('协同升级评估', modalHTML, 'upgradeRoleCheck');
+    });
+  }
 
-    handleUpgradeDecision(continueUpgrade, projectId) {
-        if (window.modalManager) {
-            window.modalManager.close('upgradeRoleCheck');
-        }
-        if (!continueUpgrade) {
-            this.showMemberModal(projectId);
-        }
-        if (this.pendingUpgradeResolver) {
-            this.pendingUpgradeResolver(!!continueUpgrade);
-            this.pendingUpgradeResolver = null;
-        }
+  handleUpgradeDecision(continueUpgrade, projectId) {
+    if (window.modalManager) {
+      window.modalManager.close('upgradeRoleCheck');
     }
+    if (!continueUpgrade) {
+      this.showMemberModal(projectId);
+    }
+    if (this.pendingUpgradeResolver) {
+      this.pendingUpgradeResolver(Boolean(continueUpgrade));
+      this.pendingUpgradeResolver = null;
+    }
+  }
 }
 
 // 导出（浏览器环境）
 if (typeof window !== 'undefined') {
-    window.ProjectManager = ProjectManager;
-    window.projectManager = new ProjectManager();
+  window.ProjectManager = ProjectManager;
+  window.projectManager = new ProjectManager();
 
-    // 自动初始化
-    window.addEventListener('DOMContentLoaded', () => {
-        if (window.projectManager) {
-            window.projectManager.init();
-        }
-    });
-
-    console.log('[ProjectManager] 项目管理器已加载');
+  // 自动初始化
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.projectManager) {
+      window.projectManager.init();
+    }
+  });
 }

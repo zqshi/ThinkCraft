@@ -50,7 +50,7 @@ class APIClient {
     // 重试逻辑
     for (let i = 0; i < retry; i++) {
       try {
-        console.log(`[APIClient] ${method} ${url}${i > 0 ? ` (重试 ${i}/${retry})` : ''}`);
+        ` : ''}`);
 
         // 超时控制
         const controller = new AbortController();
@@ -67,20 +67,16 @@ class APIClient {
         }
 
         const data = await response.json();
-        console.log(`[APIClient] ✓ ${method} ${url} - 成功`);
-
         return data;
 
       } catch (error) {
         // 最后一次重试失败，抛出错误
         if (i === retry - 1) {
-          console.error(`[APIClient] ✗ ${method} ${url} - 失败:`, error.message);
           throw this.normalizeError(error);
         }
 
         // 计算重试延迟（指数退避）
         const delay = this.config.retryDelay * Math.pow(2, i);
-        console.warn(`[APIClient] 请求失败，${delay}ms后重试...`);
         await this.sleep(delay);
       }
     }
@@ -332,8 +328,7 @@ class APIClient {
    */
   setBaseURL(url) {
     this.baseURL = url;
-    console.log(`[APIClient] 基础URL已更新: ${url}`);
-  }
+    }
 
   /**
    * 更新配置
@@ -341,8 +336,7 @@ class APIClient {
    */
   updateConfig(config) {
     this.config = { ...this.config, ...config };
-    console.log(`[APIClient] 配置已更新:`, this.config);
-  }
+    }
 
   /**
    * 批量请求（并行执行，但限制并发数）
@@ -387,5 +381,4 @@ if (typeof window !== 'undefined') {
   const apiUrl = settings.apiUrl || 'http://localhost:3000';
   window.apiClient = new APIClient(apiUrl);
 
-  console.log('[APIClient] API客户端已初始化，baseURL:', apiUrl);
-}
+  }

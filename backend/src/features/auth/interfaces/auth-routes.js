@@ -1,0 +1,79 @@
+/**
+ * 认证路由
+ * 提供完整的认证API
+ */
+import express from 'express';
+import { authController } from './auth.controller.js';
+import { authMiddleware, optionalAuthMiddleware } from './auth.middleware.js';
+
+const router = express.Router();
+
+/**
+ * POST /api/auth/login
+ * 用户登录
+ * 请求体: { username: string, password: string }
+ * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
+ */
+router.post('/login', authController.login);
+
+/**
+ * POST /api/auth/register
+ * 用户注册
+ * 请求体: { username: string, email: string, password: string }
+ * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
+ */
+router.post('/register', authController.register);
+
+/**
+ * POST /api/auth/refresh-token
+ * 刷新访问令牌
+ * 请求体: { refreshToken: string }
+ * 响应: { code: number, message: string, data: { accessToken: string, user: object } }
+ */
+router.post('/refresh-token', authController.refreshToken);
+
+/**
+ * GET /api/auth/me
+ * 获取当前用户信息（需要认证）
+ * 响应: { code: number, message: string, data: { id: string, username: string, email: string, status: string, ... } }
+ */
+router.get('/me', authMiddleware, authController.getCurrentUser);
+
+/**
+ * PUT /api/auth/password
+ * 修改密码（需要认证）
+ * 请求体: { oldPassword: string, newPassword: string }
+ * 响应: { code: number, message: string, data: { id: string, username: string, email: string, ... } }
+ */
+router.put('/password', authMiddleware, authController.changePassword);
+
+/**
+ * POST /api/auth/logout
+ * 用户登出（需要认证）
+ * 响应: { code: number, message: string, data: { success: boolean } }
+ */
+router.post('/logout', authMiddleware, authController.logout);
+
+/**
+ * GET /api/auth/validate
+ * 验证访问令牌
+ * 响应: { code: number, message: string, data: { userId: string, username: string, email: string } }
+ */
+router.get('/validate', authController.validateToken);
+
+/**
+ * 健康检查端点
+ */
+router.get('/health', (req, res) => {
+  res.json({
+    code: 0,
+    message: 'Auth服务正常运行',
+    data: {
+      service: 'auth',
+      status: 'healthy',
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+export default router;

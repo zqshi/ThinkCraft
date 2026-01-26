@@ -1,0 +1,37 @@
+{
+  "name": "thinkcraft-project",
+  "version": "1.0.0",
+  "description": "ThinkCraft AI思维助手项目配置",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint frontend/ backend/ --ext .js",
+    "lint:fix": "eslint frontend/ backend/ --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,css,md}\"",
+    "cleanup": "node scripts/cleanup-console.js && node scripts/cleanup-backend-console.js",
+    "postinstall": "cd backend && npm install",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.2.5"
+  },
+  "keywords": [
+    "thinkcraft",
+    "ai",
+    "eslint",
+    "prettier"
+  ],
+  "license": "MIT"
+}

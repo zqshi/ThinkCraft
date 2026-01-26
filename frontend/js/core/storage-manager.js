@@ -23,44 +23,38 @@ class StorageManager {
       const request = indexedDB.open(this.dbName, this.dbVersion);
 
       request.onerror = () => {
-        console.error('[StorageManager] 数据库打开失败:', request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
         this.db = request.result;
         this.ready = true;
-        console.log('[StorageManager] IndexedDB已初始化');
         resolve();
       };
 
-      request.onupgradeneeded = (event) => {
+      request.onupgradeneeded = event => {
         const db = event.target.result;
 
         // 创建对象存储（表）
         if (!db.objectStoreNames.contains('chats')) {
           const chatsStore = db.createObjectStore('chats', { keyPath: 'id' });
           chatsStore.createIndex('createdAt', 'createdAt', { unique: false });
-          console.log('[StorageManager] 创建 chats 存储');
         }
 
         if (!db.objectStoreNames.contains('reports')) {
           const reportsStore = db.createObjectStore('reports', { keyPath: 'id' });
           reportsStore.createIndex('type', 'type', { unique: false });
           reportsStore.createIndex('timestamp', 'timestamp', { unique: false });
-          console.log('[StorageManager] 创建 reports 存储');
         }
 
         if (!db.objectStoreNames.contains('demos')) {
           const demosStore = db.createObjectStore('demos', { keyPath: 'id' });
           demosStore.createIndex('type', 'type', { unique: false });
           demosStore.createIndex('timestamp', 'timestamp', { unique: false });
-          console.log('[StorageManager] 创建 demos 存储');
         }
 
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
-          console.log('[StorageManager] 创建 settings 存储');
         }
 
         // Phase 3：灵感收件箱存储（v3新增）
@@ -71,7 +65,6 @@ class StorageManager {
           inspirationsStore.createIndex('createdAt', 'createdAt', { unique: false });
           inspirationsStore.createIndex('category', 'category', { unique: false });
           inspirationsStore.createIndex('linkedChatId', 'linkedChatId', { unique: false });
-          console.log('[StorageManager] 创建 inspirations 存储');
         }
 
         // 知识库存储（v4新增）
@@ -82,7 +75,6 @@ class StorageManager {
           knowledgeStore.createIndex('projectId', 'projectId', { unique: false });
           knowledgeStore.createIndex('createdAt', 'createdAt', { unique: false });
           knowledgeStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
-          console.log('[StorageManager] 创建 knowledge 存储');
         }
 
         // 项目管理存储（v5新增）
@@ -93,7 +85,6 @@ class StorageManager {
           projectsStore.createIndex('status', 'status', { unique: false });
           projectsStore.createIndex('createdAt', 'createdAt', { unique: false });
           projectsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-          console.log('[StorageManager] 创建 projects 存储');
         }
 
         // 工作流交付物存储（v6新增）
@@ -103,7 +94,6 @@ class StorageManager {
           artifactsStore.createIndex('stageId', 'stageId', { unique: false });
           artifactsStore.createIndex('type', 'type', { unique: false });
           artifactsStore.createIndex('createdAt', 'createdAt', { unique: false });
-          console.log('[StorageManager] 创建 artifacts 存储');
         }
       };
     });
@@ -114,7 +104,9 @@ class StorageManager {
    * @returns {Promise<void>}
    */
   async ensureReady() {
-    if (this.ready) return;
+    if (this.ready) {
+      return;
+    }
     await this.init();
   }
 
@@ -135,12 +127,10 @@ class StorageManager {
       const request = store.put(data);
 
       request.onsuccess = () => {
-        console.log(`[StorageManager] 保存到 ${storeName}:`, data.id || data.key);
         resolve();
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 保存失败:`, request.error);
         reject(request.error);
       };
     });
@@ -165,7 +155,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 获取失败:`, request.error);
         reject(request.error);
       };
     });
@@ -189,7 +178,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 获取所有数据失败:`, request.error);
         reject(request.error);
       };
     });
@@ -210,12 +198,10 @@ class StorageManager {
       const request = store.delete(id);
 
       request.onsuccess = () => {
-        console.log(`[StorageManager] 删除 ${storeName}:`, id);
         resolve();
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 删除失败:`, request.error);
         reject(request.error);
       };
     });
@@ -235,12 +221,10 @@ class StorageManager {
       const request = store.clear();
 
       request.onsuccess = () => {
-        console.log(`[StorageManager] 清空 ${storeName}`);
         resolve();
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 清空失败:`, request.error);
         reject(request.error);
       };
     });
@@ -385,8 +369,6 @@ class StorageManager {
    * @returns {Promise<void>}
    */
   async migrateFromLocalStorage() {
-    console.log('[StorageManager] 开始数据迁移...');
-
     try {
       // 迁移对话历史
       const chatsJSON = localStorage.getItem('thinkcraft_chats');
@@ -395,7 +377,6 @@ class StorageManager {
         for (const chat of chats) {
           await this.saveChat(chat);
         }
-        console.log(`[StorageManager] 迁移了 ${chats.length} 条对话`);
       }
 
       // 迁移设置
@@ -405,16 +386,11 @@ class StorageManager {
         for (const [key, value] of Object.entries(settings)) {
           await this.saveSetting(key, value);
         }
-        console.log(`[StorageManager] 迁移了设置`);
       }
 
       // 标记迁移完成
       localStorage.setItem('thinkcraft_migrated', 'true');
-      console.log('[StorageManager] 数据迁移完成');
-
-    } catch (error) {
-      console.error('[StorageManager] 数据迁移失败:', error);
-    }
+    } catch (error) {}
   }
 
   /**
@@ -452,7 +428,6 @@ class StorageManager {
     await this.clear('reports');
     await this.clear('demos');
     await this.clear('settings');
-    console.log('[StorageManager] 已清空所有数据');
   }
 
   /**
@@ -491,8 +466,6 @@ class StorageManager {
         await this.saveDemo(demo);
       }
     }
-
-    console.log('[StorageManager] 数据导入完成');
   }
 
   // ========== 灵感收件箱业务方法（Phase 3新增） ==========
@@ -544,7 +517,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 获取灵感失败:`, request.error);
         reject(request.error);
       };
     });
@@ -561,7 +533,6 @@ class StorageManager {
     }
     inspiration.updatedAt = Date.now();
     await this.save('inspirations', inspiration);
-    console.log(`[StorageManager] 保存灵感: ${inspiration.id}`);
   }
 
   /**
@@ -602,7 +573,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 获取灵感失败:`, request.error);
         reject(request.error);
       };
     });
@@ -655,7 +625,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error(`[StorageManager] 获取灵感失败:`, request.error);
         reject(request.error);
       };
     });
@@ -708,7 +677,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取灵感失败:', request.error);
         reject(request.error);
       };
     });
@@ -759,7 +727,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取灵感失败:', request.error);
         reject(request.error);
       };
     });
@@ -795,13 +762,11 @@ class StorageManager {
         request.onsuccess = () => {
           completed++;
           if (completed === total) {
-            console.log(`[StorageManager] 批量保存 ${total} 条灵感`);
             resolve();
           }
         };
 
         request.onerror = () => {
-          console.error('[StorageManager] 批量保存失败:', request.error);
           reject(request.error);
         };
       });
@@ -829,7 +794,6 @@ class StorageManager {
     }
     item.updatedAt = Date.now();
     await this.save('knowledge', item);
-    console.log(`[StorageManager] 保存知识: ${item.id}`);
   }
 
   /**
@@ -872,7 +836,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取项目知识失败:', request.error);
         reject(request.error);
       };
     });
@@ -898,7 +861,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取作用域知识失败:', request.error);
         reject(request.error);
       };
     });
@@ -924,7 +886,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取类型知识失败:', request.error);
         reject(request.error);
       };
     });
@@ -950,7 +911,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取标签知识失败:', request.error);
         reject(request.error);
       };
     });
@@ -971,15 +931,19 @@ class StorageManager {
    * @returns {Promise<Array>}
    */
   async searchKnowledge(keyword) {
-    if (!keyword) return this.getAllKnowledge();
+    if (!keyword) {
+      return this.getAllKnowledge();
+    }
 
     const allItems = await this.getAllKnowledge();
     const lowerKeyword = keyword.toLowerCase();
 
     return allItems.filter(item => {
-      return item.title.toLowerCase().includes(lowerKeyword) ||
-             item.content.toLowerCase().includes(lowerKeyword) ||
-             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+      return (
+        item.title.toLowerCase().includes(lowerKeyword) ||
+        item.content.toLowerCase().includes(lowerKeyword) ||
+        item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword))
+      );
     });
   }
 
@@ -1004,13 +968,11 @@ class StorageManager {
         request.onsuccess = () => {
           completed++;
           if (completed === total) {
-            console.log(`[StorageManager] 批量保存 ${total} 条知识`);
             resolve();
           }
         };
 
         request.onerror = () => {
-          console.error('[StorageManager] 批量保存失败:', request.error);
           reject(request.error);
         };
       });
@@ -1041,7 +1003,6 @@ class StorageManager {
       project.createdAt = Date.now();
     }
     await this.save('projects', project);
-    console.log(`[StorageManager] 保存项目: ${project.id}`);
   }
 
   /**
@@ -1082,7 +1043,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取创意项目失败:', request.error);
         reject(request.error);
       };
     });
@@ -1108,7 +1068,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取模式项目失败:', request.error);
         reject(request.error);
       };
     });
@@ -1134,7 +1093,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取状态项目失败:', request.error);
         reject(request.error);
       };
     });
@@ -1171,7 +1129,9 @@ class StorageManager {
    * @returns {Promise<Array>}
    */
   async searchProjects(keyword) {
-    if (!keyword) return this.getAllProjects();
+    if (!keyword) {
+      return this.getAllProjects();
+    }
 
     const allProjects = await this.getAllProjects();
     const lowerKeyword = keyword.toLowerCase();
@@ -1204,7 +1164,6 @@ class StorageManager {
       artifact.createdAt = Date.now();
     }
     await this.save('artifacts', artifact);
-    console.log(`[StorageManager] 保存交付物: ${artifact.id}`);
   }
 
   /**
@@ -1246,7 +1205,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取项目交付物失败:', request.error);
         reject(request.error);
       };
     });
@@ -1283,7 +1241,6 @@ class StorageManager {
       };
 
       request.onerror = () => {
-        console.error('[StorageManager] 获取类型交付物失败:', request.error);
         reject(request.error);
       };
     });
@@ -1324,13 +1281,11 @@ class StorageManager {
         request.onsuccess = () => {
           completed++;
           if (completed === total) {
-            console.log(`[StorageManager] 批量保存 ${total} 个交付物`);
             resolve();
           }
         };
 
         request.onerror = () => {
-          console.error('[StorageManager] 批量保存失败:', request.error);
           reject(request.error);
         };
       });
@@ -1355,7 +1310,6 @@ class StorageManager {
     for (const artifact of artifacts) {
       await this.deleteArtifact(artifact.id);
     }
-    console.log(`[StorageManager] 删除项目 ${projectId} 的所有交付物`);
   }
 }
 
@@ -1370,6 +1324,4 @@ if (typeof window !== 'undefined') {
       await window.storageManager.migrateFromLocalStorage();
     }
   });
-
-  console.log('[StorageManager] 存储管理器已初始化');
 }
