@@ -24,6 +24,8 @@ import workflowRecommendationRouter from './routes/workflow-recommendation.js';
 import authRouter from './routes/auth.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
+import { initDatabases, closeDatabases } from './config/database.js';
+import { cacheService } from './src/infrastructure/cache/redis-cache.service.js';
 
 // 加载环境变量
 dotenv.config();
@@ -139,17 +141,54 @@ app.use((req, res) => {
 // 统一错误处理（必须放在最后）
 app.use(errorHandler);
 
-// 启动服务器
-app.listen(PORT, () => {
-    );
-    );
-    });
+/**
+ * 启动服务器
+ */
+async function startServer() {
+    try {
+        // 初始化数据库连接
+        console.log('[Server] 正在初始化数据库...');
+        await initDatabases();
+
+        // 初始化缓存服务
+        console.log('[Server] 正在初始化缓存服务...');
+        await cacheService.init();
+
+        // 启动HTTP服务器
+        app.listen(PORT, () => {
+            console.log('========================================');
+            console.log(`  ThinkCraft 后端服务已启动`);
+            console.log(`  端口: ${PORT}`);
+            console.log(`  环境: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`  存储类型: ${process.env.DB_TYPE || 'memory'}`);
+            console.log(`  前端地址: ${FRONTEND_URL}`);
+            console.log('========================================');
+        });
+    } catch (error) {
+        console.error('[Server] 启动失败:', error);
+        process.exit(1);
+    }
+}
 
 // 优雅关闭
-process.on('SIGTERM', () => {
-    process.exit(0);
-});
+async function gracefulShutdown(signal) {
+    console.log(`\n[Server] 收到 ${signal} 信号，正在关闭服务器...`);
 
-process.on('SIGINT', () => {
-    process.exit(0);
-});
+    try {
+        // 关闭数据库连接
+        await closeDatabases();
+        console.log('[Server] 数据库连接已关闭');
+
+        console.log('[Server] 服务器已安全关闭');
+        process.exit(0);
+    } catch (error) {
+        console.error('[Server] 关闭过程出错:', error);
+        process.exit(1);
+    }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// 启动服务器
+startServer();

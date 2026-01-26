@@ -5,7 +5,6 @@
 import { Report } from '../domain/entities/report.aggregate.js';
 import { ReportId } from '../domain/value-objects/report-id.vo.js';
 import { ReportType } from '../domain/value-objects/report-type.vo.js';
-import { ReportStatus } from '../domain/value-objects/report-status.vo.js';
 import { ReportRepository } from '../infrastructure/report.repository.js';
 import { ReportApiService } from '../infrastructure/report-api.service.js';
 import { ReportMapper } from '../infrastructure/report.mapper.js';

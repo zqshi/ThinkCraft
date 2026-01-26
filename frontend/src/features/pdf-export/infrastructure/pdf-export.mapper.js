@@ -2,9 +2,6 @@
  * PDF导出DTO映射器
  * 处理领域模型与DTO之间的转换
  */
-import { MarginConfig } from '../domain/value-objects/export-options.vo.js';
-import { HeaderFooterConfig } from '../domain/value-objects/export-options.vo.js';
-import { WatermarkConfig } from '../domain/value-objects/export-options.vo.js';
 
 export class PdfExportMapper {
   /**

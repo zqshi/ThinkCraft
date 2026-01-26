@@ -1,8 +1,4 @@
-import {
-  WorkflowRecommendation,
-  WorkflowRecommendationFactory
-} from '../domain/recommendation.aggregate.js';
-import { RecommendationType } from '../domain/value-objects/recommendation-type.vo.js';
+import { WorkflowRecommendationFactory } from '../domain/recommendation.aggregate.js';
 
 /**
  * 工作流推荐用例服务

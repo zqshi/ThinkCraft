@@ -1,5 +1,3 @@
-import { Workflow, WorkflowFactory } from '../domain/workflow.aggregate.js';
-import { WorkflowStatus } from '../domain/value-objects/workflow-status.vo.js';
 
 /**
  * 工作流用例服务
@@ -178,7 +176,7 @@ export class WorkflowUseCase {
   /**
    * 完成当前步骤
    */
-  async completeCurrentStep(workflowId, comment = '') {
+  async completeCurrentStep(workflowId, _comment = '') {
     try {
       const workflow = await this.workflowRepository.findById(workflowId);
       if (!workflow) {

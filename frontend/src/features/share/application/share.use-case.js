@@ -2,9 +2,7 @@
  * 分享用例
  * 处理分享相关的业务用例
  */
-import { Share, ShareFactory } from '../domain/share.aggregate.js';
-import { SharePermission } from '../domain/value-objects/share-permission.vo.js';
-import { ShareStatus } from '../domain/value-objects/share-status.vo.js';
+import { Share } from '../domain/share.aggregate.js';
 import { ShareRepository } from '../infrastructure/share.repository.js';
 import { ShareMapper } from '../infrastructure/share.mapper.js';
 import { Result } from '../../../shared/result.js';

@@ -2,8 +2,6 @@
  * 视觉识别用例
  * 处理视觉分析相关的业务用例
  */
-import { VisionTask, VisionTaskFactory } from '../domain/vision.aggregate.js';
-import { VisionTaskType } from '../domain/value-objects/vision-task-type.vo.js';
 import { VisionImage } from '../domain/value-objects/vision-image.vo.js';
 import { VisionRepository } from '../infrastructure/vision.repository.js';
 import { VisionMapper } from '../infrastructure/vision.mapper.js';
@@ -20,7 +18,8 @@ export class VisionUseCase {
    */
   async createVisionTask(createDto) {
     try {
-      const { taskType, imageData, prompt, createdBy } = createDto;
+      const { taskType, prompt, createdBy } = createDto;
+      let { imageData } = createDto;
 
       if (!taskType || !imageData) {
         return Result.fail('任务类型和图片数据不能为空');

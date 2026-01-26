@@ -3,24 +3,20 @@
  * 实现用户认证相关的业务用例
  */
 import {
-  LoginRequestDTO,
   LoginResponseDTO,
-  RegisterRequestDTO,
   RegisterResponseDTO,
-  RefreshTokenRequestDTO,
   RefreshTokenResponseDTO,
-  ChangePasswordRequestDTO,
   UserInfoDTO
 } from './auth.dto.js';
 import { UserService } from '../domain/user.service.js';
-import { userRepository } from '../infrastructure/user-inmemory.repository.js';
+import { getUserRepository } from '../../../shared/infrastructure/repository.factory.js';
 import { tokenService } from '../infrastructure/token.service.js';
 
 export class AuthUseCase {
   constructor() {
-    this.userRepository = userRepository;
+    this.userRepository = getUserRepository();
     this.tokenService = tokenService;
-    this.userService = new UserService(userRepository, tokenService);
+    this.userService = new UserService(this.userRepository, tokenService);
   }
 
   /**
