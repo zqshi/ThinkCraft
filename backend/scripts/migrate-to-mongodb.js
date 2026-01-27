@@ -6,6 +6,12 @@ import { mongoManager } from '../config/database.js';
 import { UserInMemoryRepository } from '../src/features/auth/infrastructure/user-inmemory.repository.js';
 import { UserMongoRepository } from '../src/features/auth/infrastructure/user-mongodb.repository.js';
 import { UserModel } from '../src/features/auth/infrastructure/user.model.js';
+import { ProjectModel } from '../src/features/projects/infrastructure/project.model.js';
+import { ProjectMongoRepository } from '../src/features/projects/infrastructure/project-mongodb.repository.js';
+import { ChatModel } from '../src/features/chat/infrastructure/chat.model.js';
+import { ChatMongoRepository } from '../src/features/chat/infrastructure/chat-mongodb.repository.js';
+import { BusinessPlanModel } from '../src/features/business-plan/infrastructure/business-plan.model.js';
+import { BusinessPlanMongoRepository } from '../src/features/business-plan/infrastructure/business-plan-mongodb.repository.js';
 
 /**
  * 迁移统计
@@ -86,9 +92,118 @@ async function clearMongoDB() {
   console.log('[Migration] 清空MongoDB现有数据...');
   try {
     await UserModel.deleteMany({});
+    await ProjectModel.deleteMany({});
+    await ChatModel.deleteMany({});
+    await BusinessPlanModel.deleteMany({});
     console.log('[Migration] MongoDB数据已清空');
   } catch (error) {
     console.error('[Migration] 清空数据失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 迁移项目数据
+ * 注意：由于没有内存仓库，这里提供一个示例框架
+ */
+async function migrateProjects() {
+  console.log('[Migration] 开始迁移项目数据...');
+
+  const stats = new MigrationStats();
+  const mongoRepo = new ProjectMongoRepository();
+
+  try {
+    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
+    // const projects = await memoryRepo.findAll();
+
+    // 示例：从JSON文件或其他数据源读取
+    const projects = []; // 替换为实际数据源
+    stats.total = projects.length;
+
+    console.log(`[Migration] 找到 ${projects.length} 个项目`);
+
+    for (const project of projects) {
+      try {
+        await mongoRepo.save(project);
+        stats.addSuccess();
+        console.log(`[Migration] ✓ 迁移项目: ${project.name.value}`);
+      } catch (error) {
+        stats.addFailure(`项目 ${project.id.value}: ${error.message}`);
+        console.error(`[Migration] ✗ 迁移失败: ${project.id.value}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Migration] 项目迁移过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 迁移聊天数据
+ */
+async function migrateChats() {
+  console.log('[Migration] 开始迁移聊天数据...');
+
+  const stats = new MigrationStats();
+  const mongoRepo = new ChatMongoRepository();
+
+  try {
+    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
+    const chats = []; // 替换为实际数据源
+    stats.total = chats.length;
+
+    console.log(`[Migration] 找到 ${chats.length} 个聊天会话`);
+
+    for (const chat of chats) {
+      try {
+        await mongoRepo.save(chat);
+        stats.addSuccess();
+        console.log(`[Migration] ✓ 迁移聊天: ${chat.title}`);
+      } catch (error) {
+        stats.addFailure(`聊天 ${chat.id}: ${error.message}`);
+        console.error(`[Migration] ✗ 迁移失败: ${chat.id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Migration] 聊天迁移过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 迁移商业计划书数据
+ */
+async function migrateBusinessPlans() {
+  console.log('[Migration] 开始迁移商业计划书数据...');
+
+  const stats = new MigrationStats();
+  const mongoRepo = new BusinessPlanMongoRepository();
+
+  try {
+    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
+    const businessPlans = []; // 替换为实际数据源
+    stats.total = businessPlans.length;
+
+    console.log(`[Migration] 找到 ${businessPlans.length} 个商业计划书`);
+
+    for (const plan of businessPlans) {
+      try {
+        await mongoRepo.save(plan);
+        stats.addSuccess();
+        console.log(`[Migration] ✓ 迁移商业计划书: ${plan.title}`);
+      } catch (error) {
+        stats.addFailure(`商业计划书 ${plan.id.value}: ${error.message}`);
+        console.error(`[Migration] ✗ 迁移失败: ${plan.id.value}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Migration] 商业计划书迁移过程出错:', error);
     throw error;
   }
 }
@@ -119,7 +234,17 @@ async function main() {
     const userStats = await migrateUsers();
     userStats.print();
 
-    // TODO: 迁移其他实体（项目、聊天、商业计划书等）
+    // 迁移项目数据
+    const projectStats = await migrateProjects();
+    projectStats.print();
+
+    // 迁移聊天数据
+    const chatStats = await migrateChats();
+    chatStats.print();
+
+    // 迁移商业计划书数据
+    const businessPlanStats = await migrateBusinessPlans();
+    businessPlanStats.print();
 
     console.log('[Migration] 迁移完成！');
     console.log('[Migration] 建议运行验证脚本: node scripts/verify-migration.js\n');
