@@ -1,0 +1,82 @@
+{
+  "workflow_id": "traditional-product",
+  "workflow_name": "传统产品开发流程",
+  "description": "用于开发Web应用、移动应用、桌面应用等传统产品",
+  "phases": [
+    {
+      "phase_id": "requirement",
+      "phase_name": "需求阶段",
+      "agents": [
+        {
+          "agent_id": "product-manager",
+          "role": "主导",
+          "tasks": ["需求分析", "PRD编写"]
+        }
+      ],
+      "dependencies": [],
+      "outputs": ["PRD文档"]
+    },
+    {
+      "phase_id": "design",
+      "phase_name": "设计阶段",
+      "agents": [
+        {
+          "agent_id": "ui-ux-designer",
+          "role": "UI/UX设计",
+          "tasks": ["用户体验设计", "交互设计", "视觉设计"]
+        },
+        {
+          "agent_id": "tech-lead",
+          "role": "技术架构",
+          "tasks": ["架构设计", "技术选型"]
+        }
+      ],
+      "dependencies": ["requirement"],
+      "outputs": ["设计文档", "技术方案"]
+    },
+    {
+      "phase_id": "development",
+      "phase_name": "开发阶段",
+      "agents": [
+        {
+          "agent_id": "frontend-developer",
+          "role": "前端开发",
+          "tasks": ["前端界面开发"]
+        },
+        {
+          "agent_id": "backend-developer",
+          "role": "后端开发",
+          "tasks": ["后端服务开发"]
+        }
+      ],
+      "dependencies": ["design"],
+      "outputs": ["前端代码", "后端代码"]
+    },
+    {
+      "phase_id": "testing",
+      "phase_name": "测试阶段",
+      "agents": [
+        {
+          "agent_id": "qa-engineer",
+          "role": "测试",
+          "tasks": ["测试计划", "测试执行"]
+        }
+      ],
+      "dependencies": ["development"],
+      "outputs": ["测试报告"]
+    },
+    {
+      "phase_id": "deployment",
+      "phase_name": "部署阶段",
+      "agents": [
+        {
+          "agent_id": "tech-lead",
+          "role": "部署",
+          "tasks": ["部署准备", "部署执行"]
+        }
+      ],
+      "dependencies": ["testing"],
+      "outputs": ["部署文档"]
+    }
+  ]
+}

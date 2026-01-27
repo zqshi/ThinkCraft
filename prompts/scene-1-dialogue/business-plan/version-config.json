@@ -1,0 +1,16 @@
+{
+  "current_version": "1.0.0",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "release_date": "2026-01-27",
+      "status": "stable",
+      "is_default": true,
+      "changelog": "初始版本，基于用户提供的新提示词",
+      "files": {
+        "full_document": "full-document.md",
+        "chapters_config": "chapters-config.json"
+      }
+    }
+  ]
+}
