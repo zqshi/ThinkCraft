@@ -6,19 +6,17 @@
 import fs from 'fs';
 import path from 'path';
 import { mongoManager } from '../config/database.js';
-import { UserMongoRepository } from '../src/features/auth/infrastructure/user-mongodb.repository.js';
-import { User } from '../src/features/auth/domain/user.aggregate.js';
-import { UserId } from '../src/features/auth/domain/value-objects/user-id.vo.js';
-import { Username } from '../src/features/auth/domain/value-objects/username.vo.js';
-import { Email } from '../src/features/auth/domain/value-objects/email.vo.js';
-import { Password } from '../src/features/auth/domain/value-objects/password.vo.js';
-import { UserStatus } from '../src/features/auth/domain/value-objects/user-status.vo.js';
+import { UserModel } from '../src/features/auth/infrastructure/user.model.js';
+import { ProjectModel } from '../src/features/projects/infrastructure/project.model.js';
+import { ChatModel } from '../src/features/chat/infrastructure/chat.model.js';
+import { BusinessPlanModel } from '../src/features/business-plan/infrastructure/business-plan.model.js';
 
 /**
  * 恢复统计
  */
 class RestoreStats {
-  constructor() {
+  constructor(entityName) {
+    this.entityName = entityName;
     this.total = 0;
     this.success = 0;
     this.failed = 0;
@@ -35,7 +33,7 @@ class RestoreStats {
   }
 
   print() {
-    console.log('\n========== 恢复统计 ==========');
+    console.log(`\n========== ${this.entityName}恢复统计 ==========`);
     console.log(`总计: ${this.total}`);
     console.log(`成功: ${this.success}`);
     console.log(`失败: ${this.failed}`);
@@ -53,56 +51,125 @@ class RestoreStats {
 /**
  * 恢复用户数据
  */
-async function restoreUsers(userData) {
+async function restoreUsers(users) {
   console.log('[Restore] 恢复用户数据...');
 
-  const stats = new RestoreStats();
-  const mongoRepo = new UserMongoRepository();
+  const stats = new RestoreStats('用户');
+  stats.total = users.length;
 
-  stats.total = userData.length;
-  console.log(`[Restore] 找到 ${userData.length} 个用户`);
-
-  for (const data of userData) {
-    try {
-      // 重建领域模型
-      const user = new User(
-        UserId.fromString(data.userId),
-        new Username(data.username),
-        new Email(data.email),
-        Password.fromHash(data.passwordHash),
-        UserStatus.fromString(data.status)
-      );
-
-      // 设置其他属性
-      user._lastLoginAt = data.lastLoginAt ? new Date(data.lastLoginAt) : null;
-      user._loginAttempts = data.loginAttempts || 0;
-      user._lockedUntil = data.lockedUntil ? new Date(data.lockedUntil) : null;
-      user.emailVerified = data.emailVerified || false;
-      user.emailVerificationToken = data.emailVerificationToken || null;
-      user.emailVerificationExpires = data.emailVerificationExpires ? new Date(data.emailVerificationExpires) : null;
-      user.passwordResetToken = data.passwordResetToken || null;
-      user.passwordResetExpires = data.passwordResetExpires ? new Date(data.passwordResetExpires) : null;
-      user.loginHistory = data.loginHistory || [];
-      user.preferences = data.preferences || {
-        language: 'zh-CN',
-        theme: 'light',
-        notifications: { email: true, push: true }
-      };
-      user.deletedAt = data.deletedAt ? new Date(data.deletedAt) : null;
-      user.createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
-      user.updatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
-
-      // 保存到MongoDB
-      await mongoRepo.save(user);
-      stats.addSuccess();
-      console.log(`[Restore] ✓ 恢复用户: ${data.username}`);
-    } catch (error) {
-      stats.addFailure(`用户 ${data.username}: ${error.message}`);
-      console.error(`[Restore] ✗ 恢复失败: ${data.username}`, error.message);
+  try {
+    for (const userData of users) {
+      try {
+        await UserModel.findByIdAndUpdate(userData._id || userData.userId, userData, {
+          upsert: true,
+          new: true
+        });
+        stats.addSuccess();
+        console.log(`[Restore] ✓ 恢复用户: ${userData.username}`);
+      } catch (error) {
+        stats.addFailure(`用户 ${userData.username}: ${error.message}`);
+        console.error(`[Restore] ✗ 恢复失败: ${userData.username}`, error.message);
+      }
     }
-  }
 
-  return stats;
+    return stats;
+  } catch (error) {
+    console.error('[Restore] 用户恢复过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 恢复项目数据
+ */
+async function restoreProjects(projects) {
+  console.log('[Restore] 恢复项目数据...');
+
+  const stats = new RestoreStats('项目');
+  stats.total = projects.length;
+
+  try {
+    for (const projectData of projects) {
+      try {
+        await ProjectModel.findByIdAndUpdate(projectData._id, projectData, {
+          upsert: true,
+          new: true
+        });
+        stats.addSuccess();
+        console.log(`[Restore] ✓ 恢复项目: ${projectData.name}`);
+      } catch (error) {
+        stats.addFailure(`项目 ${projectData._id}: ${error.message}`);
+        console.error(`[Restore] ✗ 恢复失败: ${projectData._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Restore] 项目恢复过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 恢复聊天数据
+ */
+async function restoreChats(chats) {
+  console.log('[Restore] 恢复聊天数据...');
+
+  const stats = new RestoreStats('聊天');
+  stats.total = chats.length;
+
+  try {
+    for (const chatData of chats) {
+      try {
+        await ChatModel.findByIdAndUpdate(chatData._id, chatData, {
+          upsert: true,
+          new: true
+        });
+        stats.addSuccess();
+        console.log(`[Restore] ✓ 恢复聊天: ${chatData.title}`);
+      } catch (error) {
+        stats.addFailure(`聊天 ${chatData._id}: ${error.message}`);
+        console.error(`[Restore] ✗ 恢复失败: ${chatData._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Restore] 聊天恢复过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 恢复商业计划书数据
+ */
+async function restoreBusinessPlans(businessPlans) {
+  console.log('[Restore] 恢复商业计划书数据...');
+
+  const stats = new RestoreStats('商业计划书');
+  stats.total = businessPlans.length;
+
+  try {
+    for (const planData of businessPlans) {
+      try {
+        await BusinessPlanModel.findByIdAndUpdate(planData._id, planData, {
+          upsert: true,
+          new: true
+        });
+        stats.addSuccess();
+        console.log(`[Restore] ✓ 恢复商业计划书: ${planData.title}`);
+      } catch (error) {
+        stats.addFailure(`商业计划书 ${planData._id}: ${error.message}`);
+        console.error(`[Restore] ✗ 恢复失败: ${planData._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Restore] 商业计划书恢复过程出错:', error);
+    throw error;
+  }
 }
 
 /**
@@ -111,7 +178,7 @@ async function restoreUsers(userData) {
 async function main() {
   console.log('========================================');
   console.log('  ThinkCraft 数据恢复工具');
-  console.log('  从JSON文件导入到MongoDB');
+  console.log('  从JSON文件导入数据到MongoDB');
   console.log('========================================\n');
 
   try {
@@ -125,7 +192,7 @@ async function main() {
 
     // 检查文件是否存在
     if (!fs.existsSync(backupFile)) {
-      console.error(`[Restore] 错误: 文件不存在: ${backupFile}`);
+      console.error(`[Restore] 错误: 备份文件不存在: ${backupFile}`);
       process.exit(1);
     }
 
@@ -141,11 +208,20 @@ async function main() {
     await mongoManager.connect();
     console.log('[Restore] MongoDB连接成功\n');
 
-    // 恢复用户数据
-    const userStats = await restoreUsers(backupData.data.users);
+    // 恢复所有数据
+    const { users = [], projects = [], chats = [], businessPlans = [] } = backupData.data;
+
+    const userStats = await restoreUsers(users);
     userStats.print();
 
-    // TODO: 恢复其他实体（项目、聊天、商业计划书等）
+    const projectStats = await restoreProjects(projects);
+    projectStats.print();
+
+    const chatStats = await restoreChats(chats);
+    chatStats.print();
+
+    const businessPlanStats = await restoreBusinessPlans(businessPlans);
+    businessPlanStats.print();
 
     console.log('[Restore] 恢复完成！');
     console.log('[Restore] 建议运行验证脚本: node scripts/verify-migration.js\n');
@@ -155,7 +231,6 @@ async function main() {
     console.error('\n[Restore] 恢复失败:', error);
     process.exit(1);
   } finally {
-    // 断开连接
     try {
       await mongoManager.disconnect();
     } catch (error) {

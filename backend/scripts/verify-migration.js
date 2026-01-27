@@ -1,37 +1,40 @@
 /**
- * 数据迁移验证脚本
- * 验证MongoDB中的数据完整性和一致性
+ * 数据验证脚本
+ * 验证MongoDB数据的完整性和一致性
  * 使用方法：node scripts/verify-migration.js
  */
 import { mongoManager } from '../config/database.js';
-import { UserInMemoryRepository } from '../src/features/auth/infrastructure/user-inmemory.repository.js';
-import { UserMongoRepository } from '../src/features/auth/infrastructure/user-mongodb.repository.js';
+import { UserModel } from '../src/features/auth/infrastructure/user.model.js';
+import { ProjectModel } from '../src/features/projects/infrastructure/project.model.js';
+import { ChatModel } from '../src/features/chat/infrastructure/chat.model.js';
+import { BusinessPlanModel } from '../src/features/business-plan/infrastructure/business-plan.model.js';
 
 /**
  * 验证统计
  */
 class VerificationStats {
-  constructor() {
+  constructor(entityName) {
+    this.entityName = entityName;
     this.total = 0;
-    this.passed = 0;
-    this.failed = 0;
+    this.valid = 0;
+    this.invalid = 0;
     this.errors = [];
   }
 
-  addPass() {
-    this.passed++;
+  addValid() {
+    this.valid++;
   }
 
-  addFail(error) {
-    this.failed++;
+  addInvalid(error) {
+    this.invalid++;
     this.errors.push(error);
   }
 
   print() {
-    console.log('\n========== 验证统计 ==========');
+    console.log(`\n========== ${this.entityName}验证统计 ==========`);
     console.log(`总计: ${this.total}`);
-    console.log(`通过: ${this.passed}`);
-    console.log(`失败: ${this.failed}`);
+    console.log(`有效: ${this.valid}`);
+    console.log(`无效: ${this.invalid}`);
     console.log('==============================\n');
 
     if (this.errors.length > 0) {
@@ -40,12 +43,10 @@ class VerificationStats {
         console.log(`${index + 1}. ${error}`);
       });
     }
+  }
 
-    if (this.failed === 0) {
-      console.log('✓ 所有验证通过！');
-    } else {
-      console.log('✗ 存在验证失败项，请检查！');
-    }
+  get isSuccess() {
+    return this.invalid === 0;
   }
 }
 
@@ -55,77 +56,186 @@ class VerificationStats {
 async function verifyUsers() {
   console.log('[Verify] 验证用户数据...');
 
-  const stats = new VerificationStats();
-  const memoryRepo = new UserInMemoryRepository();
-  const mongoRepo = new UserMongoRepository();
+  const stats = new VerificationStats('用户');
 
   try {
-    // 获取内存中的用户
-    const memoryUsers = await memoryRepo.findAll();
-    stats.total = memoryUsers.length;
+    const users = await UserModel.find({});
+    stats.total = users.length;
 
-    console.log(`[Verify] 内存中有 ${memoryUsers.length} 个用户`);
+    console.log(`[Verify] 找到 ${users.length} 个用户`);
 
-    // 获取MongoDB中的用户数量
-    const mongoCount = await mongoRepo.count();
-    console.log(`[Verify] MongoDB中有 ${mongoCount} 个用户\n`);
-
-    // 验证数量一致性
-    if (memoryUsers.length !== mongoCount) {
-      stats.addFail(`用户数量不一致: 内存=${memoryUsers.length}, MongoDB=${mongoCount}`);
-    }
-
-    // 逐个验证用户
-    for (const memoryUser of memoryUsers) {
+    for (const user of users) {
       try {
-        // 从MongoDB查找用户
-        const mongoUser = await mongoRepo.findById(memoryUser.id);
-
-        if (!mongoUser) {
-          stats.addFail(`用户不存在: ${memoryUser.username.value}`);
-          console.log(`[Verify] ✗ 用户不存在: ${memoryUser.username.value}`);
-          continue;
+        // 验证必需字段
+        if (!user.userId || !user.username || !user.email || !user.passwordHash) {
+          throw new Error('缺少必需字段');
         }
 
-        // 验证关键字段
-        const errors = [];
-
-        if (memoryUser.id.value !== mongoUser.id.value) {
-          errors.push('ID不匹配');
+        // 验证邮箱格式
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(user.email)) {
+          throw new Error('邮箱格式无效');
         }
 
-        if (memoryUser.username.value !== mongoUser.username.value) {
-          errors.push('用户名不匹配');
+        // 验证状态
+        const validStatuses = ['active', 'inactive', 'locked', 'deleted'];
+        if (!validStatuses.includes(user.status)) {
+          throw new Error(`无效的状态: ${user.status}`);
         }
 
-        if (memoryUser.email.value !== mongoUser.email.value) {
-          errors.push('邮箱不匹配');
-        }
-
-        if (memoryUser.password.hash !== mongoUser.password.hash) {
-          errors.push('密码哈希不匹配');
-        }
-
-        if (memoryUser.status.value !== mongoUser.status.value) {
-          errors.push('状态不匹配');
-        }
-
-        if (errors.length > 0) {
-          stats.addFail(`用户 ${memoryUser.username.value}: ${errors.join(', ')}`);
-          console.log(`[Verify] ✗ ${memoryUser.username.value}: ${errors.join(', ')}`);
-        } else {
-          stats.addPass();
-          console.log(`[Verify] ✓ ${memoryUser.username.value}`);
-        }
+        stats.addValid();
+        console.log(`[Verify] ✓ 用户有效: ${user.username}`);
       } catch (error) {
-        stats.addFail(`用户 ${memoryUser.username.value}: ${error.message}`);
-        console.error(`[Verify] ✗ 验证失败: ${memoryUser.username.value}`, error.message);
+        stats.addInvalid(`用户 ${user.username}: ${error.message}`);
+        console.error(`[Verify] ✗ 用户无效: ${user.username}`, error.message);
       }
     }
 
     return stats;
   } catch (error) {
-    console.error('[Verify] 验证过程出错:', error);
+    console.error('[Verify] 用户验证过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 验证项目数据
+ */
+async function verifyProjects() {
+  console.log('[Verify] 验证项目数据...');
+
+  const stats = new VerificationStats('项目');
+
+  try {
+    const projects = await ProjectModel.find({});
+    stats.total = projects.length;
+
+    console.log(`[Verify] 找到 ${projects.length} 个项目`);
+
+    for (const project of projects) {
+      try {
+        // 验证必需字段
+        if (!project._id || !project.name || !project.mode) {
+          throw new Error('缺少必需字段');
+        }
+
+        // 验证模式
+        const validModes = ['demo', 'development'];
+        if (!validModes.includes(project.mode)) {
+          throw new Error(`无效的模式: ${project.mode}`);
+        }
+
+        // 验证状态
+        const validStatuses = ['planning', 'in_progress', 'completed', 'archived', 'deleted'];
+        if (!validStatuses.includes(project.status)) {
+          throw new Error(`无效的状态: ${project.status}`);
+        }
+
+        stats.addValid();
+        console.log(`[Verify] ✓ 项目有效: ${project.name}`);
+      } catch (error) {
+        stats.addInvalid(`项目 ${project._id}: ${error.message}`);
+        console.error(`[Verify] ✗ 项目无效: ${project._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Verify] 项目验证过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 验证聊天数据
+ */
+async function verifyChats() {
+  console.log('[Verify] 验证聊天数据...');
+
+  const stats = new VerificationStats('聊天');
+
+  try {
+    const chats = await ChatModel.find({});
+    stats.total = chats.length;
+
+    console.log(`[Verify] 找到 ${chats.length} 个聊天会话`);
+
+    for (const chat of chats) {
+      try {
+        // 验证必需字段
+        if (!chat._id || !chat.title) {
+          throw new Error('缺少必需字段');
+        }
+
+        // 验证状态
+        const validStatuses = ['active', 'archived', 'deleted'];
+        if (!validStatuses.includes(chat.status)) {
+          throw new Error(`无效的状态: ${chat.status}`);
+        }
+
+        // 验证消息数组
+        if (!Array.isArray(chat.messages)) {
+          throw new Error('消息列表必须是数组');
+        }
+
+        stats.addValid();
+        console.log(`[Verify] ✓ 聊天有效: ${chat.title}`);
+      } catch (error) {
+        stats.addInvalid(`聊天 ${chat._id}: ${error.message}`);
+        console.error(`[Verify] ✗ 聊天无效: ${chat._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Verify] 聊天验证过程出错:', error);
+    throw error;
+  }
+}
+
+/**
+ * 验证商业计划书数据
+ */
+async function verifyBusinessPlans() {
+  console.log('[Verify] 验证商业计划书数据...');
+
+  const stats = new VerificationStats('商业计划书');
+
+  try {
+    const businessPlans = await BusinessPlanModel.find({});
+    stats.total = businessPlans.length;
+
+    console.log(`[Verify] 找到 ${businessPlans.length} 个商业计划书`);
+
+    for (const plan of businessPlans) {
+      try {
+        // 验证必需字段
+        if (!plan._id || !plan.title || !plan.projectId) {
+          throw new Error('缺少必需字段');
+        }
+
+        // 验证状态
+        const validStatuses = ['draft', 'completed', 'archived', 'deleted'];
+        if (!validStatuses.includes(plan.status)) {
+          throw new Error(`无效的状态: ${plan.status}`);
+        }
+
+        // 验证章节数组
+        if (!Array.isArray(plan.chapters)) {
+          throw new Error('章节列表必须是数组');
+        }
+
+        stats.addValid();
+        console.log(`[Verify] ✓ 商业计划书有效: ${plan.title}`);
+      } catch (error) {
+        stats.addInvalid(`商业计划书 ${plan._id}: ${error.message}`);
+        console.error(`[Verify] ✗ 商业计划书无效: ${plan._id}`, error.message);
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('[Verify] 商业计划书验证过程出错:', error);
     throw error;
   }
 }
@@ -136,7 +246,7 @@ async function verifyUsers() {
 async function main() {
   console.log('========================================');
   console.log('  ThinkCraft 数据验证工具');
-  console.log('  验证MongoDB数据完整性');
+  console.log('  验证MongoDB数据的完整性和一致性');
   console.log('========================================\n');
 
   try {
@@ -145,24 +255,43 @@ async function main() {
     await mongoManager.connect();
     console.log('[Verify] MongoDB连接成功\n');
 
-    // 验证用户数据
+    // 验证所有数据
     const userStats = await verifyUsers();
     userStats.print();
 
-    // TODO: 验证其他实体（项目、聊天、商业计划书等）
+    const projectStats = await verifyProjects();
+    projectStats.print();
 
-    if (userStats.failed === 0) {
-      console.log('\n[Verify] 验证完成！数据迁移成功。');
+    const chatStats = await verifyChats();
+    chatStats.print();
+
+    const businessPlanStats = await verifyBusinessPlans();
+    businessPlanStats.print();
+
+    // 总结
+    console.log('\n========== 验证总结 ==========');
+    console.log(`用户: ${userStats.valid}/${userStats.total} 有效`);
+    console.log(`项目: ${projectStats.valid}/${projectStats.total} 有效`);
+    console.log(`聊天: ${chatStats.valid}/${chatStats.total} 有效`);
+    console.log(`商业计划书: ${businessPlanStats.valid}/${businessPlanStats.total} 有效`);
+
+    const allValid =
+      userStats.isSuccess &&
+      projectStats.isSuccess &&
+      chatStats.isSuccess &&
+      businessPlanStats.isSuccess;
+
+    if (allValid) {
+      console.log('\n✅ 所有数据验证通过！');
       process.exit(0);
     } else {
-      console.log('\n[Verify] 验证完成！发现问题，请检查。');
+      console.log('\n❌ 发现无效数据，请检查错误详情');
       process.exit(1);
     }
   } catch (error) {
     console.error('\n[Verify] 验证失败:', error);
     process.exit(1);
   } finally {
-    // 断开连接
     try {
       await mongoManager.disconnect();
     } catch (error) {
