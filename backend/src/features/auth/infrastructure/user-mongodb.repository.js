@@ -11,6 +11,7 @@ import { Phone } from '../domain/value-objects/phone.vo.js';
 import { Password } from '../domain/value-objects/password.vo.js';
 import { UserStatus } from '../domain/value-objects/user-status.vo.js';
 import { UserModel } from './user.model.js';
+import { eventBus } from '../../../infrastructure/events/event-bus.js';
 
 export class UserMongoRepository extends UserRepository {
   /**
@@ -47,7 +48,9 @@ export class UserMongoRepository extends UserRepository {
    * 将Mongoose文档转换为领域模型
    */
   toDomain(doc) {
-    if (!doc) return null;
+    if (!doc) {
+      return null;
+    }
 
     const user = new User(
       UserId.fromString(doc.userId),
@@ -96,7 +99,8 @@ export class UserMongoRepository extends UserRepository {
    */
   async findByUsername(username) {
     try {
-      const usernameValue = username instanceof Username ? username.value : username.toLowerCase().trim();
+      const usernameValue =
+        username instanceof Username ? username.value : username.toLowerCase().trim();
       const doc = await UserModel.findOne({ username: usernameValue });
       return this.toDomain(doc);
     } catch (error) {
@@ -144,17 +148,16 @@ export class UserMongoRepository extends UserRepository {
       const data = this.toDocument(user);
 
       // 更新或创建
-      const doc = await UserModel.findOneAndUpdate(
-        { userId: data.userId },
-        data,
-        { upsert: true, new: true, runValidators: true }
-      );
+      const doc = await UserModel.findOneAndUpdate({ userId: data.userId }, data, {
+        upsert: true,
+        new: true,
+        runValidators: true
+      });
 
-      // 发布领域事件（这里可以集成事件总线）
+      // 发布领域事件到事件总线
       const events = user.getDomainEvents();
       for (const event of events) {
-        // TODO: 发布到事件总线
-        console.log('[UserMongoRepository] Domain event:', event.eventName);
+        await eventBus.publish(event);
       }
 
       // 清除领域事件
@@ -173,10 +176,7 @@ export class UserMongoRepository extends UserRepository {
   async delete(id) {
     try {
       const userId = id instanceof UserId ? id.value : id;
-      const result = await UserModel.updateOne(
-        { userId },
-        { deletedAt: new Date() }
-      );
+      const result = await UserModel.updateOne({ userId }, { deletedAt: new Date() });
       return result.modifiedCount > 0;
     } catch (error) {
       console.error('[UserMongoRepository] delete error:', error);
@@ -203,7 +203,8 @@ export class UserMongoRepository extends UserRepository {
    */
   async existsByUsername(username) {
     try {
-      const usernameValue = username instanceof Username ? username.value : username.toLowerCase().trim();
+      const usernameValue =
+        username instanceof Username ? username.value : username.toLowerCase().trim();
       const count = await UserModel.countDocuments({ username: usernameValue });
       return count > 0;
     } catch (error) {
