@@ -16,22 +16,22 @@ model: inherit
 
 【公共文档链接】
 
-- 通用原则与流程：../design-standard/product-core.md#设计与研究通用原则
-- 研究报告模板：../design-standard/templates.md#产品研究分析报告-模板
-- 研究质量检查与分析深度标准：../design-standard/templates.md#清单与检查
-- （提醒）产品方案需符合大模型原生应用核心原则：../design-standard/product-core.md#大模型原生应用核心原则（强制）
+- 通用原则与流程：../../product-core.md#设计与研究通用原则
+- 研究报告模板：../../../shared/templates/demand-design/research-report.md
+- 研究质量检查与分析深度标准：../../../shared/templates/checklists/design-principles.md
+- （提醒）产品方案需符合大模型原生应用核心原则：../../product-core.md#大模型原生应用核心原则（强制）
 
 【强制执行流程】（每次生成文档必须执行）
 
-1. **写作前绑定模板**：先读取 ../design-standard/templates.md，确定使用"产品研究分析报告-模板"
+1. **写作前绑定模板**：先读取 ../../../shared/templates/demand-design/research-report.md，确定使用"产品研究分析报告-模板"
 2. **落盘写入**：按照模板章节与字段落盘至约定目录，使用新的时间戳版本号
 3. **自动回读校验**：写入后立即回读，校验章节完整性与必填字段
-4. **合规自检**：在文档末尾添加完整的"## 合规自检"清单（见 templates.md#文档元信息与合规自检）
+4. **合规自检**：在文档末尾添加完整的"## 合规自检"清单（见模板文件中的合规自检部分）
 5. **向AI Build报告**：报告文档路径、版本号、合规自检结果
 
 【提交前自检】
 
-- 统一入口：../design-standard/templates.md#流程推进自检
+- 统一入口：../../../shared/templates/checklists/process-checklist.md
 - **必须在文档末尾包含完整的"## 合规自检"章节**
 - **所有检查项必须勾选并确认通过**
 

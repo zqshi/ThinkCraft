@@ -11,30 +11,17 @@ import {
   AgentListResponseDTO
 } from './agent.dto.js';
 import { InMemoryAgentRepository } from '../infrastructure/agent-inmemory.repository.js';
-import { agentScopeProxy } from '../infrastructure/agent-scope-adapter.js';
+import { MultiAgentOrchestrator } from './multi-agent-orchestrator.js';
+import { AgentExecutor } from '../infrastructure/agent-executor.js';
+import { ContextManager } from '../infrastructure/context-manager.js';
+import { Task } from '../domain/task.entity.js';
 
 export class AgentUseCase {
   constructor(repository = null) {
     this._repository = repository || new InMemoryAgentRepository();
     this._agentService = new AgentService();
-    this._agentScopeInitialized = false;
-  }
-
-  /**
-   * 初始化AgentScope框架
-   */
-  async initializeAgentScope(config = {}) {
-    if (this._agentScopeInitialized) {
-      return;
-    }
-
-    try {
-      await agentScopeProxy.initialize(config);
-      this._agentScopeInitialized = true;
-    } catch (error) {
-      console.error('[AgentUseCase] AgentScope初始化失败:', error);
-      throw new Error(`AgentScope初始化失败: ${error.message}`);
-    }
+    this._orchestrator = new MultiAgentOrchestrator();
+    this._contextManager = new ContextManager();
   }
 
   /**
@@ -44,9 +31,6 @@ export class AgentUseCase {
     try {
       // 验证DTO
       createAgentDTO.validate();
-
-      // 确保AgentScope已初始化
-      await this.initializeAgentScope();
 
       // 生成Agent ID
       const agentId = uuidv4();
@@ -60,16 +44,6 @@ export class AgentUseCase {
         createAgentDTO.capabilities,
         createAgentDTO.config
       );
-
-      // 在AgentScope中注册Agent
-      const agentScopeId = await agentScopeProxy.registerAgent({
-        id: agentId,
-        name: agent.name,
-        description: agent.description,
-        type: agent.type.value,
-        capabilities: agent.capabilities.map(cap => cap.value),
-        config: agent.config
-      });
 
       // 保存到仓库
       await this._repository.save(agent);
@@ -91,13 +65,11 @@ export class AgentUseCase {
         throw new Error('Agent不存在');
       }
 
-      // 获取AgentScope中的状态
-      const scopeStatus = agentScopeProxy.getAgentStatus(agentId);
-      if (scopeStatus) {
-        // 同步状态
-        if (agent.status.value !== scopeStatus.status) {
-          // 这里可以添加状态同步逻辑
-        }
+      return new AgentResponseDTO(agent);
+    } catch (error) {
+      throw new Error(`获取Agent失败: ${error.message}`);
+    }
+  }
       }
 
       return new AgentResponseDTO(agent);
@@ -175,8 +147,8 @@ export class AgentUseCase {
         throw new Error('Agent不存在');
       }
 
-      // 从AgentScope注销
-      await agentScopeProxy.unregisterAgent(agentId);
+      // 清除Agent的上下文
+      this._contextManager.clearContext(agentId);
 
       // 从仓库删除
       await this._repository.delete(agentId);
@@ -239,14 +211,30 @@ export class AgentUseCase {
         throw new Error('Agent当前状态无法执行任务');
       }
 
-      // 使用AgentScope发送消息
-      const response = await agentScopeProxy.sendMessage(agentId, message);
+      // 创建Agent执行器
+      const executor = new AgentExecutor(agent, this._contextManager);
+
+      // 创建任务
+      const task = Task.create('message_handling', message);
+
+      // 执行任务
+      const response = await executor.executeTask(task);
 
       // 记录任务执行
       agent.recordTaskExecution(
-        `task_${Date.now()}`,
+        task.id,
         'message_handling',
-        { success: true, response: response },
+        { success: true, response: response.output },
+        0
+      );
+
+      await this._repository.save(agent);
+
+      return response;
+    } catch (error) {
+      throw new Error(`发送消息失败: ${error.message}`);
+    }
+  }
         0
       );
 
@@ -276,15 +264,27 @@ export class AgentUseCase {
         throw new Error('Agent当前状态无法执行任务');
       }
 
-      // 使用AgentScope执行任务
-      const result = await agentScopeProxy.executeTask(agentId, task);
+      // 创建Agent执行器
+      const executor = new AgentExecutor(agent, this._contextManager);
+
+      // 创建任务实体
+      const taskEntity = Task.create(task.type, task.content, {
+        id: task.id,
+        context: task.context,
+        requirements: task.requirements
+      });
+
+      // 执行任务
+      const startTime = Date.now();
+      const result = await executor.executeTask(taskEntity);
+      const duration = Date.now() - startTime;
 
       // 记录任务执行
       agent.recordTaskExecution(
-        task.id || `task_${Date.now()}`,
+        taskEntity.id,
         task.type,
-        result.result,
-        result.duration
+        result,
+        duration
       );
 
       await this._repository.save(agent);
@@ -301,6 +301,7 @@ export class AgentUseCase {
   async collaborate(agentIds, task, collaborationType = 'parallel') {
     try {
       // 验证所有Agent存在且状态正常
+      const agents = [];
       for (const agentId of agentIds) {
         const agent = await this._repository.findById(agentId);
         if (!agent) {
@@ -309,29 +310,33 @@ export class AgentUseCase {
         if (!agent.status.canExecuteTask) {
           throw new Error(`Agent ${agentId} 当前状态无法执行任务`);
         }
+        agents.push(agent);
       }
 
-      // 使用AgentScope进行协作
-      const results = await agentScopeProxy.collaborate(agentIds, task, collaborationType);
+      // 创建任务实体
+      const taskEntity = Task.create(task.type || 'general', task.content, {
+        id: task.id,
+        context: task.context,
+        requirements: task.requirements
+      });
+
+      // 使用编排器进行协作
+      const startTime = Date.now();
+      const result = await this._orchestrator.collaborate(agents, taskEntity, collaborationType);
+      const duration = Date.now() - startTime;
 
       // 更新所有Agent的任务执行记录
-      for (let i = 0; i < agentIds.length; i++) {
-        const agentId = agentIds[i];
-        const agent = await this._repository.findById(agentId);
-        const result = results[i];
-
-        if (result && result.success) {
-          agent.recordTaskExecution(
-            task.id || `task_${Date.now()}_${i}`,
-            task.type,
-            result.result,
-            result.duration
-          );
-          await this._repository.save(agent);
-        }
+      for (const agent of agents) {
+        agent.recordTaskExecution(
+          taskEntity.id,
+          task.type || 'general',
+          { success: result.success, output: result.output },
+          duration
+        );
+        await this._repository.save(agent);
       }
 
-      return results;
+      return result;
     } catch (error) {
       throw new Error(`多Agent协作失败: ${error.message}`);
     }

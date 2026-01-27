@@ -15,14 +15,14 @@ model: inherit
 
 【公共文档链接】
 
-- 大模型原生应用核心原则：../design-standard/product-core.md#大模型原生应用核心原则（强制）
-- 精炼流程与反模式/自检：../design-standard/product-core.md#系统化流程（总览）
-- 精炼需求文档模板（LLM版）：../design-standard/templates.md#精炼需求文档-LLM版-模板
-- 故事与验收模板/质量检查：../design-standard/templates.md#清单与检查
+- 大模型原生应用核心原则：../../product-core.md#大模型原生应用核心原则（强制）
+- 精炼流程与反模式/自检：../../product-core.md#系统化流程（总览）
+- 精炼需求文档模板（LLM版）：../../../shared/templates/demand-design/design-doc-llm.md
+- 故事与验收模板/质量检查：../../../shared/templates/checklists/user-story-quality.md
 
 【提交前自检】
 
-- 统一入口：../design-standard/templates.md#流程推进自检
+- 统一入口：../../../shared/templates/checklists/process-checklist.md
 
 【输出要求】
 

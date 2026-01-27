@@ -9,7 +9,8 @@
     "dev": "NODE_ENV=development node --watch server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "validate-prompts": "node scripts/validate-prompts.js"
   },
   "keywords": [
     "thinkcraft",
@@ -33,6 +34,7 @@
     "pdfkit": "^0.14.0",
     "puppeteer": "^24.36.0",
     "redis": "^5.10.0",
+    "tencentcloud-sdk-nodejs": "^4.1.176",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

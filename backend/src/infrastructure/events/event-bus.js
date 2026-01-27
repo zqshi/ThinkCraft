@@ -2,7 +2,7 @@
  * 事件总线
  * 负责领域事件的发布和订阅
  */
-import logger from '../logger/logger.js';
+import logger from '../../../middleware/logger.js';
 
 class EventBus {
   constructor() {

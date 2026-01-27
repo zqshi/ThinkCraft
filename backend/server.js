@@ -25,10 +25,12 @@ import authRouter from './routes/auth.js';
 import verificationRouter from './routes/verification.js';
 import passwordResetRouter from './routes/password-reset.js';
 import accountRouter from './routes/account.js';
+import promptRouter from './src/interfaces/prompt-routes.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 import { initDatabases, closeDatabases } from './config/database.js';
 import { cacheService } from './src/infrastructure/cache/redis-cache.service.js';
+import promptLoader from './src/utils/prompt-loader.js';
 
 // 加载环境变量
 dotenv.config();
@@ -144,6 +146,9 @@ app.use('/api/password-reset', passwordResetRouter);
 // 账号管理接口
 app.use('/api/account', accountRouter);
 
+// 提示词管理接口
+app.use('/api/prompts', promptRouter);
+
 // 静态文件服务（Demo预览）
 app.use('/demos', express.static(path.join(__dirname, 'demos')));
 
@@ -170,6 +175,10 @@ async function startServer() {
         // 初始化缓存服务
         console.log('[Server] 正在初始化缓存服务...');
         await cacheService.init();
+
+        // 初始化Prompt加载器
+        console.log('[Server] 正在加载Prompt模板...');
+        await promptLoader.initialize();
 
         // 启动HTTP服务器
         app.listen(PORT, () => {

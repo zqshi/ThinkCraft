@@ -15,14 +15,14 @@ model: inherit
 
 【公共文档链接】
 
-- 设计与研究通用原则（含大模型原生应用核心原则）：../design-standard/product-core.md#大模型原生应用核心原则（强制）
-- 审查流程与术语对齐：../design-standard/product-core.md#系统化流程（总览）
-- 审查报告模板与检查清单/话术：../design-standard/templates.md#需求设计挑战文档-模板
-- 质量检查清单：../design-standard/templates.md#清单与检查
+- 设计与研究通用原则（含大模型原生应用核心原则）：../../product-core.md#大模型原生应用核心原则（强制）
+- 审查流程与术语对齐：../../product-core.md#系统化流程（总览）
+- 审查报告模板与检查清单/话术：../../../shared/templates/demand-design/design-challenge.md
+- 质量检查清单：../../../shared/templates/checklists/design-principles.md
 
 【提交前自检】
 
-- 统一入口：../design-standard/templates.md#流程推进自检
+- 统一入口：../../../shared/templates/checklists/process-checklist.md
 
 【输出要求】
 

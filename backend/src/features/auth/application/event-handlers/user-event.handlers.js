@@ -2,7 +2,7 @@
  * 用户事件处理器
  * 处理用户相关的领域事件
  */
-import logger from '../../../infrastructure/logger/logger.js';
+import logger from '../../../../../middleware/logger.js';
 import { eventBus } from '../../../infrastructure/events/event-bus.js';
 
 /**

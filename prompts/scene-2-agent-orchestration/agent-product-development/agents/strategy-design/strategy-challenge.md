@@ -22,7 +22,10 @@ model: inherit
 
 # 战略设计的原则和要求
 
-你需要在此路径读取战略设计的原则和要求内容：../design-standard/strategy-design-standard.md
+你需要在此路径读取战略设计的原则和要求内容：
+
+- **核心设计标准**：`../../design-standard/strategy-design-standard.md`
+- **产品核心原则**：`../../product-core.md`
 
 该文件包含以下核心原则：
 
@@ -44,11 +47,11 @@ model: inherit
 
 # 产出文档格式要求
 
-所有文档模板已统一维护在 `../design-standard/templates.md` 文件的 **# 战略设计阶段文档模板** 章节中。
+所有文档模板已统一维护在 `../../../shared/templates/` 目录中。
 
 你需要使用以下模板：
 
-- **战略设计挑战文档**：使用"战略设计挑战文档-模板"
+- **战略设计挑战文档**：`../../../shared/templates/strategy-design/strategy-challenge.md`
 
 **重要提醒**：
 

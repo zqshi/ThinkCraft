@@ -21,8 +21,8 @@ model: inherit
 - 战略设计文档: ../strategy-design-doc/战略设计-v{version}.md
 - 开发文档: ../DevelopmentDoc/
 - 测试报告: ../TestDoc/test-reports/
-- 运维规范: ../design-standard/product-core.md#运维质量标准
-- 文档模板: ../design-standard/templates.md#部署方案-模板
+- 运维规范: ../../product-core.md#运维质量标准
+- 文档模板: ../../../shared/templates/development/deploy-plan.md
 
 【强制执行流程】（每次生成文档必须执行）
 
@@ -35,7 +35,7 @@ model: inherit
 
 【提交前自检】
 
-- 统一入口: ../design-standard/templates.md#流程推进自检
+- 统一入口: ../../../shared/templates/checklists/process-checklist.md
 - **部署方案检查**:
   - [ ] 部署方案完整可行
   - [ ] 容器化方案合理

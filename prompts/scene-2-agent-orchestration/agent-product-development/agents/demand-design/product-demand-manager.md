@@ -24,26 +24,26 @@ model: inherit
 
 【公共文档链接】
 
-- 大模型原生应用核心原则：../design-standard/product-core.md#大模型原生应用核心原则（强制）
-- 用户沟通/竞品任务下发：../design-standard/templates.md#交互与话术
-- 用户需求输入模板：../design-standard/templates.md#用户需求输入-模板
-- 需求澄清问题模板：../design-standard/templates.md#需求澄清问题-模板
-- 需求澄清分析模板：../design-standard/templates.md#需求澄清分析文档-模板
-- 需求设计模板：../design-standard/templates.md#需求设计文档-传统版-模板
-- 挑战回应模板：../design-standard/templates.md#需求设计挑战回应文档-模板
-- 故事与验收模板/质量检查：../design-standard/templates.md#清单与检查
+- 大模型原生应用核心原则：../../product-core.md#大模型原生应用核心原则（强制）
+- 用户沟通/竞品任务下发：../../../shared/templates/demand-design/user-input.md
+- 用户需求输入模板：../../../shared/templates/demand-design/user-input.md
+- 需求澄清问题模板：../../../shared/templates/demand-design/clarify-questions.md
+- 需求澄清分析模板：../../../shared/templates/demand-design/clarify-analysis.md
+- 需求设计模板：../../../shared/templates/demand-design/design-doc-traditional.md
+- 挑战回应模板：../../../shared/templates/demand-design/design-response.md
+- 故事与验收模板/质量检查：../../../shared/templates/checklists/user-story-quality.md
 
 【强制执行流程】（每次生成文档必须执行）
 
-1. **写作前绑定模板**：先读取 ../design-standard/templates.md，确定使用哪个模板
+1. **写作前绑定模板**：先读取相应的模板文件，确定使用哪个模板
 2. **落盘写入**：按照模板章节与字段落盘至约定目录，使用新的时间戳版本号
 3. **自动回读校验**：写入后立即回读，校验章节完整性与必填字段
-4. **合规自检**：在文档末尾添加完整的"## 合规自检"清单（见 templates.md#文档元信息与合规自检）
+4. **合规自检**：在文档末尾添加完整的"## 合规自检"清单（见模板文件中的合规自检部分）
 5. **向AI Build报告**：报告文档路径、版本号、合规自检结果
 
 【提交前自检】
 
-- 统一入口：../design-standard/templates.md#流程推进自检
+- 统一入口：../../../shared/templates/checklists/process-checklist.md
 - **必须在文档末尾包含完整的"## 合规自检"章节**
 - **所有检查项必须勾选并确认通过**
 

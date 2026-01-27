@@ -1,6 +1,23 @@
 import { callDeepSeekAPI } from '../../../infrastructure/ai/deepseek-client.js';
-import { REPORT_GENERATION_PROMPT } from '../../../../config/report-prompts.js';
+import promptLoader from '../../../utils/prompt-loader.js';
 import { fail, ok } from '../../../shared/result.js';
+
+// 报告生成提示词（从 markdown 文件加载）
+let REPORT_GENERATION_PROMPT = '';
+
+// 初始化提示词
+async function initializePrompts() {
+  try {
+    REPORT_GENERATION_PROMPT = await promptLoader.load('report-generation');
+    console.log('✅ Report generation prompt loaded successfully');
+  } catch (error) {
+    console.error('❌ Failed to load report generation prompt:', error.message);
+    throw error;
+  }
+}
+
+// 启动时加载提示词
+initializePrompts();
 
 function buildConversationSummary(messages) {
   return messages

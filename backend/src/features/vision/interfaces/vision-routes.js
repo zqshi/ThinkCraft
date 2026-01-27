@@ -1,11 +1,13 @@
 /**
  * 视觉分析路由 - 图片识别和 OCR
- * 当前实现：基础版本，提取图片基本信息
- * 未来扩展：集成 OCR 服务（Tesseract.js）或多模态 AI
+ * 集成腾讯云OCR服务
  */
 import express from 'express';
+import { VisionService } from '../application/vision-service.js';
+import logger from '../../../../middleware/logger.js';
 
 const router = express.Router();
+const visionService = new VisionService();
 
 /**
  * POST /api/vision/analyze
@@ -14,21 +16,24 @@ const router = express.Router();
  * Request Body:
  * {
  *   image: "base64_string",
- *   prompt: "用户的提示词"
+ *   prompt: "用户的提示词",
+ *   enableOCR: true  // 是否启用OCR（默认true）
  * }
  *
  * Response:
  * {
  *   code: 0,
  *   data: {
- *     description: "图片描述",
- *     extractedText: "提取的文字（如果有）"
+ *     id: "vision_xxx",
+ *     imageInfo: { type, sizeKB },
+ *     ocrResult: { text, confidence, quality },
+ *     metadata: { provider }
  *   }
  * }
  */
 router.post('/analyze', async (req, res, next) => {
   try {
-    const { image, prompt } = req.body;
+    const { image, prompt, enableOCR = true } = req.body;
 
     if (!image) {
       return res.status(400).json({
@@ -37,38 +42,79 @@ router.post('/analyze', async (req, res, next) => {
       });
     }
 
-    // 当前实现：基础版本
-    // TODO [2026-01-26]: 集成 OCR 服务或多模态 AI
+    logger.info('[VisionRoutes] 收到图片分析请求');
 
-    // 解析图片基本信息
-    const imageBuffer = Buffer.from(image, 'base64');
-    const imageSizeKB = (imageBuffer.length / 1024).toFixed(2);
+    const result = await visionService.analyzeImage(image, {
+      prompt,
+      enableOCR
+    });
 
-    // 检测图片格式（简单检测）
-    let imageType = 'unknown';
-    if (image.startsWith('/9j/')) {
-      imageType = 'JPEG';
-    } else if (image.startsWith('iVBORw0KGgo')) {
-      imageType = 'PNG';
-    } else if (image.startsWith('R0lGOD')) {
-      imageType = 'GIF';
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
     }
-
-    // 当前返回基础描述（未来集成真实的视觉识别）
-    const description = `已接收一张 ${imageType} 格式的图片（${imageSizeKB}KB）。\n\n⚠️ 完整的图片识别功能开发中。\n\n请手动描述图片内容：`;
 
     res.json({
       code: 0,
-      data: {
-        description: description,
-        extractedText: null, // 未来支持 OCR
-        imageInfo: {
-          type: imageType,
-          sizeKB: imageSizeKB
-        }
-      }
+      data: result.data
     });
   } catch (error) {
+    logger.error('[VisionRoutes] 图片分析失败:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /api/vision/ocr
+ * 仅执行OCR文字提取
+ *
+ * Request Body:
+ * {
+ *   image: "base64_string",
+ *   language: "zh"  // 语言类型（默认zh）
+ * }
+ *
+ * Response:
+ * {
+ *   code: 0,
+ *   data: {
+ *     text: "识别的文字",
+ *     confidence: 95,
+ *     quality: "high",
+ *     details: [...]
+ *   }
+ * }
+ */
+router.post('/ocr', async (req, res, next) => {
+  try {
+    const { image, language = 'zh' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        code: -1,
+        error: '必须提供图片数据（Base64格式）'
+      });
+    }
+
+    logger.info('[VisionRoutes] 收到OCR请求');
+
+    const result = await visionService.extractText(image, { language });
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: -1,
+        error: result.error
+      });
+    }
+
+    res.json({
+      code: 0,
+      data: result.data
+    });
+  } catch (error) {
+    logger.error('[VisionRoutes] OCR失败:', error);
     next(error);
   }
 });

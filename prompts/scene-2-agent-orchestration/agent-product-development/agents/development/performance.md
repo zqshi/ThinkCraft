@@ -21,8 +21,8 @@ model: inherit
 - 战略设计文档: ../strategy-design-doc/战略设计-v{version}.md
 - 测试报告: ../TestDoc/test-reports/
 - 部署文档: ../DeploymentDoc/
-- 性能规范: ../design-standard/product-core.md#性能优化标准
-- 文档模板: ../design-standard/templates.md#性能分析报告-模板
+- 性能规范: ../../product-core.md#性能优化标准
+- 文档模板: ../../../shared/templates/development/performance-report.md
 
 【强制执行流程】（每次生成文档必须执行）
 
@@ -35,7 +35,7 @@ model: inherit
 
 【提交前自检】
 
-- 统一入口: ../design-standard/templates.md#流程推进自检
+- 统一入口: ../../../shared/templates/checklists/process-checklist.md
 - **性能基线检查**:
   - [ ] 性能基线数据准确完整
   - [ ] 测试场景覆盖主要使用场景

@@ -20,8 +20,8 @@ model: inherit
 
 - 需求设计文档: ../ProductManagerDoc/demand-design-doc/需求设计文档-LLM版-v{version}.md
 - 战略设计文档: ../strategy-design-doc/战略设计-v{version}.md
-- 测试规范: ../design-standard/product-core.md#测试质量标准
-- 文档模板: ../design-standard/templates.md#测试计划-模板
+- 测试规范: ../../product-core.md#测试质量标准
+- 文档模板: ../../../shared/templates/development/test-plan.md
 
 【强制执行流程】（每次生成文档必须执行）
 
@@ -34,7 +34,7 @@ model: inherit
 
 【提交前自检】
 
-- 统一入口: ../design-standard/templates.md#流程推进自检
+- 统一入口: ../../../shared/templates/checklists/process-checklist.md
 - **测试覆盖检查**:
   - [ ] 测试用例覆盖所有核心功能
   - [ ] 测试用例包含正常、异常、边界情况

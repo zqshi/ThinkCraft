@@ -1,10 +1,13 @@
 /**
  * PDF Export 控制器
  */
+import fs from 'fs';
+import path from 'path';
 import { PdfExportUseCase } from '../application/pdf-export.use-case.js';
 import { ExportInMemoryRepository } from '../infrastructure/export-inmemory.repository.js';
 import { PdfGenerationService } from '../application/pdf-generation.service.js';
 import { CreateExportRequestDto } from '../application/pdf-export.dto.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class PdfExportController {
   constructor() {
@@ -142,16 +145,32 @@ export class PdfExportController {
       res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
       res.setHeader('Content-Length', result.fileSize);
 
-      // 这里应该读取文件并发送
-      // const fileStream = fs.createReadStream(result.filePath);
-      // fileStream.pipe(res);
+      const filePath = result.filePath;
 
-      res.json({
-        success: true,
-        message: 'File download would be handled here',
-        fileInfo: result
+      // 检查文件是否存在
+      if (!fs.existsSync(filePath)) {
+        logger.error('[PDF Export] 文件不存在:', filePath);
+        return res.status(404).json({
+          success: false,
+          error: 'PDF文件不存在'
+        });
+      }
+
+      // 创建文件流并发送
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        logger.error('[PDF Export] 文件流错误:', error);
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: '文件下载失败'
+          });
+        }
       });
     } catch (error) {
+      logger.error('[PDF Export] 下载失败:', error);
       res.status(400).json({
         success: false,
         error: error.message

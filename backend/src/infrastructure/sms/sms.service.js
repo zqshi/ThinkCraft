@@ -14,6 +14,11 @@ export class SmsService {
     this.provider = config.provider || process.env.SMS_PROVIDER || 'mock';
     this.config = config;
 
+    // 生产环境强制检查
+    if (process.env.NODE_ENV === 'production' && this.provider === 'mock') {
+      throw new Error('生产环境不允许使用mock短信服务，请配置SMS_PROVIDER为aliyun或tencent');
+    }
+
     // 初始化对应的短信服务商
     this._initProvider();
   }
@@ -152,6 +157,9 @@ export class SmsService {
    * 模拟SMS发送（开发环境）
    */
   async _sendMockSms(phone, code, template) {
+    // 警告：当前使用mock模式
+    logger.warn('[SMS] 当前使用mock模式，验证码仅在控制台输出，生产环境请配置真实短信服务');
+
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 100));
 

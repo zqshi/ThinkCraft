@@ -4,254 +4,29 @@
  */
 import express from 'express';
 import { callDeepSeekAPI, getCostStats } from '../../../../config/deepseek.js';
+import promptLoader from '../../../utils/prompt-loader.js';
 
 const router = express.Router();
 
-// 商业计划书章节提示词模板
-const CHAPTER_PROMPTS = {
-    executive_summary: `你是资深商业分析师。基于用户与AI的创意对话，生成商业计划书的【执行摘要】章节。
+// 商业计划书章节提示词（从 markdown 文件加载）
+let CHAPTER_PROMPTS = {};
+let PROPOSAL_PROMPTS = {};
 
-输出要求：
-- 字数：800-1000字
-- 格式：Markdown
-- 结构：
-  1. 业务概述（2-3句话说明是什么）
-  2. 市场机会（目标市场规模、增长趋势）
-  3. 解决方案（核心价值主张）
-  4. 商业模式（如何赚钱）
-  5. 竞争优势（为什么是我们）
-  6. 融资需求（如果对话中提到）
+// 初始化提示词
+async function initializePrompts() {
+    try {
+        CHAPTER_PROMPTS = await promptLoader.loadBusinessPlanChapters();
+        PROPOSAL_PROMPTS = await promptLoader.loadProposalChapters();
+        console.log('✅ Business plan prompts loaded successfully');
+        console.log('✅ Proposal prompts loaded successfully');
+    } catch (error) {
+        console.error('❌ Failed to load prompts:', error.message);
+        throw error;
+    }
+}
 
-分析原则：
-- 基于对话中明确提到的信息
-- 如果信息不足，用"建议进一步调研"等表述
-- 客观中立，既要展示机会也要提示风险
-- 语言专业但易懂
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    market_analysis: `你是市场研究专家。基于用户创意对话，生成商业计划书的【市场分析】章节。
-
-输出要求：
-- 字数：1000-1200字
-- 格式：Markdown
-- 结构：
-  1. 市场规模分析（TAM/SAM/SOM）
-  2. 目标用户画像（人口统计、行为特征）
-  3. 用户痛点分析（核心问题是什么）
-  4. 市场趋势（增长动力、驱动因素）
-  5. 市场机会（为什么现在是好时机）
-
-分析要求：
-- 使用行业通用数据（如"中国XX市场规模约XXX亿"）
-- 标注数据来源或注明"参考行业数据"
-- 客观分析市场现状和未来潜力
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    solution: `你是产品战略顾问。基于用户创意对话，生成商业计划书的【解决方案】章节。
-
-输出要求：
-- 字数：900-1100字
-- 格式：Markdown
-- 结构：
-  1. 产品定位（一句话价值主张）
-  2. 核心功能（3-5个主要功能）
-  3. 技术方案（技术选型、架构亮点）
-  4. 差异化优势（与竞品的区别）
-  5. 产品路线图（MVP → 迭代方向）
-
-分析要求：
-- 清晰描述产品如何解决用户痛点
-- 技术方案要实际可行
-- 强调独特性和创新性
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    business_model: `你是商业模式设计专家。基于用户创意对话，生成商业计划书的【商业模式】章节。
-
-输出要求：
-- 字数：800-1000字
-- 格式：Markdown
-- 结构：
-  1. 收入模式（如何赚钱）
-  2. 定价策略（价格体系、定价依据）
-  3. 成本结构（主要成本项）
-  4. 盈利预测（何时盈亏平衡）
-  5. 规模化路径（如何扩大收入）
-
-分析要求：
-- 商业模式要清晰可行
-- 定价要合理且有竞争力
-- 成本估算要实际
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    competitive_landscape: `你是竞争分析专家。基于用户创意对话，生成商业计划书的【竞争格局】章节。
-
-输出要求：
-- 字数：900-1100字
-- 格式：Markdown
-- 结构：
-  1. 竞争对手分析（列举3-5个主要竞品）
-  2. 竞争优势对比（功能、价格、体验等）
-  3. 差异化策略（如何脱颖而出）
-  4. 进入壁垒（我们的护城河）
-  5. 竞争风险（可能的威胁）
-
-分析要求：
-- 客观评价竞品优劣
-- 清晰阐述差异化优势
-- 识别真实的竞争风险
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    marketing_strategy: `你是营销策略专家。基于用户创意对话，生成商业计划书的【市场策略】章节。
-
-输出要求：
-- 字数：900-1100字
-- 格式：Markdown
-- 结构：
-  1. 目标客户获取（如何找到第一批用户）
-  2. 营销渠道（线上/线下渠道）
-  3. 品牌定位（品牌调性、传播策略）
-  4. 增长策略（如何实现用户增长）
-  5. 营销预算（各渠道预算分配）
-
-分析要求：
-- 营销策略要具体可执行
-- 渠道选择要符合目标用户特征
-- 预算分配要合理
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    team_structure: `你是组织架构顾问。基于用户创意对话，生成商业计划书的【团队架构】章节。
-
-输出要求：
-- 字数：700-900字
-- 格式：Markdown
-- 结构：
-  1. 核心团队（创始团队背景）
-  2. 组织架构（部门设置、职责分工）
-  3. 人才需求（关键岗位、招聘计划）
-  4. 股权激励（期权池、激励机制）
-  5. 团队文化（价值观、工作方式）
-
-分析要求：
-- 团队背景要与业务匹配
-- 组织架构要适应当前阶段
-- 人才需求要具体
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    financial_projection: `你是财务分析专家。基于用户创意对话，生成商业计划书的【财务预测】章节。
-
-输出要求：
-- 字数：1000-1200字
-- 格式：Markdown
-- 结构：
-  1. 收入预测（未来3年收入预估）
-  2. 成本预算（固定成本、变动成本）
-  3. 现金流分析（月度现金流规划）
-  4. 盈亏平衡点（何时实现盈亏平衡）
-  5. 融资需求（需要多少资金、如何使用）
-
-分析要求：
-- 数据要合理可信
-- 假设要明确说明
-- 提供乐观/中性/悲观三种情景
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    risk_assessment: `你是风险管理专家。基于用户创意对话，生成商业计划书的【风险评估】章节。
-
-输出要求：
-- 字数：800-1000字
-- 格式：Markdown
-- 结构：
-  1. 市场风险（市场需求变化、竞争加剧）
-  2. 技术风险（技术实现难度、替代技术）
-  3. 运营风险（团队、供应链、合规）
-  4. 财务风险（现金流、融资风险）
-  5. 应对策略（每种风险的缓解措施）
-
-分析要求：
-- 识别真实存在的风险
-- 不回避问题，客观评估
-- 提供可行的应对方案
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    implementation_plan: `你是项目管理专家。基于用户创意对话，生成商业计划书的【实施计划】章节。
-
-输出要求：
-- 字数：900-1100字
-- 格式：Markdown
-- 结构：
-  1. 里程碑规划（6个月、1年、2年目标）
-  2. 产品开发计划（MVP开发、迭代计划）
-  3. 市场推广计划（各阶段营销重点）
-  4. 团队扩张计划（人员招聘时间表）
-  5. 关键指标（KPI设定、监控机制）
-
-分析要求：
-- 计划要具体可执行
-- 时间节点要合理
-- KPI要可量化
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`,
-
-    appendix: `你是商业文档撰写专家。基于用户创意对话，生成商业计划书的【附录】章节。
-
-输出要求：
-- 字数：600-800字
-- 格式：Markdown
-- 结构：
-  1. 术语表（行业专业术语解释）
-  2. 参考资料（数据来源、研究报告）
-  3. 补充材料（产品截图、用户反馈）
-  4. 联系方式（团队联系方式）
-
-分析要求：
-- 术语解释要清晰易懂
-- 参考资料要可信
-- 补充材料要有价值
-
-对话历史：
-{CONVERSATION}
-
-请生成该章节内容（纯Markdown格式）：`
-};
+// 启动时加载提示词
+initializePrompts();
 
 // Agent信息（用于前端显示）
 const CHAPTER_AGENTS = {
@@ -283,12 +58,23 @@ function formatConversation(conversationHistory) {
  * 生成单个章节
  * @param {String} chapterId - 章节ID
  * @param {Array} conversationHistory - 对话历史
+ * @param {String} type - 类型：'business' 或 'proposal'
  * @returns {Promise<Object>} { chapterId, content, agent, tokens }
  */
-async function generateSingleChapter(chapterId, conversationHistory) {
-    const promptTemplate = CHAPTER_PROMPTS[chapterId];
+async function generateSingleChapter(chapterId, conversationHistory, type = 'business') {
+    // 根据类型选择提示词
+    const prompts = type === 'proposal' ? PROPOSAL_PROMPTS : CHAPTER_PROMPTS;
+    let promptTemplate = prompts[chapterId];
+
+    // 如果旧方式没有找到，尝试使用新的章节模板加载方式
     if (!promptTemplate) {
-        throw new Error(`未知的章节ID: ${chapterId}`);
+        try {
+            const docType = type === 'proposal' ? 'proposal' : 'business-plan';
+            const chapterIdWithDash = chapterId.replace(/_/g, '-');
+            promptTemplate = await promptLoader.loadChapterTemplate(docType, chapterIdWithDash);
+        } catch (error) {
+            throw new Error(`未知的章节ID: ${chapterId} (类型: ${type})`);
+        }
     }
 
     const agent = CHAPTER_AGENTS[chapterId];
@@ -321,7 +107,7 @@ async function generateSingleChapter(chapterId, conversationHistory) {
  */
 router.post('/generate-chapter', async (req, res, next) => {
     try {
-        const { chapterId, conversationHistory } = req.body;
+        const { chapterId, conversationHistory, type = 'business' } = req.body;
 
         // 参数验证
         if (!chapterId) {
@@ -338,11 +124,76 @@ router.post('/generate-chapter', async (req, res, next) => {
             });
         }
 
-        const result = await generateSingleChapter(chapterId, conversationHistory);
+        const result = await generateSingleChapter(chapterId, conversationHistory, type);
 
         res.json({
             code: 0,
             data: result
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/business-plan/generate-full
+ * 使用完整文档提示词生成商业计划书（支持动态章节注入）
+ */
+router.post('/generate-full', async (req, res, next) => {
+    try {
+        const { chapterIds, conversationHistory, type = 'business' } = req.body;
+
+        // 参数验证
+        if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+            return res.status(400).json({
+                code: -1,
+                error: '缺少或无效的章节ID列表'
+            });
+        }
+
+        if (!conversationHistory || !Array.isArray(conversationHistory)) {
+            return res.status(400).json({
+                code: -1,
+                error: '缺少或无效的对话历史'
+            });
+        }
+
+        const startTime = Date.now();
+
+        // 构建带章节注入的完整文档提示词
+        const docType = type === 'proposal' ? 'proposal' : 'business-plan';
+        const { systemPrompt, prompt, metadata } = await promptLoader.buildPromptWithChapters(
+            docType,
+            chapterIds,
+            conversationHistory
+        );
+
+        // 调用DeepSeek API生成完整文档
+        const result = await callDeepSeekAPI(
+            [{ role: 'user', content: prompt }],
+            systemPrompt,
+            {
+                max_tokens: 8000,
+                temperature: 0.7
+            }
+        );
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const costStats = getCostStats();
+
+        res.json({
+            code: 0,
+            data: {
+                document: result.content,
+                format: 'markdown',
+                mode: 'full-document',
+                selectedChapters: chapterIds,
+                metadata,
+                tokens: result.usage.total_tokens,
+                duration: parseFloat(duration),
+                costStats
+            }
         });
 
     } catch (error) {
@@ -356,7 +207,7 @@ router.post('/generate-chapter', async (req, res, next) => {
  */
 router.post('/generate-batch', async (req, res, next) => {
     try {
-        const { chapterIds, conversationHistory } = req.body;
+        const { chapterIds, conversationHistory, type = 'business' } = req.body;
 
         // 参数验证
         if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
@@ -375,7 +226,7 @@ router.post('/generate-batch', async (req, res, next) => {
 
         // 并行生成所有章节
         const startTime = Date.now();
-        const promises = chapterIds.map(id => generateSingleChapter(id, conversationHistory));
+        const promises = chapterIds.map(id => generateSingleChapter(id, conversationHistory, type));
         const chapters = await Promise.all(promises);
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
