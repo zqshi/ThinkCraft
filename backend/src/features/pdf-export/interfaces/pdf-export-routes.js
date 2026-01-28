@@ -50,4 +50,10 @@ router.delete('/exports/:exportId', controller.deleteExport.bind(controller));
  */
 router.get('/exports/:exportId/download', controller.downloadExport.bind(controller));
 
+/**
+ * 快速导出报告为PDF（兼容旧API）
+ * POST /api/pdf-export/report
+ */
+router.post('/report', controller.exportReportPDF.bind(controller));
+
 export default router;

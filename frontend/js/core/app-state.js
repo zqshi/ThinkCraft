@@ -15,6 +15,8 @@ export const appState = {
   typingChatId: null,
   pendingChatIds: new Set(),
   analysisCompleted: false,
+  autoScrollEnabled: true,
+  autoScrollLocked: false,
 
   // 项目管理（v5新增）
   currentProject: null,
@@ -57,6 +59,9 @@ export let progressInterval = null;
 export let spaceHoldTimer = null;
 export let spaceHoldTriggered = false;
 
+// 输入法组合状态（用于处理拼音输入法等）
+export let isComposing = false;
+
 // 更新函数
 export function updateCurrentGeneratedChapters(chapters) {
   currentGeneratedChapters = chapters;
@@ -88,6 +93,10 @@ export function updateSpaceHoldTimer(timer) {
 
 export function updateSpaceHoldTriggered(triggered) {
   spaceHoldTriggered = triggered;
+}
+
+export function updateIsComposing(composing) {
+  isComposing = composing;
 }
 
 // 项目状态更新函数（v5新增）

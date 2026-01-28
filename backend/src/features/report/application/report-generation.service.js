@@ -68,14 +68,29 @@ export class ReportGenerationService {
 
     try {
       // 调用AI API生成报告内容
-      const response = await callDeepSeekAPI(prompt, {
-        temperature: 0.7,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' }
-      });
+      const response = await callDeepSeekAPI(
+        [{ role: 'user', content: prompt }],
+        null,
+        {
+          temperature: 0.7,
+          max_tokens: 4000,
+          response_format: { type: 'json_object' },
+          timeout: 120000
+        }
+      );
 
-      // 解析生成的报告内容
-      const reportData = JSON.parse(response.content);
+      // 解析生成的报告内容（兼容代码块包装）
+      const rawContent = String(response.content || '').trim();
+      let jsonText = rawContent;
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```[a-zA-Z]*\s*/i, '').replace(/```$/, '').trim();
+      }
+      const firstBrace = jsonText.indexOf('{');
+      const lastBrace = jsonText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && (firstBrace !== 0 || lastBrace !== jsonText.length - 1)) {
+        jsonText = jsonText.slice(firstBrace, lastBrace + 1);
+      }
+      const reportData = JSON.parse(jsonText);
 
       // 验证报告结构
       this.validateReportData(reportData);

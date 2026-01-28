@@ -13,10 +13,11 @@
         // ==================== 长按空格键语音输入 ====================
         let spaceHoldTimer = null;
         let spaceHoldTriggered = false;
+        let isComposing = false;  // 输入法组合状态
 
         function handleKeyDown(e) {
-            // Enter键发送消息
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // Enter键发送消息（但不在输入法组合状态中）
+            if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                 e.preventDefault();
                 sendMessage();
                 return;
@@ -32,6 +33,14 @@
                     if (navigator.vibrate) navigator.vibrate(50);  // 震动反馈
                     }, 300);  // 300ms触发
             }
+        }
+
+        function handleCompositionStart(e) {
+            isComposing = true;
+        }
+
+        function handleCompositionEnd(e) {
+            isComposing = false;
         }
 
         function handleKeyUp(e) {
@@ -62,6 +71,92 @@
             const isTyping = currentChatId !== null && state.typingChatId === currentChatId;
             const isLoading = currentChatId !== null && state.pendingChatIds.has(currentChatId);
             return isTyping || isLoading;
+        }
+
+        function canShareReport() {
+            return Boolean(window.lastGeneratedReport && window.lastGeneratedReport.chapters);
+        }
+
+        function updateShareLinkButtonVisibility() {
+            const btn = document.getElementById('shareLinkBtn');
+            if (!btn) return;
+            btn.style.display = canShareReport() ? 'inline-flex' : 'none';
+        }
+
+        function getDefaultIconSvg(size = 48, className = 'empty-icon') {
+            return `
+                <svg class="${className}" width="${size}" height="${size}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+            `;
+        }
+
+        function buildIconSvg(paths, size, className) {
+            return `
+                <svg class="${className}" width="${size}" height="${size}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    ${paths.map(d => `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"/>`).join('')}
+                </svg>
+            `;
+        }
+
+        function resolveAgentIconKey(key) {
+            const value = String(key || '');
+            if (/市场|📊/.test(value)) return 'chart';
+            if (/技术|架构|工程|⚙️|👨‍💻|👩‍💻/.test(value)) return 'cog';
+            if (/增长|营销|📈/.test(value)) return 'trend';
+            if (/组织|团队|👥/.test(value)) return 'users';
+            if (/财务|资金|💰|💵/.test(value)) return 'dollar';
+            if (/风险|⚠️/.test(value)) return 'shield';
+            if (/产品|创意|💡/.test(value)) return 'lightbulb';
+            if (/项目|📋/.test(value)) return 'clipboard';
+            if (/文档|📎/.test(value)) return 'document';
+            if (/竞争|⚔️/.test(value)) return 'shield';
+            if (/综合|🤖/.test(value)) return 'default';
+            return 'default';
+        }
+
+        function getAgentIconSvg(key, size = 28, className = 'agent-avatar-icon') {
+            const iconKey = resolveAgentIconKey(key);
+            const icons = {
+                default: [
+                    'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'
+                ],
+                lightbulb: [
+                    'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'
+                ],
+                chart: [
+                    'M3 3v18h18',
+                    'M8 17V9',
+                    'M12 17V5',
+                    'M16 17v-7'
+                ],
+                cog: [
+                    'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+                    'M15 12a3 3 0 11-6 0 3 3 0 016 0z'
+                ],
+                trend: [
+                    'M3 17l6-6 4 4 7-7',
+                    'M14 7h7v7'
+                ],
+                users: [
+                    'M16 7a4 4 0 11-8 0 4 4 0 018 0z',
+                    'M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                ],
+                dollar: [
+                    'M12 8c-2.761 0-5 1.343-5 3s2.239 3 5 3 5 1.343 5 3-2.239 3-5 3m0-12V6m0 12v2'
+                ],
+                shield: [
+                    'M12 3l7 4v5c0 5-3.5 9.5-7 11-3.5-1.5-7-6-7-11V7l7-4z'
+                ],
+                clipboard: [
+                    'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+                ],
+                document: [
+                    'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+                ]
+            };
+
+            return buildIconSvg(icons[iconKey] || icons.default, size, className);
         }
 
         async function sendMessage() {
@@ -98,6 +193,8 @@
 
             document.getElementById('emptyState').style.display = 'none';
             document.getElementById('messageList').style.display = 'block';
+
+            state.autoScrollEnabled = true;
 
             // 添加用户消息（skipStatePush=true，因为下面会手动push）
             addMessage('user', message, null, false, false, true);
@@ -140,6 +237,19 @@
             state.isLoading = state.pendingChatIds.size > 0;
 
             try {
+                if (typeof window.loadSystemPrompts === 'function') {
+                    await window.loadSystemPrompts();
+                }
+                const resolvedSystemPrompt =
+                    window.SYSTEM_PROMPTS && window.DEFAULT_PROMPT
+                        ? window.SYSTEM_PROMPTS[window.DEFAULT_PROMPT]
+                        : undefined;
+                if (resolvedSystemPrompt) {
+                    console.log('[Chat] systemPrompt preview:', resolvedSystemPrompt.slice(0, 80));
+                } else {
+                    console.warn('[Chat] systemPrompt missing, using model default');
+                }
+
                 // 调用后端API
                 const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
                     method: 'POST',
@@ -151,7 +261,7 @@
                             role: m.role,
                             content: m.content
                         })),
-                        systemPrompt: SYSTEM_PROMPT
+                        systemPrompt: resolvedSystemPrompt
                     })
                 });
 
@@ -323,12 +433,14 @@
                             </svg>
                             查看完整报告
                         </button>
+                        ${canShareReport() ? `
                         <button class="share-btn" onclick="showShareCard()">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                             </svg>
                             创意分享
                         </button>
+                        ` : ''}
                     </div>
                 `;
             }
@@ -448,12 +560,7 @@
                                 </svg>
                                 查看完整报告
                             </button>
-                            <button class="share-btn" onclick="showShareCard()">
-                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
-                                </svg>
-                                创意分享
-                            </button>
+                            <!-- 创意分享按钮已隐藏 -->
                         `;
                     }
                 }
@@ -465,8 +572,77 @@
             sendMessage();
         }
 
-        function scrollToBottom() {
+        const AUTO_SCROLL_BOTTOM_THRESHOLD = 2;
+
+        function isNearBottom(container) {
+            return (container.scrollHeight - container.scrollTop - container.clientHeight) <= AUTO_SCROLL_BOTTOM_THRESHOLD;
+        }
+
+        function initChatAutoScroll() {
             const container = document.getElementById('chatContainer');
+            if (!container) return;
+            if (typeof state.autoScrollEnabled !== 'boolean') {
+                state.autoScrollEnabled = true;
+            }
+            if (typeof state.autoScrollLocked !== 'boolean') {
+                state.autoScrollLocked = false;
+            }
+            const lockAutoScroll = () => {
+                state.autoScrollLocked = true;
+                state.autoScrollEnabled = false;
+                container.style.scrollBehavior = 'auto';
+            };
+            let lastScrollTop = container.scrollTop;
+            state.autoScrollEnabled = isNearBottom(container);
+
+            container.addEventListener('scroll', () => {
+                const currentTop = container.scrollTop;
+                const scrolledUp = currentTop < lastScrollTop;
+
+                if (scrolledUp) {
+                    lockAutoScroll();
+                }
+                if (isNearBottom(container)) {
+                    state.autoScrollLocked = false;
+                    state.autoScrollEnabled = true;
+                } else {
+                    state.autoScrollEnabled = false;
+                }
+
+                lastScrollTop = currentTop;
+                container.style.scrollBehavior = state.autoScrollLocked ? 'auto' : 'smooth';
+            });
+
+            container.addEventListener('wheel', () => {
+                lockAutoScroll();
+            }, { passive: true });
+
+            let touchStartY = null;
+            container.addEventListener('touchstart', (event) => {
+                if (event.touches && event.touches.length) {
+                    touchStartY = event.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (event) => {
+                if (touchStartY === null || !event.touches || !event.touches.length) return;
+                const currentY = event.touches[0].clientY;
+                if (currentY - touchStartY > 5) {
+                    lockAutoScroll();
+                }
+            }, { passive: true });
+
+            container.addEventListener('keydown', (event) => {
+                if (event.key === 'PageUp' || event.key === 'Home' || event.key === 'ArrowUp') {
+                    lockAutoScroll();
+                }
+            });
+        }
+
+        function scrollToBottom(force = false) {
+            const container = document.getElementById('chatContainer');
+            if (!container) return;
+            if (!force && (state.autoScrollLocked || !state.autoScrollEnabled)) return;
             container.scrollTop = container.scrollHeight;
         }
 
@@ -486,6 +662,8 @@
             state.conversationStep = 0;
             state.userData = {};
             state.analysisCompleted = false;
+            state.autoScrollEnabled = true;
+            state.autoScrollLocked = false;
 
             // 清空UI
             document.getElementById('emptyState').style.display = 'flex';
@@ -598,15 +776,7 @@
             const saved = localStorage.getItem('thinkcraft_chats');
 
             if (!saved || saved === '[]') {
-                // localStorage为空，加载mock数据
-                if (window.MOCK_DATA) {
-                    const demoChat = JSON.parse(JSON.stringify(window.MOCK_DATA.chat));
-                    const otherChats = JSON.parse(JSON.stringify(window.MOCK_DATA.otherChats));
-                    state.chats = [demoChat, ...otherChats];
-                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-                } else {
-                    state.chats = [];
-                }
+                state.chats = [];
             } else {
                 // 加载已保存的数据
                 state.chats = JSON.parse(saved);
@@ -864,6 +1034,15 @@
                 return;
             }
 
+            // 关闭所有浮窗
+            document.querySelectorAll('.chat-item-menu').forEach(menu => {
+                menu.classList.remove('active');
+                restoreChatMenu(menu);
+            });
+            document.querySelectorAll('.chat-item.menu-open').forEach(item => {
+                item.classList.remove('menu-open');
+            });
+
             state.chats = state.chats.filter(c => c.id != chatId);
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
 
@@ -920,6 +1099,10 @@
         });
 
         function loadChat(id) {
+            state.autoScrollEnabled = true;
+            state.autoScrollLocked = false;
+            state.autoScrollLocked = false;
+
             // 兼容数字和字符串ID，统一转换比较
             const targetId = typeof id === 'string' && !isNaN(id) ? Number(id) : id;
             const chat = state.chats.find(c => c.id == targetId);  // 使用 == 而非 === 做宽松比较
@@ -995,17 +1178,33 @@
             }
 
         // 查看报告
-        async function viewReport() {
-            // 检查是否为示例数据，如果是则使用预设报告
-            if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA && window.MOCK_DATA.demoReport) {
-                const reportContent = document.getElementById('reportContent');
-                renderAIReport(window.MOCK_DATA.demoReport);
-                document.getElementById('reportModal').classList.add('active');
-                return;
+        function viewReport() {
+            const reportModal = document.getElementById('reportModal');
+            if (reportModal) {
+                reportModal.classList.add('active');
             }
 
-            await generateDetailedReport();
-            document.getElementById('reportModal').classList.add('active');
+            // 让出主线程，确保弹窗先渲染
+            requestAnimationFrame(() => {
+                generateDetailedReport().catch(error => {
+                    console.error('Failed to generate report:', error);
+                    const reportContent = document.getElementById('reportContent');
+                    if (reportContent) {
+                        reportContent.innerHTML = `
+                            <div style="text-align: center; padding: 60px 20px;">
+                                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                    报告生成失败
+                                </div>
+                                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                    ${error.message || '生成报告时发生未知错误'}
+                                </div>
+                                <button class="btn-primary" onclick="generateDetailedReport()">重试</button>
+                            </div>
+                        `;
+                    }
+                });
+            });
         }
 
         // 重新生成创意报告
@@ -1042,7 +1241,7 @@
             // 显示加载状态
             reportContent.innerHTML = `
                 <div style="text-align: center; padding: 60px 20px;">
-                    <div style="font-size: 48px; margin-bottom: 20px;">🤖</div>
+                    <div style="margin-bottom: 20px;">${getDefaultIconSvg(48)}</div>
                     <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
                         AI正在生成分析报告...
                     </div>
@@ -1065,28 +1264,42 @@
             `;
 
             try {
-                // 调用后端API生成报告
-                const response = await fetch(`${state.settings.apiUrl}/api/report/generate`, {
+                const apiBaseUrl = state.settings.apiUrl || window.location.origin;
+                const apiClient = window.apiClient || (window.APIClient ? new window.APIClient(apiBaseUrl) : null);
+                if (!apiClient) {
+                    throw new Error('API 客户端未初始化，请刷新页面重试。');
+                }
+                if (apiClient.setBaseURL) {
+                    apiClient.setBaseURL(apiBaseUrl);
+                }
+                window.apiClient = apiClient;
+
+                const data = await apiClient.request('/api/report/generate', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
+                    body: {
+                        messages: state.messages.map(m => ({
+                            role: m.role,
+                            content: m.content
+                        }))
                     },
-                    body: JSON.stringify({
-                        messages: state.messages
-                    })
+                    timeout: 120000,
+                    retry: 1
                 });
 
-                if (!response.ok) {
-                    throw new Error(`API错误: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data.code !== 0) {
+                if (data && data.code !== 0) {
                     throw new Error(data.error || '未知错误');
                 }
 
-                const reportData = data.data.report;
+                const reportData = data?.data?.report;
+
+                // 验证报告数据结构
+                if (!reportData || !reportData.chapters) {
+                    throw new Error('后端返回的报告数据格式不正确。请重启后端服务（Ctrl+C 然后 npm start）以加载最新代码。');
+                }
+
+                // 缓存最后一次生成的报告，供导出使用
+                window.lastGeneratedReport = reportData;
+                updateShareLinkButtonVisibility();
 
                 // 渲染AI生成的报告
                 renderAIReport(reportData);
@@ -1104,19 +1317,57 @@
                         <button class="btn-primary" onclick="generateDetailedReport()">重试</button>
                     </div>
                 `;
+                updateShareLinkButtonVisibility();
             }
         }
 
         // 渲染AI生成的报告
         function renderAIReport(reportData) {
     const reportContent = document.getElementById('reportContent');
+    const normalizeArray = (value) => Array.isArray(value) ? value : [];
+    const normalizeObject = (value) => (value && typeof value === 'object') ? value : {};
+    const normalizeText = (value, fallback = '待补充') => (value === undefined || value === null || value === '') ? fallback : value;
 
-    const ch1 = reportData.chapters.chapter1;
-    const ch2 = reportData.chapters.chapter2;
-    const ch3 = reportData.chapters.chapter3;
-    const ch4 = reportData.chapters.chapter4;
-    const ch5 = reportData.chapters.chapter5;
-    const ch6 = reportData.chapters.chapter6;
+    // 验证数据结构
+    if (!reportData || !reportData.chapters) {
+        reportContent.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                    报告数据格式错误
+                </div>
+                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                    后端返回的数据格式不正确。<br>
+                    请重启后端服务以加载最新代码：<br>
+                    <code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; margin-top: 8px; display: inline-block;">
+                        Ctrl+C 然后 npm start
+                    </code>
+                </div>
+                <button class="btn-primary" onclick="generateDetailedReport()">重试</button>
+            </div>
+        `;
+        return;
+    }
+
+    const ch1 = normalizeObject(reportData.chapters.chapter1);
+    const ch2 = normalizeObject(reportData.chapters.chapter2);
+    const ch3 = normalizeObject(reportData.chapters.chapter3);
+    const ch4 = normalizeObject(reportData.chapters.chapter4);
+    const ch5 = normalizeObject(reportData.chapters.chapter5);
+    const ch6 = normalizeObject(reportData.chapters.chapter6);
+    const ch2Assumptions = normalizeArray(ch2.assumptions);
+    const ch3Limitations = normalizeArray(ch3.limitations);
+    const ch4Stages = normalizeArray(ch4.stages);
+    const ch5BlindSpots = normalizeArray(ch5.blindSpots);
+    const ch5KeyQuestions = normalizeArray(ch5.keyQuestions);
+    const ch6ImmediateActions = normalizeArray(ch6.immediateActions);
+    const ch6ExtendedIdeas = normalizeArray(ch6.extendedIdeas);
+    const ch6MidtermPlan = normalizeObject(ch6.midtermPlan);
+    const ch3Prerequisites = normalizeObject(ch3.prerequisites);
+    const coreDefinition = normalizeText(reportData.coreDefinition);
+    const problem = normalizeText(reportData.problem);
+    const solution = normalizeText(reportData.solution);
+    const targetUser = normalizeText(reportData.targetUser);
 
     reportContent.innerHTML = `
         <!-- 报告内容 -->
@@ -1124,45 +1375,45 @@
 
             <!-- 第一章：创意定义与演化 -->
             <div class="report-section">
-                <div class="report-section-title">${ch1.title}</div>
+                <div class="report-section-title">${normalizeText(ch1.title, '创意定义与演化')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 原始表述</h4>
                         <div class="highlight-box">
-                            ${ch1.originalIdea || reportData.initialIdea}
+                            ${normalizeText(ch1.originalIdea || reportData.initialIdea)}
                         </div>
 
                         <h4>2. 核心定义（对话后）</h4>
-                        <p><strong>一句话概括：</strong>${reportData.coreDefinition}</p>
+                        <p><strong>一句话概括：</strong>${coreDefinition}</p>
 
                         <h4>3. 价值主张</h4>
                         <ul>
-                            <li><strong>解决的根本问题：</strong>${reportData.problem}</li>
-                            <li><strong>提供的独特价值：</strong>${reportData.solution}</li>
-                            <li><strong>目标受益者：</strong>${reportData.targetUser}</li>
+                            <li><strong>解决的根本问题：</strong>${problem}</li>
+                            <li><strong>提供的独特价值：</strong>${solution}</li>
+                            <li><strong>目标受益者：</strong>${targetUser}</li>
                         </ul>
 
                         <h4>4. 演变说明</h4>
-                        <p>${ch1.evolution}</p>
+                        <p>${normalizeText(ch1.evolution)}</p>
                     </div>
                 </div>
             </div>
 
             <!-- 第二章：核心洞察与根本假设 -->
             <div class="report-section">
-                <div class="report-section-title">${ch2.title}</div>
+                <div class="report-section-title">${normalizeText(ch2.title, '核心洞察与根本假设')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 识别的根本需求</h4>
                         <div class="highlight-box">
-                            <strong>表层需求：</strong>${ch2.surfaceNeed}<br><br>
-                            <strong>深层动力：</strong>${ch2.deepMotivation}
+                            <strong>表层需求：</strong>${normalizeText(ch2.surfaceNeed)}<br><br>
+                            <strong>深层动力：</strong>${normalizeText(ch2.deepMotivation)}
                         </div>
 
                         <h4>2. 核心假设清单</h4>
                         <p><strong>创意成立所依赖的关键前提（未经完全验证）：</strong></p>
                         <ul>
-                            ${ch2.assumptions.map(assumption => `<li>${assumption}</li>`).join('')}
+                            ${ch2Assumptions.map(assumption => `<li>${assumption}</li>`).join('')}
                         </ul>
                     </div>
                 </div>
@@ -1170,18 +1421,18 @@
 
             <!-- 第三章：边界条件与应用场景 -->
             <div class="report-section">
-                <div class="report-section-title">${ch3.title}</div>
+                <div class="report-section-title">${normalizeText(ch3.title, '边界条件与应用场景')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 理想应用场景</h4>
                         <div class="highlight-box">
-                            ${ch3.idealScenario}
+                            ${normalizeText(ch3.idealScenario)}
                         </div>
 
                         <h4>2. 潜在限制因素</h4>
                         <p><strong>创意在以下情况下可能效果打折或失效：</strong></p>
                         <ul>
-                            ${ch3.limitations.map(limit => `<li>${limit}</li>`).join('')}
+                            ${ch3Limitations.map(limit => `<li>${limit}</li>`).join('')}
                         </ul>
 
                         <h4>3. 必要前置条件</h4>
@@ -1192,7 +1443,7 @@
                                     <div class="analysis-card-title">技术基础</div>
                                 </div>
                                 <div class="analysis-card-content">
-                                    ${ch3.prerequisites.technical}
+                                    ${normalizeText(ch3Prerequisites.technical)}
                                 </div>
                             </div>
                             <div class="analysis-card">
@@ -1201,7 +1452,7 @@
                                     <div class="analysis-card-title">资源要求</div>
                                 </div>
                                 <div class="analysis-card-content">
-                                    ${ch3.prerequisites.resources}
+                                    ${normalizeText(ch3Prerequisites.resources)}
                                 </div>
                             </div>
                             <div class="analysis-card">
@@ -1210,7 +1461,7 @@
                                     <div class="analysis-card-title">合作基础</div>
                                 </div>
                                 <div class="analysis-card-content">
-                                    ${ch3.prerequisites.partnerships}
+                                    ${normalizeText(ch3Prerequisites.partnerships)}
                                 </div>
                             </div>
                         </div>
@@ -1220,21 +1471,21 @@
 
             <!-- 第四章：可行性分析与关键挑战 -->
             <div class="report-section">
-                <div class="report-section-title">${ch4.title}</div>
+                <div class="report-section-title">${normalizeText(ch4.title, '可行性分析与关键挑战')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 实现路径分解</h4>
                         <p><strong>将大创意拆解为关键模块/发展阶段：</strong></p>
                         <ol>
-                            ${ch4.stages.map(stage => `
-                                <li><strong>${stage.stage}：</strong>${stage.goal} - ${stage.tasks}</li>
+                            ${ch4Stages.map((stage, idx) => `
+                                <li><strong>${normalizeText(stage?.stage, `阶段 ${idx + 1}`)}：</strong>${normalizeText(stage?.goal)} - ${normalizeText(stage?.tasks)}</li>
                             `).join('')}
                         </ol>
 
                         <h4>2. 最大障碍预判</h4>
                         <div class="highlight-box">
-                            <strong>⚠️ 最大单一风险点：</strong>${ch4.biggestRisk}<br><br>
-                            <strong>预防措施：</strong>${ch4.mitigation}
+                            <strong>⚠️ 最大单一风险点：</strong>${normalizeText(ch4.biggestRisk)}<br><br>
+                            <strong>预防措施：</strong>${normalizeText(ch4.mitigation)}
                         </div>
                     </div>
                 </div>
@@ -1242,29 +1493,29 @@
 
             <!-- 第五章：思维盲点与待探索问题 -->
             <div class="report-section">
-                <div class="report-section-title">${ch5.title}</div>
+                <div class="report-section-title">${normalizeText(ch5.title, '思维盲点与待探索问题')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 对话中暴露的空白</h4>
                         <div class="highlight-box">
                             <strong>⚠️ 未深入考虑的领域：</strong>
                             <ul style="margin-top: 12px; margin-bottom: 0;">
-                                ${ch5.blindSpots.map(spot => `<li>${spot}</li>`).join('')}
+                            ${ch5BlindSpots.map(spot => `<li>${spot}</li>`).join('')}
                             </ul>
                         </div>
 
                         <h4>2. 关键待验证问题</h4>
                         <p><strong>以下问题需通过调研、实验或原型才能回答：</strong></p>
                         <div class="analysis-grid">
-                            ${ch5.keyQuestions.map((item, idx) => `
+                            ${ch5KeyQuestions.map((item, idx) => `
                                 <div class="analysis-card">
                                     <div class="analysis-card-header">
                                         <div class="analysis-icon">❓</div>
                                         <div class="analysis-card-title">决定性问题 ${idx + 1}</div>
                                     </div>
                                     <div class="analysis-card-content">
-                                        ${item.question}<br><br>
-                                        <strong>验证方法：</strong>${item.validation}
+                                        ${normalizeText(item?.question)}<br><br>
+                                        <strong>验证方法：</strong>${normalizeText(item?.validation)}
                                     </div>
                                 </div>
                             `).join('')}
@@ -1275,36 +1526,37 @@
 
             <!-- 第六章：结构化行动建议 -->
             <div class="report-section">
-                <div class="report-section-title">${ch6.title}</div>
+                <div class="report-section-title">${normalizeText(ch6.title, '结构化行动建议')}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
                         <h4>1. 立即验证步骤（下周内）</h4>
                         <div class="highlight-box">
                             <strong>🎯 本周行动清单：</strong>
                             <ul style="margin-top: 12px; margin-bottom: 0;">
-                                ${ch6.immediateActions.map(action => `<li>${action}</li>`).join('')}
+                                ${ch6ImmediateActions.map(action => `<li>${action}</li>`).join('')}
                             </ul>
                         </div>
 
                         <h4>2. 中期探索方向（1-3个月）</h4>
                         <p><strong>为解答待探索问题，规划以下研究计划：</strong></p>
                         <ul>
-                            <li><strong>用户研究：</strong>${ch6.midtermPlan.userResearch}</li>
-                            <li><strong>市场调研：</strong>${ch6.midtermPlan.marketResearch}</li>
-                            <li><strong>原型开发：</strong>${ch6.midtermPlan.prototyping}</li>
-                            <li><strong>合作探索：</strong>${ch6.midtermPlan.partnerships}</li>
+                            <li><strong>用户研究：</strong>${normalizeText(ch6MidtermPlan.userResearch)}</li>
+                            <li><strong>市场调研：</strong>${normalizeText(ch6MidtermPlan.marketResearch)}</li>
+                            <li><strong>原型开发：</strong>${normalizeText(ch6MidtermPlan.prototyping)}</li>
+                            <li><strong>合作探索：</strong>${normalizeText(ch6MidtermPlan.partnerships)}</li>
                         </ul>
 
                         <h4>3. 概念延伸提示</h4>
                         <p><strong>对话中衍生的关联创意方向：</strong></p>
                         <ul>
-                            ${ch6.extendedIdeas.map(idea => `<li>${idea}</li>`).join('')}
+                            ${ch6ExtendedIdeas.map(idea => `<li>${idea}</li>`).join('')}
                         </ul>
                     </div>
                 </div>
             </div>
         </div>
     `;
+    updateShareLinkButtonVisibility();
 }
 
         function closeReport() {
@@ -1340,21 +1592,46 @@
 
         // 显示分享卡片
         function showShareCard() {
+            const shareModal = document.getElementById('shareModal');
+            if (!shareModal) {
+                alert('分享功能未初始化，请刷新页面重试。');
+                return;
+            }
+            // 确保卡片内容元素存在
             updateShareCard();
-            document.getElementById('shareModal').classList.add('active');
+            shareModal.classList.add('active');
         }
 
         function updateShareCard() {
-            document.getElementById('shareIdeaTitle').textContent = state.userData.initialIdea || '创意验证工具';
+            const shareModal = document.getElementById('shareModal');
+            if (!shareModal) {
+                console.warn('Share modal missing.');
+                return;
+            }
 
-            const tags = [state.userData.targetUser || '创业者', '思维工具'];
-            document.getElementById('shareTag1').textContent = tags[0];
-            document.getElementById('shareTag2').textContent = tags[1];
+            const titleEl = shareModal.querySelector('#shareIdeaTitle');
+            const tag1El = shareModal.querySelector('#shareTag1');
+            const tag2El = shareModal.querySelector('#shareTag2');
+            const dateEl = shareModal.querySelector('#shareDate');
+
+            if (!titleEl || !tag1El || !tag2El || !dateEl) {
+                console.warn('Share card elements missing.');
+                return;
+            }
+
+            const userData = state?.userData || {};
+            if (titleEl) {
+                titleEl.textContent = userData.initialIdea || '创意验证工具';
+            }
+
+            const tags = [userData.targetUser || '创业者', '思维工具'];
+            if (tag1El) tag1El.textContent = tags[0];
+            if (tag2El) tag2El.textContent = tags[1];
 
             // 设置生成日期
             const today = new Date();
             const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            document.getElementById('shareDate').textContent = dateStr;
+            if (dateEl) dateEl.textContent = dateStr;
         }
 
         function closeShareModal() {
@@ -1368,6 +1645,7 @@
         // 下载卡片为图片
         function downloadCard() {
             const card = document.getElementById('shareCard');
+            if (!card) return;
             html2canvas(card, {
                 scale: 2,
                 backgroundColor: null,
@@ -1407,17 +1685,16 @@
                     return;
                 }
 
-                // 显示加载提示
-                const loadingMsg = alert('📄 正在生成PDF，请稍候...');
-
-                // 从window.MOCK_DATA或实际生成的报告中获取数据
-                let reportData;
-                if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA) {
-                    reportData = window.MOCK_DATA.demoReport;
-                } else {
-                    // 从DOM或state中获取实际报告数据
-                    reportData = window.lastGeneratedReport || {};
+                // 确保有可导出的报告数据
+                if (!window.lastGeneratedReport || !window.lastGeneratedReport.chapters) {
+                    await generateDetailedReport();
                 }
+
+                // 显示加载提示
+                alert('📄 正在生成PDF，请稍候...');
+
+                // 从实际生成的报告中获取数据
+                let reportData = window.lastGeneratedReport || {};
 
                 // 调用后端API生成PDF
                 const response = await fetch(`${state.settings.apiUrl}/api/pdf-export/report`, {
@@ -1435,16 +1712,30 @@
                     throw new Error('PDF生成失败');
                 }
 
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/pdf')) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || '返回内容不是PDF文件');
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                const header = new TextDecoder('ascii').decode(arrayBuffer.slice(0, 5));
+                if (header !== '%PDF-') {
+                    throw new Error('PDF文件头校验失败');
+                }
+
                 // 下载PDF文件
-                const blob = await response.blob();
+                const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `${state.userData.idea || '创意分析报告'}.pdf`;
                 document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }, 1000);
 
                 alert('✅ PDF已导出成功！');
 
@@ -1457,12 +1748,7 @@
         async function generateShareLink() {
             try {
                 // 获取当前报告数据
-                let reportData;
-                if (state.currentChat === 'demo_fitness_app' && window.MOCK_DATA) {
-                    reportData = window.MOCK_DATA.demoReport;
-                } else {
-                    reportData = window.lastGeneratedReport || {};
-                }
+                let reportData = window.lastGeneratedReport || {};
 
                 // 调用后端API创建分享
                 const response = await fetch(`${state.settings.apiUrl}/api/share/create`, {
@@ -1487,7 +1773,7 @@
                     throw new Error(result.error || '创建分享失败');
                 }
 
-                const { shareUrl, expiresAt, qrCodeUrl } = result.data;
+                const { shareUrl, expiresAt } = result.data;
 
                 // 关闭报告弹窗
                 closeReport();
@@ -1497,9 +1783,11 @@
 
                 // 显示分享链接信息
                 const shareModal = document.getElementById('shareModal');
+                if (!shareModal) {
+                    throw new Error('分享弹窗未初始化');
+                }
                 const shareCard = shareModal.querySelector('.share-card-footer');
                 if (shareCard) {
-                    // 添加分享链接显示
                     const linkDisplay = document.createElement('div');
                     linkDisplay.style.cssText = 'margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;';
                     linkDisplay.innerHTML = `
@@ -1515,12 +1803,9 @@
                             📋 复制链接
                         </button>
                     `;
-
-                    // 在分享卡片后添加
                     shareModal.querySelector('.modal-body').appendChild(linkDisplay);
                 }
 
-                // 显示分享模态框
                 shareModal.classList.add('active');
 
             } catch (error) {
@@ -1648,7 +1933,7 @@
                                     <div class="document-chapter">
                                         <div class="chapter-content" style="padding-left: 0;">
                                             <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                                <strong>分析师：</strong>${ch.emoji} ${ch.agent}
+                                                <strong>分析师：</strong>${getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon')} ${ch.agent}
                                             </p>
 
                                             <div style="line-height: 1.8; white-space: pre-wrap; font-size: 15px;">
@@ -1896,7 +2181,7 @@
                                 <span class="chapter-name">${ch.title}</span>
                                 <span class="chapter-desc">${ch.desc}</span>
                                 <div>
-                                    <span class="badge agent">${ch.emoji} ${ch.agent}</span>
+                                    <span class="badge agent">${getAgentIconSvg(ch.emoji || ch.agent, 14, 'agent-badge-icon')} ${ch.agent}</span>
                                     <span class="badge time">预计${ch.time}s</span>
                                 </div>
                             </div>
@@ -1940,7 +2225,7 @@
             // 构建Agent列表
             const agentListHTML = chaptersToGenerate.map((ch, index) => `
                 <div class="agent-item pending" id="agent-${index}">
-                    <div class="agent-avatar" id="avatar-${index}">${ch.emoji}</div>
+                    <div class="agent-avatar" id="avatar-${index}">${getAgentIconSvg(ch.emoji || ch.agent, 28, 'agent-avatar-icon')}</div>
                     <div class="agent-info">
                         <h4>${ch.agent}</h4>
                         <p class="task">${ch.title}</p>
@@ -2062,7 +2347,7 @@
                             <div class="document-chapter">
                                 <div class="chapter-content" style="padding-left: 0;">
                                     <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                        <strong>分析师：</strong>${ch.emoji} ${ch.agent}
+                                        <strong>分析师：</strong>${getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon')} ${ch.agent}
                                     </p>
 
                                     <div class="highlight-box">
@@ -3258,7 +3543,7 @@
                 html += `
                     <div class="agent-card">
                         <div style="display: flex; align-items: start; gap: 16px;">
-                            <div style="font-size: 48px;">${agent.emoji}</div>
+                            <div class="agent-avatar-large">${getAgentIconSvg(agent.emoji || agent.name, 36, 'agent-avatar-icon')}</div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                                     <h4 style="margin: 0; font-size: 18px;">${agent.nickname}</h4>
@@ -3329,7 +3614,7 @@
                     html += `
                         <div class="agent-card" style="${isHired ? 'opacity: 0.6;' : ''}">
                             <div style="display: flex; align-items: start; gap: 16px;">
-                                <div style="font-size: 48px;">${agent.emoji}</div>
+                                <div class="agent-avatar-large">${getAgentIconSvg(agent.emoji || agent.name, 36, 'agent-avatar-icon')}</div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                                         <h4 style="margin: 0; font-size: 18px;">${agent.name}</h4>
@@ -3403,7 +3688,7 @@
                         ${myAgents.map(agent => `
                             <label style="display: flex; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer;">
                                 <input type="checkbox" value="${agent.id}" style="margin-right: 12px;">
-                                <span style="font-size: 24px; margin-right: 12px;">${agent.emoji}</span>
+                                <span class="agent-inline-icon">${getAgentIconSvg(agent.emoji || agent.name, 20, 'agent-inline-icon')}</span>
                                 <span style="flex: 1;">${agent.nickname} (${agent.name})</span>
                             </label>
                         `).join('')}
@@ -3510,7 +3795,7 @@
             }
 
             try {
-                alert(`${agent.emoji} ${agent.nickname} 开始工作中，请稍候...`);
+                alert(`${agent.nickname} 开始工作中，请稍候...`);
 
                 const response = await fetch(`${state.settings.apiUrl}/api/agents/assign-task`, {
                     method: 'POST',
@@ -3923,7 +4208,7 @@
                     if (!agent) return '';
                     return `
                         <div class="project-member-card">
-                            <div class="member-avatar">${agent.avatar}</div>
+                            <div class="member-avatar">${getAgentIconSvg(agent.avatar || agent.role || agent.name, 28, 'member-avatar-icon')}</div>
                             <div class="member-info">
                                 <div class="member-name">${agent.name}</div>
                                 <div class="member-role">${agent.role}</div>
@@ -4176,7 +4461,7 @@
                 return `
                     <div class="agent-card ${isHired ? 'hired' : ''}">
                         <div class="agent-card-header">
-                            <div class="agent-card-avatar">${agent.avatar}</div>
+                        <div class="agent-card-avatar">${getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon')}</div>
                             <div class="agent-card-info">
                                 <div class="agent-card-name">${agent.name}</div>
                                 <div class="agent-card-role">${agent.role}</div>
@@ -4226,7 +4511,7 @@
                 return `
                     <div class="agent-card hired">
                         <div class="agent-card-header">
-                            <div class="agent-card-avatar">${agent.avatar}</div>
+                        <div class="agent-card-avatar">${getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon')}</div>
                             <div class="agent-card-info">
                                 <div class="agent-card-name">${agent.name}</div>
                                 <div class="agent-card-role">${agent.role}</div>
@@ -5807,9 +6092,9 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
             container.innerHTML = allMembers.map(member => `
                 <div class="project-member-card">
-                    <div class="member-avatar">${member.avatar}</div>
+                    <div class="member-avatar">${member.type === 'agent' ? getAgentIconSvg(member.avatar || member.role || member.name, 28, 'member-avatar-icon') : member.avatar}</div>
                     <div class="member-info">
-                        <div class="member-name">${member.name}${member.type === 'agent' ? ' 🤖' : ''}</div>
+                        <div class="member-name">${member.name}${member.type === 'agent' ? '（数字员工）' : ''}</div>
                         <div class="member-role">${member.role}</div>
                     </div>
                     ${member.type === 'agent' ? `
@@ -5896,7 +6181,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                 return `
                     <div class="agent-card hired">
                         <div class="agent-card-header">
-                            <div class="agent-card-avatar">${agent.avatar}</div>
+                        <div class="agent-card-avatar">${getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon')}</div>
                             <div class="agent-card-info">
                                 <div class="agent-card-name">${agent.name}</div>
                                 <div class="agent-card-role">${agent.role}</div>
@@ -5960,7 +6245,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                 return `
                     <div class="agent-card ${isHired ? 'hired' : ''}">
                         <div class="agent-card-header">
-                            <div class="agent-card-avatar">${agent.avatar}</div>
+                        <div class="agent-card-avatar">${getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon')}</div>
                             <div class="agent-card-info">
                                 <div class="agent-card-name">${agent.name}</div>
                                 <div class="agent-card-role">${agent.role}</div>
@@ -6090,23 +6375,107 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
         function clearAllHistory() {
             if (confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
+                // 清除localStorage
                 localStorage.removeItem('thinkcraft_chats');
+
+                // 重置状态
                 state.chats = [];
+                state.currentChat = null;
+                state.messages = [];
+                state.userData = {};
+                state.conversationStep = 0;
+                state.analysisCompleted = false;
+
+                // 重新加载聊天列表（会显示"暂无历史记录"）
                 loadChats();
+
+                // 清空聊天区域，显示欢迎界面
+                const chatMessages = document.getElementById('chatMessages');
+                if (chatMessages) {
+                    chatMessages.innerHTML = '';
+                }
+
+                // 显示初始化界面，隐藏消息列表
+                const emptyState = document.getElementById('emptyState');
+                const messageList = document.getElementById('messageList');
+                if (emptyState) {
+                    emptyState.style.display = 'flex';
+                }
+                if (messageList) {
+                    messageList.style.display = 'none';
+                }
+
+                // 关闭设置弹窗
+                const settingsModal = document.getElementById('settingsModal');
+                if (settingsModal) {
+                    settingsModal.classList.remove('active');
+                }
+
+                // 聚焦输入框
+                focusInput();
+
                 alert('✅ 历史记录已清除');
             }
         }
 
         // 退出登录
         function handleLogout() {
-            if (confirm('确定要退出登录吗？\n\n退出后将清除本地数据并返回登录页面。')) {
-                // 清除所有本地数据
-                localStorage.clear();
-                sessionStorage.clear();
+            const { saveHistory, hasPersistedChats } = getChatPersistenceState();
+            const message = buildLogoutMessage(saveHistory, hasPersistedChats);
 
-                // 跳转到登录页面
-                window.location.href = 'login.html';
+            if (!confirm(message)) {
+                return;
             }
+
+            // 清除登录会话数据
+            sessionStorage.removeItem('thinkcraft_logged_in');
+            sessionStorage.removeItem('thinkcraft_user');
+            sessionStorage.removeItem('thinkcraft_quick_mode');
+            sessionStorage.removeItem('thinkcraft_registered_user');
+            sessionStorage.removeItem('thinkcraft_login_codes');
+
+            // 清除登录页记住信息
+            localStorage.removeItem('thinkcraft_remember');
+            localStorage.removeItem('thinkcraft_login_phone');
+            localStorage.removeItem('thinkcraft_username');
+
+            // 未开启保存历史时，清理本地对话数据
+            if (!saveHistory) {
+                localStorage.removeItem('thinkcraft_chats');
+                localStorage.removeItem('thinkcraft_teamspace');
+            }
+
+            // 跳转到登录页面
+            window.location.href = 'login.html';
+        }
+
+        function getChatPersistenceState() {
+            let saveHistory = state?.settings?.saveHistory;
+            if (saveHistory === undefined) {
+                try {
+                    const settings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
+                    saveHistory = Boolean(settings.saveHistory);
+                } catch (e) {
+                    saveHistory = false;
+                }
+            }
+
+            let hasPersistedChats = false;
+            try {
+                const savedChats = JSON.parse(localStorage.getItem('thinkcraft_chats') || '[]');
+                hasPersistedChats = Array.isArray(savedChats) && savedChats.length > 0;
+            } catch (e) {
+                hasPersistedChats = false;
+            }
+
+            return { saveHistory, hasPersistedChats };
+        }
+
+        function buildLogoutMessage(saveHistory, hasPersistedChats) {
+            if (saveHistory && hasPersistedChats) {
+                return '确定要退出登录吗？\n\n对话记录已持久化保存，退出后重新登录仍可查看。';
+            }
+            return '确定要退出登录吗？\n\n当前对话未持久化保存，退出后将清除本地数据并丢失对话。';
         }
 
         // 语音输入
@@ -6538,6 +6907,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         window.addEventListener('load', () => {
             handleResponsiveSidebar();
             handleLaunchParams();  // 处理PWA启动参数
+            initChatAutoScroll();
 
             // 知识库Mock数据迁移
             initKnowledgeBase();
@@ -6914,6 +7284,8 @@ window.updateUserNameDisplay = updateUserNameDisplay;
 window.autoResize = autoResize;
 window.handleKeyDown = handleKeyDown;
 window.handleKeyUp = handleKeyUp;
+window.handleCompositionStart = handleCompositionStart;
+window.handleCompositionEnd = handleCompositionEnd;
 window.sendMessage = sendMessage;
 window.showSettings = showSettings;
 window.startNewChat = startNewChat;
@@ -6925,3 +7297,11 @@ window.handleImageUpload = handleImageUpload;
 window.switchToTextMode = switchToTextMode;
 window.switchToVoiceMode = switchToVoiceMode;
 window.startProjectTeamCollaboration = startProjectTeamCollaboration;
+window.generateDetailedReport = generateDetailedReport;
+window.regenerateInsightsReport = regenerateInsightsReport;
+window.getAgentIconSvg = getAgentIconSvg;
+window.canShareReport = canShareReport;
+window.updateShareLinkButtonVisibility = updateShareLinkButtonVisibility;
+window.viewReport = viewReport;
+window.showShareCard = showShareCard;
+window.updateShareCard = updateShareCard;

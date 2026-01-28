@@ -2,21 +2,57 @@
  * ChatMessages组件
  * 显示消息列表
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { MessageItem } from './message-item.jsx';
 
 export function ChatMessages({ messages, isLoading, currentUserId, className = '' }) {
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
+    const shouldAutoScrollRef = useRef(true);
+    const lastMessageCountRef = useRef(0);
+
+    const isNearBottom = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return true;
+        const threshold = 80;
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        return distanceFromBottom <= threshold;
+    }, []);
 
     // 滚动到底部
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (behavior = 'auto') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
     };
+
+    // 监听滚动，只有在接近底部时才自动滚动
+    useEffect(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return undefined;
+
+        const handleScroll = () => {
+            const nearBottom = isNearBottom();
+            shouldAutoScrollRef.current = nearBottom;
+        };
+
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+        };
+    }, [isNearBottom]);
 
     // 监听新消息
     useEffect(() => {
-        scrollToBottom();
+        const messageCount = messages.length;
+        const hasNewMessage = messageCount !== lastMessageCountRef.current;
+        lastMessageCountRef.current = messageCount;
+
+        if (!hasNewMessage) return;
+
+        if (shouldAutoScrollRef.current) {
+            scrollToBottom('auto');
+        }
     }, [messages]);
 
     // 按时间分组消息

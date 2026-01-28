@@ -55,24 +55,6 @@ window.SYSTEM_PROMPT = SYSTEM_PROMPT;
  * 应用初始化
  */
 function initApp() {
-  // 清理localStorage中的旧数据（只保留mock数据）
-  const saved = localStorage.getItem('thinkcraft_chats');
-  if (saved && saved !== '[]') {
-    try {
-      const allChats = JSON.parse(saved);
-      const mockChatIds = ['demo_fitness_app', 'chat_001', 'chat_002'];
-      const filteredChats = allChats.filter(chat => mockChatIds.includes(chat.id));
-
-      if (filteredChats.length < 3) {
-        localStorage.removeItem('thinkcraft_chats');
-      } else {
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(filteredChats));
-      }
-    } catch (e) {
-      localStorage.removeItem('thinkcraft_chats');
-    }
-  }
-
   // 加载聊天列表
   loadChats();
 
@@ -100,16 +82,6 @@ function initApp() {
   }
   if (window.businessPlanGenerator) {
   }
-
-  // 自动加载demo对话
-  setTimeout(() => {
-    if (!appState.currentChat && appState.chats.length > 0) {
-      const demoChat = appState.chats.find(c => c.id === 'demo_fitness_app');
-      if (demoChat) {
-        loadChat(demoChat.id);
-      }
-    }
-  }, 100);
 }
 
 /**

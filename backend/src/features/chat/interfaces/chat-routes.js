@@ -3,6 +3,7 @@
  * 处理HTTP请求和响应
  */
 import express from 'express';
+import promptLoader from '../../../utils/prompt-loader.js';
 import { body, param, query, validationResult } from 'express-validator';
 import { ChatUseCase } from '../application/chat.use-case.js';
 import { CreateChatDTO, AddMessageDTO, UpdateChatDTO } from '../application/chat.dto.js';
@@ -389,7 +390,7 @@ router.get('/stats', async (req, res) => {
 // 保持原有的聊天接口以兼容现有代码
 router.post('/', async (req, res) => {
   try {
-    const { messages, systemPrompt } = req.body;
+    let { messages, systemPrompt } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
@@ -398,9 +399,33 @@ router.post('/', async (req, res) => {
       });
     }
 
+    if (!systemPrompt) {
+      try {
+        const fallbackPrompt = await promptLoader.load(
+          'scene-1-dialogue/dialogue-guide/system-default'
+        );
+        const markerMatch = fallbackPrompt.match(/##\s*System Prompt[\s\S]*/i);
+        systemPrompt = markerMatch
+          ? markerMatch[0].replace(/##\s*System Prompt\s*/i, '').trim()
+          : fallbackPrompt;
+        console.warn('[Chat API] systemPrompt missing, using fallback from prompts');
+      } catch (error) {
+        console.warn('[Chat API] systemPrompt missing and fallback load failed:', error.message);
+      }
+    }
+
+    if (systemPrompt) {
+      const preview = String(systemPrompt).split('\n').slice(0, 2).join(' ').slice(0, 120);
+      console.log('[Chat API] systemPrompt loaded:', preview);
+    } else {
+      console.warn('[Chat API] systemPrompt missing');
+    }
+
     // 调用 DeepSeek API
     const { callDeepSeekAPI } = await import('../../../infrastructure/ai/deepseek-client.js');
-    const result = await callDeepSeekAPI(messages, systemPrompt);
+    const result = await callDeepSeekAPI(messages, systemPrompt, {
+      timeout: 120000 // 120秒超时，适应较长的AI响应时间
+    });
 
     return res.json({
       code: 0,

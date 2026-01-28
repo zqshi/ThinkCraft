@@ -13,6 +13,8 @@ const state = {
   typingChatId: null,
   pendingChatIds: new Set(),
   analysisCompleted: false, // 防止重复显示报告按钮
+  autoScrollEnabled: true, // 允许自动滚动；用户手动滚动上方时会关闭
+  autoScrollLocked: false, // 用户手动上滑后锁定，直到回到底部
   currentProject: null, // 当前打开的项目ID
   teamSpace: null, // 团队空间数据（延迟初始化）
   settings: {

@@ -60,37 +60,40 @@ class MarkdownRenderer {
       // 9. 图片
       html = this.renderImages(html);
 
-      // 10. 段落和换行处理（智能处理，不破坏已有HTML）
+      // 10. 段落和换行处理（优化显示，减少不必要的换行）
       if (opts.breaks) {
-        // 只处理普通文本行的换行，保留HTML标签完整性
-        // 不对已经是HTML块级元素的内容添加<br>
+        // 智能处理换行，避免过多的<br>标签
         const lines = html.split('\n');
-        const processedLines = lines.map((line, index) => {
-          // 如果是HTML标签行或空行，不处理
+        const processedLines = [];
+
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          const trimmedLine = line.trim();
+
+          // 完全跳过空行
+          if (trimmedLine === '') {
+            continue;
+          }
+
+          // HTML标签行直接保留
           if (
-            line.trim() === '' ||
             line.match(/^<(h[1-6]|ul|ol|li|pre|blockquote|hr|p|div)/i) ||
             line.match(/<\/(h[1-6]|ul|ol|li|pre|blockquote|p|div)>$/i)
           ) {
-            return line;
+            processedLines.push(line);
+            continue;
           }
-          // 如果下一行是HTML块级元素开始，不添加<br>
-          if (
-            index < lines.length - 1 &&
-            lines[index + 1].match(/^<(h[1-6]|ul|ol|li|pre|blockquote|hr|p|div)/i)
-          ) {
-            return line;
-          }
+
           // 如果当前行在HTML块级元素内部，不添加<br>
           if (line.match(/^<\/?(li|code|strong|em|a|span)/i)) {
-            return line;
+            processedLines.push(line);
+            continue;
           }
-          // 普通文本行，如果不是最后一行且下一行不是空行，添加<br>
-          if (index < lines.length - 1 && lines[index + 1].trim() !== '') {
-            return line + '<br>';
-          }
-          return line;
-        });
+
+          // 其他情况直接添加，不添加<br>
+          processedLines.push(line);
+        }
+
         html = processedLines.join('\n');
       }
 
@@ -102,38 +105,65 @@ class MarkdownRenderer {
 
   /**
    * 折叠普通文本的软换行，保留段落/列表/标题等结构
+   * 同时去除多余的空行，避免空间浪费（参考DeepSeek桌面端的紧凑显示）
    */
   normalizeSoftLineBreaks(text) {
     const lines = text.split('\n');
     const result = [];
     let inCodeBlock = false;
+    let lastWasEmpty = false;  // 跟踪上一行是否为空
+    let consecutiveEmptyCount = 0;  // 连续空行计数
 
     const isBlockLine = line => {
       return /^(#{1,6}\s|>|\* |\-\s|•\s|\d+\.\s)/.test(line.trim());
     };
 
     for (const line of lines) {
+      // 代码块内保持原样
       if (line.trim().startsWith('```')) {
         inCodeBlock = !inCodeBlock;
         result.push(line);
+        lastWasEmpty = false;
+        consecutiveEmptyCount = 0;
         continue;
       }
 
       if (inCodeBlock) {
         result.push(line);
+        lastWasEmpty = false;
+        consecutiveEmptyCount = 0;
         continue;
       }
 
+      // 更激进地去除空行：完全跳过连续的空行
       if (line.trim() === '') {
+        consecutiveEmptyCount++;
+        // 只在段落之间保留一个空行，且不在开头
+        if (consecutiveEmptyCount === 1 && result.length > 0 && !lastWasEmpty) {
+          result.push('');
+          lastWasEmpty = true;
+        }
         continue;
       }
 
+      lastWasEmpty = false;
+      consecutiveEmptyCount = 0;
+
+      // 合并普通文本行（非块级元素）
       const prev = result[result.length - 1] || '';
       if (prev && prev.trim() !== '' && !isBlockLine(prev) && !isBlockLine(line)) {
         result[result.length - 1] = `${prev} ${line.trim()}`;
       } else {
         result.push(line);
       }
+    }
+
+    // 移除开头和结尾的所有空行
+    while (result.length > 0 && result[0].trim() === '') {
+      result.shift();
+    }
+    while (result.length > 0 && result[result.length - 1].trim() === '') {
+      result.pop();
     }
 
     return result.join('\n');
@@ -326,7 +356,7 @@ class MarkdownRenderer {
     const style = document.createElement('style');
     style.id = 'markdown-renderer-styles';
     style.textContent = `
-            /* Markdown渲染样式 */
+            /* Markdown渲染样式 - 优化显示，减少空间浪费 */
             .markdown-content {
                 line-height: 1.6;
                 color: #4b5563;
@@ -336,7 +366,7 @@ class MarkdownRenderer {
             .markdown-content .md-h1 {
                 font-size: 26px;
                 font-weight: 700;
-                margin: 18px 0 10px 0;
+                margin: 16px 0 8px 0;
                 padding-bottom: 6px;
                 border-bottom: 2px solid #eee;
                 color: #4b5563;
@@ -345,7 +375,7 @@ class MarkdownRenderer {
             .markdown-content .md-h2 {
                 font-size: 22px;
                 font-weight: 600;
-                margin: 16px 0 8px 0;
+                margin: 14px 0 6px 0;
                 padding-bottom: 4px;
                 border-bottom: 1px solid #f0f0f0;
                 color: #4b5563;
@@ -354,14 +384,14 @@ class MarkdownRenderer {
             .markdown-content .md-h3 {
                 font-size: 19px;
                 font-weight: 600;
-                margin: 12px 0 6px 0;
+                margin: 10px 0 5px 0;
                 color: #4b5563;
             }
 
             .markdown-content .md-h4 {
                 font-size: 17px;
                 font-weight: 600;
-                margin: 10px 0 6px 0;
+                margin: 8px 0 4px 0;
                 color: #5b6472;
             }
 
@@ -369,19 +399,19 @@ class MarkdownRenderer {
             .markdown-content .md-h6 {
                 font-size: 15px;
                 font-weight: 600;
-                margin: 8px 0 4px 0;
+                margin: 6px 0 3px 0;
                 color: #5b6472;
             }
 
             .markdown-content .md-ul,
             .markdown-content .md-ol {
-                margin: 8px 0;
+                margin: 6px 0;
                 padding-left: 20px;
             }
 
             .markdown-content .md-li,
             .markdown-content .md-li-ordered {
-                margin: 4px 0;
+                margin: 2px 0;
                 line-height: 1.5;
             }
 
@@ -421,7 +451,7 @@ class MarkdownRenderer {
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
                 padding: 12px;
-                margin: 12px 0;
+                margin: 10px 0;
                 overflow-x: auto;
                 position: relative;
             }
@@ -440,15 +470,15 @@ class MarkdownRenderer {
             .markdown-content .code-block code {
                 font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                 font-size: 13px;
-                line-height: 1.6;
+                line-height: 1.5;
                 color: #333;
                 display: block;
             }
 
             .markdown-content .md-blockquote {
                 border-left: 4px solid #9aa7f3;
-                padding: 10px 14px;
-                margin: 12px 0;
+                padding: 8px 12px;
+                margin: 10px 0;
                 background: #f5f7ff;
                 color: #4a5160;
                 font-style: italic;
@@ -457,24 +487,24 @@ class MarkdownRenderer {
             .markdown-content .md-hr {
                 border: none;
                 border-top: 2px solid #e9ecef;
-                margin: 16px 0;
+                margin: 14px 0;
             }
 
             .markdown-content .md-image {
                 max-width: 100%;
                 height: auto;
                 border-radius: 8px;
-                margin: 12px 0;
+                margin: 10px 0;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
             .markdown-content p,
             .markdown-content .md-p {
-                margin: 8px 0;
+                margin: 6px 0;
                 line-height: 1.6;
             }
 
-            /* 消息中的markdown样式优化 */
+            /* 消息中的markdown样式优化 - 紧凑显示 */
             .message-text.markdown-content {
                 font-size: 15px;
                 line-height: 1.55;
@@ -484,8 +514,8 @@ class MarkdownRenderer {
             .message-text.markdown-content .md-h1,
             .message-text.markdown-content .md-h2,
             .message-text.markdown-content .md-h3 {
-                margin-top: 12px;
-                margin-bottom: 6px;
+                margin-top: 8px;
+                margin-bottom: 4px;
             }
 
             .message-text.markdown-content .md-h1,
@@ -500,12 +530,32 @@ class MarkdownRenderer {
 
             .message-text.markdown-content .md-ul,
             .message-text.markdown-content .md-ol {
-                margin: 6px 0;
+                margin: 4px 0;
             }
 
             .message-text.markdown-content .code-block {
-                margin: 10px 0;
+                margin: 6px 0;
                 font-size: 13px;
+            }
+
+            .message-text.markdown-content p,
+            .message-text.markdown-content .md-p {
+                margin: 3px 0;
+            }
+
+            /* 去除多余的空白 */
+            .message-text.markdown-content > *:first-child {
+                margin-top: 0;
+            }
+
+            .message-text.markdown-content > *:last-child {
+                margin-bottom: 0;
+            }
+
+            /* 去除空段落 */
+            .message-text.markdown-content p:empty,
+            .message-text.markdown-content div:empty {
+                display: none;
             }
         `;
 

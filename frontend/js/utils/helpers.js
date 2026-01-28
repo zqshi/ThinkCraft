@@ -13,9 +13,28 @@ export function autoResize(textarea) {
 }
 
 /**
- * 滚动到底部
+ * 智能滚动到底部
+ * 只有当用户已经在底部附近时才自动滚动，否则保持当前位置
+ * 这样用户可以在AI生成内容时向上滚动查看历史消息
  */
 export function scrollToBottom() {
+  const container = document.getElementById('chatContainer');
+  if (!container) return;
+
+  // 检测用户是否在底部附近（允许50px的误差）
+  const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+
+  // 只有当用户在底部附近时才自动滚动
+  if (isNearBottom) {
+    container.scrollTop = container.scrollHeight;
+  }
+  // 否则保持用户当前的滚动位置，不干扰用户查看历史内容
+}
+
+/**
+ * 强制滚动到底部（用于用户主动发送消息等场景）
+ */
+export function forceScrollToBottom() {
   const container = document.getElementById('chatContainer');
   if (container) {
     container.scrollTop = container.scrollHeight;

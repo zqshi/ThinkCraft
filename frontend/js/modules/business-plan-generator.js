@@ -242,13 +242,30 @@ class BusinessPlanGenerator {
       this.progressManager.show(chapterIds);
 
       // 获取对话历史
-      const conversation = this.state.getConversationHistory();
+      let conversation = this.state.getConversationHistory();
+      if ((!conversation || conversation.length === 0) && window.state && Array.isArray(window.state.messages)) {
+        conversation = window.state.messages.map(msg => ({ role: msg.role, content: msg.content }));
+      }
+
+      if (!conversation || conversation.length === 0) {
+        throw new Error('缺少对话历史，请先完成至少一轮对话');
+      }
 
       // 调用后端API批量生成
-      const response = await this.api.post('/api/business-plan/generate-batch', {
-        chapterIds,
-        conversationHistory: conversation
+      const response = await this.api.request('/api/business-plan/generate-batch', {
+        method: 'POST',
+        body: {
+          chapterIds,
+          conversationHistory: conversation,
+          type
+        },
+        timeout: 240000,
+        retry: 1
       });
+
+      if (!response || response.code !== 0 || !response.data) {
+        throw new Error(response?.error || '生成失败，请稍后重试');
+      }
 
       const { chapters, totalTokens, duration, costStats } = response.data;
 

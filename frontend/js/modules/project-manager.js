@@ -44,148 +44,8 @@ class ProjectManager {
   }
 
   async ensureMockProjects() {
-    if (!this.storageManager) {
-      return;
-    }
-
-    const existingProjects = this.projects || [];
-    const existingIds = new Set(existingProjects.map(project => project.id));
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
-
-    const demoProject = {
-      id: 'project_demo_001',
-      name: '智能健身APP Demo',
-      description: 'AI个性化健身指导应用的Demo展示',
-      mode: 'demo',
-      status: 'active',
-      ideaId: 'demo_fitness_app',
-      linkedIdeas: [],
-      assignedAgents: ['agent_004', 'agent_006'],
-      members: [{ id: 'member_001', name: '陈念', role: '业务负责人' }],
-      createdAt: now - 7 * day,
-      updatedAt: now - 2 * day,
-      demo: {
-        type: 'web',
-        previewUrl: 'https://example.com/demo/fitness',
-        downloadUrl: '',
-        generatedAt: now - 2 * day
-      }
-    };
-
-    const devProject = {
-      id: 'project_dev_001',
-      name: '在线教育平台 · 协同开发',
-      description: '面向K12的互动式在线学习平台',
-      mode: 'development',
-      status: 'active',
-      ideaId: 'chat_001',
-      linkedIdeas: [],
-      assignedAgents: ['agent_001', 'agent_002', 'agent_004', 'agent_005'],
-      members: [
-        { id: 'member_002', name: '李默', role: '项目经理' },
-        { id: 'member_003', name: '周禾', role: '运营负责人' }
-      ],
-      createdAt: now - 12 * day,
-      updatedAt: now - Number(day),
-      workflow: {
-        currentStageId: 'design',
-        stages: [
-          {
-            id: 'requirement',
-            status: 'completed',
-            artifacts: [
-              { id: 'artifact-req-001', name: '需求规格说明', type: 'prd' },
-              { id: 'artifact-req-002', name: '用户画像与场景', type: 'analysis' }
-            ]
-          },
-          {
-            id: 'design',
-            status: 'active',
-            artifacts: []
-          },
-          {
-            id: 'architecture',
-            status: 'pending',
-            artifacts: []
-          },
-          {
-            id: 'development',
-            status: 'pending',
-            artifacts: []
-          },
-          {
-            id: 'testing',
-            status: 'pending',
-            artifacts: []
-          }
-        ],
-        isCustom: false
-      }
-    };
-
-    const artifacts = [
-      {
-        id: 'artifact-req-001',
-        projectId: devProject.id,
-        stageId: 'requirement',
-        type: 'prd',
-        name: '需求规格说明',
-        agentName: '产品经理',
-        content: '需求规格说明（示例）：目标用户、核心功能、验收标准、里程碑等。'
-      },
-      {
-        id: 'artifact-req-002',
-        projectId: devProject.id,
-        stageId: 'requirement',
-        type: 'analysis',
-        name: '用户画像与场景',
-        agentName: '用户研究员',
-        content: '用户画像与使用场景（示例）：目标人群、痛点、学习路径。'
-      }
-    ];
-
-    const existingDemo = existingProjects.find(project => project.id === demoProject.id);
-    if (!existingDemo) {
-      await this.storageManager.saveProject(demoProject);
-    } else {
-      const patch = {
-        assignedAgents: existingDemo.assignedAgents?.length
-          ? existingDemo.assignedAgents
-          : demoProject.assignedAgents,
-        members: existingDemo.members?.length ? existingDemo.members : demoProject.members,
-        demo: existingDemo.demo || demoProject.demo
-      };
-      await this.storageManager.saveProject({ ...existingDemo, ...patch });
-    }
-
-    const existingDev = existingProjects.find(project => project.id === devProject.id);
-    if (!existingDev) {
-      await this.storageManager.saveProject(devProject);
-      await this.storageManager.saveArtifacts(artifacts);
-      await this.storageManager.saveKnowledgeItems(
-        this.buildKnowledgeFromArtifacts(devProject.id, artifacts)
-      );
-    } else {
-      const patchedWorkflow = this.patchWorkflowArtifacts(
-        existingDev.workflow,
-        devProject.workflow
-      );
-      const defaultDevAgents = devProject.assignedAgents;
-      const validAgentIds = this.getValidAgentIds();
-      const currentAgents = existingDev.assignedAgents || [];
-      const hasValidAgents = currentAgents.some(id => validAgentIds.has(id));
-      const patch = {
-        assignedAgents: currentAgents.length && hasValidAgents ? currentAgents : defaultDevAgents,
-        members: existingDev.members?.length ? existingDev.members : devProject.members,
-        workflow: existingDev.workflow ? patchedWorkflow : devProject.workflow
-      };
-      await this.storageManager.saveProject({ ...existingDev, ...patch });
-      await this.storageManager.saveArtifacts(artifacts);
-      await this.storageManager.saveKnowledgeItems(
-        this.buildKnowledgeFromArtifacts(devProject.id, artifacts)
-      );
-    }
+    // 不再加载mock项目数据
+    return;
   }
 
   buildKnowledgeFromArtifacts(projectId, artifacts) {
@@ -1212,7 +1072,7 @@ class ProjectManager {
         agent => `
             <div class="agent-card hired">
                 <div class="agent-card-header">
-                    <div class="agent-card-avatar">${agent.avatar}</div>
+                    <div class="agent-card-avatar">${typeof window.getAgentIconSvg === 'function' ? window.getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon') : agent.avatar}</div>
                     <div class="agent-card-info">
                         <div class="agent-card-name">${agent.name}</div>
                         <div class="agent-card-role">${agent.role}</div>
@@ -1392,7 +1252,7 @@ class ProjectManager {
         return `
                 <div class="agent-card ${isHired ? 'hired' : ''}">
                     <div class="agent-card-header">
-                        <div class="agent-card-avatar">${agent.avatar}</div>
+                        <div class="agent-card-avatar">${typeof window.getAgentIconSvg === 'function' ? window.getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon') : agent.avatar}</div>
                         <div class="agent-card-info">
                             <div class="agent-card-name">${agent.name}</div>
                             <div class="agent-card-role">${agent.role}</div>
@@ -1454,7 +1314,7 @@ class ProjectManager {
         agent => `
             <div class="agent-card hired">
                 <div class="agent-card-header">
-                    <div class="agent-card-avatar">${agent.avatar}</div>
+                    <div class="agent-card-avatar">${typeof window.getAgentIconSvg === 'function' ? window.getAgentIconSvg(agent.avatar || agent.role || agent.name, 32, 'agent-card-icon') : agent.avatar}</div>
                     <div class="agent-card-info">
                         <div class="agent-card-name">${agent.name}</div>
                         <div class="agent-card-role">${agent.role}</div>
@@ -2184,7 +2044,7 @@ class ProjectManager {
       const suggestionHTML =
         readiness.suggestions.length > 0
           ? readiness.suggestions
-            .map(agent => `<div>${agent.avatar} ${agent.name} · ${agent.role}</div>`)
+            .map(agent => `<div>${typeof window.getAgentIconSvg === 'function' ? window.getAgentIconSvg(agent.avatar || agent.role || agent.name, 18, 'agent-inline-icon') : agent.avatar} ${agent.name} · ${agent.role}</div>`)
             .join('')
           : '<div>暂无匹配的雇佣建议</div>';
 

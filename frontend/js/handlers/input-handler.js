@@ -7,8 +7,10 @@ import {
   appState,
   spaceHoldTimer,
   spaceHoldTriggered,
+  isComposing,
   updateSpaceHoldTimer,
-  updateSpaceHoldTriggered
+  updateSpaceHoldTriggered,
+  updateIsComposing
 } from '../core/app-state.js';
 import { autoResize, vibrate } from '../utils/helpers.js';
 import { sendMessage } from './message-handler.js';
@@ -18,7 +20,8 @@ import { QUICK_START_PROMPTS } from '../app-config.js';
  * 处理键盘按下事件
  */
 export function handleKeyDown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  // 如果正在输入法组合中（比如拼音输入），不处理 Enter 键
+  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
     e.preventDefault();
     sendMessage();
     return;
@@ -68,4 +71,18 @@ export function quickStart(type) {
  */
 export function handleVoice() {
   alert('语音输入功能开发中');
+}
+
+/**
+ * 处理输入法组合开始事件
+ */
+export function handleCompositionStart(e) {
+  updateIsComposing(true);
+}
+
+/**
+ * 处理输入法组合结束事件
+ */
+export function handleCompositionEnd(e) {
+  updateIsComposing(false);
 }

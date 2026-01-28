@@ -4,16 +4,21 @@
  * Version: 1.0.0
  */
 
-const CACHE_VERSION = 'thinkcraft-v1.0.1';
+const CACHE_VERSION = 'thinkcraft-v1.0.10';
 const CACHE_NAME = `${CACHE_VERSION}`;
+const APP_BOOT_PATH = '/frontend/js/app-boot.js';
 
 // 核心资源列表（优先缓存）
 const CORE_ASSETS = [
   '/',
   '/index.html',
+  '/OS.html',
+  '/offline.html',
+  '/favicon.ico',
   '/manifest.json',
   '/css/variables.css',
   '/css/main.css',
+  '/frontend/js/app-boot.js',
   '/frontend/js/core/state-manager.js',
   '/frontend/js/core/storage-manager.js',
   '/frontend/js/core/gesture-handler.js',
@@ -79,6 +84,18 @@ self.addEventListener('fetch', event => {
 
   // 只处理同源GET请求
   if (request.method !== 'GET' || url.origin !== location.origin) {
+    return;
+  }
+
+  // 页面导航请求：优先保证能渲染界面（离线也要可用）
+  if (request.mode === 'navigate') {
+    event.respondWith(navigateFirst(request));
+    return;
+  }
+
+  // 关键脚本/入口：始终网络优先，避免旧缓存导致功能异常
+  if (url.pathname === APP_BOOT_PATH || url.pathname === '/index.html') {
+    event.respondWith(networkFirst(request));
     return;
   }
 
@@ -161,6 +178,30 @@ async function networkFirst(request) {
 }
 
 /**
+ * 页面导航策略（优先网络，失败回退缓存/离线页）
+ */
+async function navigateFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response && response.status === 200) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    console.warn('[Service Worker] 导航请求失败，尝试缓存:', request.url);
+    const cache = await caches.open(CACHE_NAME);
+    return (
+      (await cache.match(request)) ||
+      (await cache.match('/index.html')) ||
+      (await cache.match('/OS.html')) ||
+      (await cache.match(OFFLINE_PAGE)) ||
+      createOfflineHtmlResponse()
+    );
+  }
+}
+
+/**
  * 缓存优先策略（Cache First）
  * 适用于静态资源（CSS/JS/图片等）
  */
@@ -224,6 +265,44 @@ function createOfflineResponse() {
       statusText: 'Service Unavailable',
       headers: new Headers({
         'Content-Type': 'application/json'
+      })
+    }
+  );
+}
+
+/**
+ * 创建离线HTML响应（用于页面导航）
+ */
+function createOfflineHtmlResponse() {
+  return new Response(
+    `
+      <!doctype html>
+      <html lang="zh-CN">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>离线模式 - ThinkCraft</title>
+        <style>
+          body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+          .card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:32px;max-width:520px;box-shadow:0 12px 30px rgba(0,0,0,.35);}
+          h1{font-size:20px;margin:0 0 12px;}
+          p{margin:0 0 18px;color:#94a3b8;}
+          button{background:#6366f1;border:none;color:#fff;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px;}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>当前离线或服务不可用</h1>
+          <p>请检查本地服务是否启动，或稍后重试。</p>
+          <button onclick="location.reload()">重新加载</button>
+        </div>
+      </body>
+      </html>
+    `,
+    {
+      status: 503,
+      headers: new Headers({
+        'Content-Type': 'text/html; charset=UTF-8'
       })
     }
   );

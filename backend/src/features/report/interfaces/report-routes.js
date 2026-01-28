@@ -86,4 +86,10 @@ router.get('/reports/templates/:reportType', controller.getReportTemplates.bind(
  */
 router.post('/reports/generate', controller.generateReport.bind(controller));
 
+/**
+ * 兼容旧API - 生成报告（单数路径）
+ * POST /api/report/generate
+ */
+router.post('/generate', controller.generateReport.bind(controller));
+
 export default router;

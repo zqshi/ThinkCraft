@@ -285,8 +285,11 @@ class PromptLoader {
       const filePath = path.join(this.promptDir, `${promptName}.md`);
       const content = await fs.readFile(filePath, 'utf-8');
 
+      // 移除 YAML front matter（--- ... ---）
+      let cleanedContent = content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim();
+
       // 移除 Markdown 注释（<!-- ... -->）
-      const cleanedContent = content.replace(/<!--[\s\S]*?-->/g, '').trim();
+      cleanedContent = cleanedContent.replace(/<!--[\s\S]*?-->/g, '').trim();
 
       // 缓存内容
       if (this.cacheEnabled) {
@@ -574,16 +577,26 @@ class PromptLoader {
    * @returns {Promise<string>} 章节模板内容
    */
   async loadChapterTemplate(type, chapterId) {
-    const filePath = path.join(this.promptDir, `${type}/chapters/${chapterId}.md`);
+    // 尝试新的目录结构（scene-1-dialogue）
+    let filePath = path.join(this.promptDir, `scene-1-dialogue/${type}/chapters/${chapterId}.md`);
+
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       const parsed = this._parsePromptWithMetadata(content);
       // 返回模板内容，优先使用template，如果没有则使用systemPrompt
       return parsed.template || parsed.systemPrompt;
     } catch (error) {
-      throw new Error(
-        `Failed to load chapter template "${chapterId}" for "${type}": ${error.message}`
-      );
+      // 如果新路径失败，尝试旧路径（向后兼容）
+      filePath = path.join(this.promptDir, `${type}/chapters/${chapterId}.md`);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const parsed = this._parsePromptWithMetadata(content);
+        return parsed.template || parsed.systemPrompt;
+      } catch (fallbackError) {
+        throw new Error(
+          `Failed to load chapter template "${chapterId}" for "${type}": ${error.message}`
+        );
+      }
     }
   }
 

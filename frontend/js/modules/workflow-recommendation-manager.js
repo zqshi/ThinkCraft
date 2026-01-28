@@ -5,7 +5,8 @@
 
 class WorkflowRecommendationManager {
   constructor() {
-    this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
+    const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
+    this.apiUrl = savedSettings.apiUrl || window.appState?.settings?.apiUrl || window.location.origin;
     this.templates = [];
     this.currentRecommendation = null;
   }

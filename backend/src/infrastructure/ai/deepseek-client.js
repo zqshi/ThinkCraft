@@ -28,7 +28,9 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
         temperature = 0.7,
         retry = 3,
         retryDelay = 1000,
-        timeout = 30000
+        timeout = 30000,
+        response_format,
+        model = 'deepseek-chat'
     } = options;
 
     if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'sk-your-api-key-here') {
@@ -51,23 +53,25 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
             }
             activeRequests++;
 
-            const response = await axios.post(
-                DEEPSEEK_API_URL,
-                {
-                    model: 'deepseek-chat',
-                    messages: fullMessages,
-                    temperature,
-                    max_tokens,
-                    stream: false
+            const payload = {
+                model,
+                messages: fullMessages,
+                temperature,
+                max_tokens,
+                stream: false
+            };
+
+            if (response_format) {
+                payload.response_format = response_format;
+            }
+
+            const response = await axios.post(DEEPSEEK_API_URL, payload, {
+                headers: {
+                    'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                    'Content-Type': 'application/json'
                 },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout
-                }
-            );
+                timeout
+            });
 
             activeRequests--;
 

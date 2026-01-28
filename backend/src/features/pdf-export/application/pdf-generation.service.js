@@ -287,6 +287,324 @@ export class PdfGenerationService {
   }
 
   /**
+   * 生成报告PDF（直接返回buffer，不保存文件）
+   */
+  async generateReportPDF(reportData, title = '创意分析报告') {
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    try {
+      const page = await browser.newPage();
+
+      // 构建报告HTML内容
+      const htmlContent = this.buildReportHtmlContent(reportData, title);
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+      // 生成PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        landscape: false,
+        margin: {
+          top: '20mm',
+          bottom: '20mm',
+          left: '20mm',
+          right: '20mm'
+        },
+        printBackground: true,
+        displayHeaderFooter: false
+      });
+
+      return pdfBuffer;
+    } finally {
+      await browser.close();
+    }
+  }
+
+  /**
+   * 构建报告HTML内容
+   */
+  buildReportHtmlContent(reportData, title) {
+    const chapters = reportData.chapters || {};
+
+    let html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Arial', sans-serif;
+            line-height: 1.8;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .cover {
+            text-align: center;
+            padding: 100px 40px;
+            page-break-after: always;
+        }
+        .cover h1 {
+            font-size: 36px;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .cover .meta {
+            font-size: 16px;
+            color: #7f8c8d;
+            margin: 10px 0;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 40px;
+            font-size: 28px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            font-size: 22px;
+        }
+        h3 {
+            color: #555;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .chapter {
+            page-break-before: always;
+            padding-top: 20px;
+        }
+        .summary-box {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .summary-box h3 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        .stage-item {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .stage-item h4 {
+            color: #3498db;
+            margin-top: 0;
+        }
+        .question-item {
+            background: #fff;
+            border-left: 3px solid #e74c3c;
+            padding: 12px 15px;
+            margin: 12px 0;
+        }
+        .action-list {
+            background: #e8f5e9;
+            border-radius: 4px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 封面 -->
+    <div class="cover">
+        <h1>${title}</h1>
+        <div class="meta">生成时间：${new Date().toLocaleString('zh-CN')}</div>
+        ${reportData.coreDefinition ? `<div class="meta" style="margin-top: 40px; font-size: 18px; color: #2c3e50;">${reportData.coreDefinition}</div>` : ''}
+    </div>
+
+    <!-- 核心概要 -->
+    ${reportData.initialIdea || reportData.problem || reportData.solution ? `
+    <div class="summary-box">
+        <h3>核心概要</h3>
+        ${reportData.initialIdea ? `<p><strong>初始创意：</strong>${reportData.initialIdea}</p>` : ''}
+        ${reportData.problem ? `<p><strong>解决问题：</strong>${reportData.problem}</p>` : ''}
+        ${reportData.solution ? `<p><strong>独特价值：</strong>${reportData.solution}</p>` : ''}
+        ${reportData.targetUser ? `<p><strong>目标用户：</strong>${reportData.targetUser}</p>` : ''}
+    </div>
+    ` : ''}
+`;
+
+    // 第1章：创意定义与演化
+    if (chapters.chapter1) {
+      const ch1 = chapters.chapter1;
+      html += `
+    <div class="chapter">
+        <h1>${ch1.title || '创意定义与演化'}</h1>
+        ${ch1.originalIdea ? `
+        <h2>原始创意</h2>
+        <p>${ch1.originalIdea}</p>
+        ` : ''}
+        ${ch1.evolution ? `
+        <h2>演化过程</h2>
+        <p>${ch1.evolution}</p>
+        ` : ''}
+    </div>
+`;
+    }
+
+    // 第2章：核心洞察与根本假设
+    if (chapters.chapter2) {
+      const ch2 = chapters.chapter2;
+      html += `
+    <div class="chapter">
+        <h1>${ch2.title || '核心洞察与根本假设'}</h1>
+        ${ch2.surfaceNeed ? `
+        <h2>表层需求</h2>
+        <p>${ch2.surfaceNeed}</p>
+        ` : ''}
+        ${ch2.deepMotivation ? `
+        <h2>深层动力</h2>
+        <p>${ch2.deepMotivation}</p>
+        ` : ''}
+        ${ch2.assumptions && ch2.assumptions.length > 0 ? `
+        <h2>根本假设</h2>
+        <ul>
+            ${ch2.assumptions.map(a => `<li>${a}</li>`).join('')}
+        </ul>
+        ` : ''}
+    </div>
+`;
+    }
+
+    // 第3章：边界条件与应用场景
+    if (chapters.chapter3) {
+      const ch3 = chapters.chapter3;
+      html += `
+    <div class="chapter">
+        <h1>${ch3.title || '边界条件与应用场景'}</h1>
+        ${ch3.idealScenario ? `
+        <h2>理想应用场景</h2>
+        <p>${ch3.idealScenario}</p>
+        ` : ''}
+        ${ch3.limitations && ch3.limitations.length > 0 ? `
+        <h2>限制条件</h2>
+        <ul>
+            ${ch3.limitations.map(l => `<li>${l}</li>`).join('')}
+        </ul>
+        ` : ''}
+        ${ch3.prerequisites ? `
+        <h2>前置要求</h2>
+        ${ch3.prerequisites.technical ? `<p><strong>技术基础：</strong>${ch3.prerequisites.technical}</p>` : ''}
+        ${ch3.prerequisites.resources ? `<p><strong>资源要求：</strong>${ch3.prerequisites.resources}</p>` : ''}
+        ${ch3.prerequisites.partnerships ? `<p><strong>合作基础：</strong>${ch3.prerequisites.partnerships}</p>` : ''}
+        ` : ''}
+    </div>
+`;
+    }
+
+    // 第4章：可行性分析与关键挑战
+    if (chapters.chapter4) {
+      const ch4 = chapters.chapter4;
+      html += `
+    <div class="chapter">
+        <h1>${ch4.title || '可行性分析与关键挑战'}</h1>
+        ${ch4.stages && ch4.stages.length > 0 ? `
+        <h2>实施阶段</h2>
+        ${ch4.stages.map(stage => `
+        <div class="stage-item">
+            <h4>${stage.stage || '阶段'}</h4>
+            ${stage.goal ? `<p><strong>目标：</strong>${stage.goal}</p>` : ''}
+            ${stage.tasks ? `<p><strong>关键任务：</strong>${stage.tasks}</p>` : ''}
+        </div>
+        `).join('')}
+        ` : ''}
+        ${ch4.biggestRisk ? `
+        <h2>最大风险</h2>
+        <p>${ch4.biggestRisk}</p>
+        ` : ''}
+        ${ch4.mitigation ? `
+        <h2>预防措施</h2>
+        <p>${ch4.mitigation}</p>
+        ` : ''}
+    </div>
+`;
+    }
+
+    // 第5章：思维盲点与待探索问题
+    if (chapters.chapter5) {
+      const ch5 = chapters.chapter5;
+      html += `
+    <div class="chapter">
+        <h1>${ch5.title || '思维盲点与待探索问题'}</h1>
+        ${ch5.blindSpots && ch5.blindSpots.length > 0 ? `
+        <h2>思维盲点</h2>
+        <ul>
+            ${ch5.blindSpots.map(b => `<li>${b}</li>`).join('')}
+        </ul>
+        ` : ''}
+        ${ch5.keyQuestions && ch5.keyQuestions.length > 0 ? `
+        <h2>关键问题</h2>
+        ${ch5.keyQuestions.map(q => `
+        <div class="question-item">
+            ${q.category ? `<strong>${q.category}：</strong>` : ''}
+            ${q.question ? `<p>${q.question}</p>` : ''}
+            ${q.why ? `<p style="color: #7f8c8d; font-size: 14px;">为什么重要：${q.why}</p>` : ''}
+        </div>
+        `).join('')}
+        ` : ''}
+    </div>
+`;
+    }
+
+    // 第6章：下一步行动建议
+    if (chapters.chapter6) {
+      const ch6 = chapters.chapter6;
+      html += `
+    <div class="chapter">
+        <h1>${ch6.title || '下一步行动建议'}</h1>
+        ${ch6.immediateActions && ch6.immediateActions.length > 0 ? `
+        <div class="action-list">
+            <h2>立即行动</h2>
+            <ol>
+                ${ch6.immediateActions.map(a => `<li>${a}</li>`).join('')}
+            </ol>
+        </div>
+        ` : ''}
+        ${ch6.validationMethods && ch6.validationMethods.length > 0 ? `
+        <h2>验证方法</h2>
+        <ul>
+            ${ch6.validationMethods.map(v => `<li>${v}</li>`).join('')}
+        </ul>
+        ` : ''}
+        ${ch6.successMetrics && ch6.successMetrics.length > 0 ? `
+        <h2>成功指标</h2>
+        <ul>
+            ${ch6.successMetrics.map(m => `<li>${m}</li>`).join('')}
+        </ul>
+        ` : ''}
+    </div>
+`;
+    }
+
+    html += `
+</body>
+</html>
+`;
+
+    return html;
+  }
+
+  /**
    * 清理临时文件
    */
   async cleanup(exportId) {

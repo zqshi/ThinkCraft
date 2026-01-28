@@ -124,14 +124,7 @@ export function loadChats() {
     const saved = localStorage.getItem('thinkcraft_chats');
 
     if (!saved || saved === '[]') {
-        if (window.MOCK_DATA) {
-            const demoChat = JSON.parse(JSON.stringify(window.MOCK_DATA.chat));
-            const otherChats = JSON.parse(JSON.stringify(window.MOCK_DATA.otherChats));
-            appState.chats = [demoChat, ...otherChats];
-            localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
-        } else {
-            appState.chats = [];
-        }
+        appState.chats = [];
     } else {
         appState.chats = JSON.parse(saved);
     }
@@ -285,6 +278,9 @@ export function deleteChat(e, chatId) {
     if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
         return;
     }
+
+    // 关闭所有浮窗
+    closeAllChatMenus();
 
     appState.chats = appState.chats.filter(c => c.id != chatId);
     localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));

@@ -4,7 +4,7 @@
  */
 
 import { appState } from '../core/app-state.js';
-import { scrollToBottom } from '../utils/helpers.js';
+import { scrollToBottom, forceScrollToBottom } from '../utils/helpers.js';
 import { SYSTEM_PROMPT } from '../app-config.js';
 
 /**
@@ -82,12 +82,25 @@ export async function sendMessage() {
     appState.isLoading = appState.pendingChatIds.size > 0;
 
     try {
+        if (typeof window.loadSystemPrompts === 'function') {
+            await window.loadSystemPrompts();
+        }
+        const resolvedSystemPrompt =
+            window.SYSTEM_PROMPTS && window.DEFAULT_PROMPT
+                ? window.SYSTEM_PROMPTS[window.DEFAULT_PROMPT]
+                : SYSTEM_PROMPT;
+        if (resolvedSystemPrompt) {
+            console.log('[Chat] systemPrompt preview:', resolvedSystemPrompt.slice(0, 80));
+        } else {
+            console.warn('[Chat] systemPrompt missing, using model default');
+        }
+
         const response = await fetch(`${appState.settings.apiUrl}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 messages: appState.messages.map(m => ({ role: m.role, content: m.content })),
-                systemPrompt: SYSTEM_PROMPT
+                systemPrompt: resolvedSystemPrompt
             })
         });
 
@@ -236,12 +249,14 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
                     </svg>
                     查看完整报告
                 </button>
+                ${(window.canShareReport && window.canShareReport()) ? `
                 <button class="share-btn" onclick="window.showShareCard()">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                     </svg>
                     创意分享
                 </button>
+                ` : ''}
             </div>
         `;
     }
@@ -268,7 +283,12 @@ export function addMessage(role, content, quickReplies = null, showButtons = fal
         if (textElement) textElement.textContent = content;
     }
 
-    scrollToBottom();
+    // 用户发送消息时强制滚动到底部
+    if (role === 'user') {
+        forceScrollToBottom();
+    } else {
+        scrollToBottom();
+    }
 
     if (!skipStatePush) {
         appState.messages.push({ role, content, time });
@@ -300,11 +320,9 @@ export function typeWriter(element, text, speed = 30, chatId = null) {
             // 打字机效果完成后，渲染Markdown
             if (window.markdownRenderer) {
                 const renderedHTML = window.markdownRenderer.render(text);
-                );
                 element.innerHTML = renderedHTML;
                 element.classList.add('markdown-content');
-            } else {
-                }
+            }
         }
     }, speed);
 }
@@ -326,13 +344,31 @@ export function typeWriterWithCompletion(textElement, actionElement, text, speed
         displayText = text.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
     }
 
+    // 记录用户是否主动向上滚动
+    let userScrolledUp = false;
+    const container = document.getElementById('chatContainer');
+
+    // 监听用户滚动行为
+    const handleUserScroll = () => {
+        if (!container) return;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        userScrolledUp = !isNearBottom;
+    };
+
+    container?.addEventListener('scroll', handleUserScroll);
+
     const timer = setInterval(() => {
         if (i < displayText.length) {
             textElement.textContent += displayText.charAt(i);
             i++;
-            scrollToBottom();
+            // 只有当用户没有主动向上滚动时才自动滚动
+            if (!userScrolledUp) {
+                scrollToBottom();
+            }
         } else {
             clearInterval(timer);
+            container?.removeEventListener('scroll', handleUserScroll);
+
             if (appState.typingChatId === targetChatId) {
                 appState.isTyping = false;
                 appState.typingChatId = null;
@@ -355,12 +391,15 @@ export function typeWriterWithCompletion(textElement, actionElement, text, speed
                         </svg>
                         查看完整报告
                     </button>
+                    <!-- 创意分享按钮已隐藏 -->
+                    <!--
                     <button class="share-btn" onclick="window.showShareCard()">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                         </svg>
                         创意分享
                     </button>
+                    -->
                 `;
             }
         }

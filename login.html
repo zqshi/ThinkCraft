@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - ThinkCraft</title>
+    <link rel="icon" href="/favicon.ico">
     <style>
         * {
             margin: 0;
@@ -182,6 +183,10 @@
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
         }
 
+        .form-input.has-action {
+            padding-right: 120px;
+        }
+
         .input-icon {
             position: absolute;
             left: 14px;
@@ -196,6 +201,35 @@
         .input-icon svg {
             width: 20px;
             height: 20px;
+        }
+
+        .input-action {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .code-btn {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--text);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 96px;
+        }
+
+        .code-btn:hover:not(:disabled) {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: rgba(99, 102, 241, 0.6);
+        }
+
+        .code-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
         }
 
         .error-message {
@@ -445,7 +479,7 @@
 
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="form-group">
-                <label class="form-label" for="username">账号</label>
+                <label class="form-label" for="phone">手机号</label>
                 <div class="form-input-wrapper">
                     <span class="input-icon">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,18 +487,18 @@
                         </svg>
                     </span>
                     <input
-                        type="text"
-                        id="username"
+                        type="tel"
+                        id="phone"
                         class="form-input"
-                        placeholder="请输入账号/手机号/邮箱"
-                        autocomplete="username"
+                        placeholder="请输入11位手机号"
+                        autocomplete="tel"
                     >
                 </div>
-                <div id="usernameError" class="error-message">请输入有效的账号</div>
+                <div id="phoneError" class="error-message">请输入有效的手机号</div>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="password">密码</label>
+                <label class="form-label" for="code">验证码</label>
                 <div class="form-input-wrapper">
                     <span class="input-icon">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -472,22 +506,26 @@
                         </svg>
                     </span>
                     <input
-                        type="password"
-                        id="password"
-                        class="form-input"
-                        placeholder="请输入密码"
-                        autocomplete="current-password"
+                        type="text"
+                        id="code"
+                        class="form-input has-action"
+                        placeholder="请输入6位验证码"
+                        autocomplete="one-time-code"
+                        inputmode="numeric"
                     >
+                    <div class="input-action">
+                        <button type="button" id="sendCodeBtn" class="code-btn" onclick="handleSendCode()">发送验证码</button>
+                    </div>
                 </div>
-                <div id="passwordError" class="error-message">密码长度不能少于6位</div>
+                <div id="codeError" class="error-message">请输入有效的验证码</div>
             </div>
 
             <div class="form-options">
                 <label class="checkbox-wrapper">
                     <input type="checkbox" id="remember" checked>
-                    <span>记住我</span>
+                    <span>记住手机号</span>
                 </label>
-                <a href="javascript:void(0)" class="link" onclick="handleForgotPassword()">忘记密码？</a>
+                <a href="javascript:void(0)" class="link" onclick="handleHelp()">收不到验证码？</a>
             </div>
 
             <button type="submit" id="loginBtn" class="login-btn">
@@ -510,9 +548,7 @@
 
         <div class="footer">
             <div class="footer-links">
-                <a href="OS.html" class="link">产品介绍</a>
-                <span style="color: var(--text-dim);">|</span>
-                <a href="javascript:void(0)" class="link" onclick="handleRegister()">注册账号</a>
+                <span class="footer-text">首次登录即自动注册账号</span>
             </div>
             <p class="footer-text">© 2025 ThinkCraft. All rights reserved.</p>
         </div>
@@ -521,57 +557,52 @@
     <script>
         // 表单校验规则
         const validators = {
-            username: (value) => {
-                // 账号可以是：手机号、邮箱、或4-20位字母数字组合
+            phone: (value) => {
                 if (!value || value.trim() === '') {
-                    return { valid: false, message: '请输入账号' };
+                    return { valid: false, message: '请输入手机号' };
                 }
 
                 const phoneRegex = /^1[3-9]\d{9}$/;
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                const usernameRegex = /^[a-zA-Z0-9_]{4,20}$/;
-
-                if (phoneRegex.test(value) || emailRegex.test(value) || usernameRegex.test(value)) {
-                    return { valid: true };
+                if (!phoneRegex.test(value)) {
+                    return { valid: false, message: '请输入有效的11位手机号' };
                 }
-
-                return { valid: false, message: '请输入有效的手机号、邮箱或用户名（4-20位字母数字）' };
+                return { valid: true };
             },
 
-            password: (value) => {
-                if (!value || value.length < 6) {
-                    return { valid: false, message: '密码长度不能少于6位' };
+            code: (value) => {
+                if (!value || value.trim() === '') {
+                    return { valid: false, message: '请输入验证码' };
                 }
-                if (value.length > 20) {
-                    return { valid: false, message: '密码长度不能超过20位' };
+                if (!/^\d{6}$/.test(value)) {
+                    return { valid: false, message: '验证码为6位数字' };
                 }
                 return { valid: true };
             }
         };
 
         // 实时校验
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const usernameError = document.getElementById('usernameError');
-        const passwordError = document.getElementById('passwordError');
+        const phoneInput = document.getElementById('phone');
+        const codeInput = document.getElementById('code');
+        const phoneError = document.getElementById('phoneError');
+        const codeError = document.getElementById('codeError');
 
-        usernameInput.addEventListener('blur', () => {
-            validateField('username');
+        phoneInput.addEventListener('blur', () => {
+            validateField('phone');
         });
 
-        passwordInput.addEventListener('blur', () => {
-            validateField('password');
+        codeInput.addEventListener('blur', () => {
+            validateField('code');
         });
 
         // 输入时清除错误状态
-        usernameInput.addEventListener('input', () => {
-            usernameInput.classList.remove('error');
-            usernameError.classList.remove('show');
+        phoneInput.addEventListener('input', () => {
+            phoneInput.classList.remove('error');
+            phoneError.classList.remove('show');
         });
 
-        passwordInput.addEventListener('input', () => {
-            passwordInput.classList.remove('error');
-            passwordError.classList.remove('show');
+        codeInput.addEventListener('input', () => {
+            codeInput.classList.remove('error');
+            codeError.classList.remove('show');
         });
 
         // 校验单个字段
@@ -597,15 +628,15 @@
             event.preventDefault();
 
             // 校验所有字段
-            const usernameValid = validateField('username');
-            const passwordValid = validateField('password');
+            const phoneValid = validateField('phone');
+            const codeValid = validateField('code');
 
-            if (!usernameValid || !passwordValid) {
+            if (!phoneValid || !codeValid) {
                 return;
             }
 
-            const username = usernameInput.value.trim();
-            const password = passwordInput.value;
+            const phone = phoneInput.value.trim();
+            const code = codeInput.value.trim();
             const remember = document.getElementById('remember').checked;
             const loginBtn = document.getElementById('loginBtn');
 
@@ -615,23 +646,31 @@
 
             try {
                 // 模拟API调用（实际项目中需要调用真实的登录接口）
-                await simulateLogin(username, password);
+                const loginResult = await simulateLogin(phone, code);
 
                 // 保存登录信息
                 if (remember) {
                     localStorage.setItem('thinkcraft_remember', 'true');
-                    localStorage.setItem('thinkcraft_username', username);
+                    localStorage.setItem('thinkcraft_login_phone', phone);
+                } else {
+                    localStorage.removeItem('thinkcraft_remember');
+                    localStorage.removeItem('thinkcraft_login_phone');
                 }
 
                 // 保存用户信息
                 sessionStorage.setItem('thinkcraft_logged_in', 'true');
                 sessionStorage.setItem('thinkcraft_user', JSON.stringify({
-                    username: username,
-                    loginTime: new Date().toISOString()
+                    phone: phone,
+                    loginTime: new Date().toISOString(),
+                    isNewUser: loginResult.isNewUser
                 }));
 
                 // 显示成功消息
-                document.getElementById('successMessage').classList.add('show');
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = loginResult.isNewUser
+                    ? '✓ 注册成功！正在进入...'
+                    : '✓ 登录成功！正在跳转...';
+                successMessage.classList.add('show');
 
                 // 延迟跳转，让用户看到成功消息
                 setTimeout(() => {
@@ -649,30 +688,119 @@
         }
 
         // 模拟登录API（实际项目中替换为真实API）
-        function simulateLogin(username, password) {
+        function simulateLogin(phone, code) {
             return new Promise((resolve, reject) => {
                 setTimeout(() => {
-                    // 检查是否有注册的用户
-                    const users = JSON.parse(localStorage.getItem('thinkcraft_users') || '[]');
-
-                    // 查找匹配的用户（支持用户名、手机号、邮箱登录）
-                    const user = users.find(u =>
-                        (u.username === username || u.phone === username || u.email === username) &&
-                        u.password === password
-                    );
-
-                    if (user) {
-                        // 找到匹配的用户，登录成功
-                        resolve();
-                    } else if (users.length === 0) {
-                        // 没有注册用户，允许任意账号密码登录（演示模式）
-                        resolve();
-                    } else {
-                        // 有注册用户但不匹配，拒绝登录
-                        reject(new Error('账号或密码错误'));
+                    const codeRecord = getStoredCode(phone);
+                    if (!codeRecord) {
+                        reject(new Error('请先获取验证码'));
+                        return;
                     }
+                    if (Date.now() > codeRecord.expiresAt) {
+                        reject(new Error('验证码已过期，请重新获取'));
+                        return;
+                    }
+                    if (codeRecord.code !== code) {
+                        reject(new Error('验证码错误'));
+                        return;
+                    }
+
+                    const users = JSON.parse(localStorage.getItem('thinkcraft_users') || '[]');
+                    let user = users.find(u => u.phone === phone);
+                    let isNewUser = false;
+
+                    if (!user) {
+                        user = {
+                            phone,
+                            createdAt: new Date().toISOString(),
+                            lastLoginAt: new Date().toISOString()
+                        };
+                        users.push(user);
+                        localStorage.setItem('thinkcraft_users', JSON.stringify(users));
+                        isNewUser = true;
+                    } else {
+                        user.lastLoginAt = new Date().toISOString();
+                        localStorage.setItem('thinkcraft_users', JSON.stringify(users));
+                    }
+
+                    clearStoredCode(phone);
+                    resolve({ isNewUser });
                 }, 800);
             });
+        }
+
+        function handleSendCode() {
+            const phoneValid = validateField('phone');
+            if (!phoneValid) return;
+
+            const phone = phoneInput.value.trim();
+            const sendBtn = document.getElementById('sendCodeBtn');
+
+            if (sendBtn.disabled) return;
+
+            const code = generateVerificationCode();
+            const expiresAt = Date.now() + 5 * 60 * 1000;
+            storeCode(phone, { code, expiresAt });
+
+            startCodeCountdown(sendBtn);
+
+            alert(`验证码已发送（开发环境：${code}）\n5分钟内有效。`);
+        }
+
+        function generateVerificationCode() {
+            return String(Math.floor(100000 + Math.random() * 900000));
+        }
+
+        function storeCode(phone, record) {
+            const raw = sessionStorage.getItem('thinkcraft_login_codes');
+            const data = raw ? JSON.parse(raw) : {};
+            data[phone] = record;
+            sessionStorage.setItem('thinkcraft_login_codes', JSON.stringify(data));
+        }
+
+        function getStoredCode(phone) {
+            const raw = sessionStorage.getItem('thinkcraft_login_codes');
+            if (!raw) return null;
+            try {
+                const data = JSON.parse(raw);
+                return data[phone] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function clearStoredCode(phone) {
+            const raw = sessionStorage.getItem('thinkcraft_login_codes');
+            if (!raw) return;
+            try {
+                const data = JSON.parse(raw);
+                delete data[phone];
+                sessionStorage.setItem('thinkcraft_login_codes', JSON.stringify(data));
+            } catch (e) {
+                sessionStorage.removeItem('thinkcraft_login_codes');
+            }
+        }
+
+        let codeCountdownTimer = null;
+        function startCodeCountdown(button) {
+            let remaining = 60;
+            button.disabled = true;
+            button.textContent = `${remaining}s`;
+
+            if (codeCountdownTimer) {
+                clearInterval(codeCountdownTimer);
+            }
+
+            codeCountdownTimer = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearInterval(codeCountdownTimer);
+                    button.disabled = false;
+                    button.textContent = '发送验证码';
+                } else {
+                    button.textContent = `${remaining}s`;
+                }
+            }, 1000);
         }
 
         // 快速体验（不需要登录）
@@ -689,14 +817,9 @@
             window.location.href = 'index.html';
         }
 
-        // 忘记密码
-        function handleForgotPassword() {
-            alert('密码重置功能开发中...\n\n请联系管理员或使用"快速体验"功能。');
-        }
-
-        // 注册账号
-        function handleRegister() {
-            window.location.href = 'register.html';
+        // 验证码帮助
+        function handleHelp() {
+            alert('验证码一般在1分钟内送达。\n\n如未收到，请确认手机号正确，或稍后重试。');
         }
 
         // 回车键提交
@@ -709,41 +832,14 @@
             }
         });
 
-        // 页面加载时检查记住的账号和注册信息
+        // 页面加载时检查记住的手机号
         window.addEventListener('load', () => {
-            // 优先检查注册信息（自动填充刚注册的账号）
-            const registeredUser = sessionStorage.getItem('thinkcraft_registered_user');
-            if (registeredUser) {
-                try {
-                    const userData = JSON.parse(registeredUser);
-                    usernameInput.value = userData.username;
-                    passwordInput.value = userData.password;
-                    document.getElementById('remember').checked = true;
-
-                    // 清除注册信息（避免重复填充）
-                    sessionStorage.removeItem('thinkcraft_registered_user');
-
-                    // 显示提示
-                    const successMessage = document.getElementById('successMessage');
-                    if (successMessage) {
-                        successMessage.textContent = '✓ 注册成功！请登录';
-                        successMessage.classList.add('show');
-                        setTimeout(() => {
-                            successMessage.classList.remove('show');
-                        }, 3000);
-                    }
-                } catch (e) {
-                    console.error('解析注册信息失败:', e);
-                }
-                return;
-            }
-
-            // 检查记住的账号
+            // 检查记住的手机号
             const remember = localStorage.getItem('thinkcraft_remember');
-            const savedUsername = localStorage.getItem('thinkcraft_username');
+            const savedPhone = localStorage.getItem('thinkcraft_login_phone');
 
-            if (remember === 'true' && savedUsername) {
-                usernameInput.value = savedUsername;
+            if (remember === 'true' && savedPhone) {
+                phoneInput.value = savedPhone;
                 document.getElementById('remember').checked = true;
             }
         });

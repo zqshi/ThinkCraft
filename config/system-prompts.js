@@ -14,6 +14,19 @@ let isLoaded = false;
 // 默认使用哪个预设
 const DEFAULT_PROMPT = 'default';
 
+console.log('[SystemPrompts] script loaded');
+
+function extractSystemPrompt(rawContent) {
+    if (!rawContent) {
+        return rawContent;
+    }
+    const markerMatch = rawContent.match(/##\s*System Prompt[\s\S]*/i);
+    if (markerMatch && markerMatch[0]) {
+        return markerMatch[0].replace(/##\s*System Prompt\s*/i, '').trim();
+    }
+    return rawContent.trim();
+}
+
 /**
  * 从后端 API 加载系统提示词
  */
@@ -23,19 +36,60 @@ async function loadSystemPrompts() {
     }
 
     try {
-        const response = await fetch('http://localhost:3000/api/prompts/system-default');
+        const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
+        const apiBase =
+            savedSettings.apiUrl ||
+            window.appState?.settings?.apiUrl ||
+            'http://localhost:3000';
+        const response = await fetch(
+            `${apiBase}/api/prompts/scene-1-dialogue/dialogue-guide/system-default`
+        );
         if (!response.ok) {
             throw new Error(`Failed to load system prompt: ${response.statusText}`);
         }
 
         const promptContent = await response.text();
-        SYSTEM_PROMPTS.default = promptContent;
+        SYSTEM_PROMPTS.default = extractSystemPrompt(promptContent);
         isLoaded = true;
 
         console.log('✅ System prompts loaded from API');
+        console.log(
+            '[SystemPrompts] default key:',
+            DEFAULT_PROMPT,
+            'len:',
+            SYSTEM_PROMPTS.default ? SYSTEM_PROMPTS.default.length : 0
+        );
         return SYSTEM_PROMPTS;
     } catch (error) {
         console.error('❌ Failed to load system prompts from API:', error);
+    }
+
+    try {
+        const localResponse = await fetch(
+            '/prompts/scene-1-dialogue/dialogue-guide/system-default.md'
+        );
+        if (!localResponse.ok) {
+            throw new Error(`Failed to load local prompt: ${localResponse.statusText}`);
+        }
+        let promptContent = await localResponse.text();
+        // 兼容本地文件：移除 front matter 和注释
+        promptContent = promptContent
+            .replace(/^---\s*[\s\S]*?\s*---\s*/m, '')
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .trim();
+
+        SYSTEM_PROMPTS.default = extractSystemPrompt(promptContent);
+        isLoaded = true;
+        console.log('✅ System prompts loaded from local file');
+        console.log(
+            '[SystemPrompts] default key:',
+            DEFAULT_PROMPT,
+            'len:',
+            SYSTEM_PROMPTS.default ? SYSTEM_PROMPTS.default.length : 0
+        );
+        return SYSTEM_PROMPTS;
+    } catch (error) {
+        console.error('❌ Failed to load system prompts from local file:', error);
 
         // 降级方案：使用内置的默认提示词
         SYSTEM_PROMPTS.default = `# 系统提示词：结构化战略思考引导者 (ThinkCraft Pro)
@@ -65,4 +119,3 @@ if (typeof window !== 'undefined') {
     window.DEFAULT_PROMPT = DEFAULT_PROMPT;
     window.loadSystemPrompts = loadSystemPrompts;
 }
-

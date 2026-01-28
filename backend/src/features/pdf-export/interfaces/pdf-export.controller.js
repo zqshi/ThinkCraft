@@ -177,6 +177,43 @@ export class PdfExportController {
       });
     }
   }
+
+  /**
+   * 快速导出报告为PDF（兼容旧API）
+   * POST /api/pdf-export/report
+   */
+  async exportReportPDF(req, res) {
+    try {
+      const { reportData, ideaTitle } = req.body;
+
+      if (!reportData) {
+        return res.status(400).json({
+          success: false,
+          error: '缺少报告数据'
+        });
+      }
+
+      // 使用PDF生成服务直接生成PDF
+      const pdfBuffer = await this.pdfExportUseCase.pdfGenerationService.generateReportPDF(
+        reportData,
+        ideaTitle || '创意分析报告'
+      );
+
+      // 设置响应头
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // 发送PDF
+      res.send(pdfBuffer);
+    } catch (error) {
+      logger.error('[PDF Export] 报告导出失败:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
 }
 
 export default PdfExportController;

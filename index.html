@@ -12,6 +12,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ThinkCraft - AI思维助手</title>
+    <link rel="icon" href="/favicon.ico">
 
     <!-- PWA配置 -->
     <link rel="manifest" href="/manifest.json">
@@ -366,12 +367,9 @@
                                 id="mainInput"
                                 placeholder="分享你的创意想法，让我们通过深度对话来探索它的可能性..."
                                 rows="1"
-                                onkeydown="handleKeyDown(event)"
-                                onkeyup="handleKeyUp(event)"
-                                oninput="autoResize(this)"
                             ></textarea>
                         </div>
-                        <button class="desktop-send-btn" id="sendBtn" onclick="sendMessage()">
+                        <button class="desktop-send-btn" id="sendBtn">
                             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                             </svg>
@@ -444,7 +442,7 @@
                         </svg>
                         导出PDF
                     </button>
-                    <button class="btn-primary" onclick="generateShareLink()">
+                    <button class="btn-primary" id="shareLinkBtn" onclick="generateShareLink()" style="display: none;">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; vertical-align: middle; margin-right: 4px;">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                         </svg>
@@ -1176,7 +1174,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- 系统提示词配置 -->
-    <script src="config/system-prompts.js"></script>
+    <script src="config/system-prompts.js?v=20260128-2"></script>
     <!-- Mock 数据（用于演示） -->
     <script src="config/mock-data.js"></script>
 
@@ -1199,7 +1197,7 @@
     <script src="frontend/js/modules/workflow-recommendation-manager.js"></script>
     <script src="frontend/js/modules/business-plan-generator.js"></script>
 
-    <script src="frontend/js/app-boot.js"></script>
+    <script src="frontend/js/app-boot.js?v=20260128-3"></script>
     <script src="frontend/js/boot/init.js"></script>
 </body>
 </html>

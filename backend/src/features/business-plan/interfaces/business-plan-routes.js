@@ -87,7 +87,8 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
         null,
         {
             max_tokens: 1500, // 章节内容较长
-            temperature: 0.7
+            temperature: 0.7,
+            timeout: 120000
         }
     );
 
@@ -175,7 +176,8 @@ router.post('/generate-full', async (req, res, next) => {
             systemPrompt,
             {
                 max_tokens: 8000,
-                temperature: 0.7
+                temperature: 0.7,
+                timeout: 180000
             }
         );
 

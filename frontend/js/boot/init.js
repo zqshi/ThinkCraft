@@ -2,24 +2,6 @@
  * App initialization (extracted from inline boot)
  */
 function initApp() {
-  // 一次性清理：只保留mock数据
-  const saved = localStorage.getItem('thinkcraft_chats');
-  if (saved && saved !== '[]') {
-    try {
-      const allChats = JSON.parse(saved);
-      const mockChatIds = ['demo_fitness_app', 'chat_001', 'chat_002'];
-      const filteredChats = allChats.filter(chat => mockChatIds.includes(chat.id));
-
-      if (filteredChats.length < 3) {
-        localStorage.removeItem('thinkcraft_chats');
-      } else {
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(filteredChats));
-      }
-    } catch (e) {
-      localStorage.removeItem('thinkcraft_chats');
-    }
-  }
-
   updateUserNameDisplay();
 
   loadChats();
@@ -51,14 +33,33 @@ function initApp() {
     updateGenerationButtonState(newState.generation);
   });
 
-  setTimeout(() => {
-    if (!state.currentChat && state.chats.length > 0) {
-      const demoChat = state.chats.find(c => c.id === 'demo_fitness_app');
-      if (demoChat) {
-        loadChat(demoChat.id);
-      }
-    }
-  }, 100);
+  // 绑定输入框事件
+  const mainInput = document.getElementById('mainInput');
+  if (mainInput) {
+    mainInput.addEventListener('keydown', handleKeyDown);
+    mainInput.addEventListener('keyup', handleKeyUp);
+    mainInput.addEventListener('input', function() {
+      autoResize(this);
+    });
+    // 添加输入法组合事件监听
+    mainInput.addEventListener('compositionstart', handleCompositionStart);
+    mainInput.addEventListener('compositionend', handleCompositionEnd);
+  }
+
+  // 绑定移动端输入框事件
+  const mobileTextInput = document.getElementById('mobileTextInput');
+  if (mobileTextInput) {
+    // 移动端输入框已经在 HTML 中通过 onkeydown 绑定了 handleKeyDown
+    // 这里添加输入法组合事件监听
+    mobileTextInput.addEventListener('compositionstart', handleCompositionStart);
+    mobileTextInput.addEventListener('compositionend', handleCompositionEnd);
+  }
+
+  // 绑定发送按钮事件
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', sendMessage);
+  }
 }
 
 if (document.readyState === 'loading') {
