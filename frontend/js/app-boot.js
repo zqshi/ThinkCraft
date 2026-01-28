@@ -551,6 +551,7 @@
                     // 打字完成后：首次检测到标记时显示按钮
                     if (hasAnalysisMarker && !state.analysisCompleted) {
                         state.analysisCompleted = true;
+                        prefetchAnalysisReport();
 
                         actionElement.style.display = 'flex';
                         actionElement.innerHTML = `
@@ -1133,6 +1134,7 @@
             state.userData = chat.userData ? {...chat.userData} : {};
             state.conversationStep = chat.conversationStep || chatMessages.length;
             state.analysisCompleted = chat.analysisCompleted || false;
+            loadGenerationStatesForChat(state.currentChat);
 
             document.getElementById('emptyState').style.display = 'none';
             const messageList = document.getElementById('messageList');
@@ -1157,6 +1159,11 @@
                     addMessage(msg.role, content, null, false, true, true);
                 }
             });
+
+            // 切换对话后直接定位到最新消息
+            state.autoScrollEnabled = true;
+            state.autoScrollLocked = false;
+            scrollToBottom(true);
 
             // 智能检测：如果侧边栏处于覆盖模式（移动端），自动关闭并显示对话内容
             const sidebar = document.getElementById('sidebar');
@@ -1183,6 +1190,8 @@
             if (reportModal) {
                 reportModal.classList.add('active');
             }
+
+            loadGenerationStatesForChat(state.currentChat);
 
             if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === getAnalysisReportKey()) {
                 renderAIReport(window.lastGeneratedReport);
@@ -1233,6 +1242,55 @@
                 window.analysisReportSessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             }
             return window.analysisReportSessionId;
+        }
+
+        async function prefetchAnalysisReport() {
+            try {
+                if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === getAnalysisReportKey()) {
+                    return;
+                }
+                if (!state.messages || state.messages.length < 2) {
+                    return;
+                }
+                const apiBaseUrl = state.settings.apiUrl || window.location.origin;
+                const apiClient = window.apiClient || (window.APIClient ? new window.APIClient(apiBaseUrl) : null);
+                if (!apiClient) {
+                    return;
+                }
+                if (apiClient.setBaseURL) {
+                    apiClient.setBaseURL(apiBaseUrl);
+                }
+                window.apiClient = apiClient;
+
+                const data = await apiClient.request('/api/report/generate', {
+                    method: 'POST',
+                    body: {
+                        messages: state.messages.map(m => ({
+                            role: m.role,
+                            content: m.content
+                        })),
+                        reportKey: getAnalysisReportKey(),
+                        force: false
+                    },
+                    timeout: 120000,
+                    retry: 1
+                });
+
+                if (data && data.code !== 0) {
+                    return;
+                }
+
+                const reportData = data?.data?.report;
+                if (!reportData || !reportData.chapters) {
+                    return;
+                }
+
+                window.lastGeneratedReport = reportData;
+                window.lastGeneratedReportKey = getAnalysisReportKey();
+                updateShareLinkButtonVisibility();
+            } catch (error) {
+                console.warn('Prefetch analysis report failed:', error.message);
+            }
         }
 
         async function generateDetailedReport(force = false) {
@@ -1879,11 +1937,11 @@
             // 根据按钮当前状态决定行为
             if (currentStatus === 'completed') {
                 // 已完成：查看报告
-                const report = generatedReports[type];
-                if (report) {
-                    viewGeneratedReport(type, report);
+                const reportEntry = generatedReports[type];
+                if (reportEntry && reportEntry.chatId === state.currentChat) {
+                    viewGeneratedReport(type, reportEntry.data || reportEntry);
                 } else {
-                    // 重新生成
+                    resetGenerationButtons();
                     startGenerationFlow(type);
                 }
             } else if (currentStatus === 'generating') {
@@ -2102,7 +2160,10 @@
                     btn.dataset.status = 'completed';
                     updateButtonContent(type, iconSpan, textSpan, 'completed');
                     // 保存生成的报告
-                    generatedReports[type] = generationState.results;
+                    generatedReports[type] = {
+                        data: generationState.results,
+                        chatId: state.currentChat
+                    };
                     break;
 
                 case 'error':
@@ -2151,16 +2212,40 @@
         }
 
         // 从存储加载已生成的报告状态
-        async function loadGenerationStates() {
+        function resetGenerationButtons() {
+            const btnMap = {
+                'business': 'businessPlanBtn',
+                'proposal': 'proposalBtn'
+            };
+            Object.keys(btnMap).forEach(type => {
+                const btn = document.getElementById(btnMap[type]);
+                if (!btn) return;
+                btn.classList.remove('btn-generating', 'btn-completed', 'btn-error');
+                btn.classList.add('btn-idle');
+                btn.dataset.status = 'idle';
+                const iconSpan = btn.querySelector('.btn-icon');
+                const textSpan = btn.querySelector('.btn-text');
+                updateButtonContent(type, iconSpan, textSpan, 'idle');
+            });
+            generatedReports.business = null;
+            generatedReports.proposal = null;
+        }
+
+        async function loadGenerationStatesForChat(chatId) {
             try {
+                resetGenerationButtons();
+                if (!chatId) return;
                 // 从IndexedDB加载已保存的报告
                 const reports = await window.storageManager.getAllReports();
 
                 if (reports && reports.length > 0) {
                     // 按类型分组
                     reports.forEach(report => {
-                        if (report.type === 'business' || report.type === 'proposal' || report.type === 'demo') {
-                            generatedReports[report.type] = report.data;
+                        if ((report.type === 'business' || report.type === 'proposal') && report.chatId === chatId) {
+                            generatedReports[report.type] = {
+                                data: report.data,
+                                chatId: report.chatId
+                            };
 
                             // 更新按钮为已完成状态
                             const btnId = report.type === 'business' ? 'businessPlanBtn' :

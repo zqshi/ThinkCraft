@@ -282,6 +282,7 @@ class StorageManager {
       id: report.id || `report-${Date.now()}`,
       type: report.type, // 'business' | 'proposal'
       data: report.data,
+      chatId: report.chatId || null,
       timestamp: Date.now(),
       size: JSON.stringify(report.data).length
     };
