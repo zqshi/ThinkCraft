@@ -10,6 +10,7 @@ import {
   GenerateReportRequestDto
 } from '../application/report.dto.js';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
+import { AnalysisReportModel } from '../infrastructure/analysis-report.model.js';
 
 export class ReportController {
   constructor() {
@@ -137,14 +138,38 @@ export class ReportController {
       if (req.body.messages && !req.params.reportId) {
         // 创意分析报告生成
         const messages = req.body.messages;
+        const reportKey = req.body.reportKey;
+        const force = Boolean(req.body.force);
+
+        if (reportKey && !force) {
+          const existing = await AnalysisReportModel.findOne({ reportKey }).lean();
+          if (existing?.report) {
+            return res.json({
+              code: 0,
+              data: {
+                report: existing.report,
+                cached: true
+              }
+            });
+          }
+        }
 
         // 调用AI生成创意分析报告
         const report = await this._generateInsightsReport(messages);
 
+        if (reportKey) {
+          await AnalysisReportModel.findOneAndUpdate(
+            { reportKey },
+            { report, updatedAt: new Date() },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
+
         return res.json({
           code: 0,
           data: {
-            report: report
+            report: report,
+            cached: false
           }
         });
       }
@@ -333,7 +358,7 @@ export class ReportController {
       .join('\n\n');
 
     // 构建AI提示词
-    const systemPrompt = `你是一位顶尖的创意分析专家，擅长从对话中提炼核心洞察、识别假设、评估可行性。
+    const systemPrompt = `你是一位顶尖的创意分析专家，擅长从对话中提炼核心洞察、识别假设、评估可行性，并给出具有可执行性的下一步建议。
 
 请基于以下对话历史，生成一份结构化的创意分析报告。
 
@@ -413,10 +438,12 @@ ${conversationContext}
 
 ## 注意事项
 1. 必须严格按照上述JSON结构返回
-2. 所有分析必须基于对话内容，不要编造
-3. 如果对话内容不足以支撑某个字段，使用"对话中未涉及"或"需要进一步探讨"
-4. 保持专业、客观、建设性的语气
-5. 不要返回任何JSON之外的内容`;
+2. 所有分析必须基于对话内容，不要编造与对话明显冲突的事实
+3. 允许在“对话信息不足”时做合理推断，但必须标注为“待验证假设”，并给出验证方式
+4. 每个章节都必须提供建设性、可执行的内容，避免空泛描述
+5. 行动建议必须具体可执行，包含动词、对象、时间范围、验证方法与成功指标
+6. arrays 字段至少给出 3 条，stages 至少 2 个阶段
+7. 输出语言专业、客观、建设性，不要返回任何JSON之外的内容`;
 
     try {
       // 调用DeepSeek API生成报告

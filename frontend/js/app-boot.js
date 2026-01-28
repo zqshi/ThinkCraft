@@ -1184,6 +1184,12 @@
                 reportModal.classList.add('active');
             }
 
+            if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === getAnalysisReportKey()) {
+                renderAIReport(window.lastGeneratedReport);
+                updateShareLinkButtonVisibility();
+                return;
+            }
+
             // 让出主线程，确保弹窗先渲染
             requestAnimationFrame(() => {
                 generateDetailedReport().catch(error => {
@@ -1215,11 +1221,21 @@
             }
 
             // 重新生成报告
-            await generateDetailedReport();
+            await generateDetailedReport(true);
         }
 
         // 生成详细报告（AI驱动）
-        async function generateDetailedReport() {
+        function getAnalysisReportKey() {
+            if (state.currentChat) {
+                return String(state.currentChat);
+            }
+            if (!window.analysisReportSessionId) {
+                window.analysisReportSessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            }
+            return window.analysisReportSessionId;
+        }
+
+        async function generateDetailedReport(force = false) {
             const reportContent = document.getElementById('reportContent');
 
             // 检查是否有足够的对话历史
@@ -1280,7 +1296,9 @@
                         messages: state.messages.map(m => ({
                             role: m.role,
                             content: m.content
-                        }))
+                        })),
+                        reportKey: getAnalysisReportKey(),
+                        force
                     },
                     timeout: 120000,
                     retry: 1
@@ -1299,6 +1317,7 @@
 
                 // 缓存最后一次生成的报告，供导出使用
                 window.lastGeneratedReport = reportData;
+                window.lastGeneratedReportKey = getAnalysisReportKey();
                 updateShareLinkButtonVisibility();
 
                 // 渲染AI生成的报告
@@ -1689,6 +1708,9 @@
                 if (!window.lastGeneratedReport || !window.lastGeneratedReport.chapters) {
                     await generateDetailedReport();
                 }
+                if (!window.lastGeneratedReport || !window.lastGeneratedReport.chapters) {
+                    throw new Error('报告生成失败，无法导出');
+                }
 
                 // 显示加载提示
                 alert('📄 正在生成PDF，请稍候...');
@@ -1713,15 +1735,31 @@
                 }
 
                 const contentType = response.headers.get('content-type') || '';
-                if (!contentType.includes('application/pdf')) {
+                if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
                     const errorText = await response.text();
                     throw new Error(errorText || '返回内容不是PDF文件');
                 }
 
-                const arrayBuffer = await response.arrayBuffer();
-                const header = new TextDecoder('ascii').decode(arrayBuffer.slice(0, 5));
-                if (header !== '%PDF-') {
+                let arrayBuffer = await response.arrayBuffer();
+                const bytes = new Uint8Array(arrayBuffer);
+                const headerSample = new TextDecoder('ascii').decode(bytes.slice(0, Math.min(bytes.length, 1024)));
+                const pdfIndex = headerSample.indexOf('%PDF-');
+                if (pdfIndex === -1) {
+                    const textSample = new TextDecoder('utf-8').decode(bytes.slice(0, Math.min(bytes.length, 2000)));
+                    let parsedError = null;
+                    try {
+                        const parsed = JSON.parse(textSample);
+                        if (parsed && parsed.error) {
+                            parsedError = parsed.error;
+                        }
+                    } catch (parseError) {}
+                    if (parsedError) {
+                        throw new Error(parsedError);
+                    }
                     throw new Error('PDF文件头校验失败');
+                }
+                if (pdfIndex > 0) {
+                    arrayBuffer = bytes.slice(pdfIndex).buffer;
                 }
 
                 // 下载PDF文件
@@ -1879,6 +1917,11 @@
                     return;
                 }
             }
+            if (!window._generationStateSubscribed && window.stateManager?.subscribe) {
+                window.stateManager.subscribe(appState => updateGenerationButtonState(appState.generation));
+                window._generationStateSubscribed = true;
+                updateGenerationButtonState(window.stateManager.state.generation);
+            }
 
             if (type === 'business') {
                 if (typeof window.businessPlanGenerator.showChapterSelection === 'function') {
@@ -1900,12 +1943,57 @@
         // 查看已生成的报告
         async function viewGeneratedReport(type, report) {
             if (type === 'business' || type === 'proposal') {
+                const renderMarkdownContent = (value) => {
+                    const content = value || '';
+                    if (window.markdownRenderer) {
+                        return window.markdownRenderer.render(content);
+                    }
+                    return content.replace(/\n/g, '<br>');
+                };
+                const safeText = (value, fallback = '') => {
+                    if (value === undefined || value === null || value === '') {
+                        return fallback;
+                    }
+                    return value;
+                };
+                const toggleShareButton = (reportType) => {
+                    const shareBtn = document.getElementById('businessReportShareBtn');
+                    if (!shareBtn) return;
+                    shareBtn.style.display = 'none';
+                };
                 // 设置当前报告类型
                 currentReportType = type;
+                toggleShareButton(type);
 
                 // 显示商业计划书/产品立项材料
                 const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
                 document.getElementById('businessReportTitle').textContent = typeTitle;
+
+                if (report && report.document) {
+                    const reportContent = `
+                        <div class="report-section">
+                            <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
+                                <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
+                                    ${safeText(state.userData.idea, '创意项目')}
+                                </h1>
+                                <p style="font-size: 16px; color: var(--text-secondary);">
+                                    ${typeTitle} · AI生成于 ${new Date(report.timestamp || Date.now()).toLocaleDateString()}
+                                </p>
+                                ${report.costStats ? `<p style="font-size: 14px; color: var(--text-tertiary); margin-top: 8px;">
+                                    使用 ${report.totalTokens} tokens · 成本 ${report.costStats.costString}
+                                </p>` : ''}
+                            </div>
+
+                            <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
+                                ${renderMarkdownContent(report.document)}
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('businessReportContent').innerHTML = reportContent;
+                    document.getElementById('businessReportModal').classList.add('active');
+                    return;
+                }
 
                 // 如果report包含chapters数据，直接显示
                 if (report && report.chapters) {
@@ -1929,15 +2017,15 @@
 
                             ${chapters.map((ch, index) => `
                                 <div class="report-section" style="margin-bottom: 40px;">
-                                    <div class="report-section-title">${index + 1}. ${ch.title}</div>
+                                    <div class="report-section-title">${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</div>
                                     <div class="document-chapter">
                                         <div class="chapter-content" style="padding-left: 0;">
                                             <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                                <strong>分析师：</strong>${getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon')} ${ch.agent}
+                                                <strong>分析师：</strong>${getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon')} ${safeText(ch.agent, 'AI分析师')}
                                             </p>
 
-                                            <div style="line-height: 1.8; white-space: pre-wrap; font-size: 15px;">
-                                                ${ch.content || '<p style="color: var(--text-secondary);">内容生成中...</p>'}
+                                            <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
+                                                ${ch.content ? renderMarkdownContent(ch.content) : '<p style="color: var(--text-secondary);">内容生成中...</p>'}
                                             </div>
                                         </div>
                                     </div>
@@ -2318,6 +2406,11 @@
 
         // 显示生成的商业计划书/产品立项报告
         function showGeneratedBusinessReport(selectedChapters) {
+            const toggleShareButton = (reportType) => {
+                const shareBtn = document.getElementById('businessReportShareBtn');
+                if (!shareBtn) return;
+                shareBtn.style.display = 'none';
+            };
             // 保存当前配置
             currentGeneratedChapters = selectedChapters;
 
@@ -2328,6 +2421,7 @@
             // 更新标题
             const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
             document.getElementById('businessReportTitle').textContent = typeTitle;
+            toggleShareButton(currentReportType);
 
             // 生成报告内容
             const reportContent = `

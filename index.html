@@ -604,9 +604,6 @@
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                     <div class="modal-title" id="businessReportTitle">商业计划书</div>
-                    <button class="btn-secondary" onclick="regenerateBusinessReport()" style="padding: 6px 12px; font-size: 13px;">
-                        🔄 重新生成
-                    </button>
                 </div>
                 <button class="close-btn" onclick="closeBusinessReport()">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -622,8 +619,9 @@
             <div class="modal-footer">
                 <div style="display: flex; gap: 12px; justify-content: flex-end;">
                     <button class="btn-secondary" onclick="adjustBusinessReportChapters()">调整章节</button>
+                    <button class="btn-secondary" onclick="regenerateBusinessReport()">🔄 重新生成</button>
                     <button class="btn-secondary" onclick="exportBusinessReport()">导出PDF</button>
-                    <button class="btn-primary" onclick="shareBusinessReport()">分享报告</button>
+                    <button class="btn-primary" id="businessReportShareBtn" onclick="shareBusinessReport()">分享报告</button>
                 </div>
             </div>
         </div>

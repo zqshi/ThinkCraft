@@ -545,13 +545,20 @@ class PromptLoader {
    * @returns {Promise<Object>} 章节配置对象
    */
   async loadProposalChaptersConfig() {
-    const filePath = path.join(this.promptDir, 'proposal/chapters-config.json');
+    let filePath = path.join(this.promptDir, 'scene-1-dialogue/proposal/chapters-config.json');
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.warn('[PromptLoader] 产品立项材料章节配置不存在');
-      return null;
+      // 旧路径兼容
+      filePath = path.join(this.promptDir, 'proposal/chapters-config.json');
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+      } catch (fallbackError) {
+        console.warn('[PromptLoader] 产品立项材料章节配置不存在');
+        return null;
+      }
     }
   }
 
@@ -561,12 +568,19 @@ class PromptLoader {
    * @returns {Promise<Object>} 解析后的提示词对象 { metadata, systemPrompt, template }
    */
   async loadFullDocumentPrompt(type) {
-    const filePath = path.join(this.promptDir, `${type}/full-document.md`);
+    let filePath = path.join(this.promptDir, `scene-1-dialogue/${type}/full-document.md`);
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       return this._parsePromptWithMetadata(content);
     } catch (error) {
-      throw new Error(`Failed to load full document prompt for "${type}": ${error.message}`);
+      // 旧路径兼容
+      filePath = path.join(this.promptDir, `${type}/full-document.md`);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return this._parsePromptWithMetadata(content);
+      } catch (fallbackError) {
+        throw new Error(`Failed to load full document prompt for "${type}": ${error.message}`);
+      }
     }
   }
 
@@ -606,12 +620,19 @@ class PromptLoader {
    * @returns {Promise<Object>} 章节配置对象
    */
   async loadChaptersConfig(type) {
-    const filePath = path.join(this.promptDir, `${type}/chapters-config.json`);
+    let filePath = path.join(this.promptDir, `scene-1-dialogue/${type}/chapters-config.json`);
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      throw new Error(`Failed to load chapters config for "${type}": ${error.message}`);
+      // 旧路径兼容
+      filePath = path.join(this.promptDir, `${type}/chapters-config.json`);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+      } catch (fallbackError) {
+        throw new Error(`Failed to load chapters config for "${type}": ${error.message}`);
+      }
     }
   }
 

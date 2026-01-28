@@ -251,11 +251,12 @@ class BusinessPlanGenerator {
         throw new Error('缺少对话历史，请先完成至少一轮对话');
       }
 
-      // 调用后端API批量生成
-      const response = await this.api.request('/api/business-plan/generate-batch', {
+      // 调用后端API使用完整文档提示词生成（真实注入对话）
+      const normalizedChapterIds = chapterIds.map(id => id.replace(/_/g, '-'));
+      const response = await this.api.request('/api/business-plan/generate-full', {
         method: 'POST',
         body: {
-          chapterIds,
+          chapterIds: normalizedChapterIds,
           conversationHistory: conversation,
           type
         },
@@ -267,24 +268,31 @@ class BusinessPlanGenerator {
         throw new Error(response?.error || '生成失败，请稍后重试');
       }
 
-      const { chapters, totalTokens, duration, costStats } = response.data;
+      const { document, tokens, costStats } = response.data;
 
-      // 模拟逐个完成的效果（增强用户体验）
-      for (let i = 0; i < chapters.length; i++) {
-        const chapter = chapters[i];
-
-        // 等待一小段时间（错开显示）
-        await this.sleep(500);
-
-        // 更新进度
+      // 生成完成后统一更新进度（按所选章节数量）
+      for (let i = 0; i < chapterIds.length; i++) {
+        const chapterId = chapterIds[i];
+        const chapterTitle = this.getChapterTitle(type, chapterId);
+        const chapter = {
+          id: chapterId,
+          chapterId,
+          title: chapterTitle,
+          content: '',
+          agent: 'AI文档生成'
+        };
         this.state.updateProgress(chapter.agent, i + 1, chapter);
-
-        // 更新进度UI
-        this.progressManager.updateProgress(chapter.chapterId, 'completed', chapter);
+        this.progressManager.updateProgress(chapterId, 'completed', chapter);
       }
 
       // 完成生成
-      this.state.completeGeneration({ chapters, totalTokens, costStats });
+      this.state.completeGeneration({
+        document,
+        selectedChapters: chapterIds,
+        totalTokens: tokens,
+        costStats,
+        timestamp: Date.now()
+      });
 
       // 延迟关闭进度框，让用户看到完成状态
       await this.sleep(1000);
@@ -292,12 +300,18 @@ class BusinessPlanGenerator {
 
       // 显示成功提示
       window.modalManager.alert(
-        `生成完成！共生成 ${chapters.length} 个章节，使用 ${totalTokens} tokens，成本 ${costStats.costString}`,
+        `生成完成！共生成 ${chapterIds.length} 个章节，使用 ${tokens} tokens，成本 ${costStats.costString}`,
         'success'
       );
 
       // 保存到存储
-      await this.saveReport(type, { chapters, totalTokens, costStats });
+      await this.saveReport(type, {
+        document,
+        selectedChapters: chapterIds,
+        totalTokens: tokens,
+        costStats,
+        timestamp: Date.now()
+      });
 
       // 显示查看报告按钮
       this.showViewReportButton(type);
@@ -311,6 +325,20 @@ class BusinessPlanGenerator {
       // 显示错误提示
       window.modalManager.alert(`生成失败: ${error.message}`, 'error');
     }
+  }
+
+  /**
+   * 获取章节标题
+   * @param {String} type - 'business' | 'proposal'
+   * @param {String} chapterId - 章节ID
+   * @returns {String} 章节标题
+   */
+  getChapterTitle(type, chapterId) {
+    const config = this.chapterConfig[type];
+    if (!config) return chapterId;
+    const allChapters = [...config.core, ...config.optional];
+    const match = allChapters.find(ch => ch.id === chapterId);
+    return match?.title || chapterId;
   }
 
   /**
