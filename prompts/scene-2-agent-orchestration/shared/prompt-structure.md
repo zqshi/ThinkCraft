@@ -1,5 +1,8 @@
 # 标准Prompt结构模板
 
+Version: 1.0.1
+Last Updated: 2026-01-28
+
 ## 概述
 
 本文档定义了Agent调用时的标准Prompt结构，确保所有Agent调用都遵循统一的格式和规范。
