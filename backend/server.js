@@ -5,32 +5,33 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import compression from 'compression';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import chatRouter from './routes/chat.js';
 import reportRouter from './routes/report.js';
 import visionRouter from './routes/vision.js';
 import businessPlanRouter from './routes/business-plan.js';
 import pdfExportRouter from './routes/pdf-export.js';
 import shareRouter from './routes/share.js';
-import demoGeneratorRouter from './routes/demo-generator.js';
 import agentsRouter from './routes/agents.js';
 import projectsRouter from './routes/projects.js';
 import workflowRouter from './routes/workflow.js';
 import workflowRecommendationRouter from './routes/workflow-recommendation.js';
 import authRouter from './routes/auth.js';
 import verificationRouter from './routes/verification.js';
-import passwordResetRouter from './routes/password-reset.js';
 import accountRouter from './routes/account.js';
 import promptRouter from './src/interfaces/prompt-routes.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
+import performanceMonitor from './middleware/performance-monitor.js';
+import { generalLimiter, aiApiLimiter, uploadLimiter } from './middleware/rate-limiter.js';
+import { securityHeaders, validateInput } from './middleware/security.js';
+import { noCache, shortCache } from './middleware/cache-control.js';
 import { initDatabases, closeDatabases } from './config/database.js';
 import { cacheService } from './src/infrastructure/cache/redis-cache.service.js';
 import promptLoader from './src/utils/prompt-loader.js';
+import { validateEnv } from './config/env.js';
 
 // 加载环境变量
 dotenv.config();
@@ -40,8 +41,19 @@ const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // 中间件配置
+app.set('trust proxy', 1);
+
 // 1. 请求日志
 app.use(logger);
+
+// 2. 安全与性能
+app.use(helmet());
+app.use(compression());
+app.use(securityHeaders);
+app.use(validateInput);
+
+// 3. 性能监控
+app.use(performanceMonitor);
 
 // 2. CORS 跨域配置（开发环境允许所有来源）
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -85,19 +97,44 @@ if (isDevelopment) {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 4. 频率限制
+app.use('/api/', generalLimiter);
+app.use('/api/chat', aiApiLimiter);
+app.use('/api/vision', uploadLimiter);
+
 // 路由配置
 // 健康检查端点（用于Docker健康检查）
-app.get('/health', (req, res) => {
+app.get('/health', noCache, (req, res) => {
     res.status(200).send('OK');
 });
 
 // 健康检查端点（详细信息）
-app.get('/api/health', (req, res) => {
+app.get('/api/health', noCache, (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
         service: 'ThinkCraft Backend',
-        version: '1.0.0'
+        version: process.env.npm_package_version || '1.0.0',
+        uptime: process.uptime()
+    });
+});
+
+// 就绪检查
+let isReady = false;
+app.get('/ready', noCache, (req, res) => {
+    if (!isReady) {
+        return res.status(503).json({ status: 'not_ready' });
+    }
+    res.json({ status: 'ready' });
+});
+
+// 指标端点（短时间缓存）
+app.get('/api/metrics', shortCache, (req, res) => {
+    res.json({
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        cpu: process.cpuUsage(),
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -119,8 +156,6 @@ app.use('/api/pdf-export', pdfExportRouter);
 // 分享链接接口
 app.use('/api/share', shareRouter);
 
-// Demo代码生成接口
-app.use('/api/demo-generator', demoGeneratorRouter);
 
 // 数字员工Agent接口
 app.use('/api/agents', agentsRouter);
@@ -140,17 +175,12 @@ app.use('/api/auth', authRouter);
 // 验证码接口
 app.use('/api/verification', verificationRouter);
 
-// 密码重置接口
-app.use('/api/password-reset', passwordResetRouter);
-
 // 账号管理接口
 app.use('/api/account', accountRouter);
 
 // 提示词管理接口
 app.use('/api/prompts', promptRouter);
 
-// 静态文件服务（Demo预览）
-app.use('/demos', express.static(path.join(__dirname, 'demos')));
 
 // 404 处理
 app.use((req, res) => {
@@ -168,6 +198,8 @@ app.use(errorHandler);
  */
 async function startServer() {
     try {
+        validateEnv();
+
         // 初始化数据库连接
         console.log('[Server] 正在初始化数据库...');
         await initDatabases();
@@ -179,6 +211,8 @@ async function startServer() {
         // 初始化Prompt加载器
         console.log('[Server] 正在加载Prompt模板...');
         await promptLoader.initialize();
+
+        isReady = true;
 
         // 启动HTTP服务器
         app.listen(PORT, () => {
@@ -216,5 +250,9 @@ async function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// 启动服务器
-startServer();
+// 启动服务器（测试环境不自动启动）
+if (process.env.NODE_ENV !== 'test') {
+    startServer();
+}
+
+export { app, startServer };

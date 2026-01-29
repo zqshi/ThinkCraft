@@ -41,7 +41,7 @@ describe('PhoneVerificationUseCase', () => {
     mockCacheService = {
       get: jest.fn(),
       set: jest.fn(),
-      delete: jest.fn()
+      del: jest.fn()
     };
 
     // 创建用例实例
@@ -203,7 +203,7 @@ describe('PhoneVerificationUseCase', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('验证成功');
-      expect(mockCacheService.delete).toHaveBeenCalledWith(
+      expect(mockCacheService.del).toHaveBeenCalledWith(
         expect.stringContaining('sms:code:')
       );
       expect(logger.info).toHaveBeenCalled();
@@ -260,10 +260,10 @@ describe('PhoneVerificationUseCase', () => {
       ).rejects.toThrow('验证码错误次数过多，请重新获取');
 
       // 应该删除验证码和失败记录
-      expect(mockCacheService.delete).toHaveBeenCalledWith(
+      expect(mockCacheService.del).toHaveBeenCalledWith(
         expect.stringContaining('sms:code:')
       );
-      expect(mockCacheService.delete).toHaveBeenCalledWith(
+      expect(mockCacheService.del).toHaveBeenCalledWith(
         expect.stringContaining('sms:fail:')
       );
     });
@@ -273,10 +273,10 @@ describe('PhoneVerificationUseCase', () => {
 
       await phoneVerificationUseCase.verifyCode('13800138000', '123456', 'register');
 
-      expect(mockCacheService.delete).toHaveBeenCalledWith(
+      expect(mockCacheService.del).toHaveBeenCalledWith(
         expect.stringContaining('sms:code:')
       );
-      expect(mockCacheService.delete).toHaveBeenCalledWith(
+      expect(mockCacheService.del).toHaveBeenCalledWith(
         expect.stringContaining('sms:fail:')
       );
     });

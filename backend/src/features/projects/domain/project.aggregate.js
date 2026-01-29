@@ -9,10 +9,8 @@ import { ProjectMode } from './value-objects/project-mode.vo.js';
 import { ProjectStatus } from './value-objects/project-status.vo.js';
 import { IdeaId } from './value-objects/idea-id.vo.js';
 import { Workflow } from './entities/workflow.entity.js';
-import { Demo } from './entities/demo.entity.js';
 import { ProjectCreatedEvent } from './events/project-created.event.js';
 import { ProjectUpdatedEvent } from './events/project-updated.event.js';
-import { ProjectModeUpgradedEvent } from './events/project-mode-upgraded.event.js';
 import { ProjectDeletedEvent } from './events/project-deleted.event.js';
 
 export class Project extends AggregateRoot {
@@ -22,8 +20,7 @@ export class Project extends AggregateRoot {
     name,
     mode,
     status = ProjectStatus.PLANNING,
-    workflow = null,
-    demo = null
+    workflow = null
   ) {
     super(id);
     this._ideaId = ideaId;
@@ -31,7 +28,6 @@ export class Project extends AggregateRoot {
     this._mode = mode;
     this._status = status;
     this._workflow = workflow;
-    this._demo = demo;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
@@ -47,12 +43,9 @@ export class Project extends AggregateRoot {
 
     // 根据模式创建相应的实体
     let workflow = null;
-    let demo = null;
 
     if (projectMode.isDevelopment()) {
       workflow = Workflow.createDefault();
-    } else if (projectMode.isDemo()) {
-      demo = Demo.create();
     }
 
     const project = new Project(
@@ -61,8 +54,7 @@ export class Project extends AggregateRoot {
       projectName,
       projectMode,
       ProjectStatus.PLANNING,
-      workflow,
-      demo
+      workflow
     );
 
     // 添加项目创建事件
@@ -89,44 +81,6 @@ export class Project extends AggregateRoot {
 
     // 添加项目更新事件
     this.addDomainEvent(new ProjectUpdatedEvent(this.id.value, oldData, this.toJSON()));
-  }
-
-  /**
-   * 升级项目模式（Demo → Development）
-   */
-  upgradeToDevelopment() {
-    if (!this._mode.isDemo()) {
-      throw new Error('只有Demo模式的项目可以升级到Development模式');
-    }
-
-    // 保存旧的Demo数据
-    const oldDemo = this._demo;
-
-    // 升级模式
-    this._mode = ProjectMode.DEVELOPMENT;
-    this._workflow = Workflow.createDefault();
-
-    // 如果有Demo代码，迁移到开发阶段
-    if (oldDemo && oldDemo.code) {
-      const developmentStage = this._workflow.getStage('development');
-      if (developmentStage) {
-        developmentStage.addArtifact({
-          id: `artifact-${Date.now()}`,
-          type: 'demo-code',
-          name: 'Demo原型代码',
-          content: oldDemo.code,
-          source: 'from-demo'
-        });
-      }
-    }
-
-    // 清空Demo数据
-    this._demo = null;
-
-    this.updateTimestamp();
-
-    // 添加模式升级事件
-    this.addDomainEvent(new ProjectModeUpgradedEvent(this.id.value, 'demo', 'development'));
   }
 
   /**
@@ -157,22 +111,6 @@ export class Project extends AggregateRoot {
   }
 
   /**
-   * 更新Demo代码
-   */
-  updateDemoCode(code, type, previewUrl, downloadUrl) {
-    if (!this._mode.isDemo()) {
-      throw new Error('只有Demo模式的项目支持更新Demo代码');
-    }
-
-    if (!this._demo) {
-      throw new Error('项目没有Demo配置');
-    }
-
-    this._demo.updateCode(code, type, previewUrl, downloadUrl);
-    this.updateTimestamp();
-  }
-
-  /**
    * 验证项目状态
    */
   validate() {
@@ -187,10 +125,6 @@ export class Project extends AggregateRoot {
     // 验证模式一致性
     if (this._mode.isDevelopment() && !this._workflow) {
       throw new Error('Development模式的项目必须包含工作流');
-    }
-
-    if (this._mode.isDemo() && !this._demo) {
-      throw new Error('Demo模式的项目必须包含Demo配置');
     }
   }
 
@@ -210,9 +144,6 @@ export class Project extends AggregateRoot {
   get workflow() {
     return this._workflow;
   }
-  get demo() {
-    return this._demo;
-  }
 
   toJSON() {
     return {
@@ -221,8 +152,7 @@ export class Project extends AggregateRoot {
       name: this._name.value,
       mode: this._mode.value,
       status: this._status.value,
-      workflow: this._workflow ? this._workflow.toJSON() : null,
-      demo: this._demo ? this._demo.toJSON() : null
+      workflow: this._workflow ? this._workflow.toJSON() : null
     };
   }
 }

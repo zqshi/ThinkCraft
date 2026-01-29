@@ -7,7 +7,6 @@ import {
   CreateProjectRequestDTO,
   UpdateProjectRequestDTO,
   CustomizeWorkflowRequestDTO,
-  UpdateDemoCodeRequestDTO,
   SearchProjectsRequestDTO
 } from '../application/project.dto.js';
 
@@ -181,33 +180,6 @@ export class ProjectController {
   }
 
   /**
-   * 升级项目模式
-   */
-  async upgradeProjectMode(req, res) {
-    try {
-      const { id } = req.params;
-
-      // 执行升级项目模式用例
-      const response = await projectUseCase.upgradeProjectMode(id);
-
-      // 返回成功响应
-      res.json({
-        code: 0,
-        message: '项目模式升级成功',
-        data: response
-      });
-    } catch (error) {
-      console.error('[ProjectController] 升级项目模式失败:', error);
-
-      // 返回错误响应
-      res.status(400).json({
-        code: -1,
-        error: error.message || '升级项目模式失败'
-      });
-    }
-  }
-
-  /**
    * 自定义工作流
    */
   async customizeWorkflow(req, res) {
@@ -234,37 +206,6 @@ export class ProjectController {
       res.status(400).json({
         code: -1,
         error: error.message || '自定义工作流失败'
-      });
-    }
-  }
-
-  /**
-   * 更新Demo代码
-   */
-  async updateDemoCode(req, res) {
-    try {
-      const { id } = req.params;
-      const { code, type, previewUrl, downloadUrl } = req.body;
-
-      // 创建更新Demo代码请求DTO
-      const updateRequest = new UpdateDemoCodeRequestDTO(code, type, previewUrl, downloadUrl);
-
-      // 执行更新Demo代码用例
-      const project = await projectUseCase.updateDemoCode(id, updateRequest);
-
-      // 返回成功响应
-      res.json({
-        code: 0,
-        message: 'Demo代码更新成功',
-        data: { project }
-      });
-    } catch (error) {
-      console.error('[ProjectController] 更新Demo代码失败:', error);
-
-      // 返回错误响应
-      res.status(400).json({
-        code: -1,
-        error: error.message || '更新Demo代码失败'
       });
     }
   }

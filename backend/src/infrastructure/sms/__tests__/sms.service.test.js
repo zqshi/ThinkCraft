@@ -15,16 +15,26 @@ jest.mock('../../../../../middleware/logger.js', () => ({
 
 describe('SmsService', () => {
   let smsService;
+  const originalSmsProvider = process.env.SMS_PROVIDER;
 
   beforeEach(() => {
     // 清除所有mock
     jest.clearAllMocks();
+    process.env.SMS_PROVIDER = 'mock';
     // 创建mock模式的SMS服务
     smsService = new SmsService({ provider: 'mock' });
   });
 
+  afterEach(() => {
+    if (typeof originalSmsProvider === 'undefined') {
+      delete process.env.SMS_PROVIDER;
+    } else {
+      process.env.SMS_PROVIDER = originalSmsProvider;
+    }
+  });
+
   describe('构造函数', () => {
-    it('应该使用默认的mock provider', () => {
+    it('应该使用环境变量指定的provider', () => {
       const service = new SmsService();
       expect(service.provider).toBe('mock');
     });

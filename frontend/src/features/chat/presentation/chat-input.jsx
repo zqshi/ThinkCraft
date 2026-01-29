@@ -89,8 +89,8 @@ export function ChatInput({ onSendMessage, disabled = false }) {
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             const file = files[0];
-            const mockEvent = { target: { files: [file] } };
-            handleFileSelect(mockEvent);
+            const fileEvent = { target: { files: [file] } };
+            handleFileSelect(fileEvent);
         }
     };
 

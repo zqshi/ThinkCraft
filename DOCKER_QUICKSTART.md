@@ -1,5 +1,7 @@
 # Docker 快速开始
 
+本项目登录方式为手机号+验证码（首次登录自动注册），无单独注册页。
+
 ## 📦 已创建的文件
 
 本次Docker容器化已创建以下文件：
@@ -34,6 +36,13 @@ cp backend/.env.example backend/.env
 vim backend/.env
 ```
 
+### 2.1 短信网关配置检查（投产前）
+
+```bash
+cd backend
+npm run check:sms-config
+```
+
 ### 3. 使用管理脚本启动
 
 ```bash
@@ -55,7 +64,8 @@ docker-compose logs -f
 启动成功后，访问：
 - 前端应用: http://localhost
 - 后端API: http://localhost:3000
-- 健康检查: http://localhost/health
+- 健康检查: http://localhost:3000/health
+- 健康详情: http://localhost:3000/api/health
 
 ## 🔍 验证服务状态
 
@@ -178,7 +188,7 @@ docker-compose up -d
 
 1. **首次启动**: 首次启动可能需要几分钟来拉取镜像和初始化数据库
 2. **数据持久化**: 数据存储在Docker卷中，使用 `docker-compose down -v` 会删除所有数据
-3. **生产环境**: 生产环境部署前请修改 `JWT_SECRET` 等敏感配置
+3. **生产环境**: 生产环境部署前请修改 `ACCESS_TOKEN_SECRET`/`REFRESH_TOKEN_SECRET` 等敏感配置
 4. **资源要求**: 建议至少2GB内存和5GB磁盘空间
 
 ## 🎯 下一步

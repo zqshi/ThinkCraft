@@ -221,11 +221,14 @@
                 <div class="project-panel-header">
                     <div class="project-panel-title" id="projectPanelTitle">项目详情</div>
                     <div class="project-panel-header-actions">
+                        <!-- 知识库入口已暂时屏蔽，后续按需开放 -->
+                        <!--
                         <button class="icon-btn" onclick="projectManager.openProjectKnowledgePanel()" title="项目知识库">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                             </svg>
                         </button>
+                        -->
                         <button class="icon-btn" onclick="projectManager.editCurrentProjectName()" title="编辑项目">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
@@ -627,172 +630,6 @@
         </div>
     </div>
 
-    <!-- Demo类型选择模态框 -->
-    <div class="modal" id="demoTypeModal">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <div class="modal-title">选择Demo类型</div>
-                <button class="close-btn" onclick="closeDemoTypeSelection()">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="modal-body">
-                <p class="tip">选择您想要生成的Demo类型，AI将根据您的创意生成可交互的产品原型</p>
-
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 24px;">
-                    <div class="demo-type-card" onclick="selectDemoType('web')">
-                        <div class="demo-type-icon">🌐</div>
-                        <div class="demo-type-title">网站应用</div>
-                        <div class="demo-type-desc">响应式网站、落地页、SaaS平台等</div>
-                        <div class="demo-type-badge">推荐</div>
-                    </div>
-
-                    <div class="demo-type-card" onclick="selectDemoType('app')">
-                        <div class="demo-type-icon">📱</div>
-                        <div class="demo-type-title">移动应用</div>
-                        <div class="demo-type-desc">iOS/Android App原型，支持交互演示</div>
-                    </div>
-
-                    <div class="demo-type-card" onclick="selectDemoType('miniapp')">
-                        <div class="demo-type-icon">🎯</div>
-                        <div class="demo-type-title">小程序</div>
-                        <div class="demo-type-desc">微信小程序、支付宝小程序等</div>
-                    </div>
-
-                    <div class="demo-type-card" onclick="selectDemoType('admin')">
-                        <div class="demo-type-icon">💼</div>
-                        <div class="demo-type-title">管理后台</div>
-                        <div class="demo-type-desc">后台管理系统、数据面板等</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Demo功能确认模态框 -->
-    <div class="modal" id="demoFeaturesModal">
-        <div class="modal-content" style="max-width: 700px;">
-            <div class="modal-header">
-                <div class="modal-title">确认Demo功能</div>
-                <button class="close-btn" onclick="closeDemoFeatures()">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="modal-body">
-                <p class="tip">AI已根据您的创意分析出以下核心功能，请确认或调整</p>
-
-                <div id="demoFeaturesList" style="margin-top: 24px;">
-                    <!-- 功能列表将通过JavaScript动态生成 -->
-                </div>
-
-                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
-                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
-                        预计生成时间：<strong style="color: var(--primary);">3-5分钟</strong>
-                    </p>
-                    <button class="btn-primary" onclick="confirmDemoFeatures()" style="width: 100%;">
-                        确认并开始生成
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Demo生成进度模态框 -->
-    <div class="modal" id="demoProgressModal">
-        <div class="modal-content agent-progress">
-            <div class="modal-header">
-                <div class="modal-title">🤖 AI开发团队正在生成Demo...</div>
-            </div>
-
-            <div class="modal-body">
-                <!-- 整体进度 -->
-                <div class="overall-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="demoProgressFill" style="width: 0%;"></div>
-                    </div>
-                    <p id="demoProgressText">准备开始生成...</p>
-                </div>
-
-                <!-- 详细步骤 -->
-                <div class="demo-steps" id="demoStepsList">
-                    <!-- 步骤列表将通过JavaScript动态生成 -->
-                </div>
-
-                <!-- 实时日志 -->
-                <div style="margin-top: 20px;">
-                    <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                        📋 实时日志
-                    </div>
-                    <div id="demoLogs" style="background: var(--bg-secondary); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.6; color: var(--text-secondary);">
-                        <div>> 初始化开发环境...</div>
-                    </div>
-                </div>
-
-                <button class="btn-secondary" onclick="cancelDemoGeneration()" style="width: 100%; margin-top: 16px;">取消生成</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Demo预览模态框 -->
-    <div class="modal" id="demoPreviewModal">
-        <div class="modal-content" style="max-width: 1200px; max-height: 90vh;">
-            <div class="modal-header">
-                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                    <div class="modal-title">Demo预览</div>
-                    <span class="badge" style="background: #10b981; color: white;">生成成功</span>
-                </div>
-                <button class="close-btn" onclick="closeDemoPreview()">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="modal-body">
-                <!-- Demo预览区域 -->
-                <div style="border: 2px solid var(--border); border-radius: 12px; overflow: hidden; background: #f5f5f5;">
-                    <div style="background: #e5e5e5; padding: 8px 16px; display: flex; align-items: center; gap: 8px;">
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57;"></div>
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #28ca42;"></div>
-                        <div style="flex: 1; text-align: center; font-size: 12px; color: #666;">
-                            demo-preview.html
-                        </div>
-                    </div>
-                    <div id="demoPreviewFrame" style="background: white; height: 500px; display: flex; align-items: center; justify-content: center;">
-                        <div style="text-align: center; color: var(--text-secondary);">
-                            <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
-                            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Demo生成成功！</div>
-                            <div style="font-size: 14px;">您的产品原型已准备就绪</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
-                    <button class="btn-secondary" onclick="downloadDemo()">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; vertical-align: middle; margin-right: 4px;">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
-                        下载源代码
-                    </button>
-                    <button class="btn-secondary" onclick="viewDemoCode()">
-                        📝 查看代码
-                    </button>
-                    <button class="btn-primary" onclick="shareDemoLink()">
-                        🔗 分享Demo
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- 知识库模态框 -->
     <!-- 知识库Modal - 新版双栏布局 -->
     <div class="modal" id="knowledgeModal">
@@ -1173,9 +1010,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- 系统提示词配置 -->
     <script src="config/system-prompts.js?v=20260128-2"></script>
-    <!-- Mock 数据（用于演示） -->
-    <script src="config/mock-data.js"></script>
-
     <!-- Legacy boot (split for maintainability) -->
     <script src="frontend/js/boot/legacy/index-app-state.js"></script>
 

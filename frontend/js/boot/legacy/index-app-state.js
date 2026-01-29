@@ -2,6 +2,13 @@
  * Legacy app state bootstrap (extracted from inline app boot)
  * Keep global `state` and related helpers intact.
  */
+function getDefaultApiUrl() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return window.location.origin;
+}
+
 const state = {
   currentChat: null,
   chats: [],
@@ -21,7 +28,7 @@ const state = {
     darkMode: false,
     saveHistory: true,
     enableTeam: false, // 数字员工团队功能开关
-    apiUrl: 'http://localhost:3000'
+    apiUrl: getDefaultApiUrl()
   }
 };
 
@@ -59,12 +66,12 @@ function updateUserNameDisplay() {
     const userInfo = sessionStorage.getItem('thinkcraft_user');
     if (userInfo) {
       const user = JSON.parse(userInfo);
-      if (user.username) {
+      if (user.phone) {
         if (userNameEl) {
-          userNameEl.textContent = user.username;
+          userNameEl.textContent = user.phone;
         }
         if (userProfileName) {
-          userProfileName.textContent = user.username;
+          userProfileName.textContent = user.phone;
         }
         return;
       }

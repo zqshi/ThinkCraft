@@ -351,51 +351,6 @@
             to { transform: rotate(360deg); }
         }
 
-        .divider {
-            margin: 32px 0;
-            position: relative;
-            text-align: center;
-        }
-
-        .divider::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 50%;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .divider span {
-            position: relative;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0 16px;
-            font-size: 13px;
-            color: var(--text-dim);
-        }
-
-        .quick-login {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-
-        .quick-login-btn {
-            padding: 12px 24px;
-            font-size: 14px;
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .quick-login-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: var(--primary);
-        }
-
         .footer {
             text-align: center;
             margin-top: 32px;
@@ -403,8 +358,9 @@
 
         .footer-links {
             display: flex;
-            justify-content: center;
-            gap: 20px;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
             margin-bottom: 12px;
         }
 
@@ -533,22 +489,10 @@
             </button>
         </form>
 
-        <div class="divider">
-            <span>或</span>
-        </div>
-
-        <div class="quick-login">
-            <button class="quick-login-btn" onclick="handleQuickLogin()">
-                <svg style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
-                快速体验（无需注册）
-            </button>
-        </div>
-
         <div class="footer">
             <div class="footer-links">
                 <span class="footer-text">首次登录即自动注册账号</span>
+                <a class="link" href="/OS.html" target="_blank" rel="noopener noreferrer">访问官网</a>
             </div>
             <p class="footer-text">© 2025 ThinkCraft. All rights reserved.</p>
         </div>
@@ -579,6 +523,93 @@
                 return { valid: true };
             }
         };
+
+        const API_BASE = getApiBase();
+        const API_FALLBACKS = getApiFallbacks();
+
+        function isLocalhostEnv() {
+            return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        }
+
+        function isDevLoginEnabled() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('devLogin') === '1') {
+                    localStorage.setItem('thinkcraft_dev_login', 'true');
+                }
+                return localStorage.getItem('thinkcraft_dev_login') === 'true';
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function getApiBase() {
+            if (isLocalhostEnv()) {
+                const port = window.location.port;
+                if (port && port !== '3000') {
+                    return 'http://localhost:3000';
+                }
+            }
+            return '';
+        }
+
+        function getApiFallbacks() {
+            if (API_BASE && isLocalhostEnv()) {
+                return [];
+            }
+            return [];
+        }
+
+        function generateLocalCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        function saveLocalLoginCode(phone, code) {
+            const payload = {
+                phone,
+                code,
+                expiresAt: Date.now() + 10 * 60 * 1000
+            };
+            sessionStorage.setItem('thinkcraft_login_codes', JSON.stringify(payload));
+        }
+
+        function getLocalLoginCode(phone) {
+            try {
+                const raw = sessionStorage.getItem('thinkcraft_login_codes');
+                if (!raw) return null;
+                const payload = JSON.parse(raw);
+                if (!payload || payload.phone !== phone) return null;
+                if (Date.now() > payload.expiresAt) return null;
+                return payload.code;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function apiPost(path, body) {
+            const targets = [API_BASE, ...API_FALLBACKS].filter(value => value !== undefined && value !== null);
+            let lastError;
+            for (const base of targets) {
+                try {
+                    const response = await fetch(`${base}${path}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || data.code === -1 || data.success === false) {
+                        throw new Error(data.error || data.message || '请求失败');
+                    }
+                    return data;
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error('请求失败');
+        }
 
         // 实时校验
         const phoneInput = document.getElementById('phone');
@@ -645,8 +676,12 @@
             loginBtn.innerHTML = '<span class="loading-spinner"></span><span class="btn-text">登录中...</span>';
 
             try {
-                // 模拟API调用（实际项目中需要调用真实的登录接口）
-                const loginResult = await simulateLogin(phone, code);
+                const loginResult = await apiPost('/api/auth/login', { phone, code });
+                const { accessToken, refreshToken, user } = loginResult.data || {};
+
+                if (!accessToken || !refreshToken || !user) {
+                    throw new Error('登录响应异常');
+                }
 
                 // 保存登录信息
                 if (remember) {
@@ -659,17 +694,17 @@
 
                 // 保存用户信息
                 sessionStorage.setItem('thinkcraft_logged_in', 'true');
+                sessionStorage.setItem('thinkcraft_access_token', accessToken);
+                localStorage.setItem('thinkcraft_refresh_token', refreshToken);
                 sessionStorage.setItem('thinkcraft_user', JSON.stringify({
-                    phone: phone,
-                    loginTime: new Date().toISOString(),
-                    isNewUser: loginResult.isNewUser
+                    phone: user.phone,
+                    userId: user.id,
+                    loginTime: new Date().toISOString()
                 }));
 
                 // 显示成功消息
                 const successMessage = document.getElementById('successMessage');
-                successMessage.textContent = loginResult.isNewUser
-                    ? '✓ 注册成功！正在进入...'
-                    : '✓ 登录成功！正在跳转...';
+                successMessage.textContent = '✓ 登录成功！正在跳转...';
                 successMessage.classList.add('show');
 
                 // 延迟跳转，让用户看到成功消息
@@ -678,6 +713,28 @@
                 }, 1000);
 
             } catch (error) {
+                if (isLocalhostEnv() && isDevLoginEnabled()) {
+                    const localCode = getLocalLoginCode(phone);
+                    if (localCode && localCode === code) {
+                        sessionStorage.setItem('thinkcraft_logged_in', 'true');
+                        sessionStorage.setItem('thinkcraft_access_token', 'dev-access-token');
+                        localStorage.setItem('thinkcraft_refresh_token', 'dev-refresh-token');
+                        sessionStorage.setItem('thinkcraft_user', JSON.stringify({
+                            phone,
+                            loginTime: new Date().toISOString()
+                        }));
+                        sessionStorage.removeItem('thinkcraft_login_codes');
+
+                        const successMessage = document.getElementById('successMessage');
+                        successMessage.textContent = '✓ 登录成功！正在跳转...';
+                        successMessage.classList.add('show');
+
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 1000);
+                        return;
+                    }
+                }
                 // 恢复按钮状态
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = '<span class="btn-text">登录</span>';
@@ -685,48 +742,6 @@
                 // 显示错误
                 alert('登录失败：' + error.message);
             }
-        }
-
-        // 模拟登录API（实际项目中替换为真实API）
-        function simulateLogin(phone, code) {
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    const codeRecord = getStoredCode(phone);
-                    if (!codeRecord) {
-                        reject(new Error('请先获取验证码'));
-                        return;
-                    }
-                    if (Date.now() > codeRecord.expiresAt) {
-                        reject(new Error('验证码已过期，请重新获取'));
-                        return;
-                    }
-                    if (codeRecord.code !== code) {
-                        reject(new Error('验证码错误'));
-                        return;
-                    }
-
-                    const users = JSON.parse(localStorage.getItem('thinkcraft_users') || '[]');
-                    let user = users.find(u => u.phone === phone);
-                    let isNewUser = false;
-
-                    if (!user) {
-                        user = {
-                            phone,
-                            createdAt: new Date().toISOString(),
-                            lastLoginAt: new Date().toISOString()
-                        };
-                        users.push(user);
-                        localStorage.setItem('thinkcraft_users', JSON.stringify(users));
-                        isNewUser = true;
-                    } else {
-                        user.lastLoginAt = new Date().toISOString();
-                        localStorage.setItem('thinkcraft_users', JSON.stringify(users));
-                    }
-
-                    clearStoredCode(phone);
-                    resolve({ isNewUser });
-                }, 800);
-            });
         }
 
         function handleSendCode() {
@@ -737,48 +752,25 @@
             const sendBtn = document.getElementById('sendCodeBtn');
 
             if (sendBtn.disabled) return;
-
-            const code = generateVerificationCode();
-            const expiresAt = Date.now() + 5 * 60 * 1000;
-            storeCode(phone, { code, expiresAt });
-
-            startCodeCountdown(sendBtn);
-
-            alert(`验证码已发送（开发环境：${code}）\n5分钟内有效。`);
-        }
-
-        function generateVerificationCode() {
-            return String(Math.floor(100000 + Math.random() * 900000));
-        }
-
-        function storeCode(phone, record) {
-            const raw = sessionStorage.getItem('thinkcraft_login_codes');
-            const data = raw ? JSON.parse(raw) : {};
-            data[phone] = record;
-            sessionStorage.setItem('thinkcraft_login_codes', JSON.stringify(data));
-        }
-
-        function getStoredCode(phone) {
-            const raw = sessionStorage.getItem('thinkcraft_login_codes');
-            if (!raw) return null;
-            try {
-                const data = JSON.parse(raw);
-                return data[phone] || null;
-            } catch (e) {
-                return null;
-            }
-        }
-
-        function clearStoredCode(phone) {
-            const raw = sessionStorage.getItem('thinkcraft_login_codes');
-            if (!raw) return;
-            try {
-                const data = JSON.parse(raw);
-                delete data[phone];
-                sessionStorage.setItem('thinkcraft_login_codes', JSON.stringify(data));
-            } catch (e) {
-                sessionStorage.removeItem('thinkcraft_login_codes');
-            }
+            apiPost('/api/verification/send', { phone, type: 'login' })
+                .then((data) => {
+                    startCodeCountdown(sendBtn);
+                    // 开发环境下，如果返回了验证码，显示在弹窗中
+                    if (data.code) {
+                        alert(`【开发环境】验证码已生成\n\n验证码：${data.code}\n有效期：10分钟\n\n请在验证码输入框中填写此验证码`);
+                    } else {
+                        alert('验证码已发送，请注意查收');
+                    }
+                })
+                .catch((error) => {
+                    if (isLocalhostEnv() && isDevLoginEnabled()) {
+                        const code = generateLocalCode();
+                        saveLocalLoginCode(phone, code);
+                        alert(`【本地开发】验证码已生成\n\n验证码：${code}\n有效期：10分钟\n\n请在验证码输入框中填写此验证码`);
+                        return;
+                    }
+                    alert('发送验证码失败：' + error.message);
+                });
         }
 
         let codeCountdownTimer = null;
@@ -801,20 +793,6 @@
                     button.textContent = `${remaining}s`;
                 }
             }, 1000);
-        }
-
-        // 快速体验（不需要登录）
-        function handleQuickLogin() {
-            // 标记为快速体验模式
-            sessionStorage.setItem('thinkcraft_quick_mode', 'true');
-            sessionStorage.setItem('thinkcraft_logged_in', 'true');
-            sessionStorage.setItem('thinkcraft_user', JSON.stringify({
-                username: '体验用户',
-                loginTime: new Date().toISOString(),
-                isGuest: true
-            }));
-
-            window.location.href = 'index.html';
         }
 
         // 验证码帮助

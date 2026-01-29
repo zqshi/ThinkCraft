@@ -8,9 +8,7 @@ import {
   UpdateProjectRequestDTO,
   ProjectResponseDTO,
   ProjectListResponseDTO,
-  UpgradeProjectResponseDTO,
   CustomizeWorkflowRequestDTO,
-  UpdateDemoCodeRequestDTO,
   ProjectProgressDTO,
   ProjectStatisticsDTO,
   SearchProjectsRequestDTO
@@ -117,31 +115,6 @@ export class ProjectUseCase {
   }
 
   /**
-   * 升级项目模式
-   */
-  async upgradeProjectMode(projectId) {
-    try {
-      // 执行升级项目模式用例
-      const project = await this.projectService.upgradeProjectMode(projectId);
-
-      // 检查是否有迁移的产物
-      const migratedArtifacts = [];
-      if (project.workflow) {
-        const developmentStage = project.workflow.getStage('development');
-        if (developmentStage && developmentStage.artifacts.length > 0) {
-          migratedArtifacts.push('demo-code');
-        }
-      }
-
-      // 返回响应
-      return new UpgradeProjectResponseDTO(project, migratedArtifacts);
-    } catch (error) {
-      console.error('[ProjectUseCase] 升级项目模式失败:', error);
-      throw error;
-    }
-  }
-
-  /**
    * 自定义工作流
    */
   async customizeWorkflow(projectId, customizeRequest) {
@@ -161,31 +134,6 @@ export class ProjectUseCase {
       };
     } catch (error) {
       console.error('[ProjectUseCase] 自定义工作流失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 更新Demo代码
-   */
-  async updateDemoCode(projectId, updateRequest) {
-    try {
-      // 验证请求数据
-      updateRequest.validate();
-
-      // 执行更新Demo代码用例
-      const project = await this.projectService.updateDemoCode(
-        projectId,
-        updateRequest.code,
-        updateRequest.type,
-        updateRequest.previewUrl,
-        updateRequest.downloadUrl
-      );
-
-      // 返回响应
-      return new ProjectResponseDTO(project);
-    } catch (error) {
-      console.error('[ProjectUseCase] 更新Demo代码失败:', error);
       throw error;
     }
   }

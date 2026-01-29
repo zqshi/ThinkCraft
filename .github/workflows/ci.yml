@@ -45,11 +45,21 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+          else
+            echo "No frontend package.json, skipping frontend lint"
+          fi
 
       - name: Run ESLint
         working-directory: frontend
-        run: npm run lint
+        run: |
+          if [ -f "package.json" ] && grep -q '"lint"' package.json; then
+            npm run lint
+          else
+            echo "No frontend lint script, skipping"
+          fi
 
   test-backend:
     name: Test Backend
@@ -133,17 +143,33 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+          else
+            echo "No frontend package.json, skipping frontend tests"
+          fi
 
       - name: Run tests
         working-directory: frontend
-        run: npm test
+        run: |
+          if [ -f "package.json" ] && grep -q '"test"' package.json; then
+            npm test
+          else
+            echo "No frontend test script, skipping"
+          fi
 
       - name: Run test coverage
         working-directory: frontend
-        run: npm run test:coverage
+        run: |
+          if [ -f "package.json" ] && grep -q '"test:coverage"' package.json; then
+            npm run test:coverage
+          else
+            echo "No frontend coverage script, skipping"
+          fi
 
       - name: Upload coverage to Codecov
+        if: ${{ hashFiles('frontend/coverage/lcov.info') != '' }}
         uses: codecov/codecov-action@v3
         with:
           files: ./frontend/coverage/lcov.info
@@ -190,7 +216,12 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+          else
+            echo "No frontend package.json, skipping frontend build"
+          fi
 
       - name: Build frontend
         working-directory: frontend

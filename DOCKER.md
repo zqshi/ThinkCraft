@@ -2,6 +2,8 @@
 
 本文档介绍如何使用Docker部署ThinkCraft应用。
 
+本项目登录方式为手机号+验证码（首次登录自动注册），无单独注册页。
+
 ## 📋 前置要求
 
 - Docker 20.10+
@@ -30,11 +32,12 @@ MONGODB_URI=mongodb://mongodb:27017/thinkcraft
 REDIS_HOST=redis
 REDIS_PORT=6379
 
-# JWT密钥（生产环境必须修改）
-JWT_SECRET=your-secret-key-change-in-production
+# Token密钥（生产环境必须修改）
+ACCESS_TOKEN_SECRET=your-access-token-secret
+REFRESH_TOKEN_SECRET=your-refresh-token-secret
 
-# SMS服务配置（可选）
-SMS_PROVIDER=mock  # 可选: aliyun, tencent, mock
+# SMS服务配置（必需）
+SMS_PROVIDER=aliyun  # 可选: aliyun, tencent
 ```
 
 ### 2. 构建镜像
@@ -68,6 +71,8 @@ docker-compose logs -f redis
 - 后端API: http://localhost:3000
 - MongoDB: localhost:27017
 - Redis: localhost:6379
+ - 健康检查: http://localhost:3000/health
+ - 健康详情: http://localhost:3000/api/health
 
 ## 🛠️ 常用命令
 
@@ -243,10 +248,18 @@ docker exec thinkcraft-frontend wget -O- http://backend:3000/health
 1. **修改默认密钥**：
 
 ```env
-JWT_SECRET=使用强随机密钥
+ACCESS_TOKEN_SECRET=使用强随机密钥
+REFRESH_TOKEN_SECRET=使用强随机密钥
 ```
 
-2. **配置HTTPS**：
+2. **短信网关配置检查**：
+
+```bash
+cd backend
+npm run check:sms-config
+```
+
+3. **配置HTTPS**：
 
 在 `frontend/nginx.conf` 中添加SSL配置：
 
@@ -259,7 +272,7 @@ server {
 }
 ```
 
-3. **限制端口暴露**：
+4. **限制端口暴露**：
 
 修改 `docker-compose.yml`，移除不需要暴露的端口：
 

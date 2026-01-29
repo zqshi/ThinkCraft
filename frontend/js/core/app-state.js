@@ -3,6 +3,13 @@
  * 管理应用的核心状态
  */
 
+function getDefaultApiUrl() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return window.location.origin;
+}
+
 // 全局状态对象
 export const appState = {
   currentChat: null,
@@ -28,15 +35,14 @@ export const appState = {
     darkMode: false,
     saveHistory: true,
     enableTeam: false,
-    apiUrl: 'http://localhost:3000'
+    apiUrl: getDefaultApiUrl()
   }
 };
 
 // 生成相关状态
 export const generatedReports = {
   business: null,
-  proposal: null,
-  demo: null
+  proposal: null
 };
 
 // 当前生成的章节配置
@@ -44,10 +50,6 @@ export let currentGeneratedChapters = [];
 
 // 当前报告类型
 export let currentReportType = 'business';
-
-// 当前Demo配置
-export let currentDemoType = 'web';
-export let currentDemoFeatures = [];
 
 // 防抖定时器
 export let saveDebounceTimer = null;
@@ -69,14 +71,6 @@ export function updateCurrentGeneratedChapters(chapters) {
 
 export function updateCurrentReportType(type) {
   currentReportType = type;
-}
-
-export function updateCurrentDemoType(type) {
-  currentDemoType = type;
-}
-
-export function updateCurrentDemoFeatures(features) {
-  currentDemoFeatures = features;
 }
 
 export function updateSaveDebounceTimer(timer) {

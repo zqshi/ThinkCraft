@@ -6,8 +6,7 @@ import { authUseCase } from '../application/auth.use-case.js';
 import {
   LoginRequestDTO,
   RegisterRequestDTO,
-  RefreshTokenRequestDTO,
-  ChangePasswordRequestDTO
+  RefreshTokenRequestDTO
 } from '../application/auth.dto.js';
 
 export class AuthController {
@@ -16,10 +15,10 @@ export class AuthController {
    */
   async login(req, res) {
     try {
-      const { username, password } = req.body;
+      const { phone, code } = req.body;
 
       // 创建登录请求DTO
-      const loginRequest = new LoginRequestDTO(username, password);
+      const loginRequest = new LoginRequestDTO(phone, code);
 
       // 执行登录用例
       const response = await authUseCase.login(loginRequest);
@@ -46,10 +45,10 @@ export class AuthController {
    */
   async register(req, res) {
     try {
-      const { username, email, password } = req.body;
+      const { phone, code } = req.body;
 
       // 创建注册请求DTO
-      const registerRequest = new RegisterRequestDTO(username, email, password);
+      const registerRequest = new RegisterRequestDTO(phone, code);
 
       // 执行注册用例
       const response = await authUseCase.register(registerRequest);
@@ -131,45 +130,6 @@ export class AuthController {
       res.status(400).json({
         code: -1,
         error: error.message || '获取用户信息失败'
-      });
-    }
-  }
-
-  /**
-   * 修改密码
-   */
-  async changePassword(req, res) {
-    try {
-      // 从请求中获取用户ID
-      const userId = req.user?.userId;
-      if (!userId) {
-        return res.status(401).json({
-          code: -1,
-          error: '未授权访问'
-        });
-      }
-
-      const { oldPassword, newPassword } = req.body;
-
-      // 创建修改密码请求DTO
-      const changePasswordRequest = new ChangePasswordRequestDTO(oldPassword, newPassword);
-
-      // 执行修改密码用例
-      const userInfo = await authUseCase.changePassword(userId, changePasswordRequest);
-
-      // 返回成功响应
-      res.json({
-        code: 0,
-        message: '密码修改成功',
-        data: userInfo
-      });
-    } catch (error) {
-      console.error('[AuthController] 修改密码失败:', error);
-
-      // 返回错误响应
-      res.status(400).json({
-        code: -1,
-        error: error.message || '修改密码失败'
       });
     }
   }

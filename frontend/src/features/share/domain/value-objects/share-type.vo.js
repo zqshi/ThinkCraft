@@ -5,7 +5,6 @@ export class ShareType {
   static PROJECT = new ShareType('PROJECT');
   static REPORT = new ShareType('REPORT');
   static BUSINESS_PLAN = new ShareType('BUSINESS_PLAN');
-  static DEMO = new ShareType('DEMO');
   static PDF_EXPORT = new ShareType('PDF_EXPORT');
   static WORKFLOW = new ShareType('WORKFLOW');
   static CHAT = new ShareType('CHAT');
@@ -28,7 +27,6 @@ export class ShareType {
       'PROJECT',
       'REPORT',
       'BUSINESS_PLAN',
-      'DEMO',
       'PDF_EXPORT',
       'WORKFLOW',
       'CHAT'
@@ -47,7 +45,6 @@ export class ShareType {
       PROJECT: '项目',
       REPORT: '报告',
       BUSINESS_PLAN: '商业计划书',
-      DEMO: '演示',
       PDF_EXPORT: 'PDF导出',
       WORKFLOW: '工作流',
       CHAT: '对话'

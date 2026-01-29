@@ -4,10 +4,10 @@
 import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class UserLoggedInEvent extends DomainEvent {
-  constructor(userId, username) {
+  constructor(userId, identifier) {
     super('user.logged_in', {
       userId,
-      username,
+      identifier,
       loginAt: new Date()
     });
   }
@@ -16,8 +16,8 @@ export class UserLoggedInEvent extends DomainEvent {
     return this.data.userId;
   }
 
-  get username() {
-    return this.data.username;
+  get identifier() {
+    return this.data.identifier;
   }
 
   get loginAt() {

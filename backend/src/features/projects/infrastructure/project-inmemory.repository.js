@@ -10,39 +10,11 @@ import { ProjectMode } from '../domain/value-objects/project-mode.vo.js';
 import { ProjectStatus } from '../domain/value-objects/project-status.vo.js';
 import { IdeaId } from '../domain/value-objects/idea-id.vo.js';
 import { Workflow } from '../domain/entities/workflow.entity.js';
-import { Demo } from '../domain/entities/demo.entity.js';
 
 export class ProjectInMemoryRepository extends ProjectRepository {
   constructor() {
     super();
     this.projects = new Map();
-    this.initDemoData();
-  }
-
-  /**
-   * 初始化演示数据
-   */
-  initDemoData() {
-    // 创建演示项目
-    const demoProject = Project.create('idea-1', 'AI聊天机器人', 'demo');
-
-    // 更新Demo代码
-    demoProject.updateDemoCode(
-      '',
-      'javascript',
-      'https://example.com/preview',
-      'https://example.com/download'
-    );
-
-    this.projects.set(demoProject.id.value, demoProject);
-
-    // 创建开发项目
-    const devProject = Project.create('idea-2', '电商平台开发', 'development');
-
-    // 移动到一个阶段
-    devProject.workflow.moveToStage('design');
-
-    this.projects.set(devProject.id.value, devProject);
   }
 
   /**

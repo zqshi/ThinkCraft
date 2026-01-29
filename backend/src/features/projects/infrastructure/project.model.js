@@ -32,24 +32,13 @@ const WorkflowSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const DemoSchema = new mongoose.Schema(
-  {
-    code: String,
-    type: String,
-    previewUrl: String,
-    downloadUrl: String,
-    generatedAt: Date
-  },
-  { _id: false }
-);
-
 const ProjectSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
     ideaId: { type: String, required: true, index: true },
     userId: { type: String, required: true, index: true },
     name: { type: String, required: true },
-    mode: { type: String, required: true, enum: ['demo', 'development'] },
+    mode: { type: String, required: true, enum: ['development'] },
     status: {
       type: String,
       required: true,
@@ -57,7 +46,6 @@ const ProjectSchema = new mongoose.Schema(
       default: 'planning'
     },
     workflow: WorkflowSchema,
-    demo: DemoSchema,
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   },

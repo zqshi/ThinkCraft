@@ -5,6 +5,7 @@
 
 class StateManager {
   constructor() {
+    const defaultApiUrl = this.getDefaultApiUrl();
     this.state = {
       // 对话状态
       currentChat: null,
@@ -18,7 +19,7 @@ class StateManager {
 
       // 生成流程状态机（核心新增）
       generation: {
-        type: null, // 'business-plan' | 'proposal' | 'demo' | null
+        type: null, // 'business-plan' | 'proposal' | null
         status: 'idle', // 'idle' | 'selecting' | 'generating' | 'completed' | 'error'
         selectedChapters: [],
         progress: {
@@ -31,25 +32,6 @@ class StateManager {
         error: null,
         startTime: null,
         endTime: null
-      },
-
-      // Demo生成状态
-      demo: {
-        type: null, // 'web' | 'app' | 'miniapp' | 'admin' | null
-        status: 'idle',
-        techStack: [],
-        features: [],
-        currentStep: null, // 'type-analysis' | 'prd' | 'architecture' | 'code' | 'test' | 'deploy'
-        steps: [], // Agent执行步骤
-        results: {
-          analysis: null,
-          prd: null,
-          architecture: null,
-          code: null,
-          test: null,
-          deploy: null
-        },
-        error: null
       },
 
       // 灵感收件箱状态（Phase 3新增）
@@ -93,7 +75,7 @@ class StateManager {
       settings: {
         darkMode: false,
         saveHistory: true,
-        apiUrl: 'http://localhost:3000'
+        apiUrl: defaultApiUrl
       }
     };
 
@@ -102,6 +84,13 @@ class StateManager {
 
     // 从localStorage加载保存的设置
     this.loadSettings();
+  }
+
+  getDefaultApiUrl() {
+    if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+      return 'http://localhost:3000';
+    }
+    return window.location.origin;
   }
 
   /**
@@ -177,7 +166,7 @@ class StateManager {
 
   /**
    * 开始生成流程
-   * @param {String} type - 'business-plan' | 'proposal' | 'demo'
+   * @param {String} type - 'business-plan' | 'proposal'
    * @param {Array} chapters - 选中的章节ID数组
    */
   startGeneration(type, chapters = []) {
@@ -197,7 +186,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
-    }
+  }
 
   /**
    * 更新生成进度
@@ -258,7 +247,7 @@ class StateManager {
       timestamp: Date.now()
     };
     this.notify();
-    }
+  }
 
   /**
    * 重置生成状态（支持重新生成）
@@ -280,7 +269,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
-    }
+  }
 
   /**
    * 显示章节选择（状态转换）
@@ -289,106 +278,6 @@ class StateManager {
   showChapterSelection(type) {
     this.state.generation.type = type;
     this.state.generation.status = 'selecting';
-    this.notify();
-  }
-
-  // ========== Demo生成状态机方法 ==========
-
-  /**
-   * 开始Demo生成流程
-   */
-  startDemoGeneration() {
-    this.state.demo = {
-      type: null,
-      status: 'analyzing',
-      techStack: [],
-      features: [],
-      currentStep: 'type-analysis',
-      steps: [
-        { id: 'type-analysis', name: '产品类型分析', status: 'working', agent: 'AI分析师' },
-        { id: 'prd', name: 'PRD文档生成', status: 'pending', agent: '产品经理' },
-        { id: 'architecture', name: '架构设计', status: 'pending', agent: '架构师' },
-        { id: 'code', name: '代码生成', status: 'pending', agent: '前端工程师' },
-        { id: 'test', name: '测试报告', status: 'pending', agent: '测试工程师' },
-        { id: 'deploy', name: '部署配置', status: 'pending', agent: '部署工程师' }
-      ],
-      results: {},
-      error: null
-    };
-    this.notify();
-    }
-
-  /**
-   * 更新Demo步骤状态
-   * @param {String} stepId - 步骤ID
-   * @param {String} status - 'pending' | 'working' | 'completed' | 'error'
-   * @param {Object} result - 步骤结果数据
-   */
-  updateDemoStep(stepId, status, result = null) {
-    const step = this.state.demo.steps.find(s => s.id === stepId);
-    if (step) {
-      step.status = status;
-    }
-
-    this.state.demo.currentStep = stepId;
-    this.state.demo.status = status === 'completed' ? 'generating' : status;
-
-    if (result) {
-      this.state.demo.results[stepId] = result;
-    }
-
-    this.notify();
-    }
-
-  /**
-   * 设置Demo类型分析结果
-   * @param {Object} analysis - { type, techStack, features }
-   */
-  setDemoAnalysis(analysis) {
-    this.state.demo.type = analysis.type;
-    this.state.demo.techStack = analysis.techStack || [];
-    this.state.demo.features = analysis.features || [];
-    this.state.demo.results.analysis = analysis;
-    this.updateDemoStep('type-analysis', 'completed', analysis);
-  }
-
-  /**
-   * 完成Demo生成
-   * @param {Object} finalCode - 最终代码
-   */
-  completeDemoGeneration(finalCode) {
-    this.state.demo.status = 'completed';
-    this.state.demo.results.code = finalCode;
-    this.notify();
-    }
-
-  /**
-   * Demo生成出错
-   * @param {Error} error - 错误对象
-   */
-  errorDemoGeneration(error) {
-    this.state.demo.status = 'error';
-    this.state.demo.error = {
-      message: error.message,
-      timestamp: Date.now()
-    };
-    this.notify();
-    }
-
-  /**
-   * 重置Demo状态
-   */
-  resetDemo() {
-    this.state.demo = {
-      type: null,
-      status: 'idle',
-      techStack: [],
-      features: [],
-      currentStep: null,
-      steps: [],
-      results: {},
-      error: null
-    };
     this.notify();
   }
 
@@ -887,14 +776,6 @@ class StateManager {
    */
   isGenerating() {
     return this.state.generation.status === 'generating';
-  }
-
-  /**
-   * 检查是否正在Demo生成
-   * @returns {Boolean}
-   */
-  isDemoGenerating() {
-    return this.state.demo.status !== 'idle' && this.state.demo.status !== 'completed';
   }
 
   /**

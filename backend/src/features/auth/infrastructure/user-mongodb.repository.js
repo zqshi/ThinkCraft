@@ -5,10 +5,7 @@
 import { UserRepository } from '../domain/user.repository.js';
 import { User } from '../domain/user.aggregate.js';
 import { UserId } from '../domain/value-objects/user-id.vo.js';
-import { Username } from '../domain/value-objects/username.vo.js';
-import { Email } from '../domain/value-objects/email.vo.js';
 import { Phone } from '../domain/value-objects/phone.vo.js';
-import { Password } from '../domain/value-objects/password.vo.js';
 import { UserStatus } from '../domain/value-objects/user-status.vo.js';
 import { UserModel } from './user.model.js';
 import { eventBus } from '../../../infrastructure/events/event-bus.js';
@@ -20,25 +17,17 @@ export class UserMongoRepository extends UserRepository {
   toDocument(user) {
     return {
       userId: user.id.value,
-      username: user.username.value,
-      email: user.email.value,
       phone: user.phone ? user.phone.value : null,
       phoneVerified: user.phoneVerified || false,
-      passwordHash: user.password.hash,
       status: user.status.value,
       lastLoginAt: user.lastLoginAt,
       loginAttempts: user.loginAttempts,
       lockedUntil: user.lockedUntil,
-      emailVerified: user.emailVerified || false,
-      emailVerificationToken: user.emailVerificationToken || null,
-      emailVerificationExpires: user.emailVerificationExpires || null,
-      passwordResetToken: user.passwordResetToken || null,
-      passwordResetExpires: user.passwordResetExpires || null,
       loginHistory: user.loginHistory || [],
       preferences: user.preferences || {
         language: 'zh-CN',
         theme: 'light',
-        notifications: { email: true, push: true }
+        notifications: { sms: true, push: true }
       },
       deletedAt: user.deletedAt || null
     };
@@ -54,9 +43,6 @@ export class UserMongoRepository extends UserRepository {
 
     const user = new User(
       UserId.fromString(doc.userId),
-      new Username(doc.username),
-      new Email(doc.email),
-      Password.fromHash(doc.passwordHash),
       UserStatus.fromString(doc.status),
       doc.phone ? new Phone(doc.phone) : null
     );
@@ -66,11 +52,6 @@ export class UserMongoRepository extends UserRepository {
     user._lastLoginAt = doc.lastLoginAt;
     user._loginAttempts = doc.loginAttempts;
     user._lockedUntil = doc.lockedUntil;
-    user.emailVerified = doc.emailVerified;
-    user.emailVerificationToken = doc.emailVerificationToken;
-    user.emailVerificationExpires = doc.emailVerificationExpires;
-    user.passwordResetToken = doc.passwordResetToken;
-    user.passwordResetExpires = doc.passwordResetExpires;
     user.loginHistory = doc.loginHistory;
     user.preferences = doc.preferences;
     user.deletedAt = doc.deletedAt;
@@ -90,35 +71,6 @@ export class UserMongoRepository extends UserRepository {
       return this.toDomain(doc);
     } catch (error) {
       console.error('[UserMongoRepository] findById error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 根据用户名查找用户
-   */
-  async findByUsername(username) {
-    try {
-      const usernameValue =
-        username instanceof Username ? username.value : username.toLowerCase().trim();
-      const doc = await UserModel.findOne({ username: usernameValue });
-      return this.toDomain(doc);
-    } catch (error) {
-      console.error('[UserMongoRepository] findByUsername error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 根据邮箱查找用户
-   */
-  async findByEmail(email) {
-    try {
-      const emailValue = email instanceof Email ? email.value : email.toLowerCase().trim();
-      const doc = await UserModel.findOne({ email: emailValue });
-      return this.toDomain(doc);
-    } catch (error) {
-      console.error('[UserMongoRepository] findByEmail error:', error);
       throw error;
     }
   }
@@ -194,35 +146,6 @@ export class UserMongoRepository extends UserRepository {
       return result.deletedCount > 0;
     } catch (error) {
       console.error('[UserMongoRepository] hardDelete error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 检查用户名是否已存在
-   */
-  async existsByUsername(username) {
-    try {
-      const usernameValue =
-        username instanceof Username ? username.value : username.toLowerCase().trim();
-      const count = await UserModel.countDocuments({ username: usernameValue });
-      return count > 0;
-    } catch (error) {
-      console.error('[UserMongoRepository] existsByUsername error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 检查邮箱是否已存在
-   */
-  async existsByEmail(email) {
-    try {
-      const emailValue = email instanceof Email ? email.value : email.toLowerCase().trim();
-      const count = await UserModel.countDocuments({ email: emailValue });
-      return count > 0;
-    } catch (error) {
-      console.error('[UserMongoRepository] existsByEmail error:', error);
       throw error;
     }
   }

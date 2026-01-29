@@ -13,10 +13,15 @@ import { getUserRepository } from '../../../shared/infrastructure/repository.fac
 import { tokenService } from '../infrastructure/token.service.js';
 
 export class AuthUseCase {
-  constructor() {
-    this.userRepository = getUserRepository();
-    this.tokenService = tokenService;
-    this.userService = new UserService(this.userRepository, tokenService);
+  constructor(options = {}) {
+    const {
+      userRepository = getUserRepository(),
+      tokenServiceInstance = tokenService,
+      userService = null
+    } = options;
+    this.userRepository = userRepository;
+    this.tokenService = tokenServiceInstance;
+    this.userService = userService || new UserService(this.userRepository, tokenServiceInstance);
   }
 
   /**
@@ -28,13 +33,13 @@ export class AuthUseCase {
       loginRequest.validate();
 
       // 执行登录
-      const { user, accessToken, refreshToken } = await this.userService.login(
-        loginRequest.username,
-        loginRequest.password
+      const { user, accessToken, refreshToken, isNewUser } = await this.userService.loginWithPhone(
+        loginRequest.phone,
+        loginRequest.code
       );
 
       // 返回响应
-      return new LoginResponseDTO(accessToken, refreshToken, user);
+      return new LoginResponseDTO(accessToken, refreshToken, user, isNewUser);
     } catch (error) {
       console.error('[AuthUseCase] 登录失败:', error);
       throw error;
@@ -50,10 +55,9 @@ export class AuthUseCase {
       registerRequest.validate();
 
       // 执行注册
-      const { user, accessToken, refreshToken } = await this.userService.register(
-        registerRequest.username,
-        registerRequest.email,
-        registerRequest.password
+      const { user, accessToken, refreshToken } = await this.userService.registerWithPhone(
+        registerRequest.phone,
+        registerRequest.code
       );
 
       // 返回响应
@@ -100,29 +104,6 @@ export class AuthUseCase {
       return new UserInfoDTO(user);
     } catch (error) {
       console.error('[AuthUseCase] 获取用户信息失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 修改密码
-   */
-  async changePassword(userId, changePasswordRequest) {
-    try {
-      // 验证请求数据
-      changePasswordRequest.validate();
-
-      // 执行修改密码
-      const user = await this.userService.changePassword(
-        userId,
-        changePasswordRequest.oldPassword,
-        changePasswordRequest.newPassword
-      );
-
-      // 返回用户信息
-      return new UserInfoDTO(user);
-    } catch (error) {
-      console.error('[AuthUseCase] 修改密码失败:', error);
       throw error;
     }
   }
@@ -177,13 +158,19 @@ export class AuthUseCase {
 
       return {
         userId: user.id.value,
-        username: user.username.value,
-        email: user.email.value
+        phone: user.phone?.value || null
       };
     } catch (error) {
       console.error('[AuthUseCase] 令牌验证失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 从请求头中提取令牌
+   */
+  extractTokenFromHeader(authHeader) {
+    return this.tokenService.extractTokenFromHeader(authHeader);
   }
 }
 

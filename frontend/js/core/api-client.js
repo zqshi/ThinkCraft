@@ -4,7 +4,7 @@
  */
 
 class APIClient {
-  constructor(baseURL = 'http://localhost:3000') {
+  constructor(baseURL = getDefaultBaseURL()) {
     this.baseURL = baseURL;
     this.requestQueue = [];
     this.processing = false;
@@ -35,10 +35,12 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
 
     // 请求配置
+    const authToken = sessionStorage.getItem('thinkcraft_access_token');
     const fetchOptions = {
       method,
       headers: {
         'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...headers
       }
     };
@@ -177,96 +179,6 @@ class APIClient {
   }
 
   /**
-   * Demo类型分析
-   * @param {Array} conversationHistory - 对话历史
-   * @returns {Promise<Object>} { type, reason, techStack, coreFeatures }
-   */
-  async analyzeDemoType(conversationHistory) {
-    const response = await this.post('/api/demo/analyze-type', {
-      conversationHistory
-    });
-
-    return response.data;
-  }
-
-  /**
-   * 生成PRD文档
-   * @param {Array} conversationHistory - 对话历史
-   * @param {String} demoType - Demo类型
-   * @returns {Promise<Object>} { prd, agent, tokens }
-   */
-  async generatePRD(conversationHistory, demoType) {
-    const response = await this.post('/api/demo/generate-prd', {
-      conversationHistory,
-      demoType
-    });
-
-    return response.data;
-  }
-
-  /**
-   * 生成架构方案
-   * @param {String} prd - PRD文档内容
-   * @param {Array} techStack - 技术栈
-   * @returns {Promise<Object>} { architecture, agent, tokens }
-   */
-  async generateArchitecture(prd, techStack) {
-    const response = await this.post('/api/demo/generate-architecture', {
-      prd,
-      techStack
-    });
-
-    return response.data;
-  }
-
-  /**
-   * 生成可运行代码
-   * @param {String} prd - PRD文档
-   * @param {Object} architecture - 架构方案
-   * @param {Array} techStack - 技术栈
-   * @returns {Promise<Object>} { html, dependencies, features, explanation }
-   */
-  async generateCode(prd, architecture, techStack) {
-    const response = await this.post('/api/demo/generate-code', {
-      prd,
-      architecture,
-      techStack
-    });
-
-    return response.data;
-  }
-
-  /**
-   * 生成测试报告
-   * @param {String} code - 生成的代码
-   * @param {String} prd - PRD文档
-   * @returns {Promise<Object>} { testReport, agent, tokens }
-   */
-  async generateTest(code, prd) {
-    const response = await this.post('/api/demo/generate-test', {
-      code,
-      prd
-    });
-
-    return response.data;
-  }
-
-  /**
-   * 生成部署配置
-   * @param {String} code - 生成的代码
-   * @param {String} demoType - Demo类型
-   * @returns {Promise<Object>} { deployConfig, previewUrl, agent }
-   */
-  async generateDeployConfig(code, demoType) {
-    const response = await this.post('/api/demo/publish', {
-      code,
-      demoType
-    });
-
-    return response.data;
-  }
-
-  /**
    * 图片分析（Vision API）
    * @param {String} imageBase64 - Base64编码的图片
    * @returns {Promise<Object>} { description, extractedText, imageInfo }
@@ -370,13 +282,20 @@ class APIClient {
   }
 }
 
+function getDefaultBaseURL() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return '';
+}
+
 // 导出单例实例
 if (typeof window !== 'undefined') {
   window.APIClient = APIClient;
 
   // 创建默认实例
   const settings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
-  const apiUrl = settings.apiUrl || 'http://localhost:3000';
+  const apiUrl = settings.apiUrl || getDefaultBaseURL();
   window.apiClient = new APIClient(apiUrl);
 
   }

@@ -67,27 +67,21 @@ async function verifyUsers() {
     for (const user of users) {
       try {
         // 验证必需字段
-        if (!user.userId || !user.username || !user.email || !user.passwordHash) {
+        if (!user.userId || !user.phone) {
           throw new Error('缺少必需字段');
         }
 
-        // 验证邮箱格式
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(user.email)) {
-          throw new Error('邮箱格式无效');
-        }
-
         // 验证状态
-        const validStatuses = ['active', 'inactive', 'locked', 'deleted'];
+        const validStatuses = ['active', 'inactive', 'suspended'];
         if (!validStatuses.includes(user.status)) {
           throw new Error(`无效的状态: ${user.status}`);
         }
 
         stats.addValid();
-        console.log(`[Verify] ✓ 用户有效: ${user.username}`);
+        console.log(`[Verify] ✓ 用户有效: ${user.phone}`);
       } catch (error) {
-        stats.addInvalid(`用户 ${user.username}: ${error.message}`);
-        console.error(`[Verify] ✗ 用户无效: ${user.username}`, error.message);
+        stats.addInvalid(`用户 ${user.phone || user.userId}: ${error.message}`);
+        console.error(`[Verify] ✗ 用户无效: ${user.phone || user.userId}`, error.message);
       }
     }
 
@@ -120,7 +114,7 @@ async function verifyProjects() {
         }
 
         // 验证模式
-        const validModes = ['demo', 'development'];
+        const validModes = ['development'];
         if (!validModes.includes(project.mode)) {
           throw new Error(`无效的模式: ${project.mode}`);
         }

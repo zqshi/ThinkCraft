@@ -12,8 +12,7 @@ export class UserCreatedEventHandler {
   async handle(event) {
     logger.info('[UserCreatedEventHandler] 处理用户创建事件', {
       userId: event.userId,
-      username: event.username,
-      email: event.email
+      phone: event.phone
     });
 
     // TODO: 实现具体的业务逻辑

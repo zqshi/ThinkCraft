@@ -4,15 +4,22 @@
  * Version: 1.0.0
  */
 
-const CACHE_VERSION = 'thinkcraft-v1.0.10';
+const CACHE_VERSION = 'thinkcraft-v1.0.12';
 const CACHE_NAME = `${CACHE_VERSION}`;
 const APP_BOOT_PATH = '/frontend/js/app-boot.js';
+const CRITICAL_SCRIPTS = new Set([
+  '/frontend/js/app-boot.js',
+  '/frontend/js/core/storage-manager.js',
+  '/frontend/js/core/state-manager.js',
+  '/frontend/js/core/api-client.js'
+]);
 
 // 核心资源列表（优先缓存）
 const CORE_ASSETS = [
   '/',
   '/index.html',
   '/OS.html',
+  '/login.html',
   '/offline.html',
   '/favicon.ico',
   '/manifest.json',
@@ -94,7 +101,12 @@ self.addEventListener('fetch', event => {
   }
 
   // 关键脚本/入口：始终网络优先，避免旧缓存导致功能异常
-  if (url.pathname === APP_BOOT_PATH || url.pathname === '/index.html') {
+  if (
+    url.pathname === APP_BOOT_PATH ||
+    url.pathname === '/index.html' ||
+    url.pathname === '/login.html' ||
+    CRITICAL_SCRIPTS.has(url.pathname)
+  ) {
     event.respondWith(networkFirst(request));
     return;
   }

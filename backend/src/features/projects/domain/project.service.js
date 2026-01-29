@@ -46,25 +46,6 @@ export class ProjectService {
   }
 
   /**
-   * 升级项目模式
-   */
-  async upgradeProjectMode(projectId) {
-    // 查找项目
-    const project = await this.projectRepository.findById(projectId);
-    if (!project) {
-      throw new Error('项目不存在');
-    }
-
-    // 升级模式
-    project.upgradeToDevelopment();
-
-    // 保存项目
-    await this.projectRepository.save(project);
-
-    return project;
-  }
-
-  /**
    * 删除项目
    */
   async deleteProject(projectId) {
@@ -95,25 +76,6 @@ export class ProjectService {
 
     // 自定义工作流
     project.customizeWorkflow(stages);
-
-    // 保存项目
-    await this.projectRepository.save(project);
-
-    return project;
-  }
-
-  /**
-   * 更新Demo代码
-   */
-  async updateDemoCode(projectId, code, type, previewUrl, downloadUrl) {
-    // 查找项目
-    const project = await this.projectRepository.findById(projectId);
-    if (!project) {
-      throw new Error('项目不存在');
-    }
-
-    // 更新Demo代码
-    project.updateDemoCode(code, type, previewUrl, downloadUrl);
 
     // 保存项目
     await this.projectRepository.save(project);

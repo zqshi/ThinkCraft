@@ -5,7 +5,7 @@ WORKDIR /usr/share/nginx/html
 
 # 复制静态文件到Nginx目录
 # 从项目根目录复制
-COPY index.html OS.html register.html ./
+COPY index.html OS.html login.html ./
 COPY css/ ./css/
 COPY icons/ ./icons/
 COPY manifest.json service-worker.json* ./

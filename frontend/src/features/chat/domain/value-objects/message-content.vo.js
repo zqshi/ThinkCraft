@@ -88,7 +88,7 @@ export class MessageContent extends ValueObject {
   }
 
   /**
-   * 提取文本中的提及（@username）
+   * 提取文本中的提及（@user）
    */
   extractMentions() {
     const mentionPattern = /@[a-zA-Z0-9_-]+/gi;

@@ -36,66 +36,6 @@ router.get('/info', async (req, res) => {
 });
 
 /**
- * PUT /api/account/username
- * 修改用户名
- */
-router.put('/username', async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { username } = req.body;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        message: '用户名不能为空'
-      });
-    }
-
-    const userRepository = getRepository('user');
-    const useCase = new AccountManagementUseCase(userRepository);
-    const result = await useCase.changeUsername(userId, username);
-
-    res.json(result);
-  } catch (error) {
-    logger.error('修改用户名失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-/**
- * PUT /api/account/email
- * 修改邮箱
- */
-router.put('/email', async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: '邮箱不能为空'
-      });
-    }
-
-    const userRepository = getRepository('user');
-    const useCase = new AccountManagementUseCase(userRepository);
-    const result = await useCase.changeEmail(userId, email);
-
-    res.json(result);
-  } catch (error) {
-    logger.error('修改邮箱失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-/**
  * POST /api/account/bind-phone
  * 绑定手机号
  */
@@ -170,43 +110,6 @@ router.put('/phone', async (req, res) => {
 });
 
 /**
- * PUT /api/account/password
- * 修改密码
- */
-router.put('/password', async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { oldPassword, newPassword } = req.body;
-
-    if (!oldPassword) {
-      return res.status(400).json({
-        success: false,
-        message: '旧密码不能为空'
-      });
-    }
-
-    if (!newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: '新密码不能为空'
-      });
-    }
-
-    const userRepository = getRepository('user');
-    const useCase = new AccountManagementUseCase(userRepository);
-    const result = await useCase.changePassword(userId, oldPassword, newPassword);
-
-    res.json(result);
-  } catch (error) {
-    logger.error('修改密码失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-/**
  * GET /api/account/login-history
  * 获取登录历史
  */
@@ -259,18 +162,18 @@ router.put('/preferences', async (req, res) => {
 router.delete('/', async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { password } = req.body;
+    const { code } = req.body;
 
-    if (!password) {
+    if (!code) {
       return res.status(400).json({
         success: false,
-        message: '请输入密码确认'
+        message: '请输入验证码确认'
       });
     }
 
     const userRepository = getRepository('user');
     const useCase = new AccountManagementUseCase(userRepository);
-    const result = await useCase.deleteAccount(userId, password);
+    const result = await useCase.deleteAccount(userId, code);
 
     res.json(result);
   } catch (error) {

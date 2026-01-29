@@ -10,7 +10,6 @@ import { ProjectMode } from '../domain/value-objects/project-mode.vo.js';
 import { ProjectStatus } from '../domain/value-objects/project-status.vo.js';
 import { IdeaId } from '../domain/value-objects/idea-id.vo.js';
 import { Workflow } from '../domain/entities/workflow.entity.js';
-import { Demo } from '../domain/entities/demo.entity.js';
 import logger from '../../../infrastructure/logger/logger.js';
 
 export class ProjectMongoRepository {
@@ -150,12 +149,7 @@ export class ProjectMongoRepository {
       workflow = Workflow.fromJSON(doc.workflow);
     }
 
-    let demo = null;
-    if (doc.demo) {
-      demo = Demo.fromJSON(doc.demo);
-    }
-
-    const project = new Project(projectId, ideaId, name, mode, status, workflow, demo);
+    const project = new Project(projectId, ideaId, name, mode, status, workflow);
 
     // 设置时间戳
     project._createdAt = doc.createdAt;
@@ -178,7 +172,6 @@ export class ProjectMongoRepository {
       mode: json.mode,
       status: json.status,
       workflow: json.workflow,
-      demo: json.demo,
       createdAt: json.createdAt,
       updatedAt: json.updatedAt
     };

@@ -43,7 +43,7 @@ node scripts/verify-migration.js
 
 **验证内容：**
 - 用户数量是否一致
-- 每个用户的关键字段是否匹配（ID、用户名、邮箱、密码哈希、状态）
+- 每个用户的关键字段是否匹配（ID、手机号、状态）
 - 生成详细的验证报告
 
 ### 4. restore-data.js - 数据恢复
@@ -57,6 +57,15 @@ node scripts/restore-data.js <backup-file>
 **示例：**
 ```bash
 node scripts/restore-data.js backups/backup-2026-01-26T10-30-00.json
+```
+
+### 5. check-sms-config.js - 短信网关配置检查
+
+检查短信服务商配置是否完整。
+
+**使用方法：**
+```bash
+node scripts/check-sms-config.js
 ```
 
 ## 完整迁移流程

@@ -3,31 +3,33 @@
  * 处理跨聚合根的业务逻辑
  */
 import { User } from './user.aggregate.js';
+import { PhoneVerificationUseCase } from '../application/phone-verification.use-case.js';
 
 export class UserService {
-  constructor(userRepository, tokenService) {
+  constructor(userRepository, tokenService, phoneVerificationUseCase = null) {
     this.userRepository = userRepository;
     this.tokenService = tokenService;
+    this.phoneVerificationUseCase = phoneVerificationUseCase || new PhoneVerificationUseCase(userRepository);
   }
 
   /**
-   * 用户登录
+   * 用户登录（手机号+验证码）
    */
-  async login(username, password) {
+  async loginWithPhone(phone, code) {
+    // 验证验证码
+    await this.phoneVerificationUseCase.verifyCode(phone, code, 'login');
+
     // 查找用户
-    const user = await this.userRepository.findByUsername(username);
+    let user = await this.userRepository.findByPhone(phone);
+    let isNewUser = false;
     if (!user) {
-      throw new Error('用户不存在');
+      user = User.createWithPhone(phone);
+      user.verifyPhone();
+      isNewUser = true;
     }
 
     // 执行登录
-    try {
-      user.login(password);
-    } catch (error) {
-      // 保存登录失败状态
-      await this.userRepository.save(user);
-      throw error;
-    }
+    user.loginWithPhone();
 
     // 保存登录成功状态
     await this.userRepository.save(user);
@@ -35,8 +37,7 @@ export class UserService {
     // 生成访问令牌
     const accessToken = this.tokenService.generateAccessToken({
       userId: user.id.value,
-      username: user.username.value,
-      email: user.email.value
+      phone: user.phone?.value || null
     });
 
     // 生成刷新令牌
@@ -47,28 +48,27 @@ export class UserService {
     return {
       user,
       accessToken,
-      refreshToken
+      refreshToken,
+      isNewUser
     };
   }
 
   /**
-   * 用户注册
+   * 用户注册（手机号+验证码）
    */
-  async register(username, email, password) {
-    // 检查用户名是否已存在
-    const usernameExists = await this.userRepository.existsByUsername(username);
-    if (usernameExists) {
-      throw new Error('用户名已存在');
-    }
+  async registerWithPhone(phone, code) {
+    // 验证验证码
+    await this.phoneVerificationUseCase.verifyCode(phone, code, 'register');
 
-    // 检查邮箱是否已存在
-    const emailExists = await this.userRepository.existsByEmail(email);
-    if (emailExists) {
-      throw new Error('邮箱已被注册');
+    // 检查手机号是否已存在
+    const existingUser = await this.userRepository.findByPhone(phone);
+    if (existingUser) {
+      throw new Error('该手机号已注册');
     }
 
     // 创建新用户
-    const user = User.create(username, email, password);
+    const user = User.createWithPhone(phone);
+    user.verifyPhone();
 
     // 保存用户
     await this.userRepository.save(user);
@@ -76,8 +76,7 @@ export class UserService {
     // 生成访问令牌
     const accessToken = this.tokenService.generateAccessToken({
       userId: user.id.value,
-      username: user.username.value,
-      email: user.email.value
+      phone: user.phone?.value || null
     });
 
     // 生成刷新令牌
@@ -111,8 +110,7 @@ export class UserService {
     // 生成新的访问令牌
     const newAccessToken = this.tokenService.generateAccessToken({
       userId: user.id.value,
-      username: user.username.value,
-      email: user.email.value
+      phone: user.phone?.value || null
     });
 
     return {
@@ -121,82 +119,5 @@ export class UserService {
     };
   }
 
-  /**
-   * 修改密码
-   */
-  async changePassword(userId, oldPassword, newPassword) {
-    // 查找用户
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new Error('用户不存在');
-    }
-
-    // 修改密码
-    user.changePassword(oldPassword, newPassword);
-
-    // 保存用户
-    await this.userRepository.save(user);
-
-    return user;
-  }
-
-  /**
-   * 重置密码
-   */
-  async resetPassword(userId, newPassword) {
-    // 查找用户
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new Error('用户不存在');
-    }
-
-    // 直接设置新密码（跳过旧密码验证）
-    user._password = Password.create(newPassword);
-
-    // 解锁账户
-    user.unlockAccount();
-
-    // 保存用户
-    await this.userRepository.save(user);
-
-    return user;
-  }
-
-  /**
-   * 锁定用户
-   */
-  async lockUser(userId, minutes = 30) {
-    // 查找用户
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new Error('用户不存在');
-    }
-
-    // 锁定账户
-    user.lockAccount(minutes);
-
-    // 保存用户
-    await this.userRepository.save(user);
-
-    return user;
-  }
-
-  /**
-   * 解锁用户
-   */
-  async unlockUser(userId) {
-    // 查找用户
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new Error('用户不存在');
-    }
-
-    // 解锁账户
-    user.unlockAccount();
-
-    // 保存用户
-    await this.userRepository.save(user);
-
-    return user;
-  }
+  // 后续如需账户风控与解锁逻辑，可在此补充
 }

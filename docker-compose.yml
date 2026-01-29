@@ -36,8 +36,10 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017/thinkcraft
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
-      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:-your-access-token-secret}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:-your-refresh-token-secret}
+      - SMS_PROVIDER=${SMS_PROVIDER}
     depends_on:
       mongodb:
         condition: service_healthy

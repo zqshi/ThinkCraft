@@ -5,13 +5,16 @@
  * 支持的短信服务商：
  * - 阿里云SMS
  * - 腾讯云SMS
- * - 开发环境模拟模式
  */
 import { logger } from '../../../middleware/logger.js';
 
 export class SmsService {
   constructor(config = {}) {
-    this.provider = config.provider || process.env.SMS_PROVIDER || 'mock';
+    const provider = config.provider || process.env.SMS_PROVIDER;
+    if (!provider) {
+      throw new Error('SMS_PROVIDER 未配置');
+    }
+    this.provider = provider;
     this.config = config;
 
     // 生产环境强制检查
@@ -35,7 +38,7 @@ export class SmsService {
       this._initTencent();
       break;
     case 'mock':
-      logger.info('SMS服务运行在模拟模式');
+      logger.warn('SMS服务运行在模拟模式，仅用于开发/测试环境');
       break;
     default:
       throw new Error(`不支持的短信服务商: ${this.provider}`);
@@ -157,8 +160,7 @@ export class SmsService {
    * 模拟SMS发送（开发环境）
    */
   async _sendMockSms(phone, code, template) {
-    // 警告：当前使用mock模式
-    logger.warn('[SMS] 当前使用mock模式，验证码仅在控制台输出，生产环境请配置真实短信服务');
+    logger.warn('[SMS] 模拟模式验证码仅在控制台输出');
 
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -223,7 +225,7 @@ let smsServiceInstance = null;
 export function getSmsService() {
   if (!smsServiceInstance) {
     smsServiceInstance = new SmsService({
-      provider: process.env.SMS_PROVIDER || 'mock'
+      provider: process.env.SMS_PROVIDER
     });
   }
   return smsServiceInstance;

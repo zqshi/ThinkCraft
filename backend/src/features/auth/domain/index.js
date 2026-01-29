@@ -7,9 +7,6 @@ export { UserService } from './user.service.js';
 
 // 值对象
 export { UserId } from './value-objects/user-id.vo.js';
-export { Username } from './value-objects/username.vo.js';
-export { Email } from './value-objects/email.vo.js';
-export { Password } from './value-objects/password.vo.js';
 export { UserStatus } from './value-objects/user-status.vo.js';
 
 // 领域事件

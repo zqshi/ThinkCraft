@@ -110,22 +110,6 @@ export function generateId() {
 }
 
 /**
- * 添加日志到Demo日志面板
- * @param {string} message 日志消息
- */
-export function addDemoLog(message) {
-  const logsEl = document.getElementById('demoLogs');
-  if (logsEl) {
-    const logLine = document.createElement('div');
-    logLine.textContent = message;
-    logLine.style.marginBottom = '4px';
-    logsEl.appendChild(logLine);
-    // 自动滚动到底部
-    logsEl.scrollTop = logsEl.scrollHeight;
-  }
-}
-
-/**
  * 关闭所有聊天菜单
  */
 export function closeAllChatMenus() {

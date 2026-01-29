@@ -41,6 +41,15 @@ router.post('/send', async (req, res) => {
     const useCase = new PhoneVerificationUseCase(userRepository);
     const result = await useCase.sendVerificationCode(phone, type);
 
+    if (process.env.NODE_ENV !== 'production') {
+      const { cacheService } = await import('../src/infrastructure/cache/redis-cache.service.js');
+      const codeKey = `sms:code:${phone}:${type}`;
+      const code = await cacheService.get(codeKey);
+      if (code) {
+        result.code = code;
+      }
+    }
+
     res.json(result);
   } catch (error) {
     logger.error('发送验证码失败', { error: error.message });

@@ -14,10 +14,8 @@ export { IdeaId } from './value-objects/idea-id.vo.js';
 
 // 实体
 export { Workflow } from './entities/workflow.entity.js';
-export { Demo } from './entities/demo.entity.js';
 
 // 领域事件
 export { ProjectCreatedEvent } from './events/project-created.event.js';
 export { ProjectUpdatedEvent } from './events/project-updated.event.js';
-export { ProjectModeUpgradedEvent } from './events/project-mode-upgraded.event.js';
 export { ProjectDeletedEvent } from './events/project-deleted.event.js';

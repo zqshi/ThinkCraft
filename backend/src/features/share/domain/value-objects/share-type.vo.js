@@ -6,7 +6,6 @@ import { ValueObject } from '../../../../shared/domain/value-object.base.js';
 export class ShareType extends ValueObject {
   static PROJECT = 'project';
   static REPORT = 'report';
-  static DEMO = 'demo';
   static WORKFLOW = 'workflow';
   static CUSTOM = 'custom';
 
@@ -22,7 +21,6 @@ export class ShareType extends ValueObject {
     const validTypes = [
       ShareType.PROJECT,
       ShareType.REPORT,
-      ShareType.DEMO,
       ShareType.WORKFLOW,
       ShareType.CUSTOM
     ];
@@ -42,10 +40,6 @@ export class ShareType extends ValueObject {
     return this.props.value === ShareType.REPORT;
   }
 
-  isDemo() {
-    return this.props.value === ShareType.DEMO;
-  }
-
   isWorkflow() {
     return this.props.value === ShareType.WORKFLOW;
   }
@@ -58,7 +52,6 @@ export class ShareType extends ValueObject {
     const displayNames = {
       [ShareType.PROJECT]: '项目',
       [ShareType.REPORT]: '报告',
-      [ShareType.DEMO]: '演示',
       [ShareType.WORKFLOW]: '工作流',
       [ShareType.CUSTOM]: '自定义'
     };

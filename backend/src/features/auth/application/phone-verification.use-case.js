@@ -110,8 +110,8 @@ export class PhoneVerificationUseCase {
 
         if (newFailCount >= 5) {
           // 失败5次后删除验证码
-          await this.cacheService.delete(codeKey);
-          await this.cacheService.delete(failKey);
+          await this.cacheService.del(codeKey);
+          await this.cacheService.del(failKey);
           throw new Error('验证码错误次数过多，请重新获取');
         }
 
@@ -120,8 +120,8 @@ export class PhoneVerificationUseCase {
       }
 
       // 验证成功，删除验证码和失败记录
-      await this.cacheService.delete(codeKey);
-      await this.cacheService.delete(`sms:fail:${phone}`);
+      await this.cacheService.del(codeKey);
+      await this.cacheService.del(`sms:fail:${phone}`);
 
       logger.info(`验证码验证成功: ${this._maskPhone(phone)}, 类型: ${type}`);
 

@@ -148,6 +148,10 @@ REDIS_DB=0
 | 聊天 | chat: | 10分钟 |
 | 商业计划书 | business_plan: | 1小时 |
 | 速率限制 | rate_limit: | 1分钟 |
+| 短信验证码 | sms:code: | 10分钟 |
+| 短信发送频率 | sms:rate: | 60秒 |
+| 短信失败计数 | sms:fail: | 10分钟 |
+| 短信每日上限 | sms:daily: | 24小时 |
 
 ## 环境变量说明
 
@@ -167,6 +171,19 @@ REDIS_DB=0
 | REDIS_PASSWORD | Redis密码 | - | 否 |
 | REDIS_DB | Redis数据库编号 | 0 | 否 |
 
+### 短信配置（投产前必须确认）
+
+| 变量名 | 说明 | 默认值 | 必需 |
+|--------|------|--------|------|
+| SMS_PROVIDER | 短信服务商（aliyun/tencent） | - | 是 |
+| ALIYUN_ACCESS_KEY_ID | 阿里云短信AccessKey ID | - | 当SMS_PROVIDER=aliyun时必需 |
+| ALIYUN_ACCESS_KEY_SECRET | 阿里云短信AccessKey Secret | - | 当SMS_PROVIDER=aliyun时必需 |
+| ALIYUN_SMS_SIGN_NAME | 阿里云短信签名 | - | 当SMS_PROVIDER=aliyun时必需 |
+| TENCENT_SECRET_ID | 腾讯云SecretId | - | 当SMS_PROVIDER=tencent时必需 |
+| TENCENT_SECRET_KEY | 腾讯云SecretKey | - | 当SMS_PROVIDER=tencent时必需 |
+| TENCENT_SMS_APP_ID | 腾讯云短信AppId | - | 当SMS_PROVIDER=tencent时必需 |
+| TENCENT_SMS_SIGN | 腾讯云短信签名 | - | 当SMS_PROVIDER=tencent时必需 |
+
 ## 数据模型
 
 ### 用户集合（users）
@@ -175,18 +192,12 @@ REDIS_DB=0
 {
   _id: ObjectId,
   userId: String,           // 业务ID（唯一）
-  username: String,         // 用户名（唯一）
-  email: String,            // 邮箱（唯一）
-  passwordHash: String,     // 密码哈希
+  phone: String,            // 手机号（唯一）
+  phoneVerified: Boolean,   // 手机号是否已验证
   status: String,           // 状态：active/inactive/suspended
   lastLoginAt: Date,        // 最后登录时间
   loginAttempts: Number,    // 登录失败次数
   lockedUntil: Date,        // 账户锁定截止时间
-  emailVerified: Boolean,   // 邮箱是否已验证
-  emailVerificationToken: String,
-  emailVerificationExpires: Date,
-  passwordResetToken: String,
-  passwordResetExpires: Date,
   loginHistory: [{
     timestamp: Date,
     ip: String,
@@ -197,7 +208,7 @@ REDIS_DB=0
     language: String,
     theme: String,
     notifications: {
-      email: Boolean,
+      sms: Boolean,
       push: Boolean
     }
   },
@@ -210,10 +221,8 @@ REDIS_DB=0
 ### 索引策略
 
 - `userId`: 唯一索引
-- `username`: 唯一索引
-- `email`: 唯一索引
+- `phone`: 唯一索引
 - `status`: 普通索引
-- `{username, email}`: 复合索引
 - `{status, deletedAt}`: 复合索引
 - `createdAt`: 降序索引
 

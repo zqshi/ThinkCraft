@@ -65,10 +65,10 @@ async function restoreUsers(users) {
           new: true
         });
         stats.addSuccess();
-        console.log(`[Restore] ✓ 恢复用户: ${userData.username}`);
+        console.log(`[Restore] ✓ 恢复用户: ${userData.phone || userData.userId || userData._id}`);
       } catch (error) {
-        stats.addFailure(`用户 ${userData.username}: ${error.message}`);
-        console.error(`[Restore] ✗ 恢复失败: ${userData.username}`, error.message);
+        stats.addFailure(`用户 ${userData.phone || userData.userId || userData._id}: ${error.message}`);
+        console.error(`[Restore] ✗ 恢复失败: ${userData.phone || userData.userId || userData._id}`, error.message);
       }
     }
 

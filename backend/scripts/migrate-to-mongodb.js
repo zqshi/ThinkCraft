@@ -71,10 +71,10 @@ async function migrateUsers() {
       try {
         await mongoRepo.save(user);
         stats.addSuccess();
-        console.log(`[Migration] ✓ 迁移用户: ${user.username.value}`);
+        console.log(`[Migration] ✓ 迁移用户: ${user.phone?.value || user.id?.value}`);
       } catch (error) {
-        stats.addFailure(`用户 ${user.username.value}: ${error.message}`);
-        console.error(`[Migration] ✗ 迁移失败: ${user.username.value}`, error.message);
+        stats.addFailure(`用户 ${user.phone?.value || user.id?.value}: ${error.message}`);
+        console.error(`[Migration] ✗ 迁移失败: ${user.phone?.value || user.id?.value}`, error.message);
       }
     }
 

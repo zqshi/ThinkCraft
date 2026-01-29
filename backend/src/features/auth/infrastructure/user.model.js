@@ -14,40 +14,13 @@ const userSchema = new mongoose.Schema(
       index: true
     },
 
-    // 用户名
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      index: true
-    },
-
-    // 邮箱
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      index: true
-    },
-
     // 手机号
     phone: {
       type: String,
-      required: false,
+      required: true,
       unique: true,
-      sparse: true, // 允许多个null值
       trim: true,
       index: true
-    },
-
-    // 密码哈希
-    passwordHash: {
-      type: String,
-      required: true
     },
 
     // 用户状态
@@ -77,40 +50,10 @@ const userSchema = new mongoose.Schema(
       default: null
     },
 
-    // 邮箱验证状态
-    emailVerified: {
-      type: Boolean,
-      default: false
-    },
-
     // 手机验证状态
     phoneVerified: {
       type: Boolean,
       default: false
-    },
-
-    // 邮箱验证Token
-    emailVerificationToken: {
-      type: String,
-      default: null
-    },
-
-    // 邮箱验证Token过期时间
-    emailVerificationExpires: {
-      type: Date,
-      default: null
-    },
-
-    // 密码重置Token
-    passwordResetToken: {
-      type: String,
-      default: null
-    },
-
-    // 密码重置Token过期时间
-    passwordResetExpires: {
-      type: Date,
-      default: null
     },
 
     // 登录历史
@@ -134,7 +77,7 @@ const userSchema = new mongoose.Schema(
         default: 'light'
       },
       notifications: {
-        email: {
+        sms: {
           type: Boolean,
           default: true
         },
@@ -160,7 +103,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // 复合索引
-userSchema.index({ username: 1, email: 1 });
+userSchema.index({ phone: 1 });
 userSchema.index({ status: 1, deletedAt: 1 });
 userSchema.index({ createdAt: -1 });
 
@@ -168,13 +111,6 @@ userSchema.index({ createdAt: -1 });
 userSchema.virtual('isLocked').get(function () {
   return this.lockedUntil && this.lockedUntil > new Date();
 });
-
-// 实例方法：检查密码
-userSchema.methods.verifyPassword = function (plainPassword) {
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256').update(plainPassword).digest('hex');
-  return this.passwordHash === hash;
-};
 
 // 实例方法：锁定账户
 userSchema.methods.lockAccount = function (minutes) {
@@ -201,14 +137,8 @@ userSchema.pre(/^find/, function (next) {
   next();
 });
 
-// 保存前中间件：确保邮箱和用户名小写
+// 保存前中间件
 userSchema.pre('save', function (next) {
-  if (this.isModified('email')) {
-    this.email = this.email.toLowerCase().trim();
-  }
-  if (this.isModified('username')) {
-    this.username = this.username.toLowerCase().trim();
-  }
   next();
 });
 

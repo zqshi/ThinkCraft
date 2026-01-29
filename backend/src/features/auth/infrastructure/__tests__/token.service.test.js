@@ -14,8 +14,7 @@ describe('TokenService', () => {
     it('should generate a valid access token', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser',
-        email: 'test@example.com'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateAccessToken(payload);
@@ -28,14 +27,14 @@ describe('TokenService', () => {
     it('should include payload data in token', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateAccessToken(payload);
       const decoded = tokenService.decodeToken(token);
 
       expect(decoded.userId).toBe('user-123');
-      expect(decoded.username).toBe('testuser');
+      expect(decoded.phone).toBe('13800138000');
       expect(decoded.iss).toBe('thinkcraft');
       expect(decoded.aud).toBe('thinkcraft-users');
     });
@@ -45,7 +44,7 @@ describe('TokenService', () => {
     it('should generate a valid refresh token', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateRefreshToken(payload);
@@ -58,7 +57,7 @@ describe('TokenService', () => {
     it('should generate different tokens for access and refresh', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const accessToken = tokenService.generateAccessToken(payload);
@@ -72,14 +71,14 @@ describe('TokenService', () => {
     it('should verify a valid access token', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateAccessToken(payload);
       const verified = tokenService.verifyAccessToken(token);
 
       expect(verified.userId).toBe('user-123');
-      expect(verified.username).toBe('testuser');
+      expect(verified.phone).toBe('13800138000');
     });
 
     it('should throw error for invalid access token', () => {
@@ -100,14 +99,14 @@ describe('TokenService', () => {
     it('should verify a valid refresh token', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateRefreshToken(payload);
       const verified = tokenService.verifyRefreshToken(token);
 
       expect(verified.userId).toBe('user-123');
-      expect(verified.username).toBe('testuser');
+      expect(verified.phone).toBe('13800138000');
     });
 
     it('should throw error for invalid refresh token', () => {
@@ -155,14 +154,14 @@ describe('TokenService', () => {
     it('should decode token without verification', () => {
       const payload = {
         userId: 'user-123',
-        username: 'testuser'
+        phone: '13800138000'
       };
 
       const token = tokenService.generateAccessToken(payload);
       const decoded = tokenService.decodeToken(token);
 
       expect(decoded.userId).toBe('user-123');
-      expect(decoded.username).toBe('testuser');
+      expect(decoded.phone).toBe('13800138000');
       expect(decoded.exp).toBeDefined();
       expect(decoded.iat).toBeDefined();
     });
@@ -204,8 +203,7 @@ describe('TokenService', () => {
       // 1. 生成令牌
       const payload = {
         userId: 'user-123',
-        username: 'testuser',
-        email: 'test@example.com'
+        phone: '13800138000'
       };
 
       const accessToken = tokenService.generateAccessToken(payload);

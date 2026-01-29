@@ -10,8 +10,8 @@ const router = express.Router();
 /**
  * POST /api/projects
  * 创建项目
- * 请求体: { ideaId: string, name: string, mode: 'demo' | 'development' }
- * 响应: { code: number, message: string, data: { project: object, workflow?: object, demo?: object } }
+ * 请求体: { ideaId: string, name: string, mode?: 'development' }
+ * 响应: { code: number, message: string, data: { project: object, workflow?: object } }
  */
 router.post('/', projectController.createProject);
 
@@ -25,7 +25,7 @@ router.get('/:id', projectController.getProject);
 /**
  * GET /api/projects
  * 获取所有项目
- * 查询参数: ?mode=demo|development&status=planning|...\u0026limit=10\u0026offset=0\u0026sortBy=updatedAt
+ * 查询参数: ?mode=development&status=planning|...\u0026limit=10\u0026offset=0\u0026sortBy=updatedAt
  * 响应: { code: number, message: string, data: { projects: array, total: number } }
  */
 router.get('/', projectController.getAllProjects);
@@ -46,27 +46,12 @@ router.put('/:id', projectController.updateProject);
 router.delete('/:id', projectController.deleteProject);
 
 /**
- * POST /api/projects/:id/upgrade
- * 升级项目模式（Demo → Development）
- * 响应: { code: number, message: string, data: { project: object, workflow: object, migratedArtifacts: array } }
- */
-router.post('/:id/upgrade', projectController.upgradeProjectMode);
-
-/**
  * PUT /api/projects/:id/workflow
  * 自定义工作流
  * 请求体: { stages: array }
  * 响应: { code: number, message: string, data: { workflow: object } }
  */
 router.put('/:id/workflow', projectController.customizeWorkflow);
-
-/**
- * PUT /api/projects/:id/demo-code
- * 更新Demo代码
- * 请求体: { code?: string, type?: string, previewUrl?: string, downloadUrl?: string }
- * 响应: { code: number, message: string, data: { project: object } }
- */
-router.put('/:id/demo-code', projectController.updateDemoCode);
 
 /**
  * GET /api/projects/by-idea/:ideaId
@@ -85,7 +70,7 @@ router.get('/statistics', projectController.getProjectStatistics);
 /**
  * GET /api/projects/search
  * 搜索项目
- * 查询参数: ?q=搜索词\u0026mode=demo|development\u0026status=planning|...
+ * 查询参数: ?q=搜索词\u0026mode=development\u0026status=planning|...
  * 响应: { code: number, message: string, data: { projects: array, total: number } }
  */
 router.get('/search', projectController.searchProjects);
@@ -116,7 +101,7 @@ router.post('/:id/archive', projectController.archiveProject);
  * POST /api/projects/:id/duplicate
  * 复制项目
  * 请求体: { name?: string }
- * 响应: { code: number, message: string, data: { project: object, workflow?: object, demo?: object } }
+ * 响应: { code: number, message: string, data: { project: object, workflow?: object } }
  */
 router.post('/:id/duplicate', projectController.duplicateProject);
 

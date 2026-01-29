@@ -3,9 +3,16 @@
  * 负责执行工作流阶段任务、管理交付物、处理工作流UI
  */
 
+function getDefaultApiUrl() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return window.location.origin;
+}
+
 class WorkflowExecutor {
   constructor() {
-    this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
+    this.apiUrl = window.appState?.settings?.apiUrl || getDefaultApiUrl();
     this.storageManager = window.storageManager;
     this.projectManager = window.projectManager;
 

@@ -1923,14 +1923,13 @@
         // 存储已生成的报告数据
         const generatedReports = {
             business: null,
-            proposal: null,
-            demo: null
+            proposal: null
         };
 
         // 处理生成按钮点击
         function handleGenerationBtnClick(type) {
             const btnId = type === 'business' ? 'businessPlanBtn' :
-                         type === 'proposal' ? 'proposalBtn' : 'demoBtn';
+                         type === 'proposal' ? 'proposalBtn' : null;
             const btn = document.getElementById(btnId);
             const currentStatus = btn ? btn.dataset.status : 'idle';
 
@@ -1960,7 +1959,7 @@
                 try {
                     // 尝试初始化所需的依赖
                     if (!window.modalManager) window.modalManager = new ModalManager();
-                    if (!window.apiClient) window.apiClient = new APIClient('http://localhost:3000');
+                    if (!window.apiClient) window.apiClient = new APIClient((window.location.hostname === 'localhost' && window.location.port === '8000') ? 'http://localhost:3000' : window.location.origin);
                     if (!window.stateManager) window.stateManager = new StateManager();
                     if (!window.agentProgressManager) window.agentProgressManager = new AgentProgressManager(window.modalManager);
 
@@ -1993,8 +1992,6 @@
                 } else {
                     alert('系统功能异常，请刷新页面重试');
                 }
-            } else if (type === 'demo') {
-                startDemoGeneration();
             }
         }
 
@@ -2028,6 +2025,7 @@
                 document.getElementById('businessReportTitle').textContent = typeTitle;
 
                 if (report && report.document) {
+                    currentGeneratedChapters = Array.isArray(report.selectedChapters) ? report.selectedChapters : [];
                     const reportContent = `
                         <div class="report-section">
                             <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
@@ -2104,9 +2102,6 @@
                     // 如果没有数据，提示错误
                     window.modalManager.alert('报告数据加载失败', 'error');
                 }
-            } else if (type === 'demo') {
-                // 显示Demo预览
-                showDemoPreview();
             }
         }
 
@@ -2117,8 +2112,7 @@
 
             const btnMap = {
                 'business': 'businessPlanBtn',
-                'proposal': 'proposalBtn',
-                'demo': 'demoBtn'
+                'proposal': 'proposalBtn'
             };
 
             const btnId = btnMap[type];
@@ -2188,12 +2182,6 @@
                     generating: { icon: '⏳', text: '生成中...' },
                     completed: { icon: '✅', text: '产品立项材料（查看）' },
                     error: { icon: '❌', text: '生成失败（重试）' }
-                },
-                demo: {
-                    idle: { icon: '🚀', text: '开始生成Demo' },
-                    generating: { icon: '⏳', text: '生成中...' },
-                    completed: { icon: '✅', text: '查看Demo' },
-                    error: { icon: '❌', text: '生成失败（重试）' }
                 }
             };
 
@@ -2249,7 +2237,7 @@
 
                             // 更新按钮为已完成状态
                             const btnId = report.type === 'business' ? 'businessPlanBtn' :
-                                         report.type === 'proposal' ? 'proposalBtn' : 'demoBtn';
+                                         report.type === 'proposal' ? 'proposalBtn' : null;
                             const btn = document.getElementById(btnId);
                             if (btn) {
                                 btn.classList.add('btn-completed');
@@ -2277,96 +2265,8 @@
             window.businessPlanGenerator.showChapterSelection('proposal');
         }
 
-        // Mock章节数据
-        const MOCK_CHAPTERS = {
-            business: {
-                core: [
-                    { id: 1, title: '执行摘要', desc: '一页纸概述项目核心亮点、市场机会和融资需求', agent: '综合分析师', emoji: '🤖', time: 30 },
-                    { id: 2, title: '问题与市场分析', desc: '目标市场规模、用户痛点、市场机会分析', agent: '市场分析师', emoji: '📊', time: 45 },
-                    { id: 3, title: '解决方案与产品演进', desc: '产品定位、核心功能、技术优势、发展路线图', agent: '技术架构师', emoji: '⚙️', time: 40 },
-                    { id: 5, title: '商业模式与营收规划', desc: '收入模式、定价策略、营收预测', agent: '财务顾问', emoji: '💰', time: 50 },
-                    { id: 11, title: '愿景与路线图', desc: '长期愿景、发展路线图、退出策略', agent: '综合分析师', emoji: '🤖', time: 30 }
-                ],
-                optional: [
-                    { id: 4, title: '竞争格局与核心壁垒', desc: '竞品分析、差异化优势、竞争壁垒', agent: '市场分析师', emoji: '📊', time: 35 },
-                    { id: 6, title: '市场与增长策略', desc: '市场进入策略、获客渠道、增长规划', agent: '增长策略师', emoji: '📈', time: 40 },
-                    { id: 7, title: '团队架构', desc: '核心团队、关键岗位、人才需求', agent: '组织架构顾问', emoji: '👥', time: 30 },
-                    { id: 8, title: '财务预测', desc: '5年财务模型、收入/成本预测、盈利能力分析', agent: '财务顾问', emoji: '💰', time: 60 },
-                    { id: 9, title: '融资需求与资金使用', desc: '融资金额、资金用途、里程碑规划', agent: '财务顾问', emoji: '💰', time: 35 },
-                    { id: 10, title: '风险评估与应对', desc: '关键风险识别、应对措施、风险缓释策略', agent: '风险评估专家', emoji: '⚠️', time: 35 }
-                ]
-            },
-            proposal: {
-                core: [
-                    { id: 1, title: '项目摘要', desc: '项目背景、目标、核心价值', agent: '综合分析师', emoji: '🤖', time: 30 },
-                    { id: 2, title: '问题洞察', desc: '核心痛点、市场缺口分析', agent: '市场分析师', emoji: '📊', time: 40 },
-                    { id: 3, title: '解决方案（三层架构）', desc: '协议层、引擎层、网络层设计', agent: '技术架构师', emoji: '⚙️', time: 50 }
-                ],
-                optional: [
-                    { id: 4, title: '竞争与壁垒', desc: '竞争分析与技术壁垒', agent: '市场分析师', emoji: '📊', time: 35 },
-                    { id: 5, title: '商业模式', desc: '收入模式与定价策略', agent: '财务顾问', emoji: '💰', time: 45 },
-                    { id: 6, title: '市场与增长', desc: '市场策略与增长路径', agent: '增长策略师', emoji: '📈', time: 40 },
-                    { id: 7, title: '团队要求', desc: '团队构成与能力要求', agent: '组织架构顾问', emoji: '👥', time: 25 },
-                    { id: 8, title: '财务预测与里程碑', desc: '财务模型与关键里程碑', agent: '财务顾问', emoji: '💰', time: 55 },
-                    { id: 9, title: '风险与挑战', desc: '风险识别与应对策略', agent: '风险评估专家', emoji: '⚠️', time: 30 },
-                    { id: 10, title: '结论', desc: '总结与展望', agent: '综合分析师', emoji: '🤖', time: 20 }
-                ]
-            }
-        };
-
         // 当前选择的类型
         let currentReportType = 'business';
-
-        // 显示章节选择模态框
-        function showChapterSelectionModal(type) {
-            currentReportType = type;
-            const chapters = MOCK_CHAPTERS[type];
-            const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
-
-            // 更新标题
-            document.querySelector('#chapterSelectionModal .modal-title').textContent =
-                `选择需要生成的${typeTitle}章节`;
-
-            // 渲染章节列表
-            const chapterListHTML = `
-                <div class="chapter-group">
-                    <h3>核心章节（必选）</h3>
-                    ${chapters.core.map(ch => `
-                        <label class="chapter-item disabled">
-                            <input type="checkbox" checked disabled data-chapter="${ch.id}" data-time="${ch.time}">
-                            <div class="chapter-info">
-                                <span class="chapter-name">${ch.title}</span>
-                                <span class="chapter-desc">${ch.desc}</span>
-                                <div>
-                                    <span class="badge">AI自动生成</span>
-                                </div>
-                            </div>
-                        </label>
-                    `).join('')}
-                </div>
-
-                <div class="chapter-group">
-                    <h3>深度分析章节（可选）</h3>
-                    ${chapters.optional.map(ch => `
-                        <label class="chapter-item">
-                            <input type="checkbox" data-chapter="${ch.id}" data-time="${ch.time}" onchange="updateChapterStats()">
-                            <div class="chapter-info">
-                                <span class="chapter-name">${ch.title}</span>
-                                <span class="chapter-desc">${ch.desc}</span>
-                                <div>
-                                    <span class="badge agent">${getAgentIconSvg(ch.emoji || ch.agent, 14, 'agent-badge-icon')} ${ch.agent}</span>
-                                    <span class="badge time">预计${ch.time}s</span>
-                                </div>
-                            </div>
-                        </label>
-                    `).join('')}
-                </div>
-            `;
-
-            document.getElementById('chapterList').innerHTML = chapterListHTML;
-            updateChapterStats();
-            document.getElementById('chapterSelectionModal').classList.add('active');
-        }
 
         // 更新章节统计
         function updateChapterStats() {
@@ -2389,96 +2289,6 @@
             window.businessPlanGenerator.startGeneration();
         }
 
-        // 显示Agent进度模态框
-        function showAgentProgressModal(selectedChapters) {
-            const chapters = MOCK_CHAPTERS[currentReportType];
-            const allChapters = [...chapters.core, ...chapters.optional];
-            const chaptersToGenerate = allChapters.filter(ch => selectedChapters.includes(ch.id));
-
-            // 构建Agent列表
-            const agentListHTML = chaptersToGenerate.map((ch, index) => `
-                <div class="agent-item pending" id="agent-${index}">
-                    <div class="agent-avatar" id="avatar-${index}">${getAgentIconSvg(ch.emoji || ch.agent, 28, 'agent-avatar-icon')}</div>
-                    <div class="agent-info">
-                        <h4>${ch.agent}</h4>
-                        <p class="task">${ch.title}</p>
-                        <p class="status" id="status-${index}">⏸️ 等待中</p>
-                    </div>
-                </div>
-            `).join('');
-
-            document.getElementById('agentList').innerHTML = agentListHTML;
-            document.getElementById('agentProgressModal').classList.add('active');
-
-            // 模拟进度更新
-            simulateProgress(chaptersToGenerate);
-        }
-
-        // 模拟进度更新
-        let progressInterval = null;
-        function simulateProgress(chapters) {
-            let currentIndex = 0;
-            let progress = 0;
-            const totalChapters = chapters.length;
-
-            // 更新进度文本
-            document.getElementById('progressText').textContent =
-                `正在生成 ${totalChapters} 个章节，已完成 0 个（0%）`;
-
-            progressInterval = setInterval(() => {
-                if (currentIndex < totalChapters) {
-                    const agentItem = document.getElementById(`agent-${currentIndex}`);
-                    const avatar = document.getElementById(`avatar-${currentIndex}`);
-                    const status = document.getElementById(`status-${currentIndex}`);
-
-                    // 设置为工作中
-                    agentItem.classList.remove('pending');
-                    agentItem.classList.add('working');
-                    avatar.classList.add('spinning');
-                    status.textContent = '⏳ 分析中...';
-
-                    // 2秒后完成
-                    setTimeout(() => {
-                        agentItem.classList.remove('working');
-                        agentItem.classList.add('completed');
-                        avatar.classList.remove('spinning');
-                        status.textContent = '✅ 已完成';
-
-                        currentIndex++;
-                        progress = Math.round((currentIndex / totalChapters) * 100);
-
-                        // 更新进度条
-                        document.getElementById('progressFill').style.width = `${progress}%`;
-                        document.getElementById('progressText').textContent =
-                            `正在生成 ${totalChapters} 个章节，已完成 ${currentIndex} 个（${progress}%）`;
-
-                        // 全部完成
-                        if (currentIndex === totalChapters) {
-                            clearInterval(progressInterval);
-                            setTimeout(() => {
-                                closeAgentProgress();
-                                // 显示生成的报告
-                                showGeneratedBusinessReport(selectedChapters);
-                            }, 1000);
-                        }
-                    }, 2000);
-                }
-            }, 2500);
-        }
-
-        // 关闭Agent进度模态框
-        function closeAgentProgress() {
-            if (progressInterval) {
-                clearInterval(progressInterval);
-                progressInterval = null;
-            }
-            if (window.modalManager && window.modalManager.isOpen('agentProgressModal')) {
-                window.modalManager.close('agentProgressModal');
-            } else {
-                document.getElementById('agentProgressModal').classList.remove('active');
-            }
-        }
-
         // 取消生成
         function cancelGeneration() {
             if (window.agentProgressManager) {
@@ -2488,82 +2298,6 @@
 
         // 存储当前生成的章节配置
         let currentGeneratedChapters = [];
-
-        // 显示生成的商业计划书/产品立项报告
-        function showGeneratedBusinessReport(selectedChapters) {
-            const toggleShareButton = (reportType) => {
-                const shareBtn = document.getElementById('businessReportShareBtn');
-                if (!shareBtn) return;
-                shareBtn.style.display = 'none';
-            };
-            // 保存当前配置
-            currentGeneratedChapters = selectedChapters;
-
-            const chapters = MOCK_CHAPTERS[currentReportType];
-            const allChapters = [...chapters.core, ...chapters.optional];
-            const generatedChapters = allChapters.filter(ch => selectedChapters.includes(ch.id));
-
-            // 更新标题
-            const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
-            document.getElementById('businessReportTitle').textContent = typeTitle;
-            toggleShareButton(currentReportType);
-
-            // 生成报告内容
-            const reportContent = `
-                <div class="report-section">
-                    <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
-                        <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
-                            ${state.userData.idea || '创意项目'}
-                        </h1>
-                        <p style="font-size: 16px; color: var(--text-secondary);">
-                            ${typeTitle} · AI生成于 ${new Date().toLocaleDateString()}
-                        </p>
-                    </div>
-
-                    ${generatedChapters.map((ch, index) => `
-                        <div class="report-section" style="margin-bottom: 40px;">
-                            <div class="report-section-title">${index + 1}. ${ch.title}</div>
-                            <div class="document-chapter">
-                                <div class="chapter-content" style="padding-left: 0;">
-                                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                        <strong>分析师：</strong>${getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon')} ${ch.agent}
-                                    </p>
-
-                                    <div class="highlight-box">
-                                        <h4>核心观点</h4>
-                                        <p>${ch.desc}</p>
-                                    </div>
-
-                                    <h4>详细分析</h4>
-                                    <p>基于您的创意"${state.userData.idea || '创意项目'}"，我们从以下维度进行了深入分析：</p>
-
-                                    <ul>
-                                        <li><strong>市场机会：</strong>目标市场规模可观，用户需求明确</li>
-                                        <li><strong>竞争优势：</strong>具备差异化价值主张和技术壁垒</li>
-                                        <li><strong>实施可行性：</strong>资源要求合理，风险可控</li>
-                                    </ul>
-
-                                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-top: 20px;">
-                                        <p style="margin: 0; color: var(--text-secondary); font-size: 14px;">
-                                            💡 <strong>AI建议：</strong>建议在MVP阶段重点验证核心假设，快速迭代优化产品方向。
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-
-                    <div style="text-align: center; padding: 30px 0; border-top: 2px solid var(--border); margin-top: 40px;">
-                        <p style="color: var(--text-secondary); font-size: 14px;">
-                            本报告由ThinkCraft AI生成，共 ${generatedChapters.length} 个章节
-                        </p>
-                    </div>
-                </div>
-            `;
-
-            document.getElementById('businessReportContent').innerHTML = reportContent;
-            document.getElementById('businessReportModal').classList.add('active');
-        }
 
         // 关闭商业报告
         function closeBusinessReport() {
@@ -2593,13 +2327,15 @@
             closeBusinessReport();
 
             // 重新打开章节选择模态框
-            showChapterSelectionModal(currentReportType);
+            if (window.businessPlanGenerator) {
+                window.businessPlanGenerator.showChapterSelection(currentReportType);
+            }
 
             // 恢复之前的选择状态
             setTimeout(() => {
                 const checkboxes = document.querySelectorAll('#chapterList input[type="checkbox"]');
                 checkboxes.forEach(cb => {
-                    const chapterId = parseInt(cb.dataset.chapter);
+                    const chapterId = cb.dataset.chapter;
                     if (currentGeneratedChapters.includes(chapterId) && !cb.disabled) {
                         cb.checked = true;
                     } else if (!cb.disabled) {
@@ -2704,741 +2440,6 @@
 
             } catch (error) {
                 alert(`❌ 创建分享失败: ${error.message}`);
-            }
-        }
-
-        /* ===== Demo生成功能 ===== */
-
-        // 存储Demo生成相关数据
-        let currentDemoType = 'web'; // 默认生成web应用
-        let currentDemoFeatures = [];
-
-        // 开始Demo生成流程（简化版：直接生成，不选择类型）
-        function startDemoGeneration() {
-            // 关闭报告模态框
-            closeReport();
-
-            // 更新状态
-            window.stateManager.startGeneration('demo', []);
-
-            // 直接开始生成
-            showDemoGenerationProgress();
-        }
-
-        // 关闭Demo类型选择
-        function closeDemoTypeSelection() {
-            if (window.modalManager && window.modalManager.isOpen('demoTypeModal')) {
-                window.modalManager.close('demoTypeModal');
-            } else {
-                document.getElementById('demoTypeModal').classList.remove('active');
-            }
-            window.currentDemoProjectId = null;
-        }
-
-        // 选择Demo类型
-        function selectDemoType(type) {
-            currentDemoType = type;
-
-            const typeNames = {
-                'web': '网站应用',
-                'app': '移动应用',
-                'miniapp': '小程序',
-                'admin': '管理后台'
-            };
-
-            // 关闭类型选择
-            closeDemoTypeSelection();
-
-            // 显示功能确认
-            showDemoFeaturesConfirmation();
-        }
-
-        // 显示Demo功能确认
-        function showDemoFeaturesConfirmation() {
-            // 基于创意自动生成功能列表
-            const features = generateDemoFeatures();
-            currentDemoFeatures = features;
-
-            const featuresHTML = `
-                <div class="chapter-group">
-                    <h3>核心功能（必选）</h3>
-                    ${features.core.map((feature, index) => `
-                        <label class="chapter-item disabled">
-                            <input type="checkbox" checked disabled>
-                            <div class="chapter-info">
-                                <span class="chapter-name">${feature.title}</span>
-                                <span class="chapter-desc">${feature.desc}</span>
-                            </div>
-                        </label>
-                    `).join('')}
-                </div>
-
-                <div class="chapter-group">
-                    <h3>增强功能（可选）</h3>
-                    ${features.optional.map((feature, index) => `
-                        <label class="chapter-item">
-                            <input type="checkbox" data-feature="${index}">
-                            <div class="chapter-info">
-                                <span class="chapter-name">${feature.title}</span>
-                                <span class="chapter-desc">${feature.desc}</span>
-                            </div>
-                        </label>
-                    `).join('')}
-                </div>
-            `;
-
-            document.getElementById('demoFeaturesList').innerHTML = featuresHTML;
-            document.getElementById('demoFeaturesModal').classList.add('active');
-        }
-
-        // 生成Demo功能列表（基于创意内容）
-        function generateDemoFeatures() {
-            const typeFeatures = {
-                'web': {
-                    core: [
-                        { title: '首页展示', desc: '产品介绍、核心价值展示' },
-                        { title: '功能介绍页', desc: '详细功能说明和使用场景' },
-                        { title: '响应式布局', desc: '适配桌面端和移动端' }
-                    ],
-                    optional: [
-                        { title: '用户注册/登录', desc: '账号体系和权限管理' },
-                        { title: '数据可视化', desc: '图表展示和数据分析' },
-                        { title: '支付功能', desc: '在线支付和订单管理' },
-                        { title: '评论互动', desc: '用户评论和社交互动' }
-                    ]
-                },
-                'app': {
-                    core: [
-                        { title: '启动页面', desc: '品牌展示和引导页' },
-                        { title: '主界面框架', desc: '底部导航和核心模块' },
-                        { title: '用户中心', desc: '个人信息和设置' }
-                    ],
-                    optional: [
-                        { title: '推送通知', desc: '消息推送和提醒' },
-                        { title: '离线功能', desc: '离线使用和数据同步' },
-                        { title: '分享功能', desc: '内容分享到社交平台' },
-                        { title: '地图定位', desc: '位置服务和地图展示' }
-                    ]
-                },
-                'miniapp': {
-                    core: [
-                        { title: '首页', desc: '核心功能入口' },
-                        { title: '列表页', desc: '内容列表和筛选' },
-                        { title: '详情页', desc: '详细信息展示' }
-                    ],
-                    optional: [
-                        { title: '微信登录', desc: '一键授权登录' },
-                        { title: '微信支付', desc: '小程序内支付' },
-                        { title: '分享卡片', desc: '分享到微信好友' },
-                        { title: '订阅消息', desc: '订阅通知提醒' }
-                    ]
-                },
-                'admin': {
-                    core: [
-                        { title: '登录页', desc: '管理员登录验证' },
-                        { title: '数据面板', desc: '核心数据统计展示' },
-                        { title: '侧边栏导航', desc: '功能模块导航' }
-                    ],
-                    optional: [
-                        { title: '用户管理', desc: '用户列表和权限管理' },
-                        { title: '内容管理', desc: '内容发布和审核' },
-                        { title: '数据分析', desc: '业务数据分析报表' },
-                        { title: '系统设置', desc: '系统配置和参数设置' }
-                    ]
-                }
-            };
-
-            return typeFeatures[currentDemoType] || typeFeatures['web'];
-        }
-
-        // 关闭功能确认
-        function closeDemoFeatures() {
-            if (window.modalManager && window.modalManager.isOpen('demoFeaturesModal')) {
-                window.modalManager.close('demoFeaturesModal');
-            } else {
-                document.getElementById('demoFeaturesModal').classList.remove('active');
-            }
-            window.currentDemoProjectId = null;
-        }
-
-        // 确认Demo功能并开始生成
-        function confirmDemoFeatures() {
-            // 关闭功能确认
-            closeDemoFeatures();
-
-            // 显示生成进度
-            showDemoGenerationProgress();
-        }
-
-        // 显示Demo生成进度
-        async function showDemoGenerationProgress() {
-            // 初始化步骤列表
-            const steps = [
-                { id: 'requirements', icon: '📋', title: '需求分析', desc: '分析创意需求并规划功能模块' },
-                { id: 'architecture', icon: '🏗️', title: '架构设计', desc: '设计技术架构和数据结构' },
-                { id: 'frontend', icon: '🎨', title: '前端开发', desc: '生成UI界面和交互逻辑' },
-                { id: 'integration', icon: '🔧', title: '功能集成', desc: '集成各个模块和组件' },
-                { id: 'testing', icon: '✅', title: '测试优化', desc: '测试功能并优化性能' }
-            ];
-
-            const stepsHTML = steps.map(step => `
-                <div class="demo-step-item" id="demo-step-${step.id}">
-                    <div class="demo-step-icon" id="demo-step-icon-${step.id}">${step.icon}</div>
-                    <div class="demo-step-info">
-                        <div class="demo-step-title">${step.title}</div>
-                        <div class="demo-step-desc">${step.desc}</div>
-                    </div>
-                    <div class="demo-step-status" id="demo-step-status-${step.id}">等待中</div>
-                </div>
-            `).join('');
-
-            document.getElementById('demoStepsList').innerHTML = stepsHTML;
-            document.getElementById('demoLogs').innerHTML = '<div>> 初始化开发环境...</div>';
-            document.getElementById('demoProgressFill').style.width = '0%';
-            document.getElementById('demoProgressText').textContent = '准备开始生成...';
-
-            document.getElementById('demoProgressModal').classList.add('active');
-
-            // 真实调用后端API生成Demo
-            await generateDemoViaAPI(steps);
-        }
-
-        // 通过API生成Demo
-        async function generateDemoViaAPI(steps) {
-            try {
-                let currentStepIndex = 0;
-                let conversationHistory = state.messages;
-                let ideaTitle = state.userData.idea || '创意项目';
-                let projectId = window.currentDemoProjectId || null;
-
-                if (projectId && window.projectManager) {
-                    try {
-                        const project = await window.projectManager.getProject(projectId);
-                        if (project) {
-                            const chat = await storageManager.getChat(project.ideaId);
-                            if (chat) {
-                                conversationHistory = chat.messages || [];
-                                ideaTitle = chat.title || project.name;
-                            } else {
-                                ideaTitle = project.name;
-                            }
-                        }
-                    } catch (error) {
-                        }
-                }
-
-                // 模拟前期步骤（需求分析、架构设计）
-                for (let i = 0; i < 2; i++) {
-                    const step = steps[i];
-                    updateDemoStep(step, 'active');
-                    addDemoLog(`> ${step.desc}...`);
-                    await sleep(1500);
-                    updateDemoStep(step, 'completed');
-                    currentStepIndex++;
-                    updateDemoProgress(currentStepIndex, steps.length);
-                }
-
-                // 真实生成（前端开发步骤）
-                const frontendStep = steps[2];
-                updateDemoStep(frontendStep, 'active');
-                addDemoLog('> 调用AI代码生成引擎...');
-                await sleep(500);
-
-                // 调用后端API
-                addDemoLog('> 生成React组件代码...');
-                const response = await fetch(`${state.settings.apiUrl}/api/demo-generator/generate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        demoType: currentDemoType,
-                        conversationHistory,
-                        features: currentDemoFeatures,
-                        ideaTitle,
-                        projectId
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Demo生成失败');
-                }
-
-                const result = await response.json();
-
-                if (result.code !== 0) {
-                    throw new Error(result.error || 'Demo生成失败');
-                }
-
-                const { demoId, filename, previewUrl, downloadUrl, codeLength, tokens } = result.data;
-
-                addDemoLog(`> ✓ 代码生成完成，共 ${codeLength} 字符`);
-                addDemoLog(`> 使用 tokens: ${tokens}`);
-
-                updateDemoStep(frontendStep, 'completed');
-                currentStepIndex++;
-                updateDemoProgress(currentStepIndex, steps.length);
-
-                if (projectId && window.projectManager) {
-                    await window.projectManager.linkDemo(projectId, {
-                        demoType: currentDemoType,
-                        previewUrl,
-                        downloadUrl,
-                        generatedAt: Date.now()
-                    });
-                    window.currentDemoProjectId = null;
-                }
-
-                // 后续步骤（集成、测试）
-                for (let i = 3; i < steps.length; i++) {
-                    const step = steps[i];
-                    updateDemoStep(step, 'active');
-                    addDemoLog(`> ${step.desc}...`);
-                    await sleep(1000);
-                    updateDemoStep(step, 'completed');
-                    currentStepIndex++;
-                    updateDemoProgress(currentStepIndex, steps.length);
-                }
-
-                addDemoLog('> ✅ Demo生成完成！');
-
-                // 保存Demo信息到state
-                window.currentGeneratedDemo = {
-                    demoId,
-                    filename,
-                    previewUrl: `${state.settings.apiUrl}${previewUrl}`,
-                    downloadUrl: `${state.settings.apiUrl}${downloadUrl}`,
-                    codeLength,
-                    tokens,
-                    generatedAt: new Date().toISOString()
-                };
-
-                // 更新状态
-                const demoData = {
-                    ...window.currentGeneratedDemo,
-                    type: currentDemoType,
-                    features: currentDemoFeatures
-                };
-
-                window.stateManager.completeGeneration(demoData);
-
-                // 保存到IndexedDB
-                window.storageManager.saveReport({
-                    id: `demo-${demoId}`,
-                    type: 'demo',
-                    data: demoData,
-                    chatId: state.currentChat
-                });
-
-                // 延迟后显示预览
-                setTimeout(() => {
-                    closeDemoProgress();
-                    showDemoPreview();
-                }, 1500);
-
-            } catch (error) {
-                addDemoLog(`> ❌ 错误: ${error.message}`);
-
-                // 更新状态
-                window.stateManager.errorGeneration(error);
-
-                setTimeout(() => {
-                    closeDemoProgress();
-                    alert(`❌ Demo生成失败: ${error.message}`);
-                }, 2000);
-            }
-        }
-
-        // 更新Demo步骤状态
-        function updateDemoStep(step, status) {
-            const stepEl = document.getElementById(`demo-step-${step.id}`);
-            const iconEl = document.getElementById(`demo-step-icon-${step.id}`);
-            const statusEl = document.getElementById(`demo-step-status-${step.id}`);
-
-            if (status === 'active') {
-                stepEl.classList.add('active');
-                iconEl.classList.add('spinning');
-                statusEl.textContent = '进行中...';
-            } else if (status === 'completed') {
-                stepEl.classList.remove('active');
-                stepEl.classList.add('completed');
-                iconEl.classList.remove('spinning');
-                statusEl.textContent = '已完成';
-            }
-        }
-
-        // 更新Demo进度
-        function updateDemoProgress(current, total) {
-            const progress = Math.round((current / total) * 100);
-            document.getElementById('demoProgressFill').style.width = `${progress}%`;
-            document.getElementById('demoProgressText').textContent =
-                `正在生成Demo，已完成 ${current}/${total} 个步骤（${progress}%）`;
-
-            // 更新StateManager进度
-            window.stateManager.updateProgress(
-                `步骤 ${current}/${total}`,
-                current,
-                { completed: current, total: total }
-            );
-        }
-
-        // 睡眠函数
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-
-        // 模拟Demo生成过程
-        let demoProgressInterval = null;
-        const demoLogs = [];
-
-        function simulateDemoGeneration(steps) {
-            let currentStepIndex = 0;
-            let progress = 0;
-            const totalSteps = steps.length;
-
-            const logMessages = {
-                'requirements': [
-                    '> 分析用户创意：' + (state.userData.idea || '创意项目'),
-                    '> 提取核心功能需求...',
-                    '> 生成功能模块规划...',
-                    '> 需求分析完成 ✓'
-                ],
-                'architecture': [
-                    '> 设计技术架构...',
-                    '> 选择技术栈：React + TailwindCSS',
-                    '> 规划组件结构...',
-                    '> 架构设计完成 ✓'
-                ],
-                'frontend': [
-                    '> 生成页面布局代码...',
-                    '> 创建React组件...',
-                    '> 实现交互逻辑...',
-                    '> 前端开发完成 ✓'
-                ],
-                'integration': [
-                    '> 集成功能模块...',
-                    '> 配置路由和状态管理...',
-                    '> 连接数据接口...',
-                    '> 功能集成完成 ✓'
-                ],
-                'testing': [
-                    '> 运行功能测试...',
-                    '> 优化性能...',
-                    '> 生成项目文件...',
-                    '> 测试优化完成 ✓'
-                ]
-            };
-
-            function processStep() {
-                if (currentStepIndex >= totalSteps) {
-                    clearInterval(demoProgressInterval);
-
-                    // 更新状态为完成
-                    const demoData = {
-                        type: 'web',
-                        features: ['首页', '用户系统', '核心功能'],
-                        generatedAt: new Date().toISOString()
-                    };
-
-                    window.stateManager.completeGeneration(demoData);
-
-                    // 保存到IndexedDB
-                    window.storageManager.saveReport({
-                        id: `demo-${Date.now()}`,
-                        type: 'demo',
-                        data: demoData,
-                        chatId: state.currentChat
-                    });
-
-                    setTimeout(() => {
-                        closeDemoProgress();
-                        showDemoPreview();
-                    }, 1000);
-                    return;
-                }
-
-                const step = steps[currentStepIndex];
-                const stepEl = document.getElementById(`demo-step-${step.id}`);
-                const iconEl = document.getElementById(`demo-step-icon-${step.id}`);
-                const statusEl = document.getElementById(`demo-step-status-${step.id}`);
-
-                // 设置为活动状态
-                stepEl.classList.add('active');
-                iconEl.classList.add('spinning');
-                statusEl.textContent = '进行中...';
-
-                // 添加日志
-                const logs = logMessages[step.id];
-                let logIndex = 0;
-                const logInterval = setInterval(() => {
-                    if (logIndex < logs.length) {
-                        addDemoLog(logs[logIndex]);
-                        logIndex++;
-                    } else {
-                        clearInterval(logInterval);
-                    }
-                }, 800);
-
-                // 模拟步骤完成
-                setTimeout(() => {
-                    stepEl.classList.remove('active');
-                    stepEl.classList.add('completed');
-                    iconEl.classList.remove('spinning');
-                    statusEl.textContent = '已完成';
-
-                    currentStepIndex++;
-                    progress = Math.round((currentStepIndex / totalSteps) * 100);
-
-                    // 更新StateManager进度
-                    window.stateManager.updateProgress(
-                        step.title,
-                        currentStepIndex,
-                        { step: step.id, completed: true }
-                    );
-
-                    document.getElementById('demoProgressFill').style.width = `${progress}%`;
-                    document.getElementById('demoProgressText').textContent =
-                        `正在生成Demo，已完成 ${currentStepIndex}/${totalSteps} 个步骤（${progress}%）`;
-
-                }, 5000);
-            }
-
-            demoProgressInterval = setInterval(processStep, 5500);
-            processStep();
-        }
-
-        // 添加日志
-        function addDemoLog(message) {
-            const logsContainer = document.getElementById('demoLogs');
-            const logEl = document.createElement('div');
-            logEl.textContent = message;
-            logEl.style.opacity = '0';
-            logEl.style.transition = 'opacity 0.3s';
-            logsContainer.appendChild(logEl);
-
-            setTimeout(() => {
-                logEl.style.opacity = '1';
-            }, 50);
-
-            // 自动滚动到底部
-            logsContainer.scrollTop = logsContainer.scrollHeight;
-        }
-
-        // 关闭Demo进度
-        function closeDemoProgress() {
-            if (demoProgressInterval) {
-                clearInterval(demoProgressInterval);
-                demoProgressInterval = null;
-            }
-            if (window.modalManager && window.modalManager.isOpen('demoProgressModal')) {
-                window.modalManager.close('demoProgressModal');
-            } else {
-                document.getElementById('demoProgressModal').classList.remove('active');
-            }
-        }
-
-        // 取消Demo生成
-        function cancelDemoGeneration() {
-            if (confirm('确定要取消Demo生成吗？')) {
-                // 重置状态
-                window.stateManager.resetGeneration();
-                closeDemoProgress();
-            }
-        }
-
-        // 显示Demo预览
-        async function showDemoPreview() {
-            const demoPreviewModal = document.getElementById('demoPreviewModal');
-            demoPreviewModal.classList.add('active');
-
-            // 加载并显示真实的Demo代码
-            if (window.currentGeneratedDemo) {
-                try {
-                    // 获取Demo代码
-                    const response = await fetch(`${state.settings.apiUrl}/api/demo-generator/preview/${window.currentGeneratedDemo.demoId}`);
-
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.code === 0) {
-                            const htmlCode = result.data.htmlCode;
-
-                            // 在iframe中显示Demo
-                            const previewFrame = document.getElementById('demoPreviewFrame');
-                            previewFrame.innerHTML = `
-                                <iframe
-                                    style="width: 100%; height: 100%; border: none;"
-                                    srcdoc="${htmlCode.replace(/"/g, '&quot;')}"
-                                    sandbox="allow-scripts allow-same-origin">
-                                </iframe>
-                            `;
-                        }
-                    }
-                } catch (error) {
-                    }
-            }
-        }
-
-        // 关闭Demo预览
-        function closeDemoPreview() {
-            if (window.modalManager && window.modalManager.isOpen('demoPreviewModal')) {
-                window.modalManager.close('demoPreviewModal');
-            } else {
-                document.getElementById('demoPreviewModal').classList.remove('active');
-            }
-        }
-
-        // 下载Demo
-        async function downloadDemo() {
-            if (!window.currentGeneratedDemo) {
-                alert('❌ 无Demo可下载');
-                return;
-            }
-
-            try {
-                // 直接下载ZIP文件
-                const downloadUrl = window.currentGeneratedDemo.downloadUrl;
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.download = `${window.currentGeneratedDemo.demoId}_source.zip`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                alert('✅ Demo源代码下载已开始！');
-
-            } catch (error) {
-                alert(`❌ 下载失败: ${error.message}`);
-            }
-        }
-
-        // 查看Demo代码
-        async function viewDemoCode() {
-            if (!window.currentGeneratedDemo) {
-                alert('❌ 无Demo可查看');
-                return;
-            }
-
-            try {
-                // 获取Demo代码
-                const response = await fetch(`${state.settings.apiUrl}/api/demo-generator/preview/${window.currentGeneratedDemo.demoId}`);
-
-                if (!response.ok) {
-                    throw new Error('获取代码失败');
-                }
-
-                const result = await response.json();
-
-                if (result.code !== 0) {
-                    throw new Error(result.error || '获取代码失败');
-                }
-
-                const htmlCode = result.data.htmlCode;
-
-                // 创建代码查看器窗口
-                const codeWindow = window.open('', '_blank', 'width=800,height=600');
-                codeWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Demo源代码</title>
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 20px;
-                                font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-                                background: #1e1e1e;
-                                color: #d4d4d4;
-                            }
-                            pre {
-                                margin: 0;
-                                white-space: pre-wrap;
-                                word-wrap: break-word;
-                            }
-                            .header {
-                                background: #2d2d2d;
-                                padding: 15px;
-                                margin: -20px -20px 20px -20px;
-                                border-bottom: 1px solid #3e3e3e;
-                            }
-                            .header h2 {
-                                margin: 0;
-                                color: #fff;
-                                font-size: 18px;
-                            }
-                            button {
-                                background: #0e639c;
-                                color: white;
-                                border: none;
-                                padding: 8px 16px;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                margin-top: 10px;
-                            }
-                            button:hover {
-                                background: #1177bb;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <h2>🔍 ${window.currentGeneratedDemo.filename}</h2>
-                            <button onclick="navigator.clipboard.writeText(document.getElementById('code').textContent).then(() => alert('代码已复制！'))">
-                                📋 复制代码
-                            </button>
-                        </div>
-                        <pre id="code">${htmlCode.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
-                    </body>
-                    </html>
-                `);
-                codeWindow.document.close();
-
-            } catch (error) {
-                alert(`❌ 查看代码失败: ${error.message}`);
-            }
-        }
-
-        // 分享Demo链接
-        async function shareDemoLink() {
-            if (!window.currentGeneratedDemo) {
-                alert('❌ 无Demo可分享');
-                return;
-            }
-
-            try {
-                // 创建分享链接
-                const response = await fetch(`${state.settings.apiUrl}/api/share/create`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        type: 'demo',
-                        data: window.currentGeneratedDemo,
-                        title: state.userData.idea || 'Demo展示'
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('创建分享失败');
-                }
-
-                const result = await response.json();
-
-                if (result.code !== 0) {
-                    throw new Error(result.error || '创建分享失败');
-                }
-
-                const { shareUrl, expiresAt } = result.data;
-
-                // 显示分享链接
-                const message = `🔗 Demo分享链接已生成！\n\n${shareUrl}\n\n链接有效期至: ${new Date(expiresAt).toLocaleString('zh-CN')}\n\n点击"确定"复制链接`;
-
-                if (confirm(message)) {
-                    copyToClipboard(shareUrl);
-                }
-
-            } catch (error) {
-                alert(`❌ 分享失败: ${error.message}`);
             }
         }
 
@@ -4259,59 +3260,11 @@
             if (saved) {
                 state.teamSpace = JSON.parse(saved);
             } else {
-                // 创建初始mock数据
                 state.teamSpace = {
-                    projects: [
-                        {
-                            id: 'project_001',
-                            name: '智能健身APP项目',
-                            icon: '🚀',
-                            description: '基于AI的个性化健身指导应用',
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
-                            members: [],
-                            assignedAgents: [],
-                            linkedIdeas: [],
-                            ideas: [],
-                            tasks: [],
-                            files: [],
-                            status: 'active'
-                        },
-                        {
-                            id: 'project_002',
-                            name: '在线教育平台',
-                            icon: '📚',
-                            description: '互动式在线学习平台',
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
-                            members: [],
-                            assignedAgents: [],
-                            linkedIdeas: [],
-                            ideas: [],
-                            tasks: [],
-                            files: [],
-                            status: 'active'
-                        },
-                        {
-                            id: 'project_003',
-                            name: '社区电商平台',
-                            icon: '🛒',
-                            description: '基于社区的电商解决方案',
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
-                            members: [],
-                            assignedAgents: [],
-                            linkedIdeas: [],
-                            ideas: [],
-                            tasks: [],
-                            files: [],
-                            status: 'active'
-                        }
-                    ],
+                    projects: [],
                     agents: [],
                     knowledge: []
                 };
-                // 保存初始数据
                 saveTeamSpace();
             }
         }
@@ -4541,57 +3494,9 @@
 
         // ==================== 员工市场功能 ====================
 
-        // 可雇佣员工列表（模拟数据）
-        const AVAILABLE_AGENTS = [
-            {
-                id: 'agent_001',
-                name: 'Alex 产品经理',
-                avatar: '👨‍💼',
-                role: '产品经理',
-                description: '擅长产品规划、需求分析和用户研究，帮助你将创意转化为可落地的产品方案',
-                skills: ['需求分析', 'PRD撰写', '用户研究', '竞品分析']
-            },
-            {
-                id: 'agent_002',
-                name: 'Maya 设计师',
-                avatar: '🎨',
-                role: 'UI/UX设计师',
-                description: '专注用户体验设计和视觉设计，为你的产品打造精美的用户界面',
-                skills: ['UI设计', 'UX设计', '交互设计', '原型设计']
-            },
-            {
-                id: 'agent_003',
-                name: 'Leo 全栈工程师',
-                avatar: '👨‍💻',
-                role: '全栈工程师',
-                description: '精通前后端开发，能够快速实现你的产品原型和MVP',
-                skills: ['前端开发', '后端开发', '数据库', 'API设计']
-            },
-            {
-                id: 'agent_004',
-                name: 'Sophia 运营专家',
-                avatar: '📊',
-                role: '运营专家',
-                description: '擅长增长黑客、用户运营和数据分析，助力产品快速增长',
-                skills: ['增长黑客', '数据分析', '内容营销', '用户运营']
-            },
-            {
-                id: 'agent_005',
-                name: 'David 市场顾问',
-                avatar: '📈',
-                role: '市场顾问',
-                description: '专注市场调研、品牌策略和商业模式设计',
-                skills: ['市场调研', '品牌策划', '商业模式', '营销策略']
-            },
-            {
-                id: 'agent_006',
-                name: 'Emma 文案专家',
-                avatar: '✍️',
-                role: '文案专家',
-                description: '精通文案策划、内容创作，帮助你打造有影响力的品牌故事',
-                skills: ['文案策划', '内容创作', '品牌故事', 'SEO优化']
-            }
-        ];
+        // TODO: 员工数据应该从后端API获取
+        // const agents = await apiClient.get('/api/agents/market');
+        const AVAILABLE_AGENTS = [];
 
         // 显示员工市场
         function showAgentMarket() {
@@ -5550,108 +4455,6 @@
         function switchKnowledgeTab(tabName) {
             }
 
-        // 知识库初始化和Mock数据迁移
-        async function initKnowledgeBase() {
-            try {
-                // 检查是否已迁移
-                const migrated = await storageManager.getSetting('knowledge_migrated');
-                if (migrated) {
-                    return;
-                }
-
-                // Mock数据
-                const mockData = [
-                    {
-                        title: '智能健身APP产品需求文档',
-                        content: '包含完整的PRD文档，包括用户画像、功能清单、技术架构等。目标用户为18-35岁的健身爱好者，通过AI动作识别技术提供个性化训练方案，支持iOS和Android平台。',
-                        type: 'prd',
-                        scope: 'project',
-                        projectId: 'project_001',
-                        tags: ['PRD', '产品', '健身'],
-                        icon: '📄'
-                    },
-                    {
-                        title: 'AI动作识别技术方案',
-                        content: '基于TensorFlow的姿态识别技术实现方案和代码示例。采用MoveNet模型进行实时人体关键点检测，支持17个关键点识别，帧率达到30fps。',
-                        type: 'tech',
-                        scope: 'project',
-                        projectId: 'project_001',
-                        tags: ['技术', 'AI', 'TensorFlow'],
-                        icon: '🤖'
-                    },
-                    {
-                        title: '市场竞品分析报告',
-                        content: 'Keep、FitTime等5款竞品的功能对比和用户评价分析。Keep用户量最大但内容同质化严重，FitTime社交功能突出，我们需要在AI个性化方面寻求差异化。',
-                        type: 'analysis',
-                        scope: 'project',
-                        projectId: 'project_001',
-                        tags: ['分析', '竞品', '市场'],
-                        icon: '📊'
-                    },
-                    {
-                        title: '用户调研报告',
-                        content: '针对200名目标用户的问卷调研和深度访谈结果。78%用户希望有AI教练指导，65%愿意为个性化方案付费，平均可接受月费为68元。',
-                        type: 'research',
-                        scope: 'project',
-                        projectId: 'project_001',
-                        tags: ['调研', '用户', '数据'],
-                        icon: '👥'
-                    },
-                    {
-                        title: '产品设计最佳实践',
-                        content: '跨项目沉淀的产品设计方法论和最佳实践。包含用户研究、需求分析、原型设计、可用性测试等完整流程，以及常见问题的解决方案。',
-                        type: 'other',
-                        scope: 'global',
-                        projectId: null,
-                        tags: ['产品', '方法论', '最佳实践'],
-                        icon: '💡'
-                    },
-                    {
-                        title: 'K12编程教育课程体系',
-                        content: '面向6-18岁青少年的编程教育课程体系设计。分为图形化编程、Python基础、算法竞赛三个阶段，每阶段包含80课时内容。',
-                        type: 'prd',
-                        scope: 'project',
-                        projectId: 'project_002',
-                        tags: ['教育', 'K12', '编程'],
-                        icon: '📚'
-                    },
-                    {
-                        title: '在线教育平台技术架构',
-                        content: '基于微服务架构的在线教育平台技术方案。采用SpringCloud+Vue3技术栈，支持百万级并发，包含直播、点播、作业系统、考试系统等核心模块。',
-                        type: 'tech',
-                        scope: 'project',
-                        projectId: 'project_002',
-                        tags: ['技术', '架构', '微服务'],
-                        icon: '⚙️'
-                    }
-                ];
-
-                // 批量创建知识条目
-                for (const data of mockData) {
-                    const item = {
-                        id: `knowledge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        ...data,
-                        createdAt: Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000, // 随机过去30天
-                        updatedAt: Date.now(),
-                        createdBy: 'system',
-                        linkedChatId: null,
-                        attachments: [],
-                        viewCount: Math.floor(Math.random() * 50),
-                        usageCount: Math.floor(Math.random() * 20)
-                    };
-
-                    await storageManager.saveKnowledge(item);
-                    // 添加小延迟，避免ID冲突
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                }
-
-                // 标记迁移完成
-                await storageManager.saveSetting('knowledge_migrated', true);
-
-                } catch (error) {
-                }
-        }
-
         // 启动项目团队协同
         async function startProjectTeamCollaboration(projectId) {
             const project = state.teamSpace.projects.find(p => p.id === projectId);
@@ -6095,7 +4898,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             updateTeamTabVisibility();
 
             if (window.apiClient && window.apiClient.setBaseURL) {
-                const apiUrl = state.settings.apiUrl || 'http://localhost:3000';
+                const apiUrl = state.settings.apiUrl || ((window.location.hostname === 'localhost' && window.location.port === '8000') ? 'http://localhost:3000' : window.location.origin);
                 window.apiClient.setBaseURL(apiUrl);
             }
         }
@@ -6165,60 +4968,14 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         }
 
         function loadTeamProject(projectId) {
-            // Mock项目数据
-            const projects = {
-                project_001: {
-                    id: 'project_001',
-                    name: '智能健身APP项目',
-                    icon: '🚀',
-                    status: '进行中',
-                    members: [
-                        { id: 'member_1', name: '张三', role: '产品经理', avatar: '👨‍💼', type: 'human' },
-                        { id: 'member_2', name: '李四', role: '技术负责人', avatar: '👨‍💻', type: 'human' },
-                        { id: 'member_3', name: '王五', role: 'UI设计师', avatar: '👩‍🎨', type: 'human' }
-                    ],
-                    ideas: [
-                        { title: '智能健身APP创意验证', icon: '💡', date: '2天前' },
-                        { title: 'AI动作识别技术方案', icon: '🤖', date: '1周前' }
-                    ],
-                    agents: [] // 已雇佣的数字员工ID列表
-                },
-                project_002: {
-                    id: 'project_002',
-                    name: '在线教育平台',
-                    icon: '📚',
-                    status: '规划中',
-                    members: [
-                        { id: 'member_4', name: '赵六', role: '产品经理', avatar: '👨‍💼', type: 'human' },
-                        { id: 'member_5', name: '钱七', role: '开发工程师', avatar: '👩‍💻', type: 'human' }
-                    ],
-                    ideas: [
-                        { title: 'K12编程教育平台', icon: '🎓', date: '3天前' }
-                    ],
-                    agents: []
-                },
-                project_003: {
-                    id: 'project_003',
-                    name: '智能家居控制系统',
-                    icon: '🏠',
-                    status: '已完成',
-                    members: [
-                        { id: 'member_6', name: '孙八', role: '项目经理', avatar: '👨‍💼', type: 'human' },
-                        { id: 'member_7', name: '周九', role: '前端开发', avatar: '👨‍💻', type: 'human' },
-                        { id: 'member_8', name: '吴十', role: '后端开发', avatar: '👩‍💻', type: 'human' },
-                        { id: 'member_9', name: '郑十一', role: '运营专员', avatar: '👩‍💼', type: 'human' }
-                    ],
-                    ideas: [
-                        { title: '社区拼团功能设计', icon: '🎁', date: '1个月前' },
-                        { title: '智能推荐算法优化', icon: '🔮', date: '2个月前' }
-                    ],
-                    agents: ['agent_003'] // 示例：已雇佣市场营销专家
-                }
-            };
+            // TODO: 从后端API获取项目数据
+            // const project = await apiClient.get(`/api/projects/${projectId}`);
 
-            const project = projects[projectId];
+            // 临时处理：项目数据应该从后端获取
+            const project = null;
+
             if (!project) {
-                alert('项目不存在');
+                alert('项目不存在或尚未实现');
                 return;
             }
 
@@ -6499,57 +5256,9 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         }
 
         function getAgentMarket() {
-            // 数字员工市场数据
-            return [
-                {
-                    id: 'agent_001',
-                    name: 'Alex',
-                    role: '产品经理',
-                    avatar: '👨‍💼',
-                    desc: '擅长需求分析和产品规划，帮助你梳理产品思路',
-                    skills: ['需求分析', 'PRD撰写', '竞品分析']
-                },
-                {
-                    id: 'agent_002',
-                    name: 'Sophia',
-                    role: '技术架构师',
-                    avatar: '👩‍💻',
-                    desc: '精通系统架构设计，为你的产品提供技术方案',
-                    skills: ['架构设计', '技术选型', '性能优化']
-                },
-                {
-                    id: 'agent_003',
-                    name: 'Emma',
-                    role: '市场营销专家',
-                    avatar: '👩‍💼',
-                    desc: '深谙市场营销策略，帮助产品找到目标用户',
-                    skills: ['市场调研', '营销策划', '用户增长']
-                },
-                {
-                    id: 'agent_004',
-                    name: 'Oliver',
-                    role: 'UI/UX设计师',
-                    avatar: '👨‍🎨',
-                    desc: '注重用户体验，为产品打造精美界面',
-                    skills: ['界面设计', '交互设计', '用户研究']
-                },
-                {
-                    id: 'agent_005',
-                    name: 'Liam',
-                    role: '数据分析师',
-                    avatar: '👨‍🔬',
-                    desc: '善于从数据中发现洞察，驱动产品决策',
-                    skills: ['数据分析', '用户画像', 'A/B测试']
-                },
-                {
-                    id: 'agent_006',
-                    name: 'Ava',
-                    role: '内容运营专家',
-                    avatar: '👩‍🏫',
-                    desc: '精通内容策划和运营，提升品牌影响力',
-                    skills: ['内容策划', '社群运营', 'SEO优化']
-                }
-            ];
+            // TODO: 从后端API获取数字员工市场数据
+            // return await apiClient.get('/api/agents/market');
+            return [];
         }
 
         function clearAllHistory() {
@@ -6610,13 +5319,11 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             sessionStorage.removeItem('thinkcraft_logged_in');
             sessionStorage.removeItem('thinkcraft_user');
             sessionStorage.removeItem('thinkcraft_quick_mode');
-            sessionStorage.removeItem('thinkcraft_registered_user');
             sessionStorage.removeItem('thinkcraft_login_codes');
 
             // 清除登录页记住信息
             localStorage.removeItem('thinkcraft_remember');
             localStorage.removeItem('thinkcraft_login_phone');
-            localStorage.removeItem('thinkcraft_username');
 
             // 未开启保存历史时，清理本地对话数据
             if (!saveHistory) {
@@ -7088,9 +5795,6 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             handleLaunchParams();  // 处理PWA启动参数
             initChatAutoScroll();
 
-            // 知识库Mock数据迁移
-            initKnowledgeBase();
-
             // 应用智能输入提示
             setTimeout(() => {
                 applySmartInputHint();
@@ -7272,7 +5976,20 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
         // 新手引导
         function initOnboarding() {
             const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
-            const hasDone = localStorage.getItem('thinkcraft_onboarding_done') === 'true';
+            let userKey = null;
+            try {
+                const rawUser = sessionStorage.getItem('thinkcraft_user');
+                if (rawUser) {
+                    const user = JSON.parse(rawUser);
+                    userKey = user?.userId || user?.id || user?.phone || null;
+                }
+            } catch (e) {
+                userKey = null;
+            }
+            const onboardingKey = userKey
+                ? `thinkcraft_onboarding_done_${userKey}`
+                : 'thinkcraft_onboarding_done';
+            const hasDone = localStorage.getItem(onboardingKey) === 'true';
             if (!isLoggedIn || hasDone) return;
 
             const overlay = document.getElementById('onboardingOverlay');
@@ -7284,6 +6001,161 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             const btnPrev = document.getElementById('onboardingPrev');
             const btnNext = document.getElementById('onboardingNext');
             const btnSkip = document.getElementById('onboardingSkip');
+
+            const onboardingContext = {
+                mockProject: null,
+                mockPanelShown: false,
+                cleanup: []
+            };
+
+            function ensureMockProjectCard() {
+                if (document.querySelector('.project-card')) {
+                    return null;
+                }
+                const container = document.getElementById('projectListContainer');
+                if (!container) {
+                    return null;
+                }
+
+                let list = container.querySelector('.project-list');
+                let createdList = false;
+                if (!list) {
+                    list = document.createElement('div');
+                    list.className = 'project-list';
+                    container.appendChild(list);
+                    createdList = true;
+                }
+
+                let grid = list.querySelector('.project-list-grid');
+                let createdGrid = false;
+                if (!grid) {
+                    grid = document.createElement('div');
+                    grid.className = 'project-list-grid';
+                    grid.dataset.onboardingTemp = 'true';
+                    list.appendChild(grid);
+                    createdGrid = true;
+                }
+
+                const emptyState = list.querySelector('.project-list-empty');
+                const emptyDisplay = emptyState ? emptyState.style.display : '';
+                if (emptyState) {
+                    emptyState.style.display = 'none';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'project-card onboarding-mock';
+                card.dataset.projectId = 'onboarding-mock-project';
+                card.innerHTML = `
+                    <div class="project-card-head">
+                        <div class="project-card-title-row">
+                            <div class="project-card-title">示例项目：用户洞察平台</div>
+                        </div>
+                        <div class="project-card-badges">
+                            <span class="project-pill status-planning">规划中</span>
+                            <span class="project-pill">协同开发模式</span>
+                        </div>
+                        <div class="project-card-meta">
+                            <span>更新 刚刚</span>
+                            <span class="project-card-meta-dot"></span>
+                            <span>阶段 4</span>
+                            <span class="project-card-meta-dot"></span>
+                            <span>待完成 3</span>
+                        </div>
+                    </div>
+                    <div class="project-card-kpis">
+                        <div class="project-card-kpi">
+                            <span>成员</span>
+                            <strong>3</strong>
+                        </div>
+                        <div class="project-card-kpi">
+                            <span>创意</span>
+                            <strong>2</strong>
+                        </div>
+                        <div class="project-card-kpi">
+                            <span>进度</span>
+                            <strong>25%</strong>
+                        </div>
+                    </div>
+                    <div class="project-card-progress-row">
+                        <div class="project-card-progress-label">进度 25%</div>
+                        <div class="project-card-progress">
+                            <span style="width: 25%;"></span>
+                        </div>
+                    </div>
+                `;
+                card.addEventListener('click', (event) => event.preventDefault());
+                grid.prepend(card);
+
+                onboardingContext.cleanup.push(() => {
+                    card.remove();
+                    if (emptyState) {
+                        emptyState.style.display = emptyDisplay;
+                    }
+                    if (createdGrid && grid.childElementCount === 0) {
+                        grid.remove();
+                    }
+                    if (createdList && list.childElementCount === 0) {
+                        list.remove();
+                    }
+                });
+
+                return card;
+            }
+
+            function showMockProjectPanel() {
+                if (onboardingContext.mockPanelShown) {
+                    return;
+                }
+                const panel = document.getElementById('projectPanel');
+                const body = document.getElementById('projectPanelBody');
+                const title = document.getElementById('projectPanelTitle');
+                if (!panel || !body) {
+                    return;
+                }
+
+                const previousDisplay = panel.style.display;
+                const previousTitle = title ? title.textContent : '';
+                const previousBody = body.innerHTML;
+
+                panel.style.display = 'block';
+                if (title) {
+                    title.textContent = '示例项目详情';
+                }
+                body.innerHTML = `
+                    <div style="padding: 16px;">
+                        <div style="border-radius: 12px; padding: 16px; background: #f8fafc; border: 1px solid var(--border); margin-bottom: 16px;">
+                            <div style="font-weight: 600; margin-bottom: 8px;">示例：用户洞察平台</div>
+                            <div style="font-size: 13px; color: var(--text-secondary);">这里会展示项目概览、进度与成员情况。</div>
+                        </div>
+                        <div style="display: grid; gap: 12px;">
+                            <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
+                                <div style="font-weight: 600; margin-bottom: 6px;">阶段 1｜需求澄清</div>
+                                <div style="font-size: 13px; color: var(--text-secondary);">已完成 · 交付物 2</div>
+                            </div>
+                            <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
+                                <div style="font-weight: 600; margin-bottom: 6px;">阶段 2｜方案设计</div>
+                                <div style="font-size: 13px; color: var(--text-secondary);">进行中 · 交付物 1</div>
+                            </div>
+                            <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
+                                <div style="font-weight: 600; margin-bottom: 6px;">阶段 3｜原型输出</div>
+                                <div style="font-size: 13px; color: var(--text-secondary);">待开始 · 交付物 0</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                onboardingContext.mockPanelShown = true;
+
+                onboardingContext.cleanup.push(() => {
+                    panel.style.display = previousDisplay || 'none';
+                    if (title) {
+                        title.textContent = previousTitle;
+                    }
+                    body.innerHTML = previousBody;
+                    onboardingContext.mockPanelShown = false;
+                });
+            }
+
+            onboardingContext.mockProject = ensureMockProjectCard();
 
             const steps = [
                 {
@@ -7337,6 +6209,10 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                     onEnter: () => {
                         switchSidebarTab('team');
                         setTimeout(() => {
+                            if (onboardingContext.mockProject) {
+                                showMockProjectPanel();
+                                return;
+                            }
                             const firstCard = document.querySelector('.project-card');
                             if (firstCard && typeof window.projectManager?.openProject === 'function') {
                                 window.projectManager.openProject(firstCard.dataset.projectId);
@@ -7350,7 +6226,9 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
             function finishOnboarding() {
                 overlay.style.display = 'none';
-                localStorage.setItem('thinkcraft_onboarding_done', 'true');
+                localStorage.setItem(onboardingKey, 'true');
+                onboardingContext.cleanup.forEach(cleanup => cleanup());
+                onboardingContext.cleanup = [];
                 if (typeof closeSettings === 'function') {
                     closeSettings();
                 } else if (typeof closeBottomSettings === 'function') {
@@ -7400,6 +6278,10 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
                 current = index;
                 const step = steps[current];
+
+                if ((step.target === '.project-card' || step.target === '#projectPanel') && !document.querySelector('.project-card')) {
+                    onboardingContext.mockProject = ensureMockProjectCard();
+                }
 
                 if (typeof step.onEnter === 'function') {
                     step.onEnter();

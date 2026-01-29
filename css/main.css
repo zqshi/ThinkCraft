@@ -878,24 +878,6 @@ body {
   gap: 10px;
 }
 
-.project-panel-demo {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.project-panel-demo-main {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.project-panel-demo-sub {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
 .project-panel-list {
   display: grid;
   gap: 10px;
@@ -3032,114 +3014,6 @@ body {
   font-size: 13px;
   font-weight: 500;
   margin: 0;
-}
-
-/* Demo类型选择卡片 */
-.demo-type-card {
-  position: relative;
-  padding: 24px;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.demo-type-card:hover {
-  border-color: var(--primary);
-  background: #eff6ff;
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.15);
-}
-
-.demo-type-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.demo-type-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.demo-type-desc {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.demo-type-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: var(--primary);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* Demo步骤 */
-.demo-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.demo-step-item {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  border-left: 4px solid var(--border);
-}
-
-.demo-step-item.active {
-  border-left-color: var(--primary);
-  background: #eff6ff;
-}
-
-.demo-step-item.completed {
-  border-left-color: #10b981;
-  opacity: 0.7;
-}
-
-.demo-step-icon {
-  font-size: 24px;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.demo-step-icon.spinning {
-  animation: spin 2s linear infinite;
-}
-
-.demo-step-info {
-  flex: 1;
-}
-
-.demo-step-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.demo-step-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.demo-step-status {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--primary);
 }
 
 /* 标签系统 */

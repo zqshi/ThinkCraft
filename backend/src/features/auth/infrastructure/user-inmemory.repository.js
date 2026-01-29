@@ -5,32 +5,12 @@
 import { UserRepository } from '../domain/user.repository.js';
 import { User } from '../domain/user.aggregate.js';
 import { UserId } from '../domain/value-objects/user-id.vo.js';
-import { Username } from '../domain/value-objects/username.vo.js';
-import { Email } from '../domain/value-objects/email.vo.js';
-import { Password } from '../domain/value-objects/password.vo.js';
-import { UserStatus } from '../domain/value-objects/user-status.vo.js';
+import { Phone } from '../domain/value-objects/phone.vo.js';
 
 export class UserInMemoryRepository extends UserRepository {
   constructor() {
     super();
     this.users = new Map();
-    this.initDemoData();
-  }
-
-  /**
-   * 初始化演示数据
-   */
-  initDemoData() {
-    // 创建演示用户
-    const demoUser = new User(
-      UserId.fromString('user-1'),
-      new Username('demo'),
-      new Email('demo@example.com'),
-      Password.create('demo123'),
-      UserStatus.ACTIVE
-    );
-
-    this.users.set(demoUser.id.value, demoUser);
   }
 
   /**
@@ -39,36 +19,6 @@ export class UserInMemoryRepository extends UserRepository {
   async findById(id) {
     const userId = id instanceof UserId ? id : UserId.fromString(id);
     return this.users.get(userId.value) || null;
-  }
-
-  /**
-   * 根据用户名查找用户
-   */
-  async findByUsername(username) {
-    const usernameObj = username instanceof Username ? username : new Username(username);
-
-    for (const user of this.users.values()) {
-      if (user.username.equals(usernameObj)) {
-        return user;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * 根据邮箱查找用户
-   */
-  async findByEmail(email) {
-    const emailObj = email instanceof Email ? email : new Email(email);
-
-    for (const user of this.users.values()) {
-      if (user.email.equals(emailObj)) {
-        return user;
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -102,22 +52,6 @@ export class UserInMemoryRepository extends UserRepository {
   }
 
   /**
-   * 检查用户名是否已存在
-   */
-  async existsByUsername(username) {
-    const user = await this.findByUsername(username);
-    return user !== null;
-  }
-
-  /**
-   * 检查邮箱是否已存在
-   */
-  async existsByEmail(email) {
-    const user = await this.findByEmail(email);
-    return user !== null;
-  }
-
-  /**
    * 获取所有用户
    */
   async findAll() {
@@ -143,6 +77,19 @@ export class UserInMemoryRepository extends UserRepository {
    */
   nextId() {
     return UserId.generate();
+  }
+
+  /**
+   * 根据手机号查找用户
+   */
+  async findByPhone(phone) {
+    const phoneValue = phone instanceof Phone ? phone.value : phone;
+    for (const user of this.users.values()) {
+      if (user.phone && user.phone.value === phoneValue) {
+        return user;
+      }
+    }
+    return null;
   }
 }
 

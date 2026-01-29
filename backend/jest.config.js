@@ -19,10 +19,10 @@ export default {
   // 覆盖率阈值（修正拼写）
   coverageThreshold: {
     global: {
-      branches: 60,
-      functions: 60,
-      lines: 60,
-      statements: 60
+      branches: 90,
+      functions: 90,
+      lines: 90,
+      statements: 90
     }
   },
 

@@ -11,7 +11,7 @@ function initApp() {
   window.modalManager = new ModalManager();
   window.storageManager = new StorageManager();
   const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
-  const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || 'http://localhost:3000';
+  const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || getDefaultApiUrl();
   window.apiClient = window.apiClient || new APIClient(apiUrl);
   window.apiClient.setBaseURL && window.apiClient.setBaseURL(apiUrl);
   window.stateManager = new StateManager();
@@ -60,6 +60,13 @@ function initApp() {
   if (sendBtn) {
     sendBtn.addEventListener('click', sendMessage);
   }
+}
+
+function getDefaultApiUrl() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return window.location.origin;
 }
 
 if (document.readyState === 'loading') {

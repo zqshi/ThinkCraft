@@ -113,14 +113,6 @@ export function formatFileSize(bytes) {
 }
 
 /**
- * 验证邮箱格式
- */
-export function validateEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-/**
  * 验证URL格式
  */
 export function validateUrl(url) {

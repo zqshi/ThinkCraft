@@ -7,7 +7,7 @@ export class CreateProjectRequestDTO {
   constructor(ideaId, name, mode) {
     this.ideaId = ideaId;
     this.name = name;
-    this.mode = mode;
+    this.mode = mode || 'development';
   }
 
   validate() {
@@ -19,12 +19,12 @@ export class CreateProjectRequestDTO {
       throw new Error('项目名称不能为空');
     }
 
-    if (!this.mode || typeof this.mode !== 'string') {
-      throw new Error('项目模式不能为空');
+    if (this.mode && typeof this.mode !== 'string') {
+      throw new Error('项目模式必须是字符串');
     }
 
-    if (!['demo', 'development'].includes(this.mode)) {
-      throw new Error('项目模式必须是 demo 或 development');
+    if (this.mode && !['development'].includes(this.mode)) {
+      throw new Error('项目模式必须是 development');
     }
 
     if (this.name.length < 1 || this.name.length > 100) {
@@ -51,10 +51,6 @@ export class CreateProjectResponseDTO {
 
     if (project.workflow) {
       this.workflow = project.workflow.toJSON();
-    }
-
-    if (project.demo) {
-      this.demo = project.demo.toJSON();
     }
   }
 }
@@ -112,10 +108,6 @@ export class ProjectResponseDTO {
     if (project.workflow) {
       this.workflow = project.workflow.toJSON();
     }
-
-    if (project.demo) {
-      this.demo = project.demo.toJSON();
-    }
   }
 }
 
@@ -123,14 +115,6 @@ export class ProjectListResponseDTO {
   constructor(projects, total) {
     this.projects = projects.map(project => new ProjectResponseDTO(project));
     this.total = total;
-  }
-}
-
-export class UpgradeProjectResponseDTO {
-  constructor(project, migratedArtifacts = []) {
-    this.project = new ProjectResponseDTO(project);
-    this.workflow = project.workflow ? project.workflow.toJSON() : null;
-    this.migratedArtifacts = migratedArtifacts;
   }
 }
 
@@ -157,49 +141,6 @@ export class CustomizeWorkflowRequestDTO {
         throw new Error(`阶段 ${index} 的状态无效`);
       }
     });
-  }
-}
-
-export class UpdateDemoCodeRequestDTO {
-  constructor(code, type, previewUrl, downloadUrl) {
-    this.code = code;
-    this.type = type;
-    this.previewUrl = previewUrl;
-    this.downloadUrl = downloadUrl;
-  }
-
-  validate() {
-    if (this.code !== undefined && typeof this.code !== 'string') {
-      throw new Error('代码必须是字符串');
-    }
-
-    if (this.type !== undefined && typeof this.type !== 'string') {
-      throw new Error('类型必须是字符串');
-    }
-
-    if (this.previewUrl !== undefined && this.previewUrl !== null) {
-      if (typeof this.previewUrl !== 'string') {
-        throw new Error('预览URL必须是字符串');
-      }
-
-      try {
-        new URL(this.previewUrl);
-      } catch {
-        throw new Error('预览URL格式不正确');
-      }
-    }
-
-    if (this.downloadUrl !== undefined && this.downloadUrl !== null) {
-      if (typeof this.downloadUrl !== 'string') {
-        throw new Error('下载URL必须是字符串');
-      }
-
-      try {
-        new URL(this.downloadUrl);
-      } catch {
-        throw new Error('下载URL格式不正确');
-      }
-    }
   }
 }
 
@@ -236,8 +177,8 @@ export class SearchProjectsRequestDTO {
       throw new Error('搜索查询至少需要2个字符');
     }
 
-    if (this.filters.mode && !['demo', 'development'].includes(this.filters.mode)) {
-      throw new Error('项目模式必须是 demo 或 development');
+    if (this.filters.mode && !['development'].includes(this.filters.mode)) {
+      throw new Error('项目模式必须是 development');
     }
 
     if (this.filters.status) {

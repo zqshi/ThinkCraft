@@ -7,7 +7,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this.dbName = 'ThinkCraft';
-    this.dbVersion = 6; // 升级到v6支持工作流交付物存储
+    this.dbVersion = 7; // 升级到v7移除Demo存储
     this.ready = false;
 
     // 初始化数据库
@@ -47,10 +47,8 @@ class StorageManager {
           reportsStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
 
-        if (!db.objectStoreNames.contains('demos')) {
-          const demosStore = db.createObjectStore('demos', { keyPath: 'id' });
-          demosStore.createIndex('type', 'type', { unique: false });
-          demosStore.createIndex('timestamp', 'timestamp', { unique: false });
+        if (db.objectStoreNames.contains('demos')) {
+          db.deleteObjectStore('demos');
         }
 
         if (!db.objectStoreNames.contains('settings')) {
@@ -307,43 +305,6 @@ class StorageManager {
   }
 
   /**
-   * 保存Demo
-   * @param {Object} demo - Demo对象
-   * @returns {Promise<void>}
-   */
-  async saveDemo(demo) {
-    const demoData = {
-      id: demo.id || `demo-${Date.now()}`,
-      type: demo.type, // 'web' | 'app' | 'miniapp' | 'admin'
-      code: demo.code,
-      prd: demo.prd,
-      architecture: demo.architecture,
-      test: demo.test,
-      deploy: demo.deploy,
-      timestamp: Date.now(),
-      size: (demo.code || '').length
-    };
-    await this.save('demos', demoData);
-  }
-
-  /**
-   * 获取Demo
-   * @param {String} id - Demo ID
-   * @returns {Promise<Object|null>}
-   */
-  async getDemo(id) {
-    return this.get('demos', id);
-  }
-
-  /**
-   * 获取所有Demo
-   * @returns {Promise<Array>}
-   */
-  async getAllDemos() {
-    return this.getAll('demos');
-  }
-
-  /**
    * 保存设置
    * @param {String} key - 设置键
    * @param {Any} value - 设置值
@@ -427,7 +388,6 @@ class StorageManager {
   async clearAll() {
     await this.clear('chats');
     await this.clear('reports');
-    await this.clear('demos');
     await this.clear('settings');
   }
 
@@ -439,7 +399,6 @@ class StorageManager {
     return {
       chats: await this.getAllChats(),
       reports: await this.getAllReports(),
-      demos: await this.getAllDemos(),
       exportedAt: Date.now()
     };
   }
@@ -462,11 +421,6 @@ class StorageManager {
       }
     }
 
-    if (data.demos) {
-      for (const demo of data.demos) {
-        await this.saveDemo(demo);
-      }
-    }
   }
 
   // ========== 灵感收件箱业务方法（Phase 3新增） ==========
@@ -1051,7 +1005,7 @@ class StorageManager {
 
   /**
    * 根据模式获取项目
-   * @param {String} mode - 'demo' | 'development'
+   * @param {String} mode - 'development'
    * @returns {Promise<Array>}
    */
   async getProjectsByMode(mode) {
@@ -1100,7 +1054,7 @@ class StorageManager {
   }
 
   /**
-   * 更新项目模式（Demo → Development升级）
+   * 更新项目模式
    * @param {String} id - 项目ID
    * @param {String} newMode - 新模式
    * @returns {Promise<void>}

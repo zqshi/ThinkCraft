@@ -4,12 +4,12 @@
 
 ## ✨ 当前能力概览
 
-- **多入口体验**：`OS.html` 产品介绍页 → 注册 → 主应用
+- **多入口体验**：`OS.html` 产品介绍页 → 登录 → 主应用
 - **对话式思维引导**：多轮对话、快速回复、打字机效果、历史记录
 - **项目空间**：对话与项目分区管理
 - **结构化产出**：分析报告、商业计划书章节、PDF导出、分享链接
-- **AI增强模块**：视觉分析、Demo生成、工作流推荐与执行、数字员工
-- **账号体系**：用户注册/登录、手机验证码、密码重置、账号管理
+- **AI增强模块**：视觉分析、工作流推荐与执行、数字员工
+- **账号体系**：手机号登录（首次登录自动注册）、手机验证码、账号管理
 - **数据持久化**：MongoDB + Redis
 - **DDD架构**：领域驱动设计，清晰的分层架构
 - **容器化部署**：Docker + Docker Compose一键部署
@@ -56,7 +56,7 @@ python3 -m http.server 8000
 ```
 
 - 在 OS 页面点击"立即体验"进入登录页
-- 登录/注册为演示模式（存储在浏览器本地）
+- 登录为演示模式（存储在浏览器本地）
 
 #### 启动后端（解锁完整功能）
 
@@ -84,11 +84,12 @@ MONGODB_URI=mongodb://localhost:27017/thinkcraft
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# JWT密钥
-JWT_SECRET=your-secret-key
+# Token密钥
+ACCESS_TOKEN_SECRET=your-access-token-secret
+REFRESH_TOKEN_SECRET=your-refresh-token-secret
 
-# SMS服务配置（可选）
-SMS_PROVIDER=mock  # 可选: aliyun, tencent, mock
+# SMS服务配置（生产必配）
+SMS_PROVIDER=aliyun  # 可选: aliyun, tencent
 ```
 
 后端启动后，前端默认请求 `http://localhost:3000`。
@@ -97,15 +98,15 @@ SMS_PROVIDER=mock  # 可选: aliyun, tencent, mock
 
 ### 前端（DDD架构）
 
-- **入口页面**：`OS.html`、`login.html`、`register.html`、`index.html`
-- **DDD模块**：`frontend/src/features/`（chat、agents、auth、projects、business-plan、demo-generator、report、pdf-export、share、vision、workflow、workflow-recommendation）
+- **入口页面**：`OS.html`、`login.html`、`index.html`
+- **DDD模块**：`frontend/src/features/`（chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
 - **共享基础设施**：`frontend/src/shared/`（领域模型基类、工具类）
 - **样式**：`css/` + `frontend/css/`
 
 ### 后端（DDD架构）
 
 - **服务入口**：`backend/server.js`
-- **DDD模块**：`backend/src/features/`（auth、chat、agents、projects、business-plan、demo-generator、report、pdf-export、share、vision、workflow、workflow-recommendation）
+- **DDD模块**：`backend/src/features/`（auth、chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
 - **共享基础设施**：`backend/src/shared/`（领域模型基类）、`backend/src/infrastructure/`（缓存、SMS等）
 - **路由**：`backend/routes/`
 - **数据库**：MongoDB模型和仓库、Redis缓存服务
@@ -117,21 +118,21 @@ SMS_PROVIDER=mock  # 可选: aliyun, tencent, mock
 - **报告提示词**：`config/report-prompts.js`
 - **配置说明**：`config/README.md`
 - **架构文档**：`docs/ARCHITECTURE.md`
+- **运行手册**：`docs/OPERATIONS_RUNBOOK.md`
+- **生产检查清单**：`docs/PRODUCTION_CHECKLIST.md`
+- **认证OpenAPI**：`docs/openapi-auth.yaml`
 - **执行计划**：`EXECUTION_PLAN.md`
 
 ## 🔌 后端API
 
 ### 认证与账号
-- `POST /api/auth/register` - 用户注册
-- `POST /api/auth/login` - 用户登录
+- `POST /api/auth/register` - 手机号注册（验证码）
+- `POST /api/auth/login` - 手机号登录（首次登录自动注册）
 - `POST /api/auth/logout` - 用户登出
 - `POST /api/verification/send` - 发送验证码
 - `POST /api/verification/verify` - 验证验证码
-- `POST /api/password-reset/request` - 请求密码重置
-- `POST /api/password-reset/reset` - 重置密码
 - `GET /api/account/profile` - 获取个人信息
 - `PUT /api/account/profile` - 更新个人信息
-- `PUT /api/account/password` - 修改密码
 - `POST /api/account/phone/bind` - 绑定手机号
 - `DELETE /api/account` - 注销账号
 
@@ -142,7 +143,6 @@ SMS_PROVIDER=mock  # 可选: aliyun, tencent, mock
 - `POST /api/report/generate` - 报告生成
 - `POST /api/business-plan/*` - 商业计划书生成
 - `POST /api/vision/analyze` - 图片分析
-- `POST /api/demo-generator/*` - Demo生成/预览/下载
 - `POST /api/pdf-export/report` - PDF导出
 - `POST /api/share/*` - 分享链接
 - `GET /api/agents/*` - 数字员工
@@ -157,7 +157,6 @@ ThinkCraft/
 ├── index.html                    # 主应用入口
 ├── OS.html                       # 产品介绍页
 ├── login.html                    # 登录页
-├── register.html                 # 注册页
 ├── docker-compose.yml            # Docker编排配置
 ├── docker.sh                     # Docker管理脚本
 ├── EXECUTION_PLAN.md             # 项目执行计划
@@ -172,10 +171,9 @@ ThinkCraft/
 │       ├── features/             # DDD功能模块
 │       │   ├── chat/             # 对话模块
 │       │   ├── agents/           # 数字员工模块
-│       │   ├── auth/             # 认证模块
+│       │   ├── (auth removed)     # 前端认证模块已合并到 login.html
 │       │   ├── projects/         # 项目管理模块
 │       │   ├── business-plan/    # 商业计划书模块
-│       │   ├── demo-generator/   # Demo生成模块
 │       │   ├── report/           # 报告模块
 │       │   ├── pdf-export/       # PDF导出模块
 │       │   ├── share/            # 分享模块
@@ -192,7 +190,8 @@ ThinkCraft/
 │   │   ├── migrate-to-mongodb.js
 │   │   ├── backup-data.js
 │   │   ├── restore-data.js
-│   │   └── verify-migration.js
+│   │   ├── verify-migration.js
+│   │   └── check-sms-config.js
 │   └── src/
 │       ├── features/             # DDD功能模块
 │       │   ├── auth/             # 认证模块（含账号管理）
@@ -210,6 +209,9 @@ ThinkCraft/
 ├── docs/                         # 文档
 │   ├── ARCHITECTURE.md           # 架构文档
 │   ├── MVP.md                    # MVP文档
+│   ├── OPERATIONS_RUNBOOK.md     # 运行手册
+│   ├── PRODUCTION_CHECKLIST.md   # 生产检查清单
+│   ├── openapi-auth.yaml         # 认证OpenAPI
 │   └── README.md
 ├── scripts/                      # 工具脚本
 │   ├── cleanup-node-modules.js
@@ -289,6 +291,9 @@ npm run test:coverage
 - [执行计划](EXECUTION_PLAN.md) - 项目执行计划和进度跟踪
 - [架构文档](docs/ARCHITECTURE.md) - 系统架构设计
 - [MVP文档](docs/MVP.md) - MVP功能边界
+- [运行手册](docs/OPERATIONS_RUNBOOK.md) - 部署/回滚/监控/密钥
+- [生产检查清单](docs/PRODUCTION_CHECKLIST.md) - 投产前检查
+- [认证OpenAPI](docs/openapi-auth.yaml) - 登录/注册接口
 - [Docker快速开始](DOCKER_QUICKSTART.md) - Docker部署快速指南
 - [Docker详细指南](DOCKER.md) - Docker部署详细文档
 - [数据库文档](backend/DATABASE.md) - 数据库集成指南
@@ -312,7 +317,7 @@ npm run test:coverage
 
 - **JWT认证**：基于Token的无状态认证
 - **密码加密**：bcrypt加密存储
-- **手机验证码**：支持注册、登录、重置密码
+- **手机验证码**：支持注册、登录
 - **频率限制**：防止API滥用
 - **CORS配置**：严格的跨域控制
 - **输入验证**：防止XSS和SQL注入
@@ -341,7 +346,7 @@ A: 检查后端是否启动，CORS配置是否正确，前端API地址是否正�
 A: 确保MongoDB服务已启动，连接字符串正确。使用Docker部署时会自动启动MongoDB。
 
 **Q: 验证码收不到？**
-A: 默认使用mock模式，验证码会打印在后端日志中。生产环境需配置真实的SMS服务。
+A: 开发环境可启用模拟短信以便调试，生产环境必须配置真实的SMS服务。
 
 ## 🤝 贡献
 

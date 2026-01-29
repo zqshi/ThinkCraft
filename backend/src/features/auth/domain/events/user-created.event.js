@@ -4,11 +4,10 @@
 import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class UserCreatedEvent extends DomainEvent {
-  constructor(userId, username, email) {
+  constructor(userId, phone) {
     super('user.created', {
       userId,
-      username,
-      email
+      phone
     });
   }
 
@@ -16,11 +15,7 @@ export class UserCreatedEvent extends DomainEvent {
     return this.data.userId;
   }
 
-  get username() {
-    return this.data.username;
-  }
-
-  get email() {
-    return this.data.email;
+  get phone() {
+    return this.data.phone;
   }
 }

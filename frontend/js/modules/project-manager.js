@@ -3,13 +3,20 @@
  * 负责项目创建、查询、展示、模式管理
  */
 
+function getDefaultApiUrl() {
+  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    return 'http://localhost:3000';
+  }
+  return window.location.origin;
+}
+
 class ProjectManager {
   constructor() {
     this.projects = [];
     this.currentProject = null;
     this.currentProjectId = null;
     this.memberModalProjectId = null;
-    this.apiUrl = window.appState?.settings?.apiUrl || 'http://localhost:3000';
+    this.apiUrl = window.appState?.settings?.apiUrl || getDefaultApiUrl();
     this.storageManager = window.storageManager;
   }
 
@@ -29,9 +36,6 @@ class ProjectManager {
     try {
       this.projects = await this.storageManager.getAllProjects();
 
-      await this.ensureMockProjects();
-      this.projects = await this.storageManager.getAllProjects();
-
       // 更新全局状态
       if (window.setProjects) {
         window.setProjects(this.projects);
@@ -41,11 +45,6 @@ class ProjectManager {
     } catch (error) {
       return [];
     }
-  }
-
-  async ensureMockProjects() {
-    // 不再加载mock项目数据
-    return;
   }
 
   buildKnowledgeFromArtifacts(projectId, artifacts) {
@@ -113,11 +112,10 @@ class ProjectManager {
   /**
    * 创建项目（从创意）
    * @param {String} ideaId - 创意ID（对话ID）
-   * @param {String} mode - 'demo' | 'development'
    * @param {String} name - 项目名称
    * @returns {Promise<Object>} 项目对象
    */
-  async createProject(ideaId, mode, name) {
+  async createProject(ideaId, name) {
     try {
       // 检查该创意是否已创建项目
       const existing = await this.storageManager.getProjectByIdeaId(ideaId);
@@ -129,7 +127,7 @@ class ProjectManager {
       const response = await fetch(`${this.apiUrl}/api/projects/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ideaId, mode, name })
+        body: JSON.stringify({ ideaId, mode: 'development', name })
       });
 
       if (!response.ok) {
@@ -338,87 +336,6 @@ class ProjectManager {
   }
 
   /**
-   * 升级项目模式（Demo → Development）
-   * @param {String} projectId - 项目ID
-   * @returns {Promise<Object>} 升级后的项目
-   */
-  async upgradeProject(projectId) {
-    try {
-      const existingProject = await this.getProject(projectId);
-      const readiness = this.evaluateUpgradeReadiness(existingProject);
-      if (readiness.missingRoles.length > 0) {
-        const shouldContinue = await this.confirmUpgradeWithMissingRoles(projectId, readiness);
-        if (!shouldContinue) {
-          return;
-        }
-      }
-
-      // 调用后端API
-      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}/upgrade`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '升级失败');
-      }
-
-      const result = await response.json();
-      const project = result.data.project;
-
-      // 更新本地存储
-      await this.storageManager.saveProject(project);
-
-      // 更新内存
-      const index = this.projects.findIndex(p => p.id === projectId);
-      if (index !== -1) {
-        this.projects[index] = project;
-      }
-
-      this.refreshProjectPanel(project);
-
-      return project;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 为项目关联Demo
-   * @param {String} projectId - 项目ID
-   * @param {Object} demoData - Demo数据
-   */
-  async linkDemo(projectId, demoData) {
-    try {
-      const project = await this.storageManager.getProject(projectId);
-      if (!project) {
-        throw new Error('项目不存在');
-      }
-
-      // 更新项目的demo数据
-      project.demo = {
-        type: demoData.demoType,
-        code: demoData.code || null,
-        previewUrl: demoData.previewUrl,
-        downloadUrl: demoData.downloadUrl,
-        generatedAt: demoData.generatedAt || Date.now()
-      };
-
-      // 保存到本地
-      await this.storageManager.saveProject(project);
-
-      // 更新后端
-      await this.updateProject(projectId, { demo: project.demo });
-
-      this.refreshProjectPanel(project);
-
-      return project;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
    * 渲染项目列表
    * @param {String} containerId - 容器元素ID
    */
@@ -474,7 +391,7 @@ class ProjectManager {
    * @returns {String} HTML字符串
    */
   renderProjectCard(project) {
-    const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
+    const modeText = '协同开发模式';
     const statusText =
       {
         planning: '规划中',
@@ -494,21 +411,10 @@ class ProjectManager {
       stage => stage.status === 'completed'
     ).length;
     const pendingStages = Math.max(stageCount - completedStages, 0);
-    const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
     const progress = this.calculateWorkflowProgress(project.workflow);
-    const metaItems =
-      project.mode === 'demo'
-        ? [`更新 ${timeAgo}`, `Demo ${demoStatus}`]
-        : [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`];
+    const metaItems = [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`];
 
-    let contentHTML = '';
-
-    if (project.mode === 'demo') {
-      contentHTML = `
-                <div class="project-card-note">Demo 状态：${demoStatus}</div>
-            `;
-    } else {
-      contentHTML = `
+    const contentHTML = `
                 <div class="project-card-progress-row">
                     <div class="project-card-progress-label">进度 ${progress}%</div>
                     <div class="project-card-progress">
@@ -516,7 +422,6 @@ class ProjectManager {
                     </div>
                 </div>
             `;
-    }
 
     return `
             <div class="project-card${isActive ? ' active' : ''}" data-project-id="${project.id}" onclick="projectManager.openProject('${project.id}')">
@@ -549,8 +454,8 @@ class ProjectManager {
                         <strong>${ideaCount}</strong>
                     </div>
                     <div class="project-card-kpi">
-                        <span>${project.mode === 'demo' ? 'Demo' : '进度'}</span>
-                        <strong>${project.mode === 'demo' ? demoStatus : `${progress}%`}</strong>
+                        <span>进度</span>
+                        <strong>${progress}%</strong>
                     </div>
                 </div>
                 ${contentHTML}
@@ -650,7 +555,7 @@ class ProjectManager {
       return;
     }
 
-    const modeText = project.mode === 'demo' ? 'Demo模式' : '协同开发模式';
+    const modeText = '协同开发模式';
     const statusText =
       {
         planning: '规划中',
@@ -660,7 +565,6 @@ class ProjectManager {
       }[project.status] || project.status;
 
     const workflowReady = Boolean(window.workflowExecutor);
-    const demoStatus = project.demo && project.demo.previewUrl ? '已生成' : '未生成';
     const updatedAt = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
 
     const progress = this.calculateWorkflowProgress(project.workflow);
@@ -743,7 +647,6 @@ class ProjectManager {
       })
       .join('');
 
-    const demoProgress = demoStatus === '已生成' ? 100 : 0;
     const workflowSummarySection = `
             <div class="project-panel-section project-panel-card">
                 <div class="project-panel-section-title">协同开发执行</div>
@@ -768,54 +671,24 @@ class ProjectManager {
                 </div>
             </div>
         `;
-    const demoSummarySection = `
-            <div class="project-panel-section project-panel-card">
-                <div class="project-panel-section-title">Demo 状态</div>
-                <div class="project-panel-progress">
-                    <div class="project-panel-progress-label">
-                        ${demoStatus}${project.demo?.generatedAt ? ` · 生成于 ${this.formatTimeAgo(project.demo.generatedAt)}` : ''}
-                    </div>
-                    <div class="project-panel-progress-bar">
-                        <span style="width: ${demoProgress}%;"></span>
-                    </div>
-                </div>
-                <div class="project-panel-actions">
-                    ${
-  project.demo && project.demo.previewUrl
-    ? `
-                        <button class="btn-primary" onclick="projectManager.previewDemo('${project.id}')">预览 Demo</button>
-                        <button class="btn-secondary" onclick="projectManager.regenerateDemo('${project.id}')">重新生成</button>
-                        <button class="btn-secondary" onclick="projectManager.upgradeProject('${project.id}')">升级为协同开发</button>
-                    `
-    : `
-                        <button class="btn-primary" onclick="projectManager.startDemoGeneration('${project.id}')">生成 Demo</button>
-                        <button class="btn-secondary" onclick="projectManager.upgradeProject('${project.id}')">直接升级协同开发</button>
-                    `
-}
-                </div>
-            </div>
-        `;
-    const workflowSection =
-      project.mode === 'development'
-        ? `${workflowSummarySection}${workflowStagesSection}`
-        : demoSummarySection;
+    const workflowSection = `${workflowSummarySection}${workflowStagesSection}`;
 
     title.textContent = project.name;
 
     body.innerHTML = `
-            <div class="project-panel-hero">
-                <div class="project-panel-badges">
-                    <span class="project-pill ${statusClass}">${statusText}</span>
-                    <span class="project-pill">${modeText}</span>
-                    <span class="project-pill">${project.mode === 'demo' ? `Demo ${demoStatus}` : `进度 ${progress}%`}</span>
+                <div class="project-panel-hero">
+                    <div class="project-panel-badges">
+                        <span class="project-pill ${statusClass}">${statusText}</span>
+                        <span class="project-pill">${modeText}</span>
+                    <span class="project-pill">进度 ${progress}%</span>
+                    </div>
+                    <div class="project-panel-meta">
+                        <span>更新时间 ${updatedAt}</span>
+                        <span>成员 ${memberCount}</span>
+                        <span>创意 ${ideaCount}</span>
+                    <span>待完成 ${pendingStages}</span>
+                    </div>
                 </div>
-                <div class="project-panel-meta">
-                    <span>更新时间 ${updatedAt}</span>
-                    <span>成员 ${memberCount}</span>
-                    <span>创意 ${ideaCount}</span>
-                    <span>${project.mode === 'demo' ? `Demo ${demoStatus}` : `待完成 ${pendingStages}`}</span>
-                </div>
-            </div>
             <div class="project-panel-layout">
                 <div class="project-panel-section project-panel-card">
                     <div class="project-panel-section-title">项目概览</div>
@@ -833,8 +706,8 @@ class ProjectManager {
                             <div class="project-panel-summary-value">${stageCount}</div>
                         </div>
                         <div>
-                            <div class="project-panel-summary-label">${project.mode === 'demo' ? 'Demo' : '进度'}</div>
-                            <div class="project-panel-summary-value">${project.mode === 'demo' ? demoStatus : `${progress}%`}</div>
+                            <div class="project-panel-summary-label">进度</div>
+                            <div class="project-panel-summary-value">${progress}%</div>
                         </div>
                     </div>
                     <div class="project-panel-quick-actions">
@@ -1398,7 +1271,7 @@ class ProjectManager {
       return;
     }
 
-    const chats = await this.storageManager.getAllChats();
+    const chats = this.filterMockChats(await this.storageManager.getAllChats());
     const analyzedChats = chats.filter(chat => chat.analysisCompleted);
 
     if (analyzedChats.length === 0) {
@@ -1497,7 +1370,7 @@ class ProjectManager {
   async showCreateProjectDialog() {
     try {
       // 获取所有对话
-      const chats = await this.storageManager.getAllChats();
+      const chats = this.filterMockChats(await this.storageManager.getAllChats());
 
       // 筛选已完成分析的对话
       const analyzedChats = chats.filter(chat => chat.analysisCompleted);
@@ -1547,21 +1420,6 @@ class ProjectManager {
                     <div id="ideaList" style="display: flex; flex-direction: column; gap: 12px;">
                         ${ideaListHTML}
                     </div>
-                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
-                        <div style="margin-bottom: 12px; font-weight: 500;">选择开发模式：</div>
-                        <div style="display: flex; gap: 12px;">
-                            <label style="flex: 1; padding: 16px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="this.querySelector('input').checked = true; this.style.borderColor = 'var(--primary)'; this.parentElement.querySelectorAll('label').forEach(l => {if(l !== this) l.style.borderColor = 'var(--border)'})">
-                                <input type="radio" name="projectMode" value="demo" checked style="margin-right: 8px;">
-                                <strong>Demo模式</strong>
-                                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">快速生成原型验证创意</div>
-                            </label>
-                            <label style="flex: 1; padding: 16px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="this.querySelector('input').checked = true; this.style.borderColor = 'var(--primary)'; this.parentElement.querySelectorAll('label').forEach(l => {if(l !== this) l.style.borderColor = 'var(--border)'})">
-                                <input type="radio" name="projectMode" value="development" style="margin-right: 8px;">
-                                <strong>协同开发</strong>
-                                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">完整开发流程，生产级产品</div>
-                            </label>
-                        </div>
-                    </div>
                 </div>
                 <div style="display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
                     <button class="btn-secondary" onclick="window.modalManager.close('createProjectDialog')" style="flex: 1;">取消</button>
@@ -1580,16 +1438,34 @@ class ProjectManager {
           const index = parseInt(choice) - 1;
           if (index >= 0 && index < analyzedChats.length) {
             const chat = analyzedChats[index];
-            const mode = confirm('选择开发模式：\n\n确定 = Demo模式\n取消 = 协同开发模式')
-              ? 'demo'
-              : 'development';
-            await this.createProjectFromIdea(chat.id, mode, chat.title);
+            await this.createProjectFromIdea(chat.id, chat.title);
           }
         }
       }
     } catch (error) {
       alert('显示对话框失败: ' + error.message);
     }
+  }
+
+  filterMockChats(chats = []) {
+    const mockTitles = new Set(['智能健身APP创意验证']);
+    return chats.filter(chat => !this.isMockChat(chat, mockTitles));
+  }
+
+  isMockChat(chat, mockTitles) {
+    if (!chat) {
+      return false;
+    }
+    if (chat.isMock || chat.isDemo || chat.demo || chat.mock) {
+      return true;
+    }
+    if (chat.source === 'mock' || chat.origin === 'mock') {
+      return true;
+    }
+    if (typeof chat.title === 'string' && mockTitles?.has(chat.title.trim())) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -1610,10 +1486,6 @@ class ProjectManager {
 
       const ideaId = selectedIdeaInput.value;
 
-      // 获取选中的模式
-      const selectedModeInput = document.querySelector('input[name="projectMode"]:checked');
-      const mode = selectedModeInput ? selectedModeInput.value : 'demo';
-
       // 获取创意标题
       const chat = await this.storageManager.getChat(ideaId);
       const projectName = chat ? `${chat.title} - 项目` : '新项目';
@@ -1623,19 +1495,19 @@ class ProjectManager {
         window.modalManager.close('createProjectDialog');
       }
 
-      // 如果是协同开发模式，显示工作流推荐
-      if (mode === 'development' && window.workflowRecommendationManager) {
+      // 如果可用，显示工作流推荐
+      if (window.workflowRecommendationManager) {
         await window.workflowRecommendationManager.showRecommendationDialog(
           projectName,
           ideaId,
           async selectedStages => {
             // 创建项目并设置自定义工作流
-            await this.createProjectWithWorkflow(ideaId, mode, projectName, selectedStages);
+            await this.createProjectWithWorkflow(ideaId, projectName, selectedStages);
           }
         );
       } else {
-        // Demo模式或不支持推荐，直接创建
-        await this.createProjectFromIdea(ideaId, mode, projectName);
+        // 不支持推荐，直接创建
+        await this.createProjectFromIdea(ideaId, projectName);
       }
     } catch (error) {
       if (window.modalManager) {
@@ -1653,10 +1525,10 @@ class ProjectManager {
    * @param {String} name - 项目名称
    * @param {Array<String>} selectedStages - 选中的阶段ID
    */
-  async createProjectWithWorkflow(ideaId, mode, name, selectedStages) {
+  async createProjectWithWorkflow(ideaId, name, selectedStages) {
     try {
       // 创建项目
-      const project = await this.createProject(ideaId, mode, name);
+      const project = await this.createProject(ideaId, name);
 
       // 如果有自定义阶段，更新工作流
       if (selectedStages && selectedStages.length > 0 && project.workflow) {
@@ -1675,9 +1547,8 @@ class ProjectManager {
 
       // 显示成功提示
       if (window.modalManager) {
-        const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
         window.modalManager.alert(
-          `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}<br>阶段数：${selectedStages.length}`,
+          `项目创建成功！<br><br>模式：协同开发模式<br>名称：${this.escapeHtml(name)}<br>阶段数：${selectedStages.length}`,
           'success'
         );
       } else {
@@ -1694,10 +1565,10 @@ class ProjectManager {
    * @param {String} mode - 模式
    * @param {String} name - 项目名称
    */
-  async createProjectFromIdea(ideaId, mode, name) {
+  async createProjectFromIdea(ideaId, name) {
     try {
       // 创建项目
-      const project = await this.createProject(ideaId, mode, name);
+      const project = await this.createProject(ideaId, name);
 
       // 刷新项目列表
       await this.loadProjects();
@@ -1705,9 +1576,8 @@ class ProjectManager {
 
       // 显示成功提示
       if (window.modalManager) {
-        const modeText = mode === 'demo' ? 'Demo模式' : '协同开发模式';
         window.modalManager.alert(
-          `项目创建成功！<br><br>模式：${modeText}<br>名称：${this.escapeHtml(name)}`,
+          `项目创建成功！<br><br>模式：协同开发模式<br>名称：${this.escapeHtml(name)}`,
           'success'
         );
       } else {
@@ -1857,7 +1727,7 @@ class ProjectManager {
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px;">
                             <span>🚀</span>
-                            <span>${project.mode === 'demo' ? 'Demo模式' : '协同开发模式'}</span>
+                            <span>协同开发模式</span>
                         </div>
                     </div>
                     <!-- 进度条 -->
@@ -1967,47 +1837,6 @@ class ProjectManager {
         window.modalManager.alert('执行失败: ' + error.message, 'error');
       }
     }
-  }
-
-  /**
-   * 预览Demo
-   * @param {String} projectId - 项目ID
-   */
-  async previewDemo(projectId) {
-    try {
-      const project = await this.getProject(projectId);
-      if (project.demo && project.demo.previewUrl) {
-        window.open(project.demo.previewUrl, '_blank');
-      }
-    } catch (error) {
-      alert('预览失败');
-    }
-  }
-
-  /**
-   * 重新生成Demo
-   * @param {String} projectId - 项目ID
-   */
-  regenerateDemo(projectId) {
-    this.startDemoGeneration(projectId);
-  }
-
-  /**
-   * 开始生成Demo
-   * @param {String} projectId - 项目ID
-   */
-  startDemoGeneration(projectId) {
-    window.currentDemoProjectId = projectId;
-    const modal = document.getElementById('demoTypeModal');
-    if (modal) {
-      modal.classList.add('active');
-      return;
-    }
-    if (typeof window.startDemoGeneration === 'function') {
-      window.startDemoGeneration();
-      return;
-    }
-    alert('Demo生成功能暂不可用');
   }
 
   /**

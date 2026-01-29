@@ -376,12 +376,12 @@ export class ChatUseCase {
           suggestions: [
             '我想创建一个Web应用项目',
             '帮我规划一个API服务',
-            '生成一个Demo原型',
+            '生成一个可交付原型',
             '技术选型建议'
           ]
         }
       };
-    } else if (content.toLowerCase().includes('代码') || content.toLowerCase().includes('demo')) {
+    } else if (content.toLowerCase().includes('代码')) {
       reply = {
         content: `我可以帮您生成代码示例。以下是一个简单的JavaScript函数：
 

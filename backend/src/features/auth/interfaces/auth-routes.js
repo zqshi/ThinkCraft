@@ -11,7 +11,7 @@ const router = express.Router();
 /**
  * POST /api/auth/login
  * 用户登录
- * 请求体: { username: string, password: string }
+ * 请求体: { phone: string, code: string }
  * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
  */
 router.post('/login', authController.login);
@@ -19,7 +19,7 @@ router.post('/login', authController.login);
 /**
  * POST /api/auth/register
  * 用户注册
- * 请求体: { username: string, email: string, password: string }
+ * 请求体: { phone: string, code: string }
  * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
  */
 router.post('/register', authController.register);
@@ -35,17 +35,9 @@ router.post('/refresh-token', authController.refreshToken);
 /**
  * GET /api/auth/me
  * 获取当前用户信息（需要认证）
- * 响应: { code: number, message: string, data: { id: string, username: string, email: string, status: string, ... } }
+ * 响应: { code: number, message: string, data: { id: string, phone: string, status: string, ... } }
  */
 router.get('/me', authMiddleware, authController.getCurrentUser);
-
-/**
- * PUT /api/auth/password
- * 修改密码（需要认证）
- * 请求体: { oldPassword: string, newPassword: string }
- * 响应: { code: number, message: string, data: { id: string, username: string, email: string, ... } }
- */
-router.put('/password', authMiddleware, authController.changePassword);
 
 /**
  * POST /api/auth/logout
@@ -57,7 +49,7 @@ router.post('/logout', authMiddleware, authController.logout);
 /**
  * GET /api/auth/validate
  * 验证访问令牌
- * 响应: { code: number, message: string, data: { userId: string, username: string, email: string } }
+ * 响应: { code: number, message: string, data: { userId: string, phone: string } }
  */
 router.get('/validate', authController.validateToken);
 

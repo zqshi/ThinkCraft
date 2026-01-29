@@ -223,15 +223,14 @@ project-root/
 
 #### 功能概述
 
-负责用户登录、注册、登出、权限验证等功能。
+负责用户认证、授权、会话管理等功能。
 
 #### 目录结构
 
 ```
 features/auth/
 ├── components/
-│   ├── LoginForm.tsx
-│   └── RegisterForm.tsx
+│   └── LoginForm.tsx
 ├── hooks/
 │   ├── useAuth.ts
 │   └── usePermission.ts
@@ -249,11 +248,6 @@ features/auth/
 - Props: onSubmit, loading
 - State: formData, errors
 
-**RegisterForm**:
-- 职责: 注册表单UI
-- Props: onSubmit, loading
-- State: formData, errors
-
 #### 核心Hooks
 
 **useAuth**:
@@ -263,7 +257,7 @@ interface UseAuthReturn {
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
-  register: (data: RegisterData) => Promise<void>;
+  // 根据实际认证方式添加其他方法
 }
 
 function useAuth(): UseAuthReturn;
@@ -285,9 +279,9 @@ function usePermission(): UsePermissionReturn;
 class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse>;
   async logout(): Promise<void>;
-  async register(data: RegisterData): Promise<AuthResponse>;
   async refreshToken(): Promise<TokenResponse>;
   async getCurrentUser(): Promise<User>;
+  // 根据实际认证方式添加其他方法
 }
 ```
 
@@ -323,7 +317,6 @@ const routes: RouteConfig[] = [
     element: <AuthLayout />,
     children: [
       { path: 'login', element: <Login /> },
-      { path: 'register', element: <Register /> },
     ]
   },
   {
@@ -702,8 +695,9 @@ export interface PaginationResponse<T> {
 // types/user.ts
 export interface User {
   id: string;
-  username: string;
-  email: string;
+  username: string;  // 用户标识字段，根据业务可能是用户名、邮箱、手机号等
+  email?: string;
+  verified: boolean;  // 验证状态
   avatar?: string;
   role: UserRole;
   createdAt: string;

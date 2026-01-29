@@ -4,21 +4,15 @@
  */
 import { AggregateRoot } from '../../../shared/domain/aggregate-root.base.js';
 import { UserId } from './value-objects/user-id.vo.js';
-import { Username } from './value-objects/username.vo.js';
-import { Email } from './value-objects/email.vo.js';
 import { Phone } from './value-objects/phone.vo.js';
-import { Password } from './value-objects/password.vo.js';
 import { UserStatus } from './value-objects/user-status.vo.js';
 import { UserLoggedInEvent } from './events/user-logged-in.event.js';
 import { UserLoggedOutEvent } from './events/user-logged-out.event.js';
 import { UserCreatedEvent } from './events/user-created.event.js';
 
 export class User extends AggregateRoot {
-  constructor(id, username, email, password, status = UserStatus.ACTIVE, phone = null) {
+  constructor(id, status = UserStatus.ACTIVE, phone = null) {
     super(id);
-    this._username = username;
-    this._email = email;
-    this._password = password;
     this._status = status;
     this._phone = phone;
     this._phoneVerified = false;
@@ -28,56 +22,39 @@ export class User extends AggregateRoot {
   }
 
   /**
-   * 创建新用户
+   * 创建新用户（手机号）
    */
-  static create(username, email, password) {
+  static createWithPhone(phone) {
     const userId = UserId.generate();
     const user = new User(
       userId,
-      new Username(username),
-      new Email(email),
-      Password.create(password)
+      UserStatus.ACTIVE,
+      new Phone(phone)
     );
 
-    // 添加用户创建事件
-    user.addDomainEvent(new UserCreatedEvent(userId.value, username, email));
+    user.addDomainEvent(new UserCreatedEvent(userId.value, phone));
 
     return user;
   }
 
   /**
-   * 用户登录
+   * 用户登录（手机号）
    */
-  login(password) {
-    // 检查账户是否被锁定
+  loginWithPhone() {
     if (this.isLocked()) {
       throw new Error('账户已被锁定，请稍后再试');
     }
 
-    // 验证密码
-    if (!this._password.verify(password)) {
-      this._loginAttempts++;
-
-      // 连续失败5次锁定账户
-      if (this._loginAttempts >= 5) {
-        this.lockAccount(30); // 锁定30分钟
-        throw new Error('密码错误次数过多，账户已锁定30分钟');
-      }
-
-      throw new Error('密码错误');
-    }
-
-    // 登录成功
     this._loginAttempts = 0;
     this._lastLoginAt = new Date();
-    this.addDomainEvent(new UserLoggedInEvent(this.id.value, this._username.value));
+    this.addDomainEvent(new UserLoggedInEvent(this.id.value, this._phone?.value || this.id.value));
   }
 
   /**
    * 用户登出
    */
   logout() {
-    this.addDomainEvent(new UserLoggedOutEvent(this.id.value, this._username.value));
+    this.addDomainEvent(new UserLoggedOutEvent(this.id.value, this._phone?.value || this.id.value));
   }
 
   /**
@@ -115,17 +92,6 @@ export class User extends AggregateRoot {
   }
 
   /**
-   * 修改密码
-   */
-  changePassword(oldPassword, newPassword) {
-    if (!this._password.verify(oldPassword)) {
-      throw new Error('原密码错误');
-    }
-
-    this._password = Password.create(newPassword);
-  }
-
-  /**
    * 绑定手机号
    */
   bindPhone(phone) {
@@ -160,8 +126,8 @@ export class User extends AggregateRoot {
    * 验证用户状态
    */
   validate() {
-    if (!this._username || !this._email || !this._password) {
-      throw new Error('用户信息不完整');
+    if (!this._phone) {
+      throw new Error('手机号不能为空');
     }
 
     if (this._status !== UserStatus.ACTIVE) {
@@ -170,12 +136,6 @@ export class User extends AggregateRoot {
   }
 
   // Getters
-  get username() {
-    return this._username;
-  }
-  get email() {
-    return this._email;
-  }
   get phone() {
     return this._phone;
   }
@@ -198,8 +158,6 @@ export class User extends AggregateRoot {
   toJSON() {
     return {
       ...super.toJSON(),
-      username: this._username.value,
-      email: this._email.value,
       phone: this._phone ? this._phone.value : null,
       phoneVerified: this._phoneVerified,
       status: this._status.value,
