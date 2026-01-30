@@ -11,21 +11,31 @@
  * @returns {string} 格式化后的时间字符串
  */
 function formatTime(timestamp) {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minute = 60 * 1000;
-    const hour = 60 * minute;
-    const day = 24 * hour;
-    const week = 7 * day;
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const week = 7 * day;
 
-    if (diff < minute) return '刚刚';
-    if (diff < hour) return `${Math.floor(diff / minute)}分钟前`;
-    if (diff < day) return `${Math.floor(diff / hour)}小时前`;
-    if (diff < week) return `${Math.floor(diff / day)}天前`;
-    if (diff < 4 * week) return `${Math.floor(diff / week)}周前`;
+  if (diff < minute) {
+    return '刚刚';
+  }
+  if (diff < hour) {
+    return `${Math.floor(diff / minute)}分钟前`;
+  }
+  if (diff < day) {
+    return `${Math.floor(diff / hour)}小时前`;
+  }
+  if (diff < week) {
+    return `${Math.floor(diff / day)}天前`;
+  }
+  if (diff < 4 * week) {
+    return `${Math.floor(diff / week)}周前`;
+  }
 
-    const date = new Date(timestamp);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -33,9 +43,9 @@ function formatTime(timestamp) {
  * @returns {number} 聊天ID
  */
 function generateChatId() {
-    const base = Date.now();
-    const suffix = Math.floor(Math.random() * 1000);
-    return base * 1000 + suffix;
+  const base = Date.now();
+  const suffix = Math.floor(Math.random() * 1000);
+  return base * 1000 + suffix;
 }
 
 /**
@@ -44,7 +54,7 @@ function generateChatId() {
  * @returns {number} 规范化后的聊天ID
  */
 function normalizeChatId(chatId) {
-    return typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
+  return typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
 }
 
 /**
@@ -53,11 +63,11 @@ function normalizeChatId(chatId) {
  * @returns {string} 格式化后的日期字符串
  */
 function formatDate(date) {
-    const d = date instanceof Date ? date : new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -66,14 +76,14 @@ function formatDate(date) {
  * @returns {string} 格式化后的日期时间字符串
  */
 function formatDateTime(date) {
-    const d = date instanceof Date ? date : new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 /**
@@ -83,8 +93,10 @@ function formatDateTime(date) {
  * @returns {string} 截断后的文本
  */
 function truncateText(text, maxLength = 50) {
-    if (!text || text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength) + '...';
 }
 
 /**
@@ -93,12 +105,12 @@ function truncateText(text, maxLength = 50) {
  * @returns {string} 随机ID
  */
 function generateRandomId(length = 8) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 /**
@@ -107,11 +119,13 @@ function generateRandomId(length = 8) {
  * @returns {string} 格式化后的文件大小
  */
 function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  if (bytes === 0) {
+    return '0 B';
+  }
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 }
 
 /**
@@ -120,7 +134,7 @@ function formatFileSize(bytes) {
  * @returns {string} 格式化后的数字字符串
  */
 function formatNumber(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**
@@ -129,18 +143,18 @@ function formatNumber(num) {
  * @returns {Array<{language: string, code: string}>} 代码块数组
  */
 function parseCodeBlocks(text) {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    const blocks = [];
-    let match;
+  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  const blocks = [];
+  let match;
 
-    while ((match = codeBlockRegex.exec(text)) !== null) {
-        blocks.push({
-            language: match[1] || 'text',
-            code: match[2].trim()
-        });
-    }
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    blocks.push({
+      language: match[1] || 'text',
+      code: match[2].trim()
+    });
+  }
 
-    return blocks;
+  return blocks;
 }
 
 /**
@@ -149,12 +163,44 @@ function parseCodeBlocks(text) {
  * @returns {string} 转义后的文本
  */
 function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
+
+// 导出所有函数（用于ES模块和测试）
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    formatTime,
+    generateChatId,
+    normalizeChatId,
+    formatDate,
+    formatDateTime,
+    truncateText,
+    generateRandomId,
+    formatFileSize,
+    formatNumber,
+    parseCodeBlocks,
+    escapeHtml
+  };
+}
+
+// ES模块导出
+export {
+  formatTime,
+  generateChatId,
+  normalizeChatId,
+  formatDate,
+  formatDateTime,
+  truncateText,
+  generateRandomId,
+  formatFileSize,
+  formatNumber,
+  parseCodeBlocks,
+  escapeHtml
+};
