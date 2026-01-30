@@ -317,11 +317,11 @@ class AgentCollaboration {
       projectId,
       idea: ideaContext.displayName
     });
-    const cached = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
+    const cachedSuggestion = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
 
-    if (cached && cached.plan) {
-      this.renderSuggestionContent(cached.plan, cached.updatedAt, cached.collaborationMode);
-      const cachedList = Array.isArray(cached.recommendedAgents) ? cached.recommendedAgents : [];
+    if (cachedSuggestion && cachedSuggestion.plan) {
+      this.renderSuggestionContent(cachedSuggestion.plan, cachedSuggestion.updatedAt, cachedSuggestion.collaborationMode);
+      const cachedList = Array.isArray(cachedSuggestion.recommendedAgents) ? cachedSuggestion.recommendedAgents : [];
       const fallbackList =
         cachedList.length > 0 ? cachedList : this.getDefaultRecommendedAgentIds(workflowCategory);
       const memberList = fallbackList.length ? fallbackList : agents;

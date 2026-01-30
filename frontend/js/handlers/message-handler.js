@@ -290,13 +290,32 @@ export function typeWriter(element, text, speed = 30, chatId = null) {
     appState.typingChatId = targetChatId;
     appState.isTyping = true;
     let i = 0;
+
+    // 记录用户是否主动向上滚动
+    let userScrolledUp = false;
+    const container = document.getElementById('chatContainer');
+
+    // 监听用户滚动行为
+    const handleUserScroll = () => {
+        if (!container) return;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        userScrolledUp = !isNearBottom;
+    };
+
+    container?.addEventListener('scroll', handleUserScroll);
+
     const timer = setInterval(() => {
         if (i < text.length) {
             element.textContent += text.charAt(i);
             i++;
-            scrollToBottom();
+            // 只有当用户没有主动向上滚动时才自动滚动
+            if (!userScrolledUp) {
+                scrollToBottom();
+            }
         } else {
             clearInterval(timer);
+            container?.removeEventListener('scroll', handleUserScroll);
+
             if (appState.typingChatId === targetChatId) {
                 appState.isTyping = false;
                 appState.typingChatId = null;

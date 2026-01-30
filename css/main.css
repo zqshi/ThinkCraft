@@ -4194,7 +4194,7 @@ body {
   }
 
   .report-buttons {
-    margin-bottom: calc(96px + var(--safe-area-bottom));
+    margin-bottom: calc(140px + var(--safe-area-bottom));
   }
 
   /* 附件按钮优化 */

@@ -568,7 +568,8 @@
             sendMessage();
         }
 
-        const AUTO_SCROLL_BOTTOM_THRESHOLD = 2;
+        // 增加阈值，让用户体验更好：在底部附近100px内都认为是"在底部"
+        const AUTO_SCROLL_BOTTOM_THRESHOLD = 100;
 
         function isNearBottom(container) {
             return (container.scrollHeight - container.scrollTop - container.clientHeight) <= AUTO_SCROLL_BOTTOM_THRESHOLD;
@@ -1204,20 +1205,8 @@
             const setAnalysisActionsEnabled = (enabled) => {
                 const exportBtn = document.querySelector('#reportModal .report-actions button.btn-secondary:nth-of-type(2)');
                 const shareBtn = document.getElementById('shareLinkBtn');
-                const hintId = 'analysisExportHint';
-                let hintEl = document.getElementById(hintId);
-                if (!hintEl) {
-                    const actions = document.querySelector('#reportModal .report-actions');
-                    hintEl = document.createElement('div');
-                    hintEl.id = hintId;
-                    hintEl.style.cssText = 'font-size: 12px; color: var(--text-tertiary); margin-top: 6px; text-align: right;';
-                    hintEl.textContent = '生成中不可导出';
-                    hintEl.style.display = 'none';
-                    actions && actions.appendChild(hintEl);
-                }
                 if (exportBtn) exportBtn.disabled = !enabled;
                 if (shareBtn) shareBtn.disabled = !enabled;
-                if (hintEl) hintEl.style.display = enabled ? 'none' : 'block';
             };
             const showGeneratingState = () => {
                 if (!reportContent) return;
@@ -2021,6 +2010,12 @@
         // 导出完整PDF
         async function exportFullReport() {
             try {
+                // 检查报告是否正在生成
+                if (window.analysisReportGenerationInFlight) {
+                    alert('⚠️ 报告正在生成中，请等待生成完成后再导出');
+                    return;
+                }
+
                 // 获取当前报告数据
                 const reportContent = document.getElementById('reportContent');
                 if (!reportContent) {
