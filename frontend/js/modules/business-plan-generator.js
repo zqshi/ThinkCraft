@@ -88,7 +88,14 @@ class BusinessPlanGenerator {
    * @param {String} type - 'business' | 'proposal'
    */
   showChapterSelection(type) {
-    console.log('[章节选择] 显示章节选择弹窗', { type });
+    console.log('[章节选择] 显示章节选择弹窗', { type, typeOf: typeof type });
+
+    // 验证type参数
+    if (!type || (type !== 'business' && type !== 'proposal')) {
+      console.error('[章节选择] 无效的报告类型', { type });
+      alert('系统错误：无效的报告类型');
+      return;
+    }
 
     const config = this.chapterConfig[type];
     if (!config) {
@@ -108,7 +115,10 @@ class BusinessPlanGenerator {
     // 更新状态
     const chatId = this.state.state.currentChat || window.state?.currentChat || null;
     if (chatId) {
+      console.log('[章节选择] 调用 state.showChapterSelection', { chatId, type });
       this.state.showChapterSelection(chatId, type);
+    } else {
+      console.warn('[章节选择] 没有当前会话ID');
     }
 
     // 渲染章节列表
