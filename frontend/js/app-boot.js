@@ -1,5 +1,5 @@
 /* eslint-disable no-undef */
-/* global state, formatTime, generateChatId, autoResize, scrollToBottom, focusInput, lockAutoScroll, unlockAutoScroll, getDefaultIconSvg, getAgentIconSvg, buildIconSvg, resolveAgentIconKey */
+/* global state, formatTime, generateChatId, autoResize, scrollToBottom, focusInput, lockAutoScroll, unlockAutoScroll, getDefaultIconSvg, getAgentIconSvg, buildIconSvg, resolveAgentIconKey, typeWriter, typeWriterWithCompletion, sendMessage, addMessage, handleAPIResponse, quickReply, isCurrentChatBusy, startNewChat, loadChats, renameChat, togglePinChat, deleteChat, clearAllHistory */
 
 // ⭐ 页面关闭/刷新前自动保存当前对话
         window.addEventListener('beforeunload', (e) => {
@@ -9,6 +9,10 @@
         });
 
         // ⭐ DOM操作函数已迁移到 utils/dom.js (autoResize, scrollToBottom等)
+        // ⭐ 图标相关函数已迁移到 utils/icons.js
+        // ⭐ 打字机效果已迁移到 modules/chat/typing-effect.js (typeWriter, typeWriterWithCompletion)
+        // ⭐ 消息处理已迁移到 modules/chat/message-handler.js (sendMessage, addMessage, handleAPIResponse, quickReply)
+        // ⭐ 对话列表管理已迁移到 modules/chat/chat-list.js (startNewChat, loadChats, renameChat, togglePinChat, deleteChat)
 
         // ==================== 长按空格键语音输入 ====================
         let spaceHoldTimer = null;
