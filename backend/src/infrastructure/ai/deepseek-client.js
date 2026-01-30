@@ -36,6 +36,14 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
         model = 'deepseek-chat'
     } = options;
 
+    console.log('[DeepSeek API] 开始调用', {
+        messagesCount: messages.length,
+        hasSystemPrompt: !!systemPrompt,
+        max_tokens,
+        temperature,
+        model
+    });
+
     if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'sk-your-api-key-here') {
         throw new Error('DEEPSEEK_API_KEY 未配置或无效，请在 .env 文件中设置有效的 API Key');
     }
@@ -68,6 +76,15 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
                 payload.response_format = response_format;
             }
 
+            console.log('[DeepSeek API] 发送请求到:', DEEPSEEK_API_URL);
+            console.log('[DeepSeek API] 请求payload:', {
+                model: payload.model,
+                messagesCount: payload.messages.length,
+                temperature: payload.temperature,
+                max_tokens: payload.max_tokens,
+                firstMessagePreview: payload.messages[0]?.content?.substring(0, 200)
+            });
+
             const response = await axios.post(DEEPSEEK_API_URL, payload, {
                 headers: {
                     'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
@@ -84,6 +101,15 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
 
             totalTokensUsed += usage.total_tokens;
             totalCost = (totalTokensUsed / 1000) * 0.001;
+
+            console.log('[DeepSeek API] 调用成功', {
+                contentLength: content.length,
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+                totalTokens: usage.total_tokens,
+                totalCostSoFar: `¥${totalCost.toFixed(4)}`,
+                contentPreview: content.substring(0, 200)
+            });
 
             return {
                 content: content,

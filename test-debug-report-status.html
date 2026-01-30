@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试报告状态问题</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .debug-section {
+            background: #252526;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 3px solid #007acc;
+            border-radius: 4px;
+        }
+        h2 {
+            color: #4ec9b0;
+            margin-top: 0;
+        }
+        .code {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .warning {
+            color: #ce9178;
+        }
+        .error {
+            color: #f48771;
+        }
+        .success {
+            color: #4ec9b0;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        #output {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #007acc;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 调试报告状态问题</h1>
+
+    <div class="debug-section">
+        <h2>调试步骤</h2>
+        <p>1. 打开浏览器开发者工具（F12）</p>
+        <p>2. 切换到 Console 标签</p>
+        <p>3. 点击下面的按钮执行调试命令</p>
+    </div>
+
+    <div class="debug-section">
+        <h2>调试命令</h2>
+        <button onclick="checkCurrentChat()">1. 检查当前对话ID</button>
+        <button onclick="checkIndexedDB()">2. 检查IndexedDB数据</button>
+        <button onclick="checkButtonState()">3. 检查按钮状态</button>
+        <button onclick="testLoadStates()">4. 测试加载状态</button>
+        <button onclick="clearOutput()">清空输出</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>输出</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#f48771' : type === 'success' ? '#4ec9b0' : type === 'warning' ? '#ce9178' : '#d4d4d4';
+            entry.innerHTML = `<span style="color: #858585">[${timestamp}]</span> <span style="color: ${color}">${message}</span>`;
+            output.appendChild(entry);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        function checkCurrentChat() {
+            log('=== 检查当前对话ID ===', 'info');
+            if (typeof state !== 'undefined' && state.currentChat) {
+                log(`✅ 当前对话ID: ${state.currentChat}`, 'success');
+                log(`   类型: ${typeof state.currentChat}`, 'info');
+            } else {
+                log('❌ 未找到 state.currentChat', 'error');
+                log('   可能原因：页面未完全加载或变量名不同', 'warning');
+            }
+        }
+
+        async function checkIndexedDB() {
+            log('=== 检查IndexedDB数据 ===', 'info');
+
+            if (!window.storageManager) {
+                log('❌ storageManager 未定义', 'error');
+                return;
+            }
+
+            if (typeof state === 'undefined' || !state.currentChat) {
+                log('❌ 无法获取当前对话ID', 'error');
+                return;
+            }
+
+            try {
+                const chatId = String(state.currentChat);
+                log(`📊 查询对话ID: ${chatId}`, 'info');
+
+                const reports = await window.storageManager.getReportsByChatId(chatId);
+
+                if (!reports || reports.length === 0) {
+                    log('⚠️  未找到任何报告', 'warning');
+                    return;
+                }
+
+                log(`✅ 找到 ${reports.length} 个报告`, 'success');
+
+                reports.forEach((report, index) => {
+                    log(`\n--- 报告 ${index + 1} ---`, 'info');
+                    log(`  类型: ${report.type}`, 'info');
+                    log(`  状态: ${report.status}`, report.status === 'completed' ? 'success' : 'warning');
+                    log(`  chatId: ${report.chatId}`, 'info');
+                    log(`  有数据: ${report.data ? '是' : '否'}`, report.data ? 'success' : 'warning');
+                    if (report.selectedChapters) {
+                        log(`  选中章节: ${report.selectedChapters.length} 个`, 'info');
+                    }
+                    if (report.error) {
+                        log(`  错误: ${report.error.message}`, 'error');
+                    }
+                });
+            } catch (error) {
+                log(`❌ 查询失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function checkButtonState() {
+            log('=== 检查按钮状态 ===', 'info');
+
+            const buttons = {
+                'business': 'businessPlanBtn',
+                'proposal': 'proposalBtn',
+                'analysis': 'analysisReportBtn'
+            };
+
+            Object.keys(buttons).forEach(type => {
+                const btnId = buttons[type];
+                const btn = document.getElementById(btnId);
+
+                if (!btn) {
+                    log(`❌ 未找到按钮: ${btnId}`, 'error');
+                    return;
+                }
+
+                log(`\n--- ${type} 按钮 ---`, 'info');
+                log(`  ID: ${btnId}`, 'info');
+                log(`  状态: ${btn.dataset.status || '未设置'}`, 'info');
+                log(`  类名: ${btn.className}`, 'info');
+                log(`  禁用: ${btn.disabled}`, 'info');
+
+                const iconSpan = btn.querySelector('.btn-icon');
+                const textSpan = btn.querySelector('.btn-text');
+
+                if (iconSpan) {
+                    log(`  图标: ${iconSpan.textContent}`, 'info');
+                }
+                if (textSpan) {
+                    log(`  文本: ${textSpan.textContent}`, 'info');
+                }
+            });
+        }
+
+        async function testLoadStates() {
+            log('=== 测试加载状态函数 ===', 'info');
+
+            if (typeof loadGenerationStatesForChat !== 'function') {
+                log('❌ loadGenerationStatesForChat 函数未定义', 'error');
+                return;
+            }
+
+            if (typeof state === 'undefined' || !state.currentChat) {
+                log('❌ 无法获取当前对话ID', 'error');
+                return;
+            }
+
+            try {
+                log('🔄 开始加载状态...', 'info');
+                const startTime = performance.now();
+
+                await loadGenerationStatesForChat(state.currentChat);
+
+                const duration = performance.now() - startTime;
+                log(`✅ 加载完成，耗时: ${duration.toFixed(2)}ms`, 'success');
+
+                // 再次检查按钮状态
+                setTimeout(() => {
+                    log('\n检查加载后的按钮状态:', 'info');
+                    checkButtonState();
+                }, 100);
+
+            } catch (error) {
+                log(`❌ 加载失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // 页面加载完成后的提示
+        window.addEventListener('load', () => {
+            log('📝 调试工具已就绪', 'success');
+            log('请按顺序点击上方按钮进行调试', 'info');
+        });
+    </script>
+
+    <div class="debug-section">
+        <h2>可能的问题原因</h2>
+        <div class="code">
+<span class="warning">1. IndexedDB中没有数据</span>
+   - 报告可能没有正确保存到IndexedDB
+   - chatId可能不匹配
+
+<span class="warning">2. 按钮元素未找到</span>
+   - 按钮ID可能不正确
+   - 弹窗可能还未渲染
+
+<span class="warning">3. 状态加载时机问题</span>
+   - loadGenerationStatesForChat 可能在按钮渲染前执行
+   - 需要确保按钮已存在于DOM中
+
+<span class="warning">4. 状态更新逻辑问题</span>
+   - report.status 可能为 undefined
+   - 按钮更新逻辑可能有bug
+        </div>
+    </div>
+
+    <div class="debug-section">
+        <h2>手动测试命令（在Console中执行）</h2>
+        <div class="code">
+// 1. 检查当前对话
+console.log('当前对话:', state.currentChat);
+
+// 2. 查询IndexedDB
+window.storageManager.getReportsByChatId(String(state.currentChat))
+    .then(reports => console.log('报告:', reports));
+
+// 3. 检查按钮
+console.log('商业计划书按钮:', document.getElementById('businessPlanBtn'));
+
+// 4. 手动加载状态
+await loadGenerationStatesForChat(state.currentChat);
+
+// 5. 检查 generatedReports 对象
+console.log('generatedReports:', generatedReports);
+        </div>
+    </div>
+</body>
+</html>

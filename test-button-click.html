@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>按钮点击测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #6366f1;
+            color: white;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            border-left: 3px solid #6366f1;
+            background: white;
+        }
+        .log-entry.error {
+            border-left-color: #ef4444;
+            background: #fee;
+        }
+        .log-entry.success {
+            border-left-color: #10b981;
+            background: #efe;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 按钮点击测试</h1>
+
+    <div class="test-section">
+        <h2>测试按钮</h2>
+        <div class="btn-group">
+            <button
+                id="businessPlanBtn"
+                data-type="business"
+                onclick="handleGenerationBtnClick('business')">
+                📊 商业计划书
+            </button>
+            <button
+                id="proposalBtn"
+                data-type="proposal"
+                onclick="handleGenerationBtnClick('proposal')">
+                📋 产品立项材料
+            </button>
+        </div>
+
+        <div class="log" id="log">
+            <div style="color: #666; text-align: center;">点击按钮查看日志...</div>
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('log');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function handleGenerationBtnClick(type) {
+            addLog(`按钮点击: type = "${type}"`, 'info');
+
+            const btnId = type === 'business' ? 'businessPlanBtn' :
+                         type === 'proposal' ? 'proposalBtn' : null;
+
+            addLog(`计算的按钮ID: "${btnId}"`, 'info');
+
+            const btn = document.getElementById(btnId);
+            if (!btn) {
+                addLog(`错误: 未找到按钮 "${btnId}"`, 'error');
+                return;
+            }
+
+            const dataType = btn.getAttribute('data-type');
+            addLog(`按钮的 data-type: "${dataType}"`, 'info');
+
+            if (dataType !== type) {
+                addLog(`警告: data-type (${dataType}) 与传入的 type (${type}) 不匹配!`, 'error');
+            } else {
+                addLog(`验证通过: data-type 与 type 匹配`, 'success');
+            }
+
+            // 模拟章节配置
+            const chapterConfig = {
+                business: {
+                    core: ['执行摘要', '市场分析', '解决方案', '商业模式'],
+                    optional: ['竞争格局', '市场策略', '团队架构', '财务预测', '风险评估', '实施计划', '附录']
+                },
+                proposal: {
+                    core: ['项目摘要', '问题洞察', '产品方案', '实施路径'],
+                    optional: ['竞品分析', '预算规划', '风险控制']
+                }
+            };
+
+            const config = chapterConfig[type];
+            if (!config) {
+                addLog(`错误: 未找到类型 "${type}" 的配置`, 'error');
+                return;
+            }
+
+            addLog(`配置信息: 核心章节 ${config.core.length} 个, 可选章节 ${config.optional.length} 个`, 'success');
+            addLog(`核心章节: ${config.core.join(', ')}`, 'info');
+            addLog(`可选章节: ${config.optional.join(', ')}`, 'info');
+
+            const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+            addLog(`应该显示: "${typeTitle}" 的章节选择`, 'success');
+        }
+
+        // 页面加载时的检查
+        window.addEventListener('load', () => {
+            addLog('=== 页面加载完成，开始检查 ===', 'info');
+
+            const businessBtn = document.getElementById('businessPlanBtn');
+            const proposalBtn = document.getElementById('proposalBtn');
+
+            if (businessBtn) {
+                addLog(`✓ 找到商业计划书按钮, data-type="${businessBtn.getAttribute('data-type')}"`, 'success');
+            } else {
+                addLog('✗ 未找到商业计划书按钮', 'error');
+            }
+
+            if (proposalBtn) {
+                addLog(`✓ 找到产品立项材料按钮, data-type="${proposalBtn.getAttribute('data-type')}"`, 'success');
+            } else {
+                addLog('✗ 未找到产品立项材料按钮', 'error');
+            }
+
+            addLog('=== 检查完成，请点击按钮测试 ===', 'info');
+        });
+    </script>
+</body>
+</html>

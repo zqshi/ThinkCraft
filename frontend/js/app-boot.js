@@ -780,6 +780,42 @@
             loadChats();
         }
 
+        /**
+         * 保存当前会话的报告状态到IndexedDB
+         * @param {string} chatId - 会话ID
+         * @returns {Promise<void>}
+         */
+        async function saveCurrentSessionState(chatId) {
+            const normalizedChatId = normalizeChatId(chatId);
+            if (!normalizedChatId || !window.storageManager) return;
+
+            logStateChange('保存会话状态', { chatId: normalizedChatId });
+
+            const reports = getReportsForChat(normalizedChatId);
+
+            // 保存每个类型的报告
+            for (const type of ['business', 'proposal', 'analysis']) {
+                if (reports[type]) {
+                    try {
+                        await window.storageManager.saveReport({
+                            type,
+                            chatId: normalizedChatId,
+                            data: reports[type].data,
+                            status: reports[type].status,
+                            progress: reports[type].progress,
+                            selectedChapters: reports[type].selectedChapters,
+                            startTime: reports[type].startTime,
+                            endTime: reports[type].endTime,
+                            error: reports[type].error
+                        });
+                        console.log(`[保存会话状态] 已保存 ${type} 报告`);
+                    } catch (err) {
+                        console.error(`[保存会话状态] 保存 ${type} 报告失败:`, err);
+                    }
+                }
+            }
+        }
+
         function loadChats() {
             const saved = localStorage.getItem('thinkcraft_chats');
 
@@ -1126,6 +1162,51 @@
                 saveCurrentChat();
             }
 
+            // 🔧 会话切换时：完整清理前一个会话的状态
+            if (state.currentChat && state.currentChat != targetId) {
+                const prevChatId = normalizeChatId(state.currentChat);
+                const targetChatId = normalizeChatId(targetId);
+
+                logStateChange('会话切换', { from: prevChatId, to: targetChatId });
+
+                // 1. 保存前一个会话的状态到IndexedDB（异步执行，不阻塞切换）
+                saveCurrentSessionState(prevChatId).catch(err => {
+                    console.error('[会话切换] 保存会话状态失败:', err);
+                });
+
+                // 2. 清理前一个会话的内存状态（保留generating状态）
+                if (window.stateManager?.getGenerationState) {
+                    const prevGenState = window.stateManager.getGenerationState(prevChatId);
+                    if (prevGenState) {
+                        let hasGenerating = false;
+                        ['business', 'proposal', 'analysis'].forEach(type => {
+                            if (prevGenState[type]?.status === 'generating') {
+                                hasGenerating = true;
+                                console.log(`[会话切换] 保留会话 ${prevChatId} 的 ${type} generating 状态`);
+                            }
+                        });
+
+                        // 如果没有正在生成的任务，清理StateManager和内存报告
+                        if (!hasGenerating) {
+                            if (window.stateManager.clearGenerationState) {
+                                window.stateManager.clearGenerationState(prevChatId);
+                            }
+                            clearReportsForChat(prevChatId);
+                        }
+                    }
+                }
+
+                // 3. 关闭所有弹窗
+                if (window.modalManager) {
+                    window.modalManager.closeAll();
+                }
+
+                // 4. 关闭进度弹窗（但不中止后台生成）
+                if (window.agentProgressManager) {
+                    window.agentProgressManager.close();
+                }
+            }
+
             // 🔧 确保显示聊天容器，隐藏知识库面板，显示输入框
             const chatContainer = document.getElementById('chatContainer');
             const knowledgePanel = document.getElementById('knowledgePanel');
@@ -1142,7 +1223,7 @@
             state.userData = chat.userData ? {...chat.userData} : {};
             state.conversationStep = chat.conversationStep || chatMessages.length;
             state.analysisCompleted = chat.analysisCompleted || false;
-            loadGenerationStatesForChat(state.currentChat);
+            loadGenerationStatesForChat(String(state.currentChat));
 
             document.getElementById('emptyState').style.display = 'none';
             const messageList = document.getElementById('messageList');
@@ -1193,13 +1274,16 @@
             }
 
         // 查看报告
-        function viewReport() {
+        async function viewReport() {
             const reportModal = document.getElementById('reportModal');
+
+            // 1. 先加载状态（等待完成）
+            await loadGenerationStatesForChat(state.currentChat);
+
+            // 2. 再显示弹窗
             if (reportModal) {
                 reportModal.classList.add('active');
             }
-
-            loadGenerationStatesForChat(state.currentChat);
 
             const reportContent = document.getElementById('reportContent');
             const setAnalysisActionsEnabled = (enabled) => {
@@ -1236,101 +1320,51 @@
                 `;
             };
 
+            // 检查是否正在生成中
             if (window.analysisReportGenerationInFlight) {
                 showGeneratingState();
                 return;
             }
 
-            if (window.storageManager && state.currentChat) {
-                window.storageManager.getAllReports().then(reports => {
-                    const analysisEntry = reports.find(r => r.type === 'analysis' && r.chatId === state.currentChat);
-                    if (analysisEntry?.status === 'generating') {
-                        showGeneratingState();
-                        if (!window.analysisReportGenerationInFlight) {
-                            generateDetailedReport(true).catch(() => {});
-                        }
-                    }
-                }).catch(() => {});
-            }
-
+            // 1. 优先使用内存缓存（最快）
             if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === getAnalysisReportKey()) {
+                console.log('[查看报告] 使用内存缓存');
                 renderAIReport(window.lastGeneratedReport);
                 setAnalysisActionsEnabled(true);
                 updateShareLinkButtonVisibility();
                 return;
             }
 
-            // 优先从本地存储读取已生成的报告
+            // 2. 从数据库读取已生成的报告（不重复生成）
             if (window.storageManager && state.currentChat) {
-                window.storageManager.getAllReports().then(reports => {
-                    const reportEntry = reports.find(r => r.type === 'analysis' && r.chatId === state.currentChat);
-                    if (reportEntry?.data?.chapters) {
-                        window.lastGeneratedReport = reportEntry.data;
-                        window.lastGeneratedReportKey = getAnalysisReportKey();
-                        renderAIReport(reportEntry.data);
-                        setAnalysisActionsEnabled(true);
-                        updateShareLinkButtonVisibility();
-                        return;
-                    }
-                    requestAnimationFrame(() => {
-                        fetchCachedAnalysisReport().then(cached => {
-                            if (cached) return;
-                            generateDetailedReport(true).catch(error => {
-                                console.error('Failed to generate report:', error);
-                                const reportContent = document.getElementById('reportContent');
-                                if (reportContent) {
-                                    reportContent.innerHTML = `
-                                        <div style="text-align: center; padding: 60px 20px;">
-                                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                                                报告生成失败
-                                            </div>
-                                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-                                                ${error.message || '生成报告时发生未知错误'}
-                                            </div>
-                                            <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
-                                        </div>
-                                    `;
-                                }
-                            });
-                        });
-                    });
-                }).catch(() => {
-                    requestAnimationFrame(() => {
-                        fetchCachedAnalysisReport().then(cached => {
-                            if (cached) return;
-                            generateDetailedReport(true).catch(error => {
-                                console.error('Failed to generate report:', error);
-                                const reportContent = document.getElementById('reportContent');
-                                if (reportContent) {
-                                    reportContent.innerHTML = `
-                                        <div style="text-align: center; padding: 60px 20px;">
-                                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                                                报告生成失败
-                                            </div>
-                                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-                                                ${error.message || '生成报告时发生未知错误'}
-                                            </div>
-                                            <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
-                                        </div>
-                                    `;
-                                }
-                            });
-                        });
-                    });
-                });
-                return;
-            }
+                window.storageManager.getReportByChatIdAndType(String(state.currentChat), 'analysis').then(reportEntry => {
+                    if (reportEntry) {
+                        console.log('[查看报告] 从数据库读取', { status: reportEntry.status });
 
-            // 让出主线程，确保弹窗先渲染
-            requestAnimationFrame(() => {
-                fetchCachedAnalysisReport().then(cached => {
-                    if (cached) return;
-                    generateDetailedReport(true).catch(error => {
-                        console.error('Failed to generate report:', error);
-                        const reportContent = document.getElementById('reportContent');
-                        if (reportContent) {
+                        // 如果报告正在生成中
+                        if (reportEntry.status === 'generating') {
+                            showGeneratingState();
+                            // 如果生成标志未设置，继续生成
+                            if (!window.analysisReportGenerationInFlight) {
+                                generateDetailedReport(true).catch(() => {});
+                            }
+                            return;
+                        }
+
+                        // 如果报告已完成，直接渲染
+                        if (reportEntry.status === 'completed' && reportEntry.data?.chapters) {
+                            console.log('[查看报告] 渲染已完成的报告');
+                            window.lastGeneratedReport = reportEntry.data;
+                            window.lastGeneratedReportKey = getAnalysisReportKey();
+                            renderAIReport(reportEntry.data);
+                            setAnalysisActionsEnabled(true);
+                            updateShareLinkButtonVisibility();
+                            return;
+                        }
+
+                        // 如果报告生成失败，显示错误并提供重试按钮
+                        if (reportEntry.status === 'error') {
+                            console.log('[查看报告] 报告生成失败，显示重试按钮');
                             reportContent.innerHTML = `
                                 <div style="text-align: center; padding: 60px 20px;">
                                     <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
@@ -1338,13 +1372,62 @@
                                         报告生成失败
                                     </div>
                                     <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-                                        ${error.message || '生成报告时发生未知错误'}
+                                        ${reportEntry.error?.message || '生成报告时发生未知错误'}
                                     </div>
-                                    <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
+                                    <button class="btn-primary" onclick="regenerateInsightsReport()">重新生成</button>
                                 </div>
                             `;
+                            return;
                         }
+                    }
+
+                    // 3. 没有报告记录，首次生成
+                    console.log('[查看报告] 没有报告记录，首次生成');
+                    requestAnimationFrame(() => {
+                        // 先尝试从后端缓存获取
+                        fetchCachedAnalysisReport().then(cached => {
+                            if (cached) {
+                                console.log('[查看报告] 从后端缓存获取成功');
+                                return;
+                            }
+                            // 后端也没有缓存，调用AI生成
+                            console.log('[查看报告] 调用AI生成新报告');
+                            generateDetailedReport(true).catch(error => {
+                                console.error('[查看报告] 生成失败:', error);
+                                reportContent.innerHTML = `
+                                    <div style="text-align: center; padding: 60px 20px;">
+                                        <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                            报告生成失败
+                                        </div>
+                                        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                            ${error.message || '生成报告时发生未知错误'}
+                                        </div>
+                                        <button class="btn-primary" onclick="regenerateInsightsReport()">重试</button>
+                                    </div>
+                                `;
+                            });
+                        });
                     });
+                }).catch(error => {
+                    console.error('[查看报告] 数据库查询失败:', error);
+                    // 数据库查询失败，尝试生成
+                    requestAnimationFrame(() => {
+                        fetchCachedAnalysisReport().then(cached => {
+                            if (cached) return;
+                            generateDetailedReport(true).catch(() => {});
+                        });
+                    });
+                });
+                return;
+            }
+
+            // 4. 没有 storageManager，直接生成（降级方案）
+            console.log('[查看报告] 没有 storageManager，直接生成');
+            requestAnimationFrame(() => {
+                fetchCachedAnalysisReport().then(cached => {
+                    if (cached) return;
+                    generateDetailedReport(true).catch(() => {});
                 });
             });
         }
@@ -1364,7 +1447,7 @@
                 try {
                     await window.storageManager.saveReport({
                         type: 'analysis',
-                        chatId: state.currentChat,
+                        chatId: String(state.currentChat).trim(),
                         data: null,
                         status: 'generating',
                         progress: { current: 0, total: 1, percentage: 0 },
@@ -1504,7 +1587,7 @@
                 try {
                     await window.storageManager.saveReport({
                         type: 'analysis',
-                        chatId: state.currentChat,
+                        chatId: String(state.currentChat).trim(),
                         data: null,
                         status: 'generating',
                         progress: { current: 0, total: 1, percentage: 0 },
@@ -1604,7 +1687,7 @@
                             id: `analysis-${Date.now()}`,
                             type: 'analysis',
                             data: reportData,
-                            chatId: state.currentChat,
+                            chatId: String(state.currentChat).trim(),
                             status: 'completed',
                             progress: { current: 1, total: 1, percentage: 100 },
                             startTime: Date.now(),
@@ -1641,7 +1724,7 @@
                     try {
                         await window.storageManager.saveReport({
                             type: 'analysis',
-                            chatId: state.currentChat,
+                            chatId: String(state.currentChat).trim(),
                             data: null,
                             status: 'error',
                             progress: { current: 0, total: 1, percentage: 0 },
@@ -2107,6 +2190,13 @@
                 // 获取当前报告数据
                 let reportData = window.lastGeneratedReport || {};
 
+                // 添加会话ID到分享数据，确保数据隔离
+                const shareData = {
+                    ...reportData,
+                    chatId: state.currentChat,
+                    ideaTitle: state.userData.idea || '创意分析报告'
+                };
+
                 // 调用后端API创建分享
                 const response = await fetch(`${state.settings.apiUrl}/api/share/create`, {
                     method: 'POST',
@@ -2115,8 +2205,9 @@
                     },
                     body: JSON.stringify({
                         type: 'insight-report',
-                        data: reportData,
-                        title: state.userData.idea || '创意分析报告'
+                        data: shareData,
+                        title: state.userData.idea || '创意分析报告',
+                        chatId: state.currentChat  // 添加会话ID
                     })
                 });
 
@@ -2182,33 +2273,155 @@
         /* ===== 生成按钮状态管理 ===== */
 
         // 存储已生成的报告数据
-        const generatedReports = {
-            business: null,
-            proposal: null
-        };
+        // ==================== 报告状态管理（按会话隔离）====================
+
+        /**
+         * 规范化chatId为字符串类型
+         * @param {*} chatId - 任意类型的chatId
+         * @returns {string|null} 规范化后的字符串chatId
+         */
+        function normalizeChatId(chatId) {
+            if (chatId === null || chatId === undefined) return null;
+            return String(chatId).trim();
+        }
+
+        /**
+         * 按会话隔离的报告存储
+         * 结构：Map<chatId, { business, proposal, analysis }>
+         */
+        const generatedReports = new Map();
+
+        /**
+         * 获取指定会话的报告对象
+         * @param {*} chatId - 会话ID
+         * @returns {Object} 报告对象 { business, proposal, analysis }
+         */
+        function getReportsForChat(chatId) {
+            const normalized = normalizeChatId(chatId);
+            if (!normalized) return { business: null, proposal: null, analysis: null };
+
+            if (!generatedReports.has(normalized)) {
+                generatedReports.set(normalized, {
+                    business: null,
+                    proposal: null,
+                    analysis: null
+                });
+            }
+            return generatedReports.get(normalized);
+        }
+
+        /**
+         * 清理指定会话的报告数据
+         * @param {*} chatId - 会话ID
+         */
+        function clearReportsForChat(chatId) {
+            const normalized = normalizeChatId(chatId);
+            if (normalized) {
+                generatedReports.delete(normalized);
+                console.log(`[清理报告] 已清理会话 ${normalized} 的报告数据`);
+            }
+        }
+
+        /**
+         * 调试日志开关
+         */
+        const DEBUG_STATE = true;
+
+        /**
+         * 统一的状态变化日志
+         * @param {string} action - 操作名称
+         * @param {Object} data - 附加数据
+         */
+        function logStateChange(action, data) {
+            if (!DEBUG_STATE) return;
+            console.log(`[状态变化] ${action}`, {
+                timestamp: new Date().toISOString(),
+                currentChat: normalizeChatId(state.currentChat),
+                ...data
+            });
+        }
 
         // 处理生成按钮点击
         function handleGenerationBtnClick(type) {
+            const currentChatId = normalizeChatId(state.currentChat);
+            const reports = getReportsForChat(currentChatId);
+
+            logStateChange('生成按钮点击', { type, chatId: currentChatId });
+
             const btnId = type === 'business' ? 'businessPlanBtn' :
                          type === 'proposal' ? 'proposalBtn' : null;
             const btn = document.getElementById(btnId);
             const currentStatus = btn ? btn.dataset.status : 'idle';
+            const btnChatId = btn ? btn.dataset.chatId : null;
+
+            console.log('[生成按钮点击] 按钮状态', { btnId, currentStatus, btnChatId, currentChatId, btn });
+
+            // 验证按钮状态是否属于当前会话
+            if (btnChatId && btnChatId !== currentChatId) {
+                console.warn('[生成按钮点击] 按钮状态不属于当前会话，重置');
+                resetGenerationButtons();
+                startGenerationFlow(type);
+                return;
+            }
 
             // 根据按钮当前状态决定行为
             if (currentStatus === 'completed') {
-                // 已完成：查看报告
-                const reportEntry = generatedReports[type];
-                if (reportEntry && reportEntry.chatId === state.currentChat) {
-                    viewGeneratedReport(type, reportEntry.data || reportEntry);
+                // 已完成：先显示成功弹窗，再查看报告
+                const reportEntry = reports[type];
+                if (reportEntry && normalizeChatId(reportEntry.chatId) === currentChatId) {
+                    const data = reportEntry.data || reportEntry;
+                    const chapterCount = data.selectedChapters?.length || data.chapters?.length || 0;
+                    const totalTokens = data.totalTokens || 0;
+                    const costString = data.costStats?.costString || '';
+
+                    // 显示成功弹窗
+                    window.modalManager.alert(
+                        `生成完成！共生成 ${chapterCount} 个章节，使用 ${totalTokens} tokens${costString ? `，成本 ${costString}` : ''}`,
+                        'success',
+                        () => {
+                            // 弹窗关闭后打开报告
+                            viewGeneratedReport(type, data);
+                        }
+                    );
                 } else {
+                    console.warn('[生成按钮点击] 报告不属于当前会话，重置');
                     resetGenerationButtons();
                     startGenerationFlow(type);
                 }
             } else if (currentStatus === 'generating') {
-                // 生成中：打开进度弹窗并恢复状态
-                const reportEntry = generatedReports[type];
+                // 生成中：重新打开进度弹窗并恢复状态
+                const reports = getReportsForChat(currentChatId);
+                let reportEntry = reports[type];
+
+                // 如果 reports 中没有数据，尝试从 stateManager 获取
+                if (!reportEntry && window.stateManager) {
+                    const generationState = window.stateManager.getGenerationState(currentChatId)?.[type];
+                    if (generationState && generationState.status === 'generating') {
+                        reportEntry = {
+                            data: generationState.results || {},
+                            selectedChapters: generationState.selectedChapters || [],
+                            progress: generationState.progress,
+                            status: 'generating',
+                            chatId: currentChatId
+                        };
+                        console.log('[生成按钮点击] 从 stateManager 恢复数据', { reportEntry });
+                    }
+                }
+
+                console.log('[生成按钮点击] 生成中状态，报告数据', { reportEntry });
+
                 if (reportEntry && window.businessPlanGenerator?.restoreProgress) {
+                    // 恢复进度弹窗显示
+                    console.log('[生成按钮点击] 调用 restoreProgress');
                     window.businessPlanGenerator.restoreProgress(type, reportEntry);
+                } else {
+                    // 如果没有报告数据，说明状态异常，重置按钮
+                    console.warn('[生成按钮] 生成中状态但无报告数据，重置按钮', {
+                        hasReportEntry: !!reportEntry,
+                        hasBusinessPlanGenerator: !!window.businessPlanGenerator,
+                        hasRestoreProgress: !!window.businessPlanGenerator?.restoreProgress
+                    });
+                    resetGenerationButtons();
                 }
                 return;
             } else {
@@ -2219,6 +2432,8 @@
 
         // 开始生成流程
         function startGenerationFlow(type) {
+            console.log('[开始生成流程]', { type });
+
             // 确保businessPlanGenerator已初始化
             if (!window.businessPlanGenerator) {
                 try {
@@ -2240,10 +2455,26 @@
                 }
             }
             if (!window._generationStateSubscribed && window.stateManager?.subscribe) {
-                window.stateManager.subscribe(appState => updateGenerationButtonState(appState.generation));
+                // 订阅状态变化，分别更新两个按钮
+                window.stateManager.subscribe(appState => {
+                    if (appState.generation?.business) {
+                        updateGenerationButtonState(appState.generation.business);
+                    }
+                    if (appState.generation?.proposal) {
+                        updateGenerationButtonState(appState.generation.proposal);
+                    }
+                });
                 window._generationStateSubscribed = true;
-                updateGenerationButtonState(window.stateManager.state.generation);
+                // 初始化时更新两个按钮状态（只在状态存在时更新）
+                if (window.stateManager.state.generation?.business) {
+                    updateGenerationButtonState(window.stateManager.state.generation.business);
+                }
+                if (window.stateManager.state.generation?.proposal) {
+                    updateGenerationButtonState(window.stateManager.state.generation.proposal);
+                }
             }
+
+            console.log('[开始生成流程] 调用 showChapterSelection', { type });
 
             if (type === 'business') {
                 if (typeof window.businessPlanGenerator.showChapterSelection === 'function') {
@@ -2257,6 +2488,9 @@
                 } else {
                     alert('系统功能异常，请刷新页面重试');
                 }
+            } else {
+                console.error('[开始生成流程] 未知的类型:', type);
+                alert('未知的报告类型');
             }
         }
 
@@ -2281,8 +2515,13 @@
                     if (!shareBtn) return;
                     shareBtn.style.display = 'none';
                 };
-                // 设置当前报告类型
-                currentReportType = type;
+                // 在模态框上设置报告类型数据属性
+                const modal = document.getElementById('businessReportModal');
+                if (modal) {
+                    modal.dataset.reportType = type;
+                    // 保存到全局变量，防止在重新生成时丢失
+                    window.currentReportType = type;
+                }
                 toggleShareButton(type);
 
                 // 显示商业计划书/产品立项材料
@@ -2370,8 +2609,11 @@
             }
         }
 
-        // 更新生成按钮状态
-        function updateGenerationButtonState(generationState) {
+        // 更新生成按钮状态（旧版本，保留用于兼容）
+        function updateGenerationButtonStateOld(generationState) {
+            // 🔧 添加空值检查
+            if (!generationState) return;
+
             const type = generationState.type;
             if (!type) return;
 
@@ -2389,6 +2631,8 @@
             const iconSpan = btn.querySelector('.btn-icon');
             const textSpan = btn.querySelector('.btn-text');
             const status = generationState.status;
+            const chatId = normalizeChatId(state.currentChat);
+            const reports = getReportsForChat(chatId);
 
             // 移除所有状态类
             btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
@@ -2410,8 +2654,16 @@
                 case 'generating':
                     btn.classList.add('btn-generating');
                     btn.dataset.status = 'generating';
-                    btn.disabled = true;
+                    btn.disabled = false; // 不禁用按钮，允许点击查看进度
                     updateButtonContent(type, iconSpan, textSpan, 'generating', generationState.progress);
+                    // 保存生成中的数据，以便恢复进度
+                    reports[type] = {
+                        data: generationState.results || {},
+                        selectedChapters: generationState.selectedChapters || [],
+                        chatId: chatId,
+                        status: 'generating',
+                        progress: generationState.progress
+                    };
                     break;
 
                 case 'completed':
@@ -2419,9 +2671,9 @@
                     btn.dataset.status = 'completed';
                     updateButtonContent(type, iconSpan, textSpan, 'completed');
                     // 保存生成的报告
-                    generatedReports[type] = {
+                    reports[type] = {
                         data: generationState.results,
-                        chatId: state.currentChat,
+                        chatId: chatId,
                         status: 'completed',
                         progress: generationState.progress
                     };
@@ -2431,11 +2683,11 @@
                     btn.classList.add('btn-error');
                     btn.dataset.status = 'error';
                     updateButtonContent(type, iconSpan, textSpan, 'error');
-                    generatedReports[type] = {
-                        ...(generatedReports[type] || {}),
+                    reports[type] = {
+                        ...(reports[type] || {}),
                         status: 'error',
                         progress: generationState.progress,
-                        chatId: state.currentChat
+                        chatId: chatId
                     };
                     break;
             }
@@ -2455,6 +2707,12 @@
                     generating: { icon: '⏳', text: '生成中...' },
                     completed: { icon: '✅', text: '产品立项材料（查看）' },
                     error: { icon: '❌', text: '生成失败（重试）' }
+                },
+                analysis: {
+                    idle: { icon: '📈', text: '分析报告' },
+                    generating: { icon: '⏳', text: '生成中...' },
+                    completed: { icon: '✅', text: '分析报告（查看）' },
+                    error: { icon: '❌', text: '生成失败（重试）' }
                 }
             };
 
@@ -2473,101 +2731,232 @@
         }
 
         // 从存储加载已生成的报告状态
-        function resetGenerationButtons() {
+        function resetGenerationButtons(excludeChatId = null) {
             const btnMap = {
                 'business': 'businessPlanBtn',
-                'proposal': 'proposalBtn'
+                'proposal': 'proposalBtn',
+                'analysis': 'analysisReportBtn'
             };
             Object.keys(btnMap).forEach(type => {
                 const btn = document.getElementById(btnMap[type]);
                 if (!btn) return;
+
+                // 如果指定了 excludeChatId，跳过该会话的按钮
+                if (excludeChatId) {
+                    const btnChatId = btn.dataset.chatId;
+                    if (btnChatId && normalizeChatId(btnChatId) === normalizeChatId(excludeChatId)) {
+                        console.log(`[重置按钮] 跳过会话 ${excludeChatId} 的 ${type} 按钮`);
+                        return;
+                    }
+                }
+
                 btn.classList.remove('btn-generating', 'btn-completed', 'btn-error');
                 btn.classList.add('btn-idle');
                 btn.dataset.status = 'idle';
+                delete btn.dataset.chatId;  // 清空 chatId
+                btn.disabled = false; // 确保按钮不被禁用
                 const iconSpan = btn.querySelector('.btn-icon');
                 const textSpan = btn.querySelector('.btn-text');
                 updateButtonContent(type, iconSpan, textSpan, 'idle');
             });
-            generatedReports.business = null;
-            generatedReports.proposal = null;
+
+            logStateChange('重置生成按钮', { excludeChatId });
         }
 
         async function loadGenerationStatesForChat(chatId) {
             try {
-                resetGenerationButtons();
-                if (!chatId) return;
-                // 从IndexedDB加载已保存的报告
-                const reports = await window.storageManager.getAllReports();
-                const GENERATION_TIMEOUT_MS = 15 * 60 * 1000;
+                const normalizedChatId = normalizeChatId(chatId);
 
-                if (reports && reports.length > 0) {
-                    // 按类型分组
-                    reports.forEach(report => {
-                        if ((report.type === 'business' || report.type === 'proposal') && report.chatId === chatId) {
-                            if (report.status === 'generating' && report.startTime) {
-                                const elapsed = Date.now() - report.startTime;
-                                if (elapsed > GENERATION_TIMEOUT_MS) {
-                                    report.status = 'error';
-                                    report.error = {
-                                        message: '生成超时，请重试',
-                                        timestamp: Date.now()
-                                    };
-                                    if (window.storageManager) {
-                                        window.storageManager.saveReport({
-                                            id: report.id,
-                                            type: report.type,
-                                            chatId: report.chatId,
-                                            data: report.data ?? null,
-                                            status: report.status,
-                                            progress: report.progress,
-                                            selectedChapters: report.selectedChapters,
-                                            startTime: report.startTime,
-                                            endTime: Date.now(),
-                                            error: report.error
-                                        }).catch(() => {});
-                                    }
-                                }
+                logStateChange('加载生成状态', { chatId: normalizedChatId });
+
+                if (!normalizedChatId) {
+                    console.log('[加载状态] 无chatId，重置按钮');
+                    resetGenerationButtons();
+                    return;
+                }
+
+                // 1. 重置所有按钮到初始状态
+                resetGenerationButtons();
+
+                // 2. 清理旧会话的UI状态
+                document.querySelectorAll('.generation-btn').forEach(btn => {
+                    btn.removeAttribute('data-chat-id');
+                    btn.removeAttribute('data-status');
+                });
+
+                // 3. 从StateManager获取当前会话的内存状态
+                const memoryStates = {};
+                if (window.stateManager?.getGenerationState) {
+                    const genState = window.stateManager.getGenerationState(normalizedChatId);
+                    if (genState) {
+                        ['business', 'proposal', 'analysis'].forEach(type => {
+                            const gen = genState[type];
+                            if (gen && gen.status === 'generating') {
+                                memoryStates[type] = {
+                                    status: 'generating',
+                                    progress: gen.progress,
+                                    selectedChapters: gen.selectedChapters,
+                                    chatId: normalizedChatId
+                                };
+                                console.log(`[加载状态] 从内存获取 ${type} 状态:`, memoryStates[type]);
                             }
-                            generatedReports[report.type] = {
-                                data: report.data,
+                        });
+                    }
+                }
+
+                // 4. 从IndexedDB获取持久化的报告
+                const allReports = await window.storageManager?.getReportsByChatId(normalizedChatId);
+                console.log('[加载状态] 查询到的报告:', allReports);
+
+                // 验证报告是否属于当前会话
+                const reports = (allReports || []).filter(report => {
+                    const reportChatId = normalizeChatId(report.chatId);
+                    if (reportChatId !== normalizedChatId) {
+                        console.warn(`[加载状态] 过滤掉不匹配的报告:`, {
+                            reportChatId,
+                            currentChatId: normalizedChatId,
+                            reportType: report.type
+                        });
+                        return false;
+                    }
+                    return true;
+                });
+
+                console.log('[加载状态] 验证后的报告:', reports);
+
+                // 5. 获取当前会话的报告对象
+                const currentReports = getReportsForChat(normalizedChatId);
+
+                // 6. 合并状态并更新UI
+                const GENERATION_TIMEOUT_MS = 15 * 60 * 1000;
+                const processedTypes = new Set();
+
+                // 先处理IndexedDB中的报告
+                reports.forEach(report => {
+                    const type = report.type;
+                    console.log('[加载状态] 处理报告:', { type, status: report.status, chatId: report.chatId });
+                    if (type !== 'business' && type !== 'proposal' && type !== 'analysis') {
+                        console.log('[加载状态] 跳过非报告类型:', type);
+                        return;
+                    }
+
+                    // 检查超时
+                    if (report.status === 'generating' && report.startTime) {
+                        const elapsed = Date.now() - report.startTime;
+                        if (elapsed > GENERATION_TIMEOUT_MS) {
+                            report.status = 'error';
+                            report.error = {
+                                message: '生成超时，请重试',
+                                timestamp: Date.now()
+                            };
+                            // 异步保存错误状态
+                            window.storageManager?.saveReport({
+                                id: report.id,
+                                type: report.type,
                                 chatId: report.chatId,
+                                data: report.data ?? null,
                                 status: report.status,
                                 progress: report.progress,
                                 selectedChapters: report.selectedChapters,
+                                startTime: report.startTime,
+                                endTime: Date.now(),
                                 error: report.error
-                            };
-
-                            // 更新按钮为已完成状态
-                            const btnId = report.type === 'business' ? 'businessPlanBtn' :
-                                         report.type === 'proposal' ? 'proposalBtn' : null;
-                            const btn = document.getElementById(btnId);
-                            if (btn) {
-                                const iconSpan = btn.querySelector('.btn-icon');
-                                const textSpan = btn.querySelector('.btn-text');
-                                const status = report.status || (report.data ? 'completed' : 'idle');
-
-                                btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
-                                btn.dataset.status = status;
-
-                                if (status === 'generating') {
-                                    btn.classList.add('btn-generating');
-                                    updateButtonContent(report.type, iconSpan, textSpan, 'generating', report.progress || { percentage: 0 });
-                                } else if (status === 'completed') {
-                                    btn.classList.add('btn-completed');
-                                    updateButtonContent(report.type, iconSpan, textSpan, 'completed');
-                                } else if (status === 'error') {
-                                    btn.classList.add('btn-error');
-                                    updateButtonContent(report.type, iconSpan, textSpan, 'error');
-                                } else {
-                                    btn.classList.add('btn-idle');
-                                    updateButtonContent(report.type, iconSpan, textSpan, 'idle');
-                                }
-                            }
+                            }).catch(() => {});
                         }
-                    });
+                    }
+
+                    // 优先使用内存中的generating状态
+                    if (memoryStates[type]?.status === 'generating') {
+                        currentReports[type] = memoryStates[type];
+                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                    } else {
+                        currentReports[type] = {
+                            data: report.data,
+                            chatId: report.chatId,
+                            status: report.status,
+                            progress: report.progress,
+                            selectedChapters: report.selectedChapters,
+                            error: report.error
+                        };
+                        updateGenerationButtonState(type, currentReports[type], normalizedChatId);
+                    }
+
+                    processedTypes.add(type);
+                });
+
+                // 处理内存中有但IndexedDB中没有的generating状态
+                Object.keys(memoryStates).forEach(type => {
+                    if (!processedTypes.has(type)) {
+                        currentReports[type] = memoryStates[type];
+                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                        processedTypes.add(type);
+                    }
+                });
+
+                // 注意：不在切换会话时自动恢复进度弹窗
+                // 用户需要点击按钮时才显示弹窗
+
+            } catch (error) {
+                console.error('[加载状态] 加载失败:', error);
+                resetGenerationButtons();
+            }
+        }
+
+        /**
+         * 更新生成按钮状态
+         * @param {string} type - 报告类型
+         * @param {Object} state - 状态对象
+         * @param {string} chatId - 会话ID
+         */
+        function updateGenerationButtonState(type, state, chatId) {
+            const btnId = type === 'business' ? 'businessPlanBtn' :
+                         type === 'proposal' ? 'proposalBtn' :
+                         type === 'analysis' ? 'analysisReportBtn' : null;
+
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+
+            const iconSpan = btn.querySelector('.btn-icon');
+            const textSpan = btn.querySelector('.btn-text');
+            const status = state.status || (state.data ? 'completed' : 'idle');
+
+            console.log(`[更新按钮] ${type}:`, { btnId, status, chatId });
+
+            btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
+            btn.dataset.status = status;
+            btn.dataset.chatId = chatId;
+            btn.disabled = false;
+
+            if (status === 'generating') {
+                btn.classList.add('btn-generating');
+                updateButtonContent(type, iconSpan, textSpan, 'generating', state.progress || { percentage: 0 });
+            } else if (status === 'completed') {
+                btn.classList.add('btn-completed');
+                updateButtonContent(type, iconSpan, textSpan, 'completed');
+            } else if (status === 'error') {
+                btn.classList.add('btn-error');
+                updateButtonContent(type, iconSpan, textSpan, 'error');
+            } else {
+                btn.classList.add('btn-idle');
+                updateButtonContent(type, iconSpan, textSpan, 'idle');
+            }
+        }
+
+        // 全局加载生成状态（页面初始化时调用）
+        async function loadGenerationStates() {
+            try {
+                console.log('[全局加载] 开始加载生成状态');
+
+                // 如果当前有对话，加载该对话的生成状态
+                if (state.currentChat) {
+                    console.log('[全局加载] 当前对话ID:', state.currentChat);
+                    await loadGenerationStatesForChat(state.currentChat);
+                } else {
+                    console.log('[全局加载] 没有当前对话，重置按钮状态');
+                    resetGenerationButtons();
                 }
             } catch (error) {
-                console.error('Failed to load reports:', error);
+                console.error('[全局加载] 加载生成状态失败:', error);
             }
         }
 
@@ -2580,9 +2969,6 @@
         function showProjectProposalModal() {
             window.businessPlanGenerator.showChapterSelection('proposal');
         }
-
-        // 当前选择的类型
-        let currentReportType = 'business';
 
         // 更新章节统计
         function updateChapterStats() {
@@ -2612,16 +2998,44 @@
             }
         }
 
+        // 关闭Agent进度弹窗（点击X按钮）
+        // 只关闭弹窗，不取消生成（生成会在后台继续）
+        async function closeAgentProgress() {
+            const chatId = normalizeChatId(state.currentChat);
+
+            // 保存当前进度状态到IndexedDB
+            if (chatId) {
+                await saveCurrentSessionState(chatId);
+            }
+
+            // 关闭弹窗，不取消生成
+            if (window.agentProgressManager) {
+                window.agentProgressManager.close();
+            }
+
+            logStateChange('关闭进度弹窗', { chatId });
+        }
+
         // 存储当前生成的章节配置
         let currentGeneratedChapters = [];
 
         // 关闭商业报告
-        function closeBusinessReport() {
-            if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+        async function closeBusinessReport() {
+            const chatId = normalizeChatId(state.currentChat);
+
+            // 1. 保存当前报告状态到IndexedDB
+            if (chatId) {
+                await saveCurrentSessionState(chatId);
+            }
+
+            // 2. 关闭弹窗
+            if (window.modalManager?.isOpen('businessReportModal')) {
                 window.modalManager.close('businessReportModal');
             } else {
                 document.getElementById('businessReportModal').classList.remove('active');
             }
+
+            logStateChange('关闭报告弹窗', { chatId });
         }
 
         // 重新生成商业报告
@@ -2630,15 +3044,27 @@
                 return;
             }
 
-            // 调用businessPlanGenerator的重新生成方法
+            // 优先从模态框获取报告类型，然后从全局变量获取（防止模态框属性丢失）
+            const modal = document.getElementById('businessReportModal');
+            const currentReportType = modal?.dataset?.reportType || window.currentReportType || 'business';
+
+            console.log('[重新生成商业报告] currentReportType =', currentReportType);
+
+            // 调用businessPlanGenerator的重新生成方法，传递当前报告类型
             if (window.businessPlanGenerator) {
                 closeBusinessReport();
-                window.businessPlanGenerator.regenerate();
+                window.businessPlanGenerator.regenerate(currentReportType);
             }
         }
 
         // 调整商业报告章节
         function adjustBusinessReportChapters() {
+            // 从模态框获取当前报告类型
+            const modal = document.getElementById('businessReportModal');
+            const currentReportType = modal?.dataset?.reportType || 'business';
+
+            console.log('[调整章节] currentReportType =', currentReportType);
+
             // 关闭当前报告
             closeBusinessReport();
 
@@ -2665,10 +3091,15 @@
         // 导出商业报告PDF
         async function exportBusinessReport() {
             try {
+                // 从模态框获取当前报告类型
+                const modal = document.getElementById('businessReportModal');
+                const currentReportType = modal?.dataset?.reportType || 'business';
                 const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
 
                 // 获取已生成的报告数据
-                const reportEntry = generatedReports[currentReportType];
+                const chatId = normalizeChatId(state.currentChat);
+                const reports = getReportsForChat(chatId);
+                const reportEntry = reports[currentReportType];
                 const reportData = reportEntry?.data || reportEntry || {};
                 const chapters = reportData.chapters || reportData.data?.chapters || [];
                 if (!Array.isArray(chapters) || chapters.length === 0) {
@@ -2716,8 +3147,14 @@
         // 分享商业报告
         async function shareBusinessReport() {
             try {
+                // 从模态框获取当前报告类型
+                const modal = document.getElementById('businessReportModal');
+                const currentReportType = modal?.dataset?.reportType || 'business';
                 const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
-                const reportEntry = generatedReports[currentReportType];
+
+                const chatId = normalizeChatId(state.currentChat);
+                const reports = getReportsForChat(chatId);
+                const reportEntry = reports[currentReportType];
                 const reportData = reportEntry?.data || reportEntry;
 
                 if (!reportData) {
@@ -6706,6 +7143,7 @@ window.fireProjectAgent = fireProjectAgent;
 // 暴露核心函数到全局作用域
 window.loadChats = loadChats;
 window.loadSettings = loadSettings;
+window.loadGenerationStates = loadGenerationStates;
 window.focusInput = focusInput;
 window.updateUserNameDisplay = updateUserNameDisplay;
 window.autoResize = autoResize;

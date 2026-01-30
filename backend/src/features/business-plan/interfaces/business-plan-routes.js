@@ -69,6 +69,16 @@ function formatConversation(conversationHistory) {
  * @returns {Promise<Object>} { chapterId, content, agent, tokens }
  */
 async function generateSingleChapter(chapterId, conversationHistory, type = 'business') {
+    console.log(`[生成章节] 开始生成章节: ${chapterId}, 对话历史长度: ${conversationHistory.length}`);
+
+    // 打印对话历史的前2条和后2条，用于调试
+    if (conversationHistory.length > 0) {
+        console.log('[生成章节] 对话历史示例（前2条）:', conversationHistory.slice(0, 2));
+        if (conversationHistory.length > 2) {
+            console.log('[生成章节] 对话历史示例（后2条）:', conversationHistory.slice(-2));
+        }
+    }
+
     // 根据类型选择提示词
     const prompts = type === 'proposal' ? PROPOSAL_PROMPTS : CHAPTER_PROMPTS;
     let promptTemplate = prompts[chapterId];
@@ -86,9 +96,25 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
 
     const agent = CHAPTER_AGENTS[chapterId];
     const conversation = formatConversation(conversationHistory);
-    const prompt = promptTemplate.replace('{CONVERSATION}', conversation);
+
+    // 如果模板中包含 {CONVERSATION} 占位符，则替换
+    // 如果不包含，则在模板末尾添加对话历史
+    let prompt;
+    if (promptTemplate.includes('{CONVERSATION}')) {
+        prompt = promptTemplate.replace('{CONVERSATION}', conversation);
+        console.log('[生成章节] 使用 {CONVERSATION} 占位符替换对话历史');
+    } else {
+        prompt = `${promptTemplate}\n\n**对话历史**：\n\`\`\`\n${conversation}\n\`\`\`\n\n请严格基于以上对话历史进行分析，不要使用mock数据或虚构信息。如果信息不足，请明确说明。`;
+        console.log('[生成章节] 在模板末尾添加对话历史');
+    }
+
+    // 打印最终提示词的长度和前500字符
+    console.log('[生成章节] 最终提示词长度:', prompt.length);
+    console.log('[生成章节] 最终提示词预览（前500字符）:', prompt.substring(0, 500));
+    console.log('[生成章节] 最终提示词预览（后500字符）:', prompt.substring(Math.max(0, prompt.length - 500)));
 
     // 调用DeepSeek API
+    console.log('[生成章节] 开始调用 DeepSeek API...');
     const result = await callDeepSeekAPI(
         [{ role: 'user', content: prompt }],
         null,
@@ -98,6 +124,13 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
             timeout: 120000
         }
     );
+
+    console.log('[生成章节] DeepSeek API 调用成功', {
+        chapterId,
+        contentLength: result.content.length,
+        tokens: result.usage.total_tokens,
+        contentPreview: result.content.substring(0, 200)
+    });
 
     return {
         chapterId,

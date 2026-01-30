@@ -17,22 +17,9 @@ class StateManager {
       isLoading: false,
       analysisCompleted: false,
 
-      // 生成流程状态机（核心新增）
-      generation: {
-        type: null, // 'business-plan' | 'proposal' | null
-        status: 'idle', // 'idle' | 'selecting' | 'generating' | 'completed' | 'error'
-        selectedChapters: [],
-        progress: {
-          current: 0,
-          total: 0,
-          currentAgent: null,
-          percentage: 0
-        },
-        results: {}, // { chapterId: { content, agent, timestamp } }
-        error: null,
-        startTime: null,
-        endTime: null
-      },
+      // 生成流程状态机（核心新增）- 按会话ID隔离
+      // 结构：generation[chatId] = { business: {...}, proposal: {...} }
+      generation: {},
 
       // 灵感收件箱状态（Phase 3新增）
       inspiration: {
@@ -165,12 +152,73 @@ class StateManager {
   // ========== 生成流程状态机方法 ==========
 
   /**
+   * 获取或初始化会话的生成状态
+   * @param {String} chatId - 会话ID
+   * @returns {Object} 会话的生成状态
+   */
+  getGenerationState(chatId) {
+    if (!chatId) {
+      console.error('[StateManager] chatId 为空');
+      return null;
+    }
+
+    // 统一 chatId 类型为字符串
+    const normalizedChatId = String(chatId);
+
+    // 如果该会话还没有生成状态，初始化
+    if (!this.state.generation[normalizedChatId]) {
+      this.state.generation[normalizedChatId] = {
+        business: {
+          type: 'business',
+          status: 'idle',
+          selectedChapters: [],
+          progress: {
+            current: 0,
+            total: 0,
+            currentAgent: null,
+            percentage: 0
+          },
+          results: {},
+          error: null,
+          startTime: null,
+          endTime: null
+        },
+        proposal: {
+          type: 'proposal',
+          status: 'idle',
+          selectedChapters: [],
+          progress: {
+            current: 0,
+            total: 0,
+            currentAgent: null,
+            percentage: 0
+          },
+          results: {},
+          error: null,
+          startTime: null,
+          endTime: null
+        }
+      };
+    }
+
+    return this.state.generation[normalizedChatId];
+  }
+
+  /**
    * 开始生成流程
-   * @param {String} type - 'business-plan' | 'proposal'
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @param {Array} chapters - 选中的章节ID数组
    */
-  startGeneration(type, chapters = []) {
-    this.state.generation = {
+  startGeneration(chatId, type, chapters = []) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    genState[type] = {
       type,
       status: 'generating',
       selectedChapters: chapters,
@@ -190,15 +238,24 @@ class StateManager {
 
   /**
    * 更新生成进度
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @param {String} agentName - 当前工作的Agent名称
    * @param {Number} current - 已完成数量
    * @param {Object} result - 章节结果数据
    */
-  updateProgress(agentName, current, result = null) {
-    const total = this.state.generation.progress.total;
+  updateProgress(chatId, type, agentName, current, result = null) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    const total = genState[type].progress.total;
     const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 
-    this.state.generation.progress = {
+    genState[type].progress = {
       current,
       total,
       currentAgent: agentName,
@@ -206,7 +263,7 @@ class StateManager {
     };
 
     if (result) {
-      this.state.generation.results[result.id || current] = {
+      genState[type].results[result.id || current] = {
         ...result,
         agent: agentName,
         timestamp: Date.now()
@@ -218,31 +275,48 @@ class StateManager {
 
   /**
    * 完成生成流程
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @param {Object} finalResults - 最终结果数据
    */
-  completeGeneration(finalResults = null) {
-    this.state.generation.status = 'completed';
-    this.state.generation.endTime = Date.now();
-    this.state.generation.progress.percentage = 100;
+  completeGeneration(chatId, type, finalResults = null) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    genState[type].status = 'completed';
+    genState[type].endTime = Date.now();
+    genState[type].progress.percentage = 100;
 
     if (finalResults) {
-      this.state.generation.results = {
-        ...this.state.generation.results,
+      genState[type].results = {
+        ...genState[type].results,
         ...finalResults
       };
     }
 
-    const duration = ((this.state.generation.endTime - this.state.generation.startTime) / 1000).toFixed(1);
     this.notify();
   }
 
   /**
    * 生成流程出错
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @param {Error} error - 错误对象
    */
-  errorGeneration(error) {
-    this.state.generation.status = 'error';
-    this.state.generation.error = {
+  errorGeneration(chatId, type, error) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    genState[type].status = 'error';
+    genState[type].error = {
       message: error.message,
       timestamp: Date.now()
     };
@@ -251,12 +325,24 @@ class StateManager {
 
   /**
    * 重置生成状态（支持重新生成）
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
+   * @param {Boolean} keepChapters - 是否保留selectedChapters（用于重新生成）
    */
-  resetGeneration() {
-    this.state.generation = {
-      type: null,
+  resetGeneration(chatId, type, keepChapters = false) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    const selectedChapters = keepChapters ? genState[type].selectedChapters : [];
+
+    genState[type] = {
+      type,
       status: 'idle',
-      selectedChapters: [],
+      selectedChapters,
       progress: {
         current: 0,
         total: 0,
@@ -273,12 +359,34 @@ class StateManager {
 
   /**
    * 显示章节选择（状态转换）
-   * @param {String} type - 'business-plan' | 'proposal'
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    */
-  showChapterSelection(type) {
-    this.state.generation.type = type;
-    this.state.generation.status = 'selecting';
+  showChapterSelection(chatId, type) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      console.error('[StateManager] 无效的报告类型:', type);
+      return;
+    }
+
+    genState[type].status = 'selecting';
     this.notify();
+  }
+
+  /**
+   * 清理指定会话的生成状态（会话切换时调用）
+   * @param {String} chatId - 会话ID
+   */
+  clearGenerationState(chatId) {
+    if (!chatId) return;
+    const normalizedChatId = String(chatId);
+
+    if (this.state.generation[normalizedChatId]) {
+      console.log(`[StateManager] 清理会话 ${normalizedChatId} 的生成状态`);
+      delete this.state.generation[normalizedChatId];
+      this.notify();
+    }
   }
 
   // ========== 灵感收件箱管理方法（Phase 3新增） ==========
@@ -764,18 +872,32 @@ class StateManager {
 
   /**
    * 获取生成进度百分比
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @returns {Number} 0-100
    */
-  getGenerationProgress() {
-    return this.state.generation.progress.percentage;
+  getGenerationProgress(chatId, type) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      return 0;
+    }
+    return genState[type].progress.percentage;
   }
 
   /**
    * 检查是否正在生成
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 'business' | 'proposal'
    * @returns {Boolean}
    */
-  isGenerating() {
-    return this.state.generation.status === 'generating';
+  isGenerating(chatId, type) {
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    if (!genState || !genState[type]) {
+      return false;
+    }
+    return genState[type].status === 'generating';
   }
 
   /**

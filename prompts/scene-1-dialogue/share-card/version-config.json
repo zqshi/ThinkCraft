@@ -1,0 +1,12 @@
+{
+  "currentVersion": "1.0.0",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "file": "full-document.md",
+      "description": "初始版本，包含完整的分享卡片生成规则和评分标准",
+      "createdAt": "2026-01-30",
+      "isActive": true
+    }
+  ]
+}

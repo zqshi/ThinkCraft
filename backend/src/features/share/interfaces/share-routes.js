@@ -4,8 +4,10 @@
  */
 import express from 'express';
 import crypto from 'crypto';
+import { ShareController } from './share.controller.js';
 
 const router = express.Router();
+const shareController = new ShareController();
 
 // 内存存储（生产环境应使用Redis或数据库）
 const shareStorage = new Map();
@@ -201,6 +203,18 @@ router.get('/stats/summary', (req, res) => {
     code: 0,
     data: stats
   });
+});
+
+/**
+ * POST /api/share/generate-card
+ * 生成分享卡片数据
+ */
+router.post('/generate-card', async (req, res, next) => {
+  try {
+    await shareController.generateShareCard(req, res);
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

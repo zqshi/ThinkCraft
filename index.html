@@ -564,13 +564,13 @@
                 <div id="chapterList">
                     <!-- 章节列表将通过JavaScript动态生成 -->
                 </div>
+            </div>
 
-                <div class="modal-footer">
-                    <p id="chapterStats" style="color: var(--text-secondary); font-size: 14px;">
-                        已选 <strong style="color: var(--primary);">5</strong> 个章节，预计用时 <strong style="color: var(--primary);">2分钟</strong>
-                    </p>
-                    <button class="btn-primary" onclick="startGeneration()">开始生成</button>
-                </div>
+            <div class="modal-footer">
+                <p id="chapterStats" style="color: var(--text-secondary); font-size: 14px;">
+                    已选 <strong style="color: var(--primary);">5</strong> 个章节，预计用时 <strong style="color: var(--primary);">2分钟</strong>
+                </p>
+                <button class="btn-primary" onclick="startGeneration()">开始生成</button>
             </div>
         </div>
     </div>
@@ -580,6 +580,11 @@
         <div class="modal-content agent-progress">
             <div class="modal-header">
                 <div class="modal-title">🤖 AI专家团队正在工作中...</div>
+                <button class="close-btn" onclick="closeAgentProgress()" aria-label="关闭">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
 
             <div class="modal-body">

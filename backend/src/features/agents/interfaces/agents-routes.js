@@ -911,12 +911,22 @@ ${instruction ? `补充要求：${instruction}` : ''}
         );
 
         let parsed = null;
+        let parseError = null;
         try {
-            const jsonMatch = result.content.match(/\\{[\\s\\S]*\\}/);
-            if (jsonMatch) {
-                parsed = JSON.parse(jsonMatch[0]);
+            // 尝试直接解析整个内容
+            parsed = JSON.parse(result.content);
+        } catch (e1) {
+            try {
+                // 尝试提取JSON部分
+                const jsonMatch = result.content.match(/\\{[\\s\\S]*\\}/);
+                if (jsonMatch) {
+                    parsed = JSON.parse(jsonMatch[0]);
+                }
+            } catch (e2) {
+                parseError = e2;
+                console.error('JSON解析失败:', e2.message);
             }
-        } catch (error) {}
+        }
 
         const collaborationMode = parsed?.collaborationMode || '统一协作模式';
         const rawRecommendedAgents = Array.isArray(parsed?.recommendedAgents)
@@ -929,7 +939,21 @@ ${instruction ? `补充要求：${instruction}` : ''}
             const workflowAgents = await loadWorkflowAgentIds(workflowCategory);
             recommendedAgents = workflowAgents;
         }
-        const plan = parsed?.plan || result.content || '暂无建议';
+
+        // 改进plan字段的fallback逻辑
+        let plan = '暂无建议';
+        if (parsed?.plan) {
+            plan = parsed.plan;
+        } else if (parseError) {
+            // 如果JSON解析失败，尝试从原始内容中提取plan字段
+            const planMatch = result.content.match(/"plan"\\s*:\\s*"([^"]+)"/);
+            if (planMatch) {
+                plan = planMatch[1].replace(/\\\\n/g, '\n').replace(/\\\\"/g, '"');
+            } else {
+                // 如果无法提取，返回友好的错误提示
+                plan = '## 协作建议生成失败\\n\\n系统暂时无法生成协作建议，请稍后重试。\\n\\n**可能原因**：\\n- AI返回格式异常\\n- 网络连接问题\\n\\n**建议操作**：\\n1. 刷新页面重试\\n2. 检查网络连接\\n3. 联系技术支持';
+            }
+        }
 
         res.json({
             code: 0,

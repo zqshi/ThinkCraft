@@ -28,22 +28,29 @@ class ProjectManager {
     this.storageManager = window.storageManager;
   }
 
+  /**
+   * 规范化 ideaId：统一转换为字符串
+   * @param {*} value - 原始值
+   * @returns {String} 规范化后的字符串ID
+   */
   normalizeIdeaId(value) {
     if (value === null || value === undefined) {
       return value;
     }
-    const raw = String(value).trim();
-    if (/^\d+$/.test(raw)) {
-      return Number(raw);
-    }
-    return value;
+    // 统一转换为字符串，避免类型混淆
+    return String(value).trim();
   }
 
+  /**
+   * 规范化 ideaId 用于比较：统一转换为字符串
+   * @param {*} value - 原始值
+   * @returns {String} 规范化后的字符串ID
+   */
   normalizeIdeaIdForCompare(value) {
     if (value === null || value === undefined) {
       return '';
     }
-    return String(value);
+    return String(value).trim();
   }
 
   /**
@@ -60,7 +67,10 @@ class ProjectManager {
    */
   async loadProjects() {
     try {
-      this.projects = await this.storageManager.getAllProjects();
+      const allProjects = await this.storageManager.getAllProjects();
+
+      // 过滤掉已删除的项目
+      this.projects = allProjects.filter(project => project.status !== 'deleted');
 
       // 更新全局状态
       if (window.setProjects) {
@@ -218,21 +228,20 @@ class ProjectManager {
    */
   async createProject(ideaId, name) {
     try {
-      // 检查该创意是否已创建项目
+      // 统一转换为字符串，避免类型混淆
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
-      const existing =
-        (await this.storageManager.getProjectByIdeaId(normalizedIdeaId)) ||
-        (await this.storageManager.getProjectByIdeaId(ideaId));
+
+      // 检查该创意是否已创建项目
+      const existing = await this.storageManager.getProjectByIdeaId(normalizedIdeaId);
       if (existing) {
         throw new Error('该创意已创建项目');
       }
 
-      // 调用后端API创建项目
-      const requestIdeaId = this.normalizeIdeaIdForCompare(ideaId);
+      // 调用后端API创建项目（使用字符串ID）
       const response = await fetch(`${this.apiUrl}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ideaId: requestIdeaId, name })
+        body: JSON.stringify({ ideaId: normalizedIdeaId, name })
       });
 
       if (!response.ok) {
@@ -242,6 +251,9 @@ class ProjectManager {
 
       const result = await response.json();
       const project = result.data.project;
+
+      // 确保项目的 ideaId 是字符串
+      project.ideaId = String(project.ideaId).trim();
 
       // 保存到本地存储
       await this.storageManager.saveProject(project);
@@ -815,9 +827,14 @@ class ProjectManager {
     const stages = project.workflow?.stages || [];
     const selectedStageId = this.currentStageId || stages[0]?.id || null;
     this.currentStageId = selectedStageId;
-    const stageTabsHTML = stages
-      .map(
-        stage => `
+
+    // 检查是否已执行协同模式
+    const collaborationExecuted = project.collaborationExecuted || false;
+
+    const stageTabsHTML = collaborationExecuted
+      ? stages
+          .map(
+            stage => `
             <button class="project-stage-tab ${stage.id === selectedStageId ? 'active' : ''}"
                     data-stage-id="${stage.id}"
                     onclick="projectManager.switchStage('${stage.id}')">
@@ -825,8 +842,9 @@ class ProjectManager {
                 <span class="project-stage-tab-status status-${stage.status || 'pending'}"></span>
             </button>
         `
-      )
-      .join('');
+          )
+          .join('')
+      : '';
 
     title.textContent = project.name;
 
@@ -877,7 +895,11 @@ class ProjectManager {
                 <div class="project-panel-section project-panel-card project-panel-span-2">
                     <div class="project-panel-section-title">流程阶段</div>
                     <div class="project-stage-tabs">
-                        ${stageTabsHTML || '<div class="project-panel-empty">暂无阶段</div>'}
+                        ${
+                          collaborationExecuted
+                            ? stageTabsHTML || '<div class="project-panel-empty">暂无阶段</div>'
+                            : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' + (typeof window.getDefaultIconSvg === 'function' ? window.getDefaultIconSvg(64, 'empty-icon') : '🤝') + '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
+                        }
                     </div>
                 </div>
                 <div class="project-panel-section project-panel-card project-panel-span-2">
@@ -969,6 +991,21 @@ class ProjectManager {
     if (!container) {
       return;
     }
+
+    // 检查是否已执行协同模式
+    if (!project.collaborationExecuted) {
+      container.innerHTML = `
+        <div class="project-panel-empty centered">
+          <div>
+            <div style="margin-bottom: 16px;">${typeof window.getDefaultIconSvg === 'function' ? window.getDefaultIconSvg(64, 'empty-icon') : '📋'}</div>
+            <div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">阶段内容待配置</div>
+            <div style="font-size: 14px;">请先完成协同模式配置，确认后即可查看各阶段详情</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     const stage = (project.workflow?.stages || []).find(s => s.id === stageId);
     if (!stage) {
       container.innerHTML = '<div class="project-panel-empty">暂无阶段内容</div>';
@@ -2523,14 +2560,23 @@ class ProjectManager {
       };
     });
 
-    // 保存调整后的阶段
-    await this.updateProject(projectId, {
-      workflow: {
-        ...project.workflow,
-        stages: adjustedStages
+    // 将推荐成员合并到项目成员列表
+    const currentAssignedAgents = project.assignedAgents || [];
+    const mergedAgents = Array.from(new Set([...currentAssignedAgents, ...recommendedAgents]));
+
+    // 保存调整后的阶段和成员
+    await this.updateProject(
+      projectId,
+      {
+        workflow: {
+          ...project.workflow,
+          stages: adjustedStages
+        },
+        collaborationSuggestion: suggestion,
+        assignedAgents: mergedAgents
       },
-      collaborationSuggestion: suggestion
-    }, { localOnly: true });
+      { localOnly: true }
+    );
 
     // 刷新项目面板
     if (this.currentProject?.id === projectId) {

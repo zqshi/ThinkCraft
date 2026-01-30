@@ -7,7 +7,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this.dbName = 'ThinkCraft';
-    this.dbVersion = 7; // 升级到v7移除Demo存储
+    this.dbVersion = 8; // 升级到v8添加reports的chatId索引
     this.ready = false;
 
     // 初始化数据库
@@ -45,6 +45,14 @@ class StorageManager {
           const reportsStore = db.createObjectStore('reports', { keyPath: 'id' });
           reportsStore.createIndex('type', 'type', { unique: false });
           reportsStore.createIndex('timestamp', 'timestamp', { unique: false });
+          reportsStore.createIndex('chatId', 'chatId', { unique: false });
+        } else if (event.oldVersion < 8) {
+          // 升级到v8：为已存在的reports表添加chatId索引
+          const transaction = event.target.transaction;
+          const reportsStore = transaction.objectStore('reports');
+          if (!reportsStore.indexNames.contains('chatId')) {
+            reportsStore.createIndex('chatId', 'chatId', { unique: false });
+          }
         }
 
         if (db.objectStoreNames.contains('demos')) {
@@ -228,6 +236,32 @@ class StorageManager {
     });
   }
 
+  /**
+   * 通过索引查询数据
+   * @param {String} storeName - 存储名称
+   * @param {String} indexName - 索引名称
+   * @param {*} value - 索引值
+   * @returns {Promise<Array>}
+   */
+  async getByIndex(storeName, indexName, value) {
+    await this.ensureReady();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const index = store.index(indexName);
+      const request = index.getAll(value);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  }
+
   // ========== 业务方法 ==========
 
   /**
@@ -320,6 +354,49 @@ class StorageManager {
    */
   async getAllReports() {
     return this.getAll('reports');
+  }
+
+  /**
+   * 根据会话ID获取报告
+   * @param {String} chatId - 会话ID
+   * @returns {Promise<Array>}
+   */
+  async getReportsByChatId(chatId) {
+    if (!chatId) {
+      return [];
+    }
+    return this.getByIndex('reports', 'chatId', String(chatId));
+  }
+
+  /**
+   * 根据会话ID和类型获取报告
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 报告类型 ('business' | 'proposal')
+   * @returns {Promise<Object|null>}
+   */
+  async getReportByChatIdAndType(chatId, type) {
+    if (!chatId || !type) {
+      return null;
+    }
+    const reports = await this.getReportsByChatId(chatId);
+    return reports.find(r => r.type === type) || null;
+  }
+
+  /**
+   * 删除指定会话和类型的报告
+   * @param {String} chatId - 会话ID
+   * @param {String} type - 报告类型 ('business' | 'proposal' | 'analysis')
+   * @returns {Promise<void>}
+   */
+  async deleteReportByType(chatId, type) {
+    if (!chatId || !type) {
+      return;
+    }
+    const report = await this.getReportByChatIdAndType(chatId, type);
+    if (report && report.id) {
+      await this.delete('reports', report.id);
+      console.log('[StorageManager] 已删除报告', { chatId, type, reportId: report.id });
+    }
   }
 
   /**
@@ -1005,11 +1082,14 @@ class StorageManager {
   async getProjectByIdeaId(ideaId) {
     await this.ensureReady();
 
+    // 统一转换为字符串，避免类型混淆
+    const normalizedIdeaId = String(ideaId).trim();
+
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(['projects'], 'readonly');
       const store = transaction.objectStore('projects');
       const index = store.index('ideaId');
-      const request = index.get(ideaId);
+      const request = index.get(normalizedIdeaId);
 
       request.onsuccess = () => {
         const project = request.result || null;

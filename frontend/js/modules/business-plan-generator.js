@@ -88,13 +88,28 @@ class BusinessPlanGenerator {
    * @param {String} type - 'business' | 'proposal'
    */
   showChapterSelection(type) {
+    console.log('[章节选择] 显示章节选择弹窗', { type });
+
     const config = this.chapterConfig[type];
     if (!config) {
+      console.error('[章节选择] 未找到配置', { type });
       return;
     }
 
+    console.log('[章节选择] 配置信息', {
+      type,
+      coreCount: config.core.length,
+      optionalCount: config.optional.length,
+      totalCount: config.core.length + config.optional.length,
+      coreChapters: config.core.map(ch => ch.title),
+      optionalChapters: config.optional.map(ch => ch.title)
+    });
+
     // 更新状态
-    this.state.showChapterSelection(type);
+    const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+    if (chatId) {
+      this.state.showChapterSelection(chatId, type);
+    }
 
     // 渲染章节列表
     const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
@@ -108,6 +123,12 @@ class BusinessPlanGenerator {
       '#chapterStats',
       this.getChapterStatsHTML(config.core.length, this.estimateTotalTime(config.core))
     );
+
+    // 在模态框上设置报告类型数据属性
+    const modal = document.getElementById('chapterSelectionModal');
+    if (modal) {
+      modal.dataset.reportType = type;
+    }
 
     // 打开模态框
     window.modalManager.open('chapterSelectionModal');
@@ -226,8 +247,13 @@ class BusinessPlanGenerator {
     // 关闭选择模态框
     window.modalManager.close('chapterSelectionModal');
 
+    // 获取当前报告类型 - 从模态框的数据属性获取
+    const modal = document.getElementById('chapterSelectionModal');
+    const type = modal?.dataset?.reportType || 'business';
+
+    console.log('[开始生成] 报告类型:', type, '选中章节:', selectedChapters);
+
     // 开始生成流程
-    const type = this.state.state.generation.type;
     await this.generate(type, selectedChapters);
   }
 
@@ -238,9 +264,32 @@ class BusinessPlanGenerator {
    */
   async generate(type, chapterIds) {
     try {
+      // 验证参数
+      if (!type) {
+        console.error('[生成] 缺少报告类型');
+        alert('生成失败：缺少报告类型');
+        return;
+      }
+
+      if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+        console.error('[生成] 缺少章节ID');
+        alert('生成失败：请至少选择一个章节');
+        return;
+      }
+
+      // 🔧 获取当前会话ID，用于数据隔离
+      const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+      if (!chatId) {
+        console.error('[生成] 缺少会话ID');
+        alert('生成失败：无法确定当前会话');
+        return;
+      }
+
+      console.log('[生成] 开始生成:', { type, chapterIds, chatId });
+
       // 更新状态
-      this.state.startGeneration(type, chapterIds);
-      await this.persistGenerationState(type, {
+      this.state.startGeneration(chatId, type, chapterIds);
+      await this.persistGenerationState(chatId, type, {
         status: 'generating',
         selectedChapters: chapterIds,
         progress: {
@@ -254,18 +303,48 @@ class BusinessPlanGenerator {
         error: null
       });
 
-      // 显示进度模态框
-      this.progressManager.show(chapterIds);
+      // 🔧 立即更新按钮状态为"生成中"
+      this.updateButtonUI(type, 'generating');
+
+      // 显示进度模态框，并等待DOM完全渲染
+      await this.progressManager.show(chapterIds);
+
+      // 额外等待，确保DOM完全渲染
+      await this.sleep(100);
+
       this.markChapterWorking(chapterIds, 0);
 
-      // 获取对话历史
-      let conversation = this.state.getConversationHistory();
-      if ((!conversation || conversation.length === 0) && window.state && Array.isArray(window.state.messages)) {
+      // 获取对话历史 - 优先从 window.state 获取（legacy state），然后从 stateManager 获取
+      let conversation = null;
+
+      // 1. 尝试从 window.state (legacy) 获取
+      if (window.state && Array.isArray(window.state.messages) && window.state.messages.length > 0) {
         conversation = window.state.messages.map(msg => ({ role: msg.role, content: msg.content }));
+        console.log('[生成] 从 window.state 获取对话历史', { count: conversation.length });
+      }
+
+      // 2. 如果 legacy state 为空，尝试从 stateManager 获取
+      if ((!conversation || conversation.length === 0) && this.state) {
+        const stateManagerConversation = this.state.getConversationHistory();
+        if (stateManagerConversation && stateManagerConversation.length > 0) {
+          conversation = stateManagerConversation;
+          console.log('[生成] 从 stateManager 获取对话历史', { count: conversation.length });
+        }
       }
 
       if (!conversation || conversation.length === 0) {
+        console.error('[生成] 缺少对话历史');
         throw new Error('缺少对话历史，请先完成至少一轮对话');
+      }
+
+      console.log('[生成] 开始生成章节', { type, chapterCount: chapterIds.length, conversationLength: conversation.length });
+
+      // 打印对话历史的前3条和后3条，用于调试
+      if (conversation.length > 0) {
+        console.log('[生成] 对话历史示例（前3条）:', conversation.slice(0, 3));
+        if (conversation.length > 3) {
+          console.log('[生成] 对话历史示例（后3条）:', conversation.slice(-3));
+        }
       }
 
       const chapters = [];
@@ -304,13 +383,14 @@ class BusinessPlanGenerator {
         chapters.push(chapter);
         totalTokens += response.data.tokens || 0;
 
-        this.state.updateProgress(chapter.agent, i + 1, chapter);
+        this.state.updateProgress(chatId, type, chapter.agent, i + 1, chapter);
         this.progressManager.updateProgress(chapterId, 'completed', chapter);
 
-        await this.persistGenerationState(type, {
+        const genState = this.state.getGenerationState(chatId);
+        await this.persistGenerationState(chatId, type, {
           status: 'generating',
           selectedChapters: chapterIds,
-          progress: this.state.state.generation.progress,
+          progress: genState[type].progress,
           data: {
             chapters,
             selectedChapters: chapterIds,
@@ -329,18 +409,19 @@ class BusinessPlanGenerator {
       } catch (error) {}
 
       // 完成生成
-      this.state.completeGeneration({
+      const genState = this.state.getGenerationState(chatId);
+      this.state.completeGeneration(chatId, type, {
         selectedChapters: chapterIds,
         chapters,
         totalTokens,
         costStats,
         timestamp: Date.now()
       });
-      await this.persistGenerationState(type, {
+      await this.persistGenerationState(chatId, type, {
         status: 'completed',
         selectedChapters: chapterIds,
-        progress: this.state.state.generation.progress,
-        startTime: this.state.state.generation.startTime,
+        progress: genState[type].progress,
+        startTime: genState[type].startTime,
         endTime: Date.now(),
         data: {
           chapters,
@@ -351,15 +432,25 @@ class BusinessPlanGenerator {
         }
       });
 
+      // 🔧 更新按钮状态为"已完成"
+      this.updateButtonUI(type, 'completed');
+
       // 延迟关闭进度框，让用户看到完成状态
       await this.sleep(1000);
+
+      // 检查用户是否在等待（进度弹窗是否可见）
+      const progressModal = document.getElementById('agentProgressModal');
+      const isUserWaiting = progressModal && progressModal.classList.contains('active');
+
       this.progressManager.close();
 
-      // 显示成功提示
-      window.modalManager.alert(
-        `生成完成！共生成 ${chapterIds.length} 个章节，使用 ${totalTokens} tokens${costStats?.costString ? `，成本 ${costStats.costString}` : ''}`,
-        'success'
-      );
+      // 只在用户主动等待时显示成功弹窗
+      if (isUserWaiting) {
+        window.modalManager.alert(
+          `生成完成！共生成 ${chapterIds.length} 个章节，使用 ${totalTokens} tokens${costStats?.costString ? `，成本 ${costStats.costString}` : ''}`,
+          'success'
+        );
+      }
 
       // 保存到存储
       await this.saveReport(type, {
@@ -374,17 +465,21 @@ class BusinessPlanGenerator {
       this.showViewReportButton(type);
     } catch (error) {
       // 更新状态为错误
-      this.state.errorGeneration(error);
-      await this.persistGenerationState(type, {
+      const genState = this.state.getGenerationState(chatId);
+      this.state.errorGeneration(chatId, type, error);
+      await this.persistGenerationState(chatId, type, {
         status: 'error',
         selectedChapters: chapterIds,
-        progress: this.state.state.generation.progress,
+        progress: genState[type].progress,
         endTime: Date.now(),
         error: {
           message: error.message,
           timestamp: Date.now()
         }
       });
+
+      // 🔧 更新按钮状态为"错误"
+      this.updateButtonUI(type, 'error');
 
       // 关闭进度框
       this.progressManager.close();
@@ -416,11 +511,23 @@ class BusinessPlanGenerator {
   async saveReport(type, data) {
     try {
       const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+      // 统一转换为字符串，确保数据隔离
+      const normalizedChatId = chatId ? String(chatId).trim() : null;
+
+      console.log('[保存报告] 开始保存:', { type, chatId: normalizedChatId, hasData: !!data });
+
+      // 查找现有报告，使用相同的ID（避免创建重复记录）
+      const reports = await window.storageManager.getAllReports();
+      const existing = reports.find(r => r.type === type && r.chatId === normalizedChatId);
+      const reportId = existing?.id || `${type}-${Date.now()}`;
+
+      console.log('[保存报告] 报告ID:', reportId, existing ? '(更新现有)' : '(创建新)');
+
       await window.storageManager.saveReport({
-        id: `${type}-${Date.now()}`,
+        id: reportId,
         type,
         data,
-        chatId,
+        chatId: normalizedChatId,
         status: 'completed',
         progress: {
           current: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
@@ -433,22 +540,34 @@ class BusinessPlanGenerator {
         endTime: Date.now(),
         error: null
       });
-    } catch (error) {}
+
+      console.log('[保存报告] 保存成功');
+    } catch (error) {
+      console.error('[保存报告] 保存失败:', error);
+    }
   }
 
-  async persistGenerationState(type, updates) {
+  async persistGenerationState(chatId, type, updates) {
     try {
       if (!window.storageManager) {
+        console.warn('[持久化状态] storageManager 未定义');
         return;
       }
-      const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+      console.log('[持久化状态] chatId:', chatId, 'type:', type, 'status:', updates.status);
+
       if (!chatId) {
+        console.warn('[持久化状态] chatId 为空');
         return;
       }
       const reports = await window.storageManager.getAllReports();
-      const existing = reports.find(r => r.type === type && r.chatId === chatId);
+      const existing = reports.find(r => r.type === type && r.chatId === String(chatId));
+      console.log('[持久化状态] 现有报告:', existing ? `存在(id: ${existing.id})` : '不存在');
+
+      // 如果没有现有报告，生成新ID；否则使用现有ID
+      const reportId = existing?.id || `${type}-${Date.now()}`;
+
       const payload = {
-        id: existing?.id,
+        id: reportId,
         type,
         chatId,
         data: updates.data ?? existing?.data ?? null,
@@ -459,40 +578,112 @@ class BusinessPlanGenerator {
         endTime: updates.endTime ?? existing?.endTime,
         error: updates.error ?? existing?.error
       };
+      console.log('[持久化状态] 保存payload:', { id: payload.id, type: payload.type, chatId: payload.chatId, status: payload.status });
+
       await window.storageManager.saveReport(payload);
-    } catch (error) {}
+      console.log('[持久化状态] 保存成功');
+    } catch (error) {
+      console.error('[持久化状态] 保存失败:', error);
+    }
   }
 
+  /**
+   * 标记章节为工作中
+   * @param {Array} chapterIds - 章节ID数组
+   * @param {Number} index - 章节索引
+   */
   markChapterWorking(chapterIds, index) {
     const chapterId = chapterIds[index];
     if (!chapterId) {
+      console.warn('[markChapterWorking] Invalid chapter index:', index);
       return;
     }
+
+    // 添加日志，便于调试
+    console.log('[markChapterWorking] Marking chapter as working:', chapterId);
+
+    // 更新进度（updateProgress 内部已有重试机制）
     this.progressManager.updateProgress(chapterId, 'working');
   }
 
-  restoreProgress(type, reportEntry) {
+  async restoreProgress(type, reportEntry) {
     const payload = reportEntry?.data || reportEntry || {};
     const chapterIds = payload.selectedChapters || reportEntry?.selectedChapters || [];
     if (!Array.isArray(chapterIds) || chapterIds.length === 0) {
+      console.warn('[恢复进度] 没有章节数据');
       return;
     }
-    this.progressManager.show(chapterIds);
 
+    // 获取会话ID
+    const chatId = reportEntry?.chatId || this.state.state.currentChat || window.state?.currentChat || null;
+    if (!chatId) {
+      console.warn('[恢复进度] 缺少会话ID');
+      return;
+    }
+
+    console.log('[恢复进度] 显示进度弹窗', { type, chapterIds, chatId, reportEntry });
+
+    // 检查是否所有章节都已完成
     const completed = Array.isArray(payload.chapters) ? payload.chapters.map(ch => ch.chapterId) : [];
+    const allCompleted = completed.length === chapterIds.length;
+
+    if (allCompleted) {
+      // 所有章节都已完成，但状态还是"generating"，说明状态没有正确更新
+      console.log('[恢复进度] 所有章节已完成，更新状态为completed');
+      this.state.completeGeneration(chatId, type, {
+        selectedChapters: chapterIds,
+        chapters: payload.chapters,
+        totalTokens: payload.totalTokens || 0,
+        costStats: payload.costStats,
+        timestamp: Date.now()
+      });
+
+      // 更新持久化状态
+      this.persistGenerationState(chatId, type, {
+        status: 'completed',
+        selectedChapters: chapterIds,
+        progress: {
+          current: chapterIds.length,
+          total: chapterIds.length,
+          currentAgent: null,
+          percentage: 100
+        },
+        startTime: reportEntry.startTime,
+        endTime: Date.now(),
+        data: payload
+      });
+
+      // 不显示进度弹窗，直接显示完成提示
+      window.modalManager.alert(
+        `生成已完成！共生成 ${chapterIds.length} 个章节`,
+        'success'
+      );
+      return;
+    }
+
+    // 显示进度弹窗
+    await this.progressManager.show(chapterIds);
+
+    // 更新各章节状态
     chapterIds.forEach((chapterId, idx) => {
       if (completed.includes(chapterId)) {
         this.progressManager.updateProgress(chapterId, 'completed');
       } else if (idx === completed.length) {
         this.progressManager.updateProgress(chapterId, 'working');
+      } else {
+        this.progressManager.updateProgress(chapterId, 'pending');
       }
     });
 
-    const progress = reportEntry?.progress || this.state.state.generation.progress;
+    // 更新整体进度
+    const genState = this.state.getGenerationState(chatId);
+    const progress = reportEntry?.progress || genState[type]?.progress;
     const completedCount = completed.length;
     const total = chapterIds.length;
     const percentage = progress?.percentage ?? Math.round((completedCount / total) * 100);
     this.progressManager.updateOverallProgress(percentage, completedCount, total);
+
+    console.log('[恢复进度] 进度已恢复', { completedCount, total, percentage });
   }
 
   /**
@@ -502,26 +693,128 @@ class BusinessPlanGenerator {
   showViewReportButton(type) {
     // 可以在聊天界面添加一个按钮，或者自动打开报告预览
     const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+    const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+    const genState = chatId ? this.state.getGenerationState(chatId) : null;
+
     // 触发事件，让其他组件知道报告生成完成
     window.dispatchEvent(
       new CustomEvent('reportGenerated', {
-        detail: { type, data: this.state.state.generation.results }
+        detail: { type, data: genState?.[type]?.results }
       })
     );
   }
 
   /**
    * 重新生成
+   * 显示章节选择弹窗，让用户重新选择要生成的章节
+   * @param {String} type - 可选，报告类型 'business' | 'proposal'
    */
-  async regenerate() {
-    const type = this.state.state.generation.type;
-    const chapters = this.state.state.generation.selectedChapters;
+  async regenerate(type) {
+    console.log('[重新生成] 开始重新生成流程', { providedType: type });
 
-    // 重置状态
-    this.state.resetGeneration();
+    // 获取当前会话ID
+    const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+    if (!chatId) {
+      console.error('[重新生成] 缺少会话ID');
+      alert('生成失败：无法确定当前会话');
+      return;
+    }
 
-    // 重新生成
-    await this.generate(type, chapters);
+    // 获取当前报告类型，优先使用传入的参数
+    const reportType = type || window.currentReportType || 'business';
+
+    console.log('[重新生成] 使用的报告类型', { reportType, chatId });
+
+    // 验证类型是否有效
+    if (!['business', 'proposal'].includes(reportType)) {
+      console.error('[重新生成] 无效的报告类型:', reportType);
+      alert('生成失败：无效的报告类型');
+      return;
+    }
+
+    // 重置生成状态，清理之前的数据
+    this.state.resetGeneration(chatId, reportType, false);
+
+    // 清除 IndexedDB 中的旧报告数据
+    if (window.storageManager) {
+      try {
+        await window.storageManager.deleteReportByType(chatId, reportType);
+        console.log('[重新生成] 已清除IndexedDB中的旧报告数据', { chatId, reportType });
+      } catch (error) {
+        console.error('[重新生成] 清除旧报告数据失败:', error);
+      }
+    }
+
+    // 更新 currentReportType
+    if (window.currentReportType !== undefined) {
+      window.currentReportType = reportType;
+      console.log('[重新生成] 更新 currentReportType =', reportType);
+    }
+
+    // 显示章节选择弹窗，让用户重新选择章节
+    this.showChapterSelection(reportType);
+  }
+
+  /**
+   * 更新按钮UI状态
+   * @param {String} type - 报告类型
+   * @param {String} status - 状态：'idle' | 'generating' | 'completed' | 'error'
+   */
+  updateButtonUI(type, status) {
+    const btnMap = {
+      'business': 'businessPlanBtn',
+      'proposal': 'proposalBtn'
+    };
+
+    const btnId = btnMap[type];
+    if (!btnId) return;
+
+    const btn = document.getElementById(btnId);
+    if (!btn) {
+      console.warn('[updateButtonUI] 按钮不存在:', btnId);
+      return;
+    }
+
+    const iconSpan = btn.querySelector('.btn-icon');
+    const textSpan = btn.querySelector('.btn-text');
+
+    // 移除所有状态类
+    btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
+    btn.disabled = false;
+
+    // 根据状态更新按钮
+    switch (status) {
+      case 'idle':
+        btn.classList.add('btn-idle');
+        btn.dataset.status = 'idle';
+        if (iconSpan) iconSpan.textContent = type === 'business' ? '📊' : '📋';
+        if (textSpan) textSpan.textContent = type === 'business' ? '商业计划书' : '产品立项材料';
+        break;
+
+      case 'generating':
+        btn.classList.add('btn-generating');
+        btn.dataset.status = 'generating';
+        btn.disabled = false; // 不禁用按钮，允许点击查看进度
+        if (iconSpan) iconSpan.textContent = '⏳';
+        if (textSpan) textSpan.textContent = '生成中...';
+        break;
+
+      case 'completed':
+        btn.classList.add('btn-completed');
+        btn.dataset.status = 'completed';
+        if (iconSpan) iconSpan.textContent = '✅';
+        if (textSpan) textSpan.textContent = type === 'business' ? '商业计划书（查看）' : '产品立项材料（查看）';
+        break;
+
+      case 'error':
+        btn.classList.add('btn-error');
+        btn.dataset.status = 'error';
+        if (iconSpan) iconSpan.textContent = '❌';
+        if (textSpan) textSpan.textContent = '生成失败（重试）';
+        break;
+    }
+
+    console.log('[updateButtonUI] 按钮状态已更新:', { type, status, btnId });
   }
 
   /**

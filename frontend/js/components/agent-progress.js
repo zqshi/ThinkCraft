@@ -41,8 +41,20 @@ class AgentProgressManager {
   /**
    * 显示进度模态框
    * @param {Array} chapterIds - 章节ID数组
+   * @returns {Promise} 返回Promise，确保DOM渲染完成
    */
-  show(chapterIds) {
+  async show(chapterIds) {
+    // 验证参数
+    if (!chapterIds || !Array.isArray(chapterIds)) {
+      console.error('[AgentProgressManager] 无效的章节ID列表:', chapterIds);
+      throw new Error('无效的章节ID列表');
+    }
+
+    if (chapterIds.length === 0) {
+      console.error('[AgentProgressManager] 章节ID列表为空');
+      throw new Error('章节ID列表为空');
+    }
+
     // 初始化Agent列表
     this.agents = chapterIds.map((chapterId, index) => ({
       id: chapterId,
@@ -60,6 +72,15 @@ class AgentProgressManager {
 
     // 打开模态框
     this.modalManager.open('agentProgressModal');
+
+    // 等待浏览器完成渲染
+    return new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+    });
   }
 
   /**
@@ -218,6 +239,7 @@ class AgentProgressManager {
     // 查找Agent
     const agent = this.agents.find(a => a.id === chapterId);
     if (!agent) {
+      console.warn('[AgentProgress] Agent not found:', chapterId);
       return;
     }
 
@@ -225,26 +247,8 @@ class AgentProgressManager {
     agent.status = status;
     agent.statusText = this.getStatusText(status);
 
-    // 更新DOM
-    const agentElement = document.getElementById(`agent-${chapterId}`);
-    const statusElement = document.getElementById(`status-${chapterId}`);
-
-    if (agentElement) {
-      // 移除所有状态类
-      agentElement.classList.remove('pending', 'working', 'completed');
-      // 添加新状态类
-      agentElement.classList.add(status);
-
-      // 更新头像动画
-      const avatar = agentElement.querySelector('.agent-avatar');
-      if (avatar) {
-        avatar.classList.toggle('spinning', status === 'working');
-      }
-    }
-
-    if (statusElement) {
-      statusElement.textContent = agent.statusText;
-    }
+    // 使用重试机制更新DOM
+    this._updateDOMWithRetry(chapterId, status, agent, 0);
 
     // 更新整体进度
     const completedCount = this.agents.filter(a => a.status === 'completed').length;
@@ -256,6 +260,41 @@ class AgentProgressManager {
     // 移动端：只显示当前工作的Agent
     if (this.isMobile) {
       this.toggleMobileView(chapterId, status);
+    }
+  }
+
+  /**
+   * 使用重试机制更新DOM
+   * @private
+   */
+  _updateDOMWithRetry(chapterId, status, agent, retryCount) {
+    const maxRetries = 5;
+
+    const agentElement = document.getElementById(`agent-${chapterId}`);
+    const statusElement = document.getElementById(`status-${chapterId}`);
+
+    if (agentElement && statusElement) {
+      // DOM元素存在，执行更新
+      agentElement.classList.remove('pending', 'working', 'completed');
+      agentElement.classList.add(status);
+
+      const avatar = agentElement.querySelector('.agent-avatar');
+      if (avatar) {
+        avatar.classList.toggle('spinning', status === 'working');
+      }
+
+      statusElement.textContent = agent.statusText;
+
+      console.log('[AgentProgress] DOM updated successfully:', chapterId, status);
+    } else if (retryCount < maxRetries) {
+      // DOM元素不存在，使用 requestAnimationFrame 重试
+      console.warn(`[AgentProgress] DOM not ready, retry ${retryCount + 1}/${maxRetries}:`, chapterId);
+      requestAnimationFrame(() => {
+        this._updateDOMWithRetry(chapterId, status, agent, retryCount + 1);
+      });
+    } else {
+      // 达到最大重试次数
+      console.error('[AgentProgress] Failed to update DOM after retries:', chapterId);
     }
   }
 
@@ -332,6 +371,17 @@ class AgentProgressManager {
       if (window.stateManager) {
         window.stateManager.resetGeneration();
       }
+
+      // 重置生成按钮状态
+      if (typeof window.resetGenerationButtons === 'function') {
+        window.resetGenerationButtons();
+      }
+
+      // 返回到报告页面
+      const reportModal = document.getElementById('reportModal');
+      if (reportModal && !reportModal.classList.contains('active')) {
+        reportModal.classList.add('active');
+      }
     });
   }
 
@@ -372,6 +422,57 @@ class AgentProgressManager {
 
     // 显示章节内容预览
     // 这里可以扩展为显示完整的章节内容
+  }
+
+  /**
+   * 恢复进度弹窗（会话切换回来时）
+   * @param {string} chatId - 会话ID
+   * @param {string} type - 报告类型
+   * @returns {Promise<boolean>} 是否成功恢复
+   */
+  async restore(chatId, type) {
+    try {
+      console.log('[AgentProgress] 尝试恢复进度弹窗:', { chatId, type });
+
+      // 从StateManager获取生成状态
+      const genState = window.stateManager?.getGenerationState?.(chatId);
+      if (!genState || !genState[type] || genState[type].status !== 'generating') {
+        console.log('[AgentProgress] 无需恢复，状态不是generating');
+        return false;
+      }
+
+      const state = genState[type];
+      const chapterIds = state.selectedChapters || [];
+
+      if (chapterIds.length === 0) {
+        console.warn('[AgentProgress] 无章节列表，无法恢复');
+        return false;
+      }
+
+      // 显示进度弹窗
+      await this.show(chapterIds);
+
+      // 恢复每个章节的状态
+      const progress = state.progress || {};
+      const currentIndex = progress.current || 0;
+
+      chapterIds.forEach((chapterId, index) => {
+        if (index < currentIndex) {
+          // 已完成的章节
+          this.updateProgress(chapterId, 'completed');
+        } else if (index === currentIndex) {
+          // 当前正在生成的章节
+          this.updateProgress(chapterId, 'working');
+        }
+        // 其他章节保持pending状态
+      });
+
+      console.log('[AgentProgress] 进度弹窗恢复成功');
+      return true;
+    } catch (error) {
+      console.error('[AgentProgress] 恢复进度弹窗失败:', error);
+      return false;
+    }
   }
 }
 

@@ -18,7 +18,8 @@ export class ProjectMongoRepository {
    */
   async findById(projectId) {
     try {
-      const doc = await ProjectModel.findById(projectId).lean();
+      // 使用 findOne 而不是 findById，因为我们使用自定义字符串 ID
+      const doc = await ProjectModel.findOne({ _id: projectId }).lean();
       if (!doc) {
         return null;
       }
@@ -117,10 +118,12 @@ export class ProjectMongoRepository {
       console.log('[DEBUG] save - data.status:', data.status);
       console.log('[DEBUG] save - data._id:', data._id);
 
-      await ProjectModel.findByIdAndUpdate(data._id, data, {
-        upsert: true,
-        new: true
-      });
+      // 使用 updateOne 而不是 findByIdAndUpdate，因为我们使用自定义字符串 ID
+      await ProjectModel.updateOne(
+        { _id: data._id },
+        data,
+        { upsert: true }
+      );
 
       // 发布领域事件
       const events = project.getDomainEvents();
@@ -142,10 +145,14 @@ export class ProjectMongoRepository {
    */
   async delete(projectId) {
     try {
-      await ProjectModel.findByIdAndUpdate(projectId, {
-        status: 'deleted',
-        updatedAt: new Date()
-      });
+      // 使用 updateOne 而不是 findByIdAndUpdate，因为我们使用自定义字符串 ID
+      await ProjectModel.updateOne(
+        { _id: projectId },
+        {
+          status: 'deleted',
+          updatedAt: new Date()
+        }
+      );
     } catch (error) {
       logger.error('[ProjectMongoRepository] 删除项目失败:', error);
       throw error;

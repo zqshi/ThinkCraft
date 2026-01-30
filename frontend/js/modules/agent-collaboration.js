@@ -291,7 +291,7 @@ class AgentCollaboration {
           <div id="collaborationSuggestion" style="padding: 14px; border: 1px solid var(--border); border-radius: 12px; min-height: 140px; max-height: 300px; overflow-y: auto; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,0.05); line-height: 1.7;"></div>
         </div>
         <div>
-          <div style="font-weight: 600; margin-bottom: 6px;">已雇佣成员</div>
+          <div style="font-weight: 600; margin-bottom: 6px;">雇佣建议</div>
           <div id="collaborationMemberList" class="${collaborationExecuted ? 'readonly-mode' : ''}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto;">
             ${agentCards}
           </div>
@@ -485,7 +485,6 @@ class AgentCollaboration {
                       <div style="font-weight: 600; font-size: 14px;">${this.escapeHtml(displayName)}</div>
                       <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary);">
                         ${badge}
-                        <span>${this.escapeHtml(roleName)}</span>
                       </div>
                     </div>
                     ${promptLine}
@@ -541,6 +540,24 @@ class AgentCollaboration {
       );
       const suggestion = project?.collaborationSuggestion;
 
+      // 检查并自动雇佣推荐成员
+      if (suggestion?.recommendedAgents?.length > 0) {
+        const hiredAgents = (await window.projectManager?.getUserHiredAgents?.()) || [];
+        const hiredIds = hiredAgents.map(a => a.id);
+        const unhiredIds = suggestion.recommendedAgents.filter(id => !hiredIds.includes(id));
+
+        if (unhiredIds.length > 0) {
+          // 自动雇佣推荐成员
+          for (const agentId of unhiredIds) {
+            try {
+              await window.projectManager?.hireAgent?.(agentId);
+            } catch (error) {
+              console.warn(`自动雇佣成员 ${agentId} 失败:`, error);
+            }
+          }
+        }
+      }
+
       // 标记项目为已执行状态
       await window.storageManager?.saveProject({
         ...project,
@@ -558,11 +575,11 @@ class AgentCollaboration {
       // 关闭弹窗
       window.modalManager?.close('collaborationModeModal');
 
-      // 刷新项目面板（确保成员卡片显示）
+      // 刷新整个项目面板（确保阶段和成员都显示）
       if (window.projectManager?.currentProject?.id === this.currentContext.projectId) {
         const updatedProject = await window.storageManager?.getProject(this.currentContext.projectId);
         window.projectManager.currentProject = updatedProject;
-        await window.projectManager.renderProjectMembersPanel(updatedProject);
+        window.projectManager.renderProjectPanel(updatedProject);
       }
 
       // 执行工作流

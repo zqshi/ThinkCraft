@@ -273,6 +273,34 @@ export class ShareController {
       });
     }
   }
+
+  /**
+   * 生成分享卡片数据
+   */
+  async generateShareCard(req, res) {
+    try {
+      const { messages } = req.body;
+
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({
+          code: 1,
+          error: '对话历史不能为空'
+        });
+      }
+
+      const result = await this.shareUseCase.generateShareCard(messages);
+      res.json({
+        code: 0,
+        data: result
+      });
+    } catch (error) {
+      console.error('Generate share card error:', error);
+      res.status(500).json({
+        code: 1,
+        error: error.message || '生成分享卡片失败'
+      });
+    }
+  }
 }
 
 export default ShareController;

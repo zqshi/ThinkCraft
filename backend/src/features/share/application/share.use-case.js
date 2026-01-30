@@ -18,6 +18,13 @@ import {
   ShareStatsDto,
   ResourceShareStatusDto
 } from './share.dto.js';
+import { callDeepSeekAPI } from '../../../../config/deepseek.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export class ShareUseCase {
   constructor(shareRepository = new IShareRepository()) {
@@ -302,6 +309,81 @@ export class ShareUseCase {
     }
 
     return share.password === password;
+  }
+
+  /**
+   * 生成分享卡片数据
+   */
+  async generateShareCard(messages) {
+    try {
+      // 读取分享卡片prompt配置
+      const promptPath = join(__dirname, '../../../../config/share-card-prompts.js');
+      const promptModule = await import(`file://${promptPath}`);
+      const SHARE_CARD_PROMPT = promptModule.SHARE_CARD_GENERATION_PROMPT;
+
+      // 构建完整的prompt
+      const conversationText = messages
+        .map(msg => `${msg.role === 'user' ? '用户' : 'AI助手'}: ${msg.content}`)
+        .join('\n\n');
+
+      const fullPrompt = `${SHARE_CARD_PROMPT}\n\n对话历史：\n${conversationText}`;
+
+      // 调用AI生成分享卡片数据
+      const response = await callDeepSeekAPI(
+        [{ role: 'user', content: fullPrompt }],
+        null,
+        {
+          temperature: 0.7,
+          max_tokens: 1000,
+          response_format: { type: 'json_object' },
+          timeout: 30000
+        }
+      );
+
+      // 解析返回的JSON
+      const rawContent = String(response.content || '').trim();
+      let jsonText = rawContent;
+
+      // 移除可能的代码块包装
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```[a-zA-Z]*\s*/i, '').replace(/```$/, '').trim();
+      }
+
+      // 提取JSON部分
+      const firstBrace = jsonText.indexOf('{');
+      const lastBrace = jsonText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonText = jsonText.slice(firstBrace, lastBrace + 1);
+      }
+
+      const shareCardData = JSON.parse(jsonText);
+
+      // 验证数据结构
+      if (!shareCardData.ideaTitle || !shareCardData.tags || !shareCardData.scores) {
+        throw new Error('生成的分享卡片数据格式不正确');
+      }
+
+      // 确保评分在合理范围内
+      shareCardData.scores.feasibility = Math.max(0, Math.min(100, shareCardData.scores.feasibility || 75));
+      shareCardData.scores.innovation = Math.max(0, Math.min(100, shareCardData.scores.innovation || 75));
+      shareCardData.scores.marketPotential = Math.max(0, Math.min(100, shareCardData.scores.marketPotential || 75));
+
+      return shareCardData;
+    } catch (error) {
+      console.error('Generate share card error:', error);
+
+      // 如果AI生成失败，返回默认数据
+      return {
+        ideaTitle: '创意分析',
+        tags: ['创新', '思维工具'],
+        scores: {
+          feasibility: 75,
+          innovation: 75,
+          marketPotential: 75
+        },
+        summary: '基于AI的深度思维分析'
+      };
+    }
   }
 }
 

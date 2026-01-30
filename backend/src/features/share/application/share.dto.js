@@ -235,14 +235,3 @@ export class ResourceShareStatusDto {
     this.activeShares = activeShares;
   }
 }
-
-export {
-  CreateShareRequestDto,
-  UpdateShareRequestDto,
-  ShareResponseDto,
-  ShareListItemDto,
-  AccessShareRequestDto,
-  BatchShareOperationDto,
-  ShareStatsDto,
-  ResourceShareStatusDto
-};

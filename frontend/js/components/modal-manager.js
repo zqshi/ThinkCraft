@@ -342,8 +342,9 @@ class ModalManager {
    * 显示提示框
    * @param {String} message - 提示消息
    * @param {String} type - 'success' | 'error' | 'warning' | 'info'
+   * @param {Function} callback - 弹窗关闭后的回调函数
    */
-  alert(message, type = 'info') {
+  alert(message, type = 'info', callback = null) {
     const icons = {
       success: '✓',
       error: '✗',
@@ -362,7 +363,8 @@ class ModalManager {
       footer: `
         <button class="btn btn-primary" onclick="modalManager.close(this.closest('.modal').id)">确定</button>
       `,
-      className: `alert-modal alert-${type}`
+      className: `alert-modal alert-${type}`,
+      onClose: callback  // 添加回调支持
     });
   }
 
