@@ -33,6 +33,27 @@ export class Workflow extends Entity {
   }
 
   /**
+   * 从JSON恢复工作流
+   */
+  static fromJSON(json) {
+    if (!json) {
+      return null;
+    }
+    const stages = Array.isArray(json.stages)
+      ? json.stages.map(stage => WorkflowStage.fromJSON(stage))
+      : [];
+    const workflow = new Workflow(
+      json.id || `workflow_${Date.now()}`,
+      stages,
+      json.currentStageId || null,
+      Boolean(json.isCustom)
+    );
+    workflow._createdAt = json.createdAt ? new Date(json.createdAt) : new Date();
+    workflow._updatedAt = json.updatedAt ? new Date(json.updatedAt) : new Date();
+    return workflow;
+  }
+
+  /**
    * 获取指定阶段
    */
   getStage(stageId) {
@@ -217,6 +238,26 @@ class WorkflowStage extends Entity {
    */
   static create(id, name, orderNumber, description = '', status = 'pending') {
     return new WorkflowStage(id, name, orderNumber, description, status, []);
+  }
+
+  /**
+   * 从JSON恢复阶段
+   */
+  static fromJSON(json) {
+    if (!json) {
+      return null;
+    }
+    const stage = new WorkflowStage(
+      json.id,
+      json.name,
+      json.orderNumber,
+      json.description || '',
+      json.status || 'pending',
+      Array.isArray(json.artifacts) ? json.artifacts : []
+    );
+    stage._startedAt = json.startedAt ? new Date(json.startedAt) : null;
+    stage._completedAt = json.completedAt ? new Date(json.completedAt) : null;
+    return stage;
   }
 
   /**

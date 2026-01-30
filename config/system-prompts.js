@@ -14,7 +14,6 @@ let isLoaded = false;
 // 默认使用哪个预设
 const DEFAULT_PROMPT = 'default';
 
-console.log('[SystemPrompts] script loaded');
 
 function extractSystemPrompt(rawContent) {
     if (!rawContent) {
@@ -52,13 +51,6 @@ async function loadSystemPrompts() {
         SYSTEM_PROMPTS.default = extractSystemPrompt(promptContent);
         isLoaded = true;
 
-        console.log('✅ System prompts loaded from API');
-        console.log(
-            '[SystemPrompts] default key:',
-            DEFAULT_PROMPT,
-            'len:',
-            SYSTEM_PROMPTS.default ? SYSTEM_PROMPTS.default.length : 0
-        );
         return SYSTEM_PROMPTS;
     } catch (error) {
         console.error('❌ Failed to load system prompts from API:', error);
@@ -80,13 +72,6 @@ async function loadSystemPrompts() {
 
         SYSTEM_PROMPTS.default = extractSystemPrompt(promptContent);
         isLoaded = true;
-        console.log('✅ System prompts loaded from local file');
-        console.log(
-            '[SystemPrompts] default key:',
-            DEFAULT_PROMPT,
-            'len:',
-            SYSTEM_PROMPTS.default ? SYSTEM_PROMPTS.default.length : 0
-        );
         return SYSTEM_PROMPTS;
     } catch (error) {
         console.error('❌ Failed to load system prompts from local file:', error);
@@ -99,23 +84,7 @@ async function loadSystemPrompts() {
 
 欢迎使用ThinkCraft Pro。让我们从最核心的开始：**您今天想探讨或解决的核心课题是什么？**`;
 
-        console.warn('⚠️ Using fallback system prompt');
         isLoaded = true;
         return SYSTEM_PROMPTS;
     }
-}
-
-// 页面加载时自动加载提示词
-if (typeof window !== 'undefined') {
-    loadSystemPrompts().then(() => {
-        window.SYSTEM_PROMPTS = SYSTEM_PROMPTS;
-        window.DEFAULT_PROMPT = DEFAULT_PROMPT;
-    });
-}
-
-// 导出配置
-if (typeof window !== 'undefined') {
-    window.SYSTEM_PROMPTS = SYSTEM_PROMPTS;
-    window.DEFAULT_PROMPT = DEFAULT_PROMPT;
-    window.loadSystemPrompts = loadSystemPrompts;
 }

@@ -28,10 +28,24 @@ export class Entity {
   }
 
   /**
+   * 设置创建时间（用于从数据库恢复实体）
+   */
+  set createdAt(value) {
+    this._createdAt = value;
+  }
+
+  /**
    * 获取更新时间
    */
   get updatedAt() {
     return this._updatedAt;
+  }
+
+  /**
+   * 设置更新时间（用于从数据库恢复实体）
+   */
+  set updatedAt(value) {
+    this._updatedAt = value;
   }
 
   /**

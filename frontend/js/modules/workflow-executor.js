@@ -35,6 +35,10 @@ class WorkflowExecutor {
 
     try {
       this.isExecuting = true;
+      const canProceed = await this.ensureRolesForStage(projectId, stageId);
+      if (!canProceed) {
+        return { aborted: true };
+      }
       await this.updateProjectStageStatus(projectId, stageId, 'active');
 
       // 调用后端API
@@ -74,7 +78,7 @@ class WorkflowExecutor {
    * @param {Function} onProgress - 进度回调函数
    * @returns {Promise<Object>} 执行结果
    */
-  async executeBatch(projectId, stageIds, conversation, onProgress = null) {
+  async executeBatch(projectId, stageIds, conversation, onProgress = null, options = {}) {
     if (this.isExecuting) {
       throw new Error('当前正在执行任务，请稍后再试');
     }
@@ -94,10 +98,15 @@ class WorkflowExecutor {
         CONVERSATION: conversation || ''
       };
 
+      const skipRoleCheck = Boolean(options.skipRoleCheck);
       for (let index = 0; index < stageIds.length; index += 1) {
         const stageId = stageIds[index];
         this.currentExecution.currentStageIndex = index;
 
+        const canProceed = skipRoleCheck ? true : await this.ensureRolesForStage(projectId, stageId);
+        if (!canProceed) {
+          break;
+        }
         await this.updateProjectStageStatus(projectId, stageId, 'active');
         if (typeof onProgress === 'function') {
           onProgress(stageId, 'active', index);
@@ -221,13 +230,12 @@ class WorkflowExecutor {
 
       // 更新阶段状态
       const stage = project.workflow.stages.find(s => s.id === stageId);
-      if (stage) {
-        stage.status = status;
-        if (Array.isArray(artifacts)) {
-          stage.artifacts = artifacts;
-          await this.storageManager.saveArtifacts(artifacts);
-          await this.saveArtifactsToKnowledge(projectId, artifacts);
-        }
+        if (stage) {
+          stage.status = status;
+          if (Array.isArray(artifacts)) {
+            stage.artifacts = artifacts;
+            await this.storageManager.saveArtifacts(artifacts);
+          }
 
         if (status === 'active' && !stage.startedAt) {
           stage.startedAt = Date.now();
@@ -284,6 +292,43 @@ class WorkflowExecutor {
     await this.storageManager.saveKnowledgeItems(items);
   }
 
+  async ensureRolesForStage(projectId, stageId) {
+    const project = await this.storageManager.getProject(projectId);
+    if (!project) {
+      return true;
+    }
+    const required = window.projectManager?.getRecommendedAgentsForStage(project, stageId) || [];
+    if (required.length === 0) {
+      return true;
+    }
+    const assigned = project.assignedAgents || [];
+    if (assigned.length === 0) {
+      return await this.confirmMissingRoles(required);
+    }
+    const hiredAgents = await window.projectManager?.getUserHiredAgents?.();
+    const assignedTypes = (hiredAgents || [])
+      .filter(agent => assigned.includes(agent.id))
+      .map(agent => agent.type);
+    const missing = required.filter(role => !assignedTypes.includes(role));
+    if (missing.length === 0) {
+      return true;
+    }
+    return await this.confirmMissingRoles(missing);
+  }
+
+  async confirmMissingRoles(missingRoles) {
+    if (!window.modalManager) {
+      return confirm(`缺少关键岗位：${missingRoles.join('、')}，是否仍执行？`);
+    }
+    return new Promise(resolve => {
+      window.modalManager.confirm(
+        `缺少关键岗位：${missingRoles.join('、')}\n\n建议先雇佣对应角色。仍然执行将按现有数字员工职责推进。`,
+        () => resolve(true),
+        () => resolve(false)
+      );
+    });
+  }
+
   async executeStageRequest(projectId, stageId, context) {
     const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
       method: 'POST',
@@ -307,6 +352,13 @@ class WorkflowExecutor {
    */
   getStageDefinition(stageId) {
     const stageDefinitions = {
+      strategy: {
+        id: 'strategy',
+        name: '战略设计',
+        description: '战略设计、关键假设与里程碑',
+        icon: '🎯',
+        color: '#6366f1'
+      },
       requirement: {
         id: 'requirement',
         name: '需求分析',
@@ -320,6 +372,13 @@ class WorkflowExecutor {
         description: 'UI/UX设计、交互原型、视觉规范',
         icon: '🎨',
         color: '#764ba2'
+      },
+      strategy: {
+        id: 'strategy',
+        name: '战略设计',
+        description: '战略设计、挑战回应',
+        icon: '🎯',
+        color: '#6366f1'
       },
       architecture: {
         id: 'architecture',
@@ -472,14 +531,6 @@ class WorkflowExecutor {
       return '<div style="margin-top: 12px; color: #9ca3af; font-size: 13px;">暂无交付物</div>';
     }
 
-    const docTypes = new Set([
-      'prd',
-      'ui-design',
-      'architecture-doc',
-      'test-report',
-      'deploy-doc',
-      'marketing-plan'
-    ]);
     return `
             <div style="margin-top: 12px; display: grid; gap: 8px;">
                 ${artifacts
@@ -490,15 +541,6 @@ class WorkflowExecutor {
                             <div style="font-size: 14px; font-weight: 600; color: #111827;">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
                             <div style="font-size: 12px; color: #6b7280;">${this.escapeHtml(artifact.type || 'deliverable')}</div>
                         </div>
-                        ${
-  docTypes.has(artifact.type)
-    ? `
-                            <button class="btn-secondary" onclick="showKnowledgeBase('project', '${projectId}')" style="padding: 4px 10px; font-size: 12px;">
-                                知识库
-                            </button>
-                        `
-    : ''
-}
                     </div>
                 `
     )
@@ -540,6 +582,12 @@ class WorkflowExecutor {
 
       // 执行阶段
       const result = await this.executeStage(projectId, stageId, { CONVERSATION: conversation });
+      if (result?.aborted) {
+        if (window.modalManager) {
+          window.modalManager.close();
+        }
+        return;
+      }
 
       // 显示成功提示
       if (window.modalManager) {

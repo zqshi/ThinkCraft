@@ -1,35 +1,26 @@
 # 场景二：Agent调度链路
 
-Version: 1.0.1
-Last Updated: 2026-01-28
+Version: 1.1.0
+Last Updated: 2026-01-29
 
 ## 概述
 
-场景二用于项目面板引入创意后，雇佣数字员工Agent进行软件开发落地。
+场景二用于项目面板引入创意后，雇佣数字员工Agent进行软件开发落地（统一产品开发流程）。
 
 ## 目录结构
 
 ```
 scene-2-agent-orchestration/
-├── shared/                        # 共享规范（所有开发类型共用）
+    ├── shared/                        # 共享规范（统一流程共用）
 │   ├── agent-collaboration.md     # Agent协作规范
 │   ├── prompt-structure.md        # Prompt结构标准
 │   ├── task-decomposition.md      # 任务分解方法论
 │   ├── quality-checklist.md       # 质量检查清单
 │   └── templates/                 # 共享模板库
 │
-├── agent-product-development/     # Agent产品开发
-│   ├── workflow.json              # 工作流定义
-│   ├── product-core.md            # 产品核心原则
-│   └── agents/                    # Agent定义（11个）
-│       ├── demand-design/         # 需求设计阶段（4个）
-│       ├── strategy-design/       # 战略设计阶段（2个）
-│       └── development/           # 开发阶段（5个）
-│
-└── traditional-product-development/ # 传统产品开发
+└── product-development/            # 统一产品开发
     ├── workflow.json              # 工作流定义
-    ├── product-core.md            # 产品核心原则
-    └── agents/                    # Agent定义（6个）
+    └── agents/                    # Agent定义（统一岗位）
 ```
 
 ## 共享规范（shared/）
@@ -72,130 +63,31 @@ const promptStructure = await promptLoader.load(
 );
 ```
 
-## Agent产品开发（agent-product-development/）
+## 统一产品开发（product-development/）
 
 ### 工作流程
 
 ```
-需求设计阶段 → 战略设计阶段 → 开发阶段
+战略设计 → 需求阶段 → 设计阶段 → 架构阶段 → 开发阶段 → 测试阶段 → 部署阶段 → 运营阶段
 ```
 
-### Agent列表
+### Agent列表（统一岗位）
 
-#### 需求设计阶段（4个）
-
-1. **product-demand-manager.md**：产品需求管理Agent
-   - 需求澄清
-   - 需求设计
-   - 挑战回应
-
-2. **product-research-analyst.md**：产品研究分析Agent
-   - 市场调研
-   - 竞品分析
-   - 用户研究
-
-3. **demand-challenge.md**：需求设计挑战Agent
-   - 质量挑战
-   - 问题识别
-   - 改进建议
-
-4. **demand-refine.md**：需求文档精炼Agent
-   - 文档优化
-   - 格式规范
-   - 内容精炼
-
-#### 战略设计阶段（2个）
-
-1. **strategy-designer.md**：战略设计Agent
-   - Prompt构造块设计
-   - 工具系统设计
-   - 用户用例设计
-
-2. **strategy-challenge.md**：战略设计挑战Agent
-   - 战略质量挑战
-   - 设计优化建议
-
-#### 开发阶段（5个）
-
-1. **agentscope-react-developer.md**：AgentScope React开发Agent
-   - Agent后端开发
-   - 工具集成
-
-2. **test-expert.md**：测试专家Agent
-   - 功能测试
-   - 性能测试
-
-3. **devops.md**：DevOps Agent
-   - 部署实施
-   - 运维配置
-
-4. **performance.md**：性能优化Agent
-   - 响应速度优化
-   - Token消耗优化
-
-5. **dev-agent.md**：开发Agent
-   - 最终验收
-   - 集成测试
+- 产品经理、战略设计师、UI/UX设计师、技术负责人
+- 前端开发、后端开发、测试工程师、运维工程师
+- 营销专家、运营专家
 
 ### 使用方式
 
 ```javascript
-// 加载Agent产品开发的Agent
-const demandManager = await promptLoader.load(
-  'scene-2-agent-orchestration/agent-product-development/agents/demand-design/product-demand-manager'
-);
-
-// 加载工作流
-const workflow = await promptLoader.loadWorkflow(
-  'scene-2-agent-orchestration/agent-product-development/workflow'
-);
-```
-
-## 传统产品开发（traditional-product-development/）
-
-### 工作流程
-
-```
-需求分析 → UI/UX设计 → 技术架构设计 → 开发 → 测试 → 部署
-```
-
-### Agent列表（6个）
-
-1. **product-manager-agent.md**：产品经理Agent
-   - 需求分析
-   - PRD编写
-
-2. **ui-ux-designer-agent.md**：UI/UX设计师Agent
-   - 交互设计
-   - 视觉设计
-
-3. **tech-lead-agent.md**：技术负责人Agent
-   - 架构设计
-   - 技术选型
-
-4. **frontend-developer-agent.md**：前端开发Agent
-   - 前端实现
-   - 界面开发
-
-5. **backend-developer-agent.md**：后端开发Agent
-   - 后端实现
-   - API开发
-
-6. **qa-engineer-agent.md**：测试工程师Agent
-   - 测试计划
-   - 测试执行
-
-### 使用方式
-
-```javascript
-// 加载传统产品开发的Agent
+// 加载统一产品开发的Agent
 const productManager = await promptLoader.load(
-  'scene-2-agent-orchestration/traditional-product-development/agents/product-manager-agent'
+  'scene-2-agent-orchestration/product-development/agents/product-manager-agent'
 );
 
 // 加载工作流
 const workflow = await promptLoader.loadWorkflow(
-  'scene-2-agent-orchestration/traditional-product-development/workflow'
+  'scene-2-agent-orchestration/product-development/workflow'
 );
 ```
 
@@ -203,7 +95,7 @@ const workflow = await promptLoader.loadWorkflow(
 
 ### 共享规范引用
 
-在开发类型特有的文档中引用共享规范：
+在统一流程的文档中引用共享规范：
 
 ```markdown
 ## 通用协作规范
@@ -217,7 +109,7 @@ PromptLoader在加载时自动解析引用：
 
 ```javascript
 const content = await promptLoader.loadWithDependencies(
-  'scene-2-agent-orchestration/agent-product-development/product-core'
+  'scene-2-agent-orchestration/product-development/workflow'
 );
 // 自动加载并合并 ../shared/agent-collaboration.md
 ```
@@ -227,7 +119,7 @@ const content = await promptLoader.loadWithDependencies(
 ### 修改共享规范
 
 1. 编辑 `shared/` 目录下的文件
-2. 所有开发类型自动生效
+2. 统一流程自动生效
 3. 测试影响范围
 4. 提交变更
 
@@ -240,44 +132,19 @@ const content = await promptLoader.loadWithDependencies(
 
 ### 添加新Agent
 
-#### Agent产品开发
-
-```bash
-# 确定阶段
-# 需求设计：demand-design/
-# 战略设计：strategy-design/
-# 开发：development/
-
-# 创建Agent文件
-touch prompts/scene-2-agent-orchestration/agent-product-development/agents/demand-design/new-agent.md
-
-# 更新workflow.json
-# 添加Agent到对应阶段
-```
-
-#### 传统产品开发
+#### 统一产品开发
 
 ```bash
 # 创建Agent文件
-touch prompts/scene-2-agent-orchestration/traditional-product-development/agents/new-agent.md
+touch prompts/scene-2-agent-orchestration/product-development/agents/new-agent.md
 
 # 更新workflow.json
 # 添加Agent到工作流
 ```
 
-### 添加新开发类型
+### 新增阶段或岗位
 
-```bash
-# 创建目录
-mkdir prompts/scene-2-agent-orchestration/new-development-type/
-mkdir prompts/scene-2-agent-orchestration/new-development-type/agents/
-
-# 创建核心文件
-touch prompts/scene-2-agent-orchestration/new-development-type/product-core.md
-touch prompts/scene-2-agent-orchestration/new-development-type/workflow.json
-
-# 在product-core.md中引用共享规范
-```
+在统一流程内追加阶段或岗位，并同步更新 `product-development/workflow.json` 与对应的 Agent Prompt。
 
 ## 质量标准
 
@@ -298,7 +165,7 @@ touch prompts/scene-2-agent-orchestration/new-development-type/workflow.json
 ### 共享规范质量标准
 
 - [ ] 内容准确完整
-- [ ] 适用所有开发类型
+- [ ] 适用统一流程
 - [ ] 易于理解和应用
 - [ ] 定期更新维护
 
@@ -326,7 +193,7 @@ Agent输出原封不动呈现给用户。
 
 ## 版本信息
 
-- **版本**：1.0.0
-- **最后更新**：2026-01-27
+- **版本**：1.1.0
+- **最后更新**：2026-01-29
 - **变更日志**：
-  - 1.0.0：初始版本
+  - 1.1.0：统一为单一产品开发流程，清理旧模式引用

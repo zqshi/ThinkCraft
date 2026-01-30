@@ -7,7 +7,7 @@ import { BusinessPlan } from '../domain/business-plan.aggregate.js';
 import { BusinessPlanId } from '../domain/value-objects/business-plan-id.vo.js';
 import { BusinessPlanStatus } from '../domain/value-objects/business-plan-status.vo.js';
 import { ChapterId } from '../domain/value-objects/chapter-id.vo.js';
-import logger from '../../../infrastructure/logger/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class BusinessPlanMongoRepository {
   /**

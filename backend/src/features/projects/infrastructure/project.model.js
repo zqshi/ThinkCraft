@@ -39,6 +39,8 @@ const ProjectSchema = new mongoose.Schema(
     userId: { type: String, required: true, index: true },
     name: { type: String, required: true },
     mode: { type: String, required: true, enum: ['development'] },
+    workflowCategory: { type: String, default: 'product-development' },
+    assignedAgents: { type: [String], default: [] },
     status: {
       type: String,
       required: true,

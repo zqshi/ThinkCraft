@@ -9,6 +9,9 @@ import {
   CustomizeWorkflowRequestDTO,
   SearchProjectsRequestDTO
 } from '../application/project.dto.js';
+import { ProjectModel } from '../infrastructure/project.model.js';
+import { BusinessPlanModel } from '../../business-plan/infrastructure/business-plan.model.js';
+import { AnalysisReportModel } from '../../report/infrastructure/analysis-report.model.js';
 
 export class ProjectController {
   /**
@@ -425,6 +428,42 @@ export class ProjectController {
       res.status(400).json({
         code: -1,
         error: error.message || '批量更新项目状态失败'
+      });
+    }
+  }
+
+  /**
+   * 清理项目空间数据（仅开发环境）
+   */
+  async clearProjectSpace(req, res) {
+    try {
+      if (process.env.NODE_ENV !== 'development') {
+        return res.status(403).json({
+          code: -1,
+          error: '仅开发环境允许清理数据'
+        });
+      }
+
+      const [projectResult, planResult, reportResult] = await Promise.all([
+        ProjectModel.deleteMany({}),
+        BusinessPlanModel.deleteMany({}),
+        AnalysisReportModel.deleteMany({})
+      ]);
+
+      res.json({
+        code: 0,
+        message: '项目空间已清理',
+        data: {
+          projects: projectResult.deletedCount,
+          businessPlans: planResult.deletedCount,
+          analysisReports: reportResult.deletedCount
+        }
+      });
+    } catch (error) {
+      console.error('[ProjectController] 清理项目空间失败:', error);
+      res.status(500).json({
+        code: -1,
+        error: error.message || '清理项目空间失败'
       });
     }
   }

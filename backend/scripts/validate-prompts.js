@@ -75,7 +75,7 @@ async function getDefinedTypes(jsFilePath, type) {
       const match = content.match(/const basePrompts = \{([^}]+)\}/s);
       if (match) {
         const typesText = match[1];
-        const typeMatches = typesText.matchAll(/(\w+):/g);
+        const typeMatches = typesText.matchAll(/([\w-]+):/g);
         for (const m of typeMatches) {
           types.add(m[1]);
         }
@@ -85,7 +85,7 @@ async function getDefinedTypes(jsFilePath, type) {
       const match = content.match(/const templates = \{([^}]+)\}/s);
       if (match) {
         const typesText = match[1];
-        const typeMatches = typesText.matchAll(/(\w+):/g);
+        const typeMatches = typesText.matchAll(/([\w-]+):/g);
         for (const m of typeMatches) {
           types.add(m[1]);
         }
@@ -105,7 +105,15 @@ async function getDefinedTypes(jsFilePath, type) {
 async function getMarkdownFiles(dir) {
   try {
     const files = await fs.readdir(dir);
-    return files.filter(file => file.endsWith('.md')).map(file => path.basename(file, '.md'));
+    return files
+      .filter(file => file.endsWith('.md'))
+      .map(file => ({
+        file,
+        name: path.basename(file, '.md'),
+        normalizedName: path.basename(file, '.md').endsWith('-agent')
+          ? path.basename(file, '.md').slice(0, -6)
+          : path.basename(file, '.md')
+      }));
   } catch (error) {
     return [];
   }
@@ -117,7 +125,10 @@ async function getMarkdownFiles(dir) {
 async function validateAgentPrompts() {
   log('\n=== 验证Agent Prompts ===', 'blue');
 
-  const agentsDir = path.join(__dirname, '../../prompts/scene-2-agent-orchestration');
+  const agentsDir = path.join(
+    __dirname,
+    '../../prompts/scene-2-agent-orchestration/product-development/agents'
+  );
   const jsFile = path.join(
     __dirname,
     '../src/features/agents/infrastructure/prompt-templates/agent-prompts.js'
@@ -136,28 +147,29 @@ async function validateAgentPrompts() {
   let errorCount = 0;
 
   for (const mdFile of mdFiles) {
-    const filePath = path.join(agentsDir, `${mdFile}.md`);
+    const filePath = path.join(agentsDir, mdFile.file);
     const result = await validateMarkdownFormat(filePath, 'agent');
 
     if (result.valid) {
-      log(`✓ ${mdFile}.md`, 'green');
+      log(`✓ ${mdFile.file}`, 'green');
       validCount++;
     } else {
-      log(`✗ ${mdFile}.md`, 'red');
+      log(`✗ ${mdFile.file}`, 'red');
       result.errors.forEach(err => log(`  - ${err}`, 'yellow'));
       errorCount++;
     }
   }
 
   // 检查是否有JS中定义但没有Markdown文件的类型
-  const missingMd = jsTypes.filter(type => !mdFiles.includes(type));
+  const mdNames = mdFiles.map(item => item.normalizedName);
+  const missingMd = jsTypes.filter(type => !mdNames.includes(type));
   if (missingMd.length > 0) {
     log(`\n警告: 以下Agent类型在JS中定义但缺少Markdown文件:`, 'yellow');
     missingMd.forEach(type => log(`  - ${type}.md`, 'yellow'));
   }
 
   // 检查是否有Markdown文件但JS中没有定义的类型
-  const extraMd = mdFiles.filter(type => !jsTypes.includes(type));
+  const extraMd = mdNames.filter(type => !jsTypes.includes(type));
   if (extraMd.length > 0) {
     log(`\n提示: 以下Markdown文件存在但JS中未定义（将使用动态加载）:`, 'blue');
     extraMd.forEach(type => log(`  - ${type}.md`, 'blue'));
@@ -195,28 +207,29 @@ async function validateTaskPrompts() {
   let errorCount = 0;
 
   for (const mdFile of mdFiles) {
-    const filePath = path.join(tasksDir, `${mdFile}.md`);
+    const filePath = path.join(tasksDir, mdFile.file);
     const result = await validateMarkdownFormat(filePath, 'task');
 
     if (result.valid) {
-      log(`✓ ${mdFile}.md`, 'green');
+      log(`✓ ${mdFile.file}`, 'green');
       validCount++;
     } else {
-      log(`✗ ${mdFile}.md`, 'red');
+      log(`✗ ${mdFile.file}`, 'red');
       result.errors.forEach(err => log(`  - ${err}`, 'yellow'));
       errorCount++;
     }
   }
 
   // 检查是否有JS中定义但没有Markdown文件的类型
-  const missingMd = jsTypes.filter(type => !mdFiles.includes(type));
+  const mdNames = mdFiles.map(item => item.normalizedName);
+  const missingMd = jsTypes.filter(type => !mdNames.includes(type));
   if (missingMd.length > 0) {
     log(`\n警告: 以下Task类型在JS中定义但缺少Markdown文件:`, 'yellow');
     missingMd.forEach(type => log(`  - ${type}.md`, 'yellow'));
   }
 
   // 检查是否有Markdown文件但JS中没有定义的类型
-  const extraMd = mdFiles.filter(type => !jsTypes.includes(type));
+  const extraMd = mdNames.filter(type => !jsTypes.includes(type));
   if (extraMd.length > 0) {
     log(`\n提示: 以下Markdown文件存在但JS中未定义（将使用动态加载）:`, 'blue');
     extraMd.forEach(type => log(`  - ${type}.md`, 'blue'));

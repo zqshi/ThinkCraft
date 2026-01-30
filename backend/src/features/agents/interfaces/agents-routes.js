@@ -3,9 +3,19 @@
  * 支持Agent雇佣、任务分配、工作协同
  */
 import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 
 const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROMPT_ROOT = path.join(__dirname, '../../../../..', 'prompts/scene-2-agent-orchestration');
+const WORKFLOW_CATEGORY_DIRS = {
+    'product-development': 'product-development'
+};
 
 // Agent类型定义
 const AGENT_TYPES = {
@@ -28,6 +38,24 @@ const AGENT_TYPES = {
         salary: 12000,
         level: 'mid'
     },
+    'ui-ux-designer': {
+        id: 'ui-ux-designer',
+        name: 'UI/UX设计师',
+        emoji: '🎨',
+        desc: '负责用户体验设计与交互流程',
+        skills: ['用户体验', '交互设计', '视觉设计'],
+        salary: 12000,
+        level: 'mid'
+    },
+    'tech-lead': {
+        id: 'tech-lead',
+        name: '技术负责人',
+        emoji: '🧠',
+        desc: '负责技术选型与架构设计',
+        skills: ['架构设计', '技术选型', '工程管理'],
+        salary: 22000,
+        level: 'senior'
+    },
 
     // 技术类
     'frontend-dev': {
@@ -39,6 +67,15 @@ const AGENT_TYPES = {
         salary: 18000,
         level: 'senior'
     },
+    'frontend-developer': {
+        id: 'frontend-developer',
+        name: '前端开发',
+        emoji: '💻',
+        desc: '负责前端界面开发',
+        skills: ['HTML/CSS', 'JavaScript', '组件化'],
+        salary: 18000,
+        level: 'senior'
+    },
     'backend-dev': {
         id: 'backend-dev',
         name: '后端工程师',
@@ -46,6 +83,114 @@ const AGENT_TYPES = {
         desc: '负责后端开发、API设计、数据库',
         skills: ['Node.js', 'Python', 'SQL', 'API设计'],
         salary: 20000,
+        level: 'senior'
+    },
+    'backend-developer': {
+        id: 'backend-developer',
+        name: '后端开发',
+        emoji: '⚙️',
+        desc: '负责后端服务开发',
+        skills: ['API设计', '数据库', '服务端开发'],
+        salary: 20000,
+        level: 'senior'
+    },
+    'qa-engineer': {
+        id: 'qa-engineer',
+        name: '测试工程师',
+        emoji: '🧪',
+        desc: '负责测试计划与测试执行',
+        skills: ['测试用例', '缺陷管理', '质量保障'],
+        salary: 12000,
+        level: 'mid'
+    },
+    'devops': {
+        id: 'devops',
+        name: '运维工程师',
+        emoji: '🚀',
+        desc: '负责部署配置与运维',
+        skills: ['部署', 'CI/CD', '监控'],
+        salary: 16000,
+        level: 'mid'
+    },
+    'performance': {
+        id: 'performance',
+        name: '性能优化专家',
+        emoji: '⚡',
+        desc: '负责性能分析与优化',
+        skills: ['性能分析', '优化策略', '指标监控'],
+        salary: 18000,
+        level: 'senior'
+    },
+    'test-expert': {
+        id: 'test-expert',
+        name: '测试专家',
+        emoji: '🔍',
+        desc: '负责测试策略与质量评审',
+        skills: ['测试策略', '质量评审', '风险控制'],
+        salary: 16000,
+        level: 'senior'
+    },
+    'product-demand-manager': {
+        id: 'product-demand-manager',
+        name: '需求负责人',
+        emoji: '📋',
+        desc: '负责需求澄清与设计',
+        skills: ['需求澄清', '需求设计', '方案输出'],
+        salary: 16000,
+        level: 'senior'
+    },
+    'product-research-analyst': {
+        id: 'product-research-analyst',
+        name: '产品调研分析师',
+        emoji: '🔎',
+        desc: '负责市场调研与竞品分析',
+        skills: ['市场调研', '竞品分析', '用户洞察'],
+        salary: 14000,
+        level: 'mid'
+    },
+    'product-demand-challenge': {
+        id: 'product-demand-challenge',
+        name: '需求挑战官',
+        emoji: '🧩',
+        desc: '负责需求挑战与质量保障',
+        skills: ['需求审视', '质量保障', '风险识别'],
+        salary: 15000,
+        level: 'senior'
+    },
+    'product-demand-refine': {
+        id: 'product-demand-refine',
+        name: '需求精炼官',
+        emoji: '✍️',
+        desc: '负责需求文档精炼',
+        skills: ['文档精炼', '结构化表达'],
+        salary: 13000,
+        level: 'mid'
+    },
+    'strategy-design': {
+        id: 'strategy-design',
+        name: '战略设计师',
+        emoji: '🎯',
+        desc: '负责战略设计与规划',
+        skills: ['战略规划', '商业分析', '路径设计'],
+        salary: 20000,
+        level: 'expert'
+    },
+    'strategy-design-challenge': {
+        id: 'strategy-design-challenge',
+        name: '战略挑战官',
+        emoji: '🛡️',
+        desc: '负责战略方案挑战与校验',
+        skills: ['风险识别', '方案评审', '边界校验'],
+        salary: 19000,
+        level: 'expert'
+    },
+    'agentscope-react-developer': {
+        id: 'agentscope-react-developer',
+        name: 'Agent开发工程师',
+        emoji: '🤖',
+        desc: '负责Agent产品开发',
+        skills: ['Agent开发', 'Prompt工程', 'Function Calling'],
+        salary: 22000,
         level: 'senior'
     },
 
@@ -129,6 +274,137 @@ const AGENT_TYPES = {
         level: 'senior'
     }
 };
+
+async function walkMarkdownFiles(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...(await walkMarkdownFiles(fullPath)));
+        } else if (entry.isFile() && entry.name.endsWith('.md')) {
+            files.push(fullPath);
+        }
+    }
+    return files;
+}
+
+function parseFrontMatter(content) {
+    const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+    if (!match) {
+        return {};
+    }
+    const result = {};
+    for (const line of match[1].split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#') || !trimmed.includes(':')) {
+            continue;
+        }
+        const idx = trimmed.indexOf(':');
+        const key = trimmed.slice(0, idx).trim();
+        let value = trimmed.slice(idx + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+        result[key] = value;
+    }
+    return result;
+}
+
+function normalizeAgentId(raw) {
+    if (!raw) {
+        return null;
+    }
+    if (AGENT_TYPES[raw]) {
+        return raw;
+    }
+    if (raw.endsWith('-agent.md')) {
+        const stripped = raw.slice(0, -9);
+        if (AGENT_TYPES[stripped]) {
+            return stripped;
+        }
+    }
+    if (raw.endsWith('-agent')) {
+        const stripped = raw.slice(0, -6);
+        if (AGENT_TYPES[stripped]) {
+            return stripped;
+        }
+    }
+    return raw;
+}
+
+async function loadPromptIndexByCategory(workflowCategory) {
+    const folder = WORKFLOW_CATEGORY_DIRS[workflowCategory];
+    if (!folder) {
+        return null;
+    }
+    const agentsDir = path.join(PROMPT_ROOT, folder, 'agents');
+    let files = [];
+    try {
+        files = await walkMarkdownFiles(agentsDir);
+    } catch (error) {
+        return null;
+    }
+
+    const index = new Map();
+    for (const filePath of files) {
+        try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const frontMatter = parseFrontMatter(content);
+            const rawName = frontMatter.name || path.basename(filePath, '.md');
+            const agentId = normalizeAgentId(rawName) || rawName;
+            const promptPath = path
+                .relative(path.join(__dirname, '../../../../..', 'prompts'), filePath)
+                .replace(/\\/g, '/')
+                .replace(/\.md$/, '');
+            index.set(agentId, {
+                promptPath,
+                name: rawName,
+                description: frontMatter.description
+            });
+        } catch (error) {
+            continue;
+        }
+    }
+    return index;
+}
+
+async function loadWorkflowAgentIds(workflowCategory) {
+    const folder = WORKFLOW_CATEGORY_DIRS[workflowCategory];
+    if (!folder) {
+        return [];
+    }
+    const workflowPath = path.join(PROMPT_ROOT, folder, 'workflow.json');
+    try {
+        const content = await fs.readFile(workflowPath, 'utf-8');
+        const config = JSON.parse(content);
+        const ids = [];
+        for (const phase of config.phases || []) {
+            for (const agent of phase.agents || []) {
+                if (agent?.agent_id) {
+                    ids.push(agent.agent_id);
+                }
+            }
+        }
+        return Array.from(new Set(ids));
+    } catch (error) {
+        return [];
+    }
+}
+
+function buildFallbackAgent(id, promptInfo) {
+    return {
+        id,
+        name: id,
+        emoji: '🤖',
+        desc: promptInfo?.description || '暂无描述',
+        skills: [],
+        salary: 0,
+        level: 'custom',
+        available: true,
+        promptPath: promptInfo?.promptPath
+    };
+}
 
 // 用户雇佣的Agent存储（内存存储，生产环境应使用数据库）
 const userAgents = new Map(); // userId -> agents[]
@@ -221,16 +497,67 @@ const AGENT_TASK_PROMPTS = {
  * 获取所有Agent类型
  */
 router.get('/types', (req, res) => {
-    const types = Object.values(AGENT_TYPES).map(agent => ({
-        ...agent,
-        available: true
-    }));
+    res.json({
+        code: 0,
+        data: {
+            types: Object.values(AGENT_TYPES).map(agent => ({
+                ...agent,
+                available: true
+            })),
+            total: Object.values(AGENT_TYPES).length
+        }
+    });
+});
+
+/**
+ * GET /api/agents/types-by-workflow
+ * 根据开发类型筛选Agent类型，并注入prompt提示词路径
+ */
+router.get('/types-by-workflow', async (req, res) => {
+    const workflowCategory = req.query.workflowCategory || req.query.type;
+    if (!workflowCategory || !WORKFLOW_CATEGORY_DIRS[workflowCategory]) {
+        return res.status(400).json({
+            code: -1,
+            error: '缺少或无效的workflowCategory'
+        });
+    }
+
+    const [promptIndex, workflowAgents] = await Promise.all([
+        loadPromptIndexByCategory(workflowCategory),
+        loadWorkflowAgentIds(workflowCategory)
+    ]);
+
+    if (!promptIndex) {
+        return res.status(500).json({
+            code: -1,
+            error: 'Prompt索引加载失败'
+        });
+    }
+
+    const filtered = [];
+    const agentIds = workflowAgents.length > 0 ? workflowAgents : Array.from(promptIndex.keys());
+    for (const id of agentIds) {
+        const base = AGENT_TYPES[id];
+        const promptInfo = promptIndex.get(id) || promptIndex.get(`${id}-agent`);
+        if (base) {
+            filtered.push({
+                ...base,
+                available: true,
+                promptPath: promptInfo?.promptPath,
+                promptName: promptInfo?.name,
+                promptDescription: promptInfo?.description
+            });
+        } else if (promptInfo) {
+            filtered.push(buildFallbackAgent(id, promptInfo));
+        }
+    }
 
     res.json({
         code: 0,
         data: {
-            types,
-            total: types.length
+            types: filtered,
+            total: filtered.length,
+            workflowCategory
         }
     });
 });
@@ -538,6 +865,77 @@ ${context ? `背景信息：\n${context}` : ''}
             if (agent) agent.status = 'idle';
         });
 
+        next(error);
+    }
+});
+
+/**
+ * POST /api/agents/collaboration-plan
+ * 基于创意与已雇佣Agent生成协作编排建议
+ */
+router.post('/collaboration-plan', async (req, res, next) => {
+    try {
+        const { idea, agents, instruction, conversation } = req.body;
+        const workflowCategory = 'product-development';
+
+        const agentList = Array.isArray(agents) ? agents : [];
+        const agentDesc = agentList.map(a => `${a.name || a.type}`).join('、') || '暂无';
+        const conversationText = conversation ? `\n创意对话内容：\n${conversation}\n` : '';
+        const workflowNote = workflowCategory ? `当前流程类型：${workflowCategory}\n` : '';
+        const prompt = `你是一位项目协作专家，请基于创意输出协作模式与雇佣方案。
+
+创意：${idea || '未提供'}
+${workflowNote}${conversationText}
+当前团队成员：${agentDesc}
+${instruction ? `补充要求：${instruction}` : ''}
+
+请严格输出JSON：
+{
+  "collaborationMode": "协作模式名称",
+  "reasoning": "简短原因说明",
+  "recommendedAgents": ["推荐岗位列表，使用agent类型id"],
+  "plan": "协作建议的Markdown格式说明，包含：\n## 协作模式\n简要说明协作模式的特点\n\n## 团队分工\n- **岗位名称**：职责描述\n- **岗位名称**：职责描述\n\n## 执行流程\n1. 阶段一：描述\n2. 阶段二：描述\n\n## 关键要点\n- 要点1\n- 要点2"
+}
+
+注意：
+1. 推荐岗位必须来自统一流程的岗位集合：strategy-design、product-manager、ui-ux-designer、tech-lead、frontend-developer、backend-developer、qa-engineer、devops、marketing、operations
+2. plan字段必须使用Markdown格式，结构清晰，易于阅读
+3. 团队分工要明确每个岗位的职责
+4. 执行流程要体现阶段性和逻辑性`;
+
+
+        const result = await callDeepSeekAPI(
+            [{ role: 'user', content: prompt }],
+            null,
+            { max_tokens: 1000, temperature: 0.6 }
+        );
+
+        let parsed = null;
+        try {
+            const jsonMatch = result.content.match(/\\{[\\s\\S]*\\}/);
+            if (jsonMatch) {
+                parsed = JSON.parse(jsonMatch[0]);
+            }
+        } catch (error) {}
+
+        const collaborationMode = parsed?.collaborationMode || '统一协作模式';
+        const rawRecommendedAgents = Array.isArray(parsed?.recommendedAgents)
+            ? parsed.recommendedAgents
+            : [];
+        let recommendedAgents = rawRecommendedAgents
+            .map(item => normalizeAgentId(String(item || '').trim()))
+            .filter(Boolean);
+        if (!recommendedAgents.length) {
+            const workflowAgents = await loadWorkflowAgentIds(workflowCategory);
+            recommendedAgents = workflowAgents;
+        }
+        const plan = parsed?.plan || result.content || '暂无建议';
+
+        res.json({
+            code: 0,
+            data: { plan, collaborationMode, recommendedAgents }
+        });
+    } catch (error) {
         next(error);
     }
 });

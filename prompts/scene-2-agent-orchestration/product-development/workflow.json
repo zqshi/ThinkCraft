@@ -1,0 +1,121 @@
+{
+  "workflow_id": "product-development",
+  "workflow_name": "统一产品开发流程",
+  "description": "融合产品与Agent研发流程的统一协同开发模式",
+  "phases": [
+    {
+      "phase_id": "strategy",
+      "phase_name": "战略设计阶段",
+      "agents": [
+        {
+          "agent_id": "strategy-design",
+          "role": "战略设计",
+          "tasks": ["战略设计", "关键假设", "里程碑规划"]
+        }
+      ],
+      "dependencies": [],
+      "outputs": ["战略设计文档"]
+    },
+    {
+      "phase_id": "requirement",
+      "phase_name": "需求阶段",
+      "agents": [
+        {
+          "agent_id": "product-manager",
+          "role": "需求分析",
+          "tasks": ["需求分析", "PRD编写", "用户研究"]
+        }
+      ],
+      "dependencies": ["strategy"],
+      "outputs": ["PRD文档"]
+    },
+    {
+      "phase_id": "design",
+      "phase_name": "设计阶段",
+      "agents": [
+        {
+          "agent_id": "ui-ux-designer",
+          "role": "UI/UX设计",
+          "tasks": ["用户体验设计", "交互设计", "视觉设计"]
+        }
+      ],
+      "dependencies": ["requirement"],
+      "outputs": ["设计文档"]
+    },
+    {
+      "phase_id": "architecture",
+      "phase_name": "架构阶段",
+      "agents": [
+        {
+          "agent_id": "tech-lead",
+          "role": "技术架构",
+          "tasks": ["架构设计", "技术选型"]
+        }
+      ],
+      "dependencies": ["design"],
+      "outputs": ["技术方案"]
+    },
+    {
+      "phase_id": "development",
+      "phase_name": "开发阶段",
+      "agents": [
+        {
+          "agent_id": "frontend-developer",
+          "role": "前端开发",
+          "tasks": ["前端界面开发"]
+        },
+        {
+          "agent_id": "backend-developer",
+          "role": "后端开发",
+          "tasks": ["后端服务开发"]
+        }
+      ],
+      "dependencies": ["architecture"],
+      "outputs": ["前端代码", "后端代码"]
+    },
+    {
+      "phase_id": "testing",
+      "phase_name": "测试阶段",
+      "agents": [
+        {
+          "agent_id": "qa-engineer",
+          "role": "测试",
+          "tasks": ["测试计划", "测试执行"]
+        }
+      ],
+      "dependencies": ["development"],
+      "outputs": ["测试报告"]
+    },
+    {
+      "phase_id": "deployment",
+      "phase_name": "部署阶段",
+      "agents": [
+        {
+          "agent_id": "devops",
+          "role": "部署运维",
+          "tasks": ["部署准备", "部署执行"]
+        }
+      ],
+      "dependencies": ["testing"],
+      "outputs": ["部署文档"]
+    },
+    {
+      "phase_id": "operation",
+      "phase_name": "运营阶段",
+      "agents": [
+        {
+          "agent_id": "marketing",
+          "role": "增长推广",
+          "tasks": ["增长策略", "渠道规划"]
+        },
+        {
+          "agent_id": "operations",
+          "role": "用户运营",
+          "tasks": ["用户运营", "活动策划"]
+        }
+      ],
+      "dependencies": ["deployment"],
+      "outputs": ["运营推广方案"]
+    }
+  ]
+}

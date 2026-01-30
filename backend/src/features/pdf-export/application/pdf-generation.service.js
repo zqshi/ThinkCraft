@@ -323,6 +323,84 @@ export class PdfGenerationService {
   }
 
   /**
+   * 生成商业计划书/产品立项材料PDF
+   */
+  async generateBusinessPlanPDF(chapters, title = '商业计划书') {
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    try {
+      const page = await browser.newPage();
+      const htmlContent = this.buildBusinessPlanHtmlContent(chapters, title);
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        landscape: false,
+        margin: {
+          top: '20mm',
+          bottom: '20mm',
+          left: '20mm',
+          right: '20mm'
+        },
+        printBackground: true,
+        displayHeaderFooter: false
+      });
+
+      return pdfBuffer;
+    } finally {
+      await browser.close();
+    }
+  }
+
+  buildBusinessPlanHtmlContent(chapters, title) {
+    const escapeHtml = value => String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const formatContent = value => escapeHtml(value).replace(/\n/g, '<br>');
+
+    const chapterHtml = chapters.map((chapter, index) => `
+      <div class="chapter">
+        <h1>${escapeHtml(chapter.title || `章节 ${index + 1}`)}</h1>
+        <div class="chapter-meta">
+          ${chapter.agent ? `<span>作者：${escapeHtml(chapter.agent)}</span>` : ''}
+        </div>
+        <div class="chapter-content">
+          ${formatContent(chapter.content || '')}
+        </div>
+      </div>
+    `).join('');
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: 'PingFang SC', 'Microsoft YaHei', 'Arial', sans-serif; line-height: 1.8; color: #111; }
+    h1 { font-size: 20px; margin: 24px 0 12px; }
+    .title { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    .subtitle { font-size: 14px; color: #666; margin-bottom: 24px; }
+    .chapter { page-break-after: always; }
+    .chapter:last-child { page-break-after: auto; }
+    .chapter-meta { font-size: 12px; color: #666; margin-bottom: 12px; }
+    .chapter-content { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="title">${escapeHtml(title)}</div>
+  <div class="subtitle">生成时间：${new Date().toLocaleDateString()}</div>
+  ${chapterHtml}
+</body>
+</html>
+`;
+  }
+
+  /**
    * 构建报告HTML内容
    */
   buildReportHtmlContent(reportData, title) {
@@ -558,6 +636,7 @@ export class PdfGenerationService {
         <div class="question-item">
             ${q.category ? `<strong>${q.category}：</strong>` : ''}
             ${q.question ? `<p>${q.question}</p>` : ''}
+            ${q.validation ? `<p style="color: #7f8c8d; font-size: 14px;">验证方法：${q.validation}</p>` : ''}
             ${q.why ? `<p style="color: #7f8c8d; font-size: 14px;">为什么重要：${q.why}</p>` : ''}
         </div>
         `).join('')}

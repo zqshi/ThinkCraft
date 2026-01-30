@@ -2,9 +2,9 @@
  * ThinkCraft 后端服务主入口
  * Express + DeepSeek API
  */
+import './config/env-loader.js';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
 
@@ -17,7 +17,6 @@ import shareRouter from './routes/share.js';
 import agentsRouter from './routes/agents.js';
 import projectsRouter from './routes/projects.js';
 import workflowRouter from './routes/workflow.js';
-import workflowRecommendationRouter from './routes/workflow-recommendation.js';
 import authRouter from './routes/auth.js';
 import verificationRouter from './routes/verification.js';
 import accountRouter from './routes/account.js';
@@ -32,9 +31,6 @@ import { initDatabases, closeDatabases } from './config/database.js';
 import { cacheService } from './src/infrastructure/cache/redis-cache.service.js';
 import promptLoader from './src/utils/prompt-loader.js';
 import { validateEnv } from './config/env.js';
-
-// 加载环境变量
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -167,7 +163,6 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/workflow', workflowRouter);
 
 // 工作流推荐接口
-app.use('/api/workflow-recommendation', workflowRecommendationRouter);
 
 // 认证接口
 app.use('/api/auth', authRouter);

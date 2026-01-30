@@ -24,7 +24,6 @@ import {
   focusInput,
   scrollToBottom
 } from './utils/helpers.js';
-import { SYSTEM_PROMPT } from './app-config.js';
 
 // 导出全局函数供HTML onclick调用
 window.sendMessage = sendMessage;
@@ -49,7 +48,6 @@ window.closeChatMenu = closeChatMenu;
 
 // 导出appState供调试
 window.appState = appState;
-window.SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 /**
  * 应用初始化

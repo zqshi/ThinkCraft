@@ -10,7 +10,7 @@ import { ProjectMode } from '../domain/value-objects/project-mode.vo.js';
 import { ProjectStatus } from '../domain/value-objects/project-status.vo.js';
 import { IdeaId } from '../domain/value-objects/idea-id.vo.js';
 import { Workflow } from '../domain/entities/workflow.entity.js';
-import logger from '../../../infrastructure/logger/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class ProjectMongoRepository {
   /**
@@ -62,10 +62,46 @@ export class ProjectMongoRepository {
    */
   async findByIdeaId(ideaId) {
     try {
-      const docs = await ProjectModel.find({ ideaId }).lean();
-      return docs.map(doc => this._toDomain(doc));
+      const ideaIdValue = ideaId instanceof IdeaId ? ideaId.value : ideaId;
+      const doc = await ProjectModel.findOne({
+        ideaId: ideaIdValue,
+        status: { $ne: ProjectStatus.DELETED.value }
+      }).lean();
+
+      if (!doc) {
+        return null;
+      }
+
+      return this._toDomain(doc);
     } catch (error) {
       logger.error('[ProjectMongoRepository] 根据IdeaID查找项目失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 检查创意是否已有有效项目
+   */
+  async existsByIdeaId(ideaId) {
+    try {
+      const ideaIdValue = ideaId instanceof IdeaId ? ideaId.value : ideaId;
+
+      // 调试：查看所有相关项目
+      const allProjects = await ProjectModel.find({ ideaId: ideaIdValue }).lean();
+      console.log('[DEBUG] existsByIdeaId - ideaId:', ideaIdValue);
+      console.log('[DEBUG] existsByIdeaId - all projects:', allProjects.map(p => ({ id: p._id, status: p.status })));
+
+      const count = await ProjectModel.countDocuments({
+        ideaId: ideaIdValue,
+        status: { $ne: ProjectStatus.DELETED.value }
+      });
+
+      console.log('[DEBUG] existsByIdeaId - count (non-deleted):', count);
+      console.log('[DEBUG] existsByIdeaId - DELETED.value:', ProjectStatus.DELETED.value);
+
+      return count > 0;
+    } catch (error) {
+      logger.error('[ProjectMongoRepository] 检查创意项目存在性失败:', error);
       throw error;
     }
   }
@@ -76,6 +112,10 @@ export class ProjectMongoRepository {
   async save(project) {
     try {
       const data = this._toPersistence(project);
+
+      console.log('[DEBUG] save - project status:', project.status?.value || project._status?.value);
+      console.log('[DEBUG] save - data.status:', data.status);
+      console.log('[DEBUG] save - data._id:', data._id);
 
       await ProjectModel.findByIdAndUpdate(data._id, data, {
         upsert: true,
@@ -135,6 +175,64 @@ export class ProjectMongoRepository {
   }
 
   /**
+   * 查找所有项目
+   */
+  async findAll(filters = {}) {
+    try {
+      const { status, mode, limit = 50, offset = 0, sortBy = 'updatedAt' } = filters;
+
+      const query = {};
+
+      // 排除已删除的项目
+      query.status = { $ne: 'deleted' };
+
+      if (status) {
+        query.status = status;
+      }
+      if (mode) {
+        query.mode = mode;
+      }
+
+      const docs = await ProjectModel.find(query)
+        .sort({ [sortBy]: -1 })
+        .limit(limit)
+        .skip(offset)
+        .lean();
+
+      return docs.map(doc => this._toDomain(doc));
+    } catch (error) {
+      logger.error('[ProjectMongoRepository] 查找所有项目失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 统计项目数量
+   */
+  async count(filters = {}) {
+    try {
+      const { status, mode } = filters;
+
+      const query = {};
+
+      // 排除已删除的项目
+      query.status = { $ne: 'deleted' };
+
+      if (status) {
+        query.status = status;
+      }
+      if (mode) {
+        query.mode = mode;
+      }
+
+      return await ProjectModel.countDocuments(query);
+    } catch (error) {
+      logger.error('[ProjectMongoRepository] 统计项目数量失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 将数据库文档转换为领域对象
    */
   _toDomain(doc) {
@@ -149,7 +247,16 @@ export class ProjectMongoRepository {
       workflow = Workflow.fromJSON(doc.workflow);
     }
 
-    const project = new Project(projectId, ideaId, name, mode, status, workflow);
+    const project = new Project(
+      projectId,
+      ideaId,
+      name,
+      mode,
+      status,
+      workflow,
+      doc.workflowCategory || 'product-development',
+      doc.assignedAgents || []
+    );
 
     // 设置时间戳
     project._createdAt = doc.createdAt;
@@ -171,6 +278,8 @@ export class ProjectMongoRepository {
       name: json.name,
       mode: json.mode,
       status: json.status,
+      workflowCategory: json.workflowCategory || 'product-development',
+      assignedAgents: json.assignedAgents || [],
       workflow: json.workflow,
       createdAt: json.createdAt,
       updatedAt: json.updatedAt

@@ -22,7 +22,14 @@ class AgentProgressManager {
       financial_projection: { name: '财务分析师', emoji: '💵' },
       risk_assessment: { name: '风险专家', emoji: '⚠️' },
       implementation_plan: { name: '项目经理', emoji: '📋' },
-      appendix: { name: '文档专家', emoji: '📎' }
+      appendix: { name: '文档专家', emoji: '📎' },
+      project_summary: { name: '产品经理', emoji: '📋' },
+      problem_insight: { name: '用户研究专家', emoji: '🔍' },
+      product_solution: { name: '产品设计专家', emoji: '💡' },
+      implementation_path: { name: '项目管理专家', emoji: '🛤️' },
+      competitive_analysis: { name: '竞品分析专家', emoji: '⚔️' },
+      budget_planning: { name: '财务规划专家', emoji: '💰' },
+      risk_control: { name: '风险管理专家', emoji: '⚠️' }
     };
 
     // 监听窗口大小变化
@@ -189,7 +196,14 @@ class AgentProgressManager {
       financial_projection: '财务预测',
       risk_assessment: '风险评估',
       implementation_plan: '实施计划',
-      appendix: '附录'
+      appendix: '附录',
+      project_summary: '项目摘要',
+      problem_insight: '问题洞察',
+      product_solution: '产品方案',
+      implementation_path: '实施路径',
+      competitive_analysis: '竞品分析',
+      budget_planning: '预算规划',
+      risk_control: '风险控制'
     };
     return titles[chapterId] || chapterId;
   }

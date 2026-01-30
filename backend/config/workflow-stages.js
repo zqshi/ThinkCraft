@@ -1,12 +1,22 @@
 /**
  * 工作流阶段定义
- * 协同开发模式的标准7阶段流程
+ * 协同开发模式的标准8阶段流程
  */
 
 /**
  * 标准工作流阶段配置
  */
 export const DEFAULT_WORKFLOW_STAGES = [
+  {
+    id: 'strategy',
+    name: '战略设计',
+    description: '战略设计、挑战回应',
+    recommendedAgents: ['strategy-design'],
+    artifactTypes: ['strategy-doc'],
+    estimatedDuration: 2,
+    icon: '🎯',
+    color: '#6366f1'
+  },
   {
     id: 'requirement',
     name: '需求分析',
@@ -21,7 +31,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     id: 'design',
     name: '产品设计',
     description: 'UI/UX设计、交互原型、视觉规范',
-    recommendedAgents: ['designer'],
+    recommendedAgents: ['ui-ux-designer'],
     artifactTypes: ['ui-design', 'prototype', 'design-spec'],
     estimatedDuration: 3,
     icon: '🎨',
@@ -31,7 +41,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     id: 'architecture',
     name: '架构设计',
     description: '系统架构、技术选型、API规范',
-    recommendedAgents: ['backend-dev', 'frontend-dev'],
+    recommendedAgents: ['tech-lead'],
     artifactTypes: ['architecture-doc', 'api-spec', 'tech-stack'],
     estimatedDuration: 2,
     icon: '🏗️',
@@ -41,7 +51,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     id: 'development',
     name: '开发实现',
     description: '前后端开发、功能实现、代码编写',
-    recommendedAgents: ['frontend-dev', 'backend-dev'],
+    recommendedAgents: ['frontend-developer', 'backend-developer'],
     artifactTypes: ['code', 'api-doc', 'component-lib'],
     estimatedDuration: 7,
     icon: '💻',
@@ -51,7 +61,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     id: 'testing',
     name: '测试验证',
     description: '功能测试、性能测试、bug修复',
-    recommendedAgents: ['data-analyst'],
+    recommendedAgents: ['qa-engineer'],
     artifactTypes: ['test-report', 'bug-list', 'performance-report'],
     estimatedDuration: 3,
     icon: '🧪',
@@ -61,7 +71,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     id: 'deployment',
     name: '部署上线',
     description: '环境配置、服务器部署、上线发布',
-    recommendedAgents: ['backend-dev'],
+    recommendedAgents: ['devops'],
     artifactTypes: ['deploy-doc', 'env-config', 'release-notes'],
     estimatedDuration: 1,
     icon: '🚀',
@@ -97,6 +107,13 @@ export const ARTIFACT_TYPES = {
   'feature-list': {
     name: '功能清单',
     description: '产品功能列表和优先级',
+    extension: 'md'
+  },
+
+  // 战略设计阶段
+  'strategy-doc': {
+    name: '战略设计文档',
+    description: '战略设计与关键假设文档',
     extension: 'md'
   },
 

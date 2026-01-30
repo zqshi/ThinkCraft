@@ -11,6 +11,8 @@ import {
 } from '../application/report.dto.js';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import { AnalysisReportModel } from '../infrastructure/analysis-report.model.js';
+import { mongoManager } from '../../../../config/database.js';
+import promptLoader from '../../../utils/prompt-loader.js';
 
 export class ReportController {
   constructor() {
@@ -134,14 +136,23 @@ export class ReportController {
    */
   async generateReport(req, res) {
     try {
+      if (req.body?.messages && !Array.isArray(req.body.messages)) {
+        throw new Error('messages 必须是数组');
+      }
+      if (Array.isArray(req.body?.messages) && req.body.messages.length === 0) {
+        throw new Error('messages 不能为空');
+      }
       // 兼容旧API：如果传递了 messages 参数，使用简化的报告生成逻辑
       if (req.body.messages && !req.params.reportId) {
         // 创意分析报告生成
         const messages = req.body.messages;
         const reportKey = req.body.reportKey;
         const force = Boolean(req.body.force);
+        const cacheOnly = Boolean(req.body.cacheOnly);
+        const dbType = process.env.DB_TYPE || 'memory';
+        const canUseMongo = dbType === 'mongodb' && mongoManager.isConnected?.();
 
-        if (reportKey && !force) {
+        if (reportKey && !force && canUseMongo) {
           const existing = await AnalysisReportModel.findOne({ reportKey }).lean();
           if (existing?.report) {
             return res.json({
@@ -152,12 +163,23 @@ export class ReportController {
               }
             });
           }
+          if (cacheOnly) {
+            return res.status(404).json({
+              code: -1,
+              error: '缓存未命中'
+            });
+          }
+        } else if (cacheOnly) {
+          return res.status(400).json({
+            code: -1,
+            error: '缓存不可用'
+          });
         }
 
         // 调用AI生成创意分析报告
         const report = await this._generateInsightsReport(messages);
 
-        if (reportKey) {
+        if (reportKey && canUseMongo) {
           await AnalysisReportModel.findOneAndUpdate(
             { reportKey },
             { report, updatedAt: new Date() },
@@ -188,6 +210,10 @@ export class ReportController {
         data: result
       });
     } catch (error) {
+      console.error('[ReportController] generateReport failed:', error?.message || error);
+      if (error?.stack) {
+        console.error(error.stack);
+      }
       res.status(400).json({
         success: false,
         error: error.message
@@ -357,18 +383,11 @@ export class ReportController {
       })
       .join('\n\n');
 
-    // 构建AI提示词
-    const systemPrompt = `你是一位顶尖的创意分析专家，擅长从对话中提炼核心洞察、识别假设、评估可行性，并给出具有可执行性的下一步建议。
+    const promptTemplate = await promptLoader.load('scene-1-dialogue/analysis-report/full-document');
+    const basePrompt = promptTemplate.replace('{CONVERSATION_HISTORY}', conversationContext);
+    const systemPrompt = `${basePrompt}
 
-请基于以下对话历史，生成一份结构化的创意分析报告。
-
-## 对话历史
-${conversationContext}
-
-## 报告要求
-
-请严格按照以下JSON结构返回报告数据：
-
+## 输出JSON结构（必须严格匹配，禁止占位语）
 \`\`\`json
 {
   "initialIdea": "用户最初提出的创意原始表述",
@@ -401,16 +420,8 @@ ${conversationContext}
     "chapter4": {
       "title": "可行性分析与关键挑战",
       "stages": [
-        {
-          "stage": "阶段1名称",
-          "goal": "阶段目标",
-          "tasks": "关键任务"
-        },
-        {
-          "stage": "阶段2名称",
-          "goal": "阶段目标",
-          "tasks": "关键任务"
-        }
+        { "stage": "阶段1名称", "goal": "阶段目标", "tasks": "关键任务" },
+        { "stage": "阶段2名称", "goal": "阶段目标", "tasks": "关键任务" }
       ],
       "biggestRisk": "最大单一风险点",
       "mitigation": "预防措施"
@@ -422,28 +433,34 @@ ${conversationContext}
         {
           "category": "问题类别",
           "question": "具体问题",
-          "why": "为什么重要"
+          "validation": "验证方法",
+          "why": "为什么重要（可选）"
         }
       ]
     },
     "chapter6": {
-      "title": "下一步行动建议",
+      "title": "结构化行动建议",
       "immediateActions": ["行动1", "行动2", "行动3"],
-      "validationMethods": ["验证方法1", "验证方法2"],
-      "successMetrics": ["成功指标1", "成功指标2"]
+      "midtermPlan": {
+        "userResearch": "用户研究计划（目标/方法/样本/周期/产出）",
+        "marketResearch": "市场调研计划（目标/方法/对象/周期/产出）",
+        "prototyping": "原型开发计划（目标/方法/对象/周期/产出）",
+        "partnerships": "合作探索计划（目标/对象/方式/周期/产出）"
+      },
+      "extendedIdeas": ["延伸方向1", "延伸方向2", "延伸方向3"],
+      "validationMethods": ["验证方法1", "验证方法2", "验证方法3"],
+      "successMetrics": ["成功指标1", "成功指标2", "成功指标3"]
     }
   }
 }
 \`\`\`
 
-## 注意事项
-1. 必须严格按照上述JSON结构返回
-2. 所有分析必须基于对话内容，不要编造与对话明显冲突的事实
-3. 允许在“对话信息不足”时做合理推断，但必须标注为“待验证假设”，并给出验证方式
-4. 每个章节都必须提供建设性、可执行的内容，避免空泛描述
-5. 行动建议必须具体可执行，包含动词、对象、时间范围、验证方法与成功指标
-6. arrays 字段至少给出 3 条，stages 至少 2 个阶段
-7. 输出语言专业、客观、建设性，不要返回任何JSON之外的内容`;
+## 质量约束
+1. 禁止出现“待补充/暂无/空白/略/TBD/N/A”等占位语
+2. 所有数组至少 3 条，stages 至少 2 个阶段
+3. 中期探索方向必须具体到目标/方法/对象或样本/周期/产出
+4. 概念延伸提示必须给出关联理由与验证切入点（写入 extendedIdeas 句子中）
+5. 必须输出 JSON，禁止附加说明文本`;
 
     try {
       // 调用DeepSeek API生成报告
@@ -454,7 +471,6 @@ ${conversationContext}
         {
           temperature: 0.7,
           max_tokens: 4000,
-          response_format: { type: 'json_object' },
           timeout: 120000
         }
       );
@@ -471,7 +487,63 @@ ${conversationContext}
         jsonText = jsonText.slice(firstBrace, lastBrace + 1);
       }
 
-      const reportData = JSON.parse(jsonText);
+      let reportData = JSON.parse(jsonText);
+
+      const placeholderPattern = /(待补充|暂无|空白|略|tbd|n\/a)/i;
+      const hasPlaceholder = value => typeof value === 'string' && placeholderPattern.test(value);
+      const isEmptyText = value => value === undefined || value === null || String(value).trim() === '';
+      const hasInvalidArray = arr => !Array.isArray(arr) || arr.length < 3 || arr.some(item => isEmptyText(item) || hasPlaceholder(item));
+      const hasInvalidMidterm = plan => {
+        if (!plan || typeof plan !== 'object') return true;
+        return ['userResearch', 'marketResearch', 'prototyping', 'partnerships'].some(
+          key => isEmptyText(plan[key]) || hasPlaceholder(plan[key])
+        );
+      };
+      const hasInvalidQuestions = list => {
+        if (!Array.isArray(list) || list.length < 3) return true;
+        return list.some(item => isEmptyText(item?.question) || isEmptyText(item?.validation) || hasPlaceholder(item?.question) || hasPlaceholder(item?.validation));
+      };
+      const isLowQuality = data => {
+        const ch6 = data?.chapters?.chapter6 || {};
+        const ch5 = data?.chapters?.chapter5 || {};
+        return (
+          hasInvalidArray(ch6.immediateActions) ||
+          hasInvalidArray(ch6.extendedIdeas) ||
+          hasInvalidArray(ch6.validationMethods) ||
+          hasInvalidArray(ch6.successMetrics) ||
+          hasInvalidMidterm(ch6.midtermPlan) ||
+          hasInvalidArray(ch5.blindSpots) ||
+          hasInvalidQuestions(ch5.keyQuestions)
+        );
+      };
+
+      if (isLowQuality(reportData)) {
+        const repairPrompt = `${systemPrompt}
+
+你的上一次输出包含占位语或空内容，请重新生成完整JSON，确保所有字段充实且可执行。禁止占位语。仅输出JSON。`;
+
+        const repairResponse = await callDeepSeekAPI(
+          [{ role: 'user', content: repairPrompt }],
+          null,
+          {
+            temperature: 0.6,
+            max_tokens: 4000,
+            timeout: 120000
+          }
+        );
+
+        const repairRaw = String(repairResponse.content || '').trim();
+        let repairText = repairRaw;
+        if (repairText.startsWith('```')) {
+          repairText = repairText.replace(/^```[a-zA-Z]*\s*/i, '').replace(/```$/, '').trim();
+        }
+        const repairFirst = repairText.indexOf('{');
+        const repairLast = repairText.lastIndexOf('}');
+        if (repairFirst !== -1 && repairLast !== -1 && (repairFirst !== 0 || repairLast !== repairText.length - 1)) {
+          repairText = repairText.slice(repairFirst, repairLast + 1);
+        }
+        reportData = JSON.parse(repairText);
+      }
 
       return reportData;
     } catch (error) {

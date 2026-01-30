@@ -8,6 +8,9 @@ class BusinessPlanGenerator {
     this.api = apiClient;
     this.state = stateManager;
     this.progressManager = agentProgressManager;
+    this.progressTimer = null;
+    this.progressStartTime = null;
+    this.progressEstimatedMs = 0;
 
     // 章节配置
     this.chapterConfig = {
@@ -66,15 +69,15 @@ class BusinessPlanGenerator {
       },
       proposal: {
         core: [
-          { id: 'executive_summary', title: '项目摘要', desc: '项目背景、核心目标、预期成果' },
-          { id: 'market_analysis', title: '问题洞察', desc: '用户痛点、市场需求、解决方案价值' },
-          { id: 'solution', title: '产品方案', desc: '功能设计、技术选型、用户体验' },
-          { id: 'implementation_plan', title: '实施路径', desc: '开发计划、资源需求、时间节点' }
+          { id: 'project_summary', title: '项目摘要', desc: '项目背景、核心目标、预期成果' },
+          { id: 'problem_insight', title: '问题洞察', desc: '用户痛点、市场需求、解决方案价值' },
+          { id: 'product_solution', title: '产品方案', desc: '功能设计、技术选型、用户体验' },
+          { id: 'implementation_path', title: '实施路径', desc: '开发计划、资源需求、时间节点' }
         ],
         optional: [
-          { id: 'competitive_landscape', title: '竞品分析', desc: '竞品对比、差异化优势' },
-          { id: 'financial_projection', title: '预算规划', desc: '开发成本、运营成本、ROI分析' },
-          { id: 'risk_assessment', title: '风险控制', desc: '技术风险、进度风险、应对措施' }
+          { id: 'competitive_analysis', title: '竞品分析', desc: '竞品对比、差异化优势' },
+          { id: 'budget_planning', title: '预算规划', desc: '开发成本、运营成本、ROI分析' },
+          { id: 'risk_control', title: '风险控制', desc: '技术风险、进度风险、应对措施' }
         ]
       }
     };
@@ -237,9 +240,23 @@ class BusinessPlanGenerator {
     try {
       // 更新状态
       this.state.startGeneration(type, chapterIds);
+      await this.persistGenerationState(type, {
+        status: 'generating',
+        selectedChapters: chapterIds,
+        progress: {
+          current: 0,
+          total: chapterIds.length,
+          currentAgent: null,
+          percentage: 0
+        },
+        startTime: Date.now(),
+        endTime: null,
+        error: null
+      });
 
       // 显示进度模态框
       this.progressManager.show(chapterIds);
+      this.markChapterWorking(chapterIds, 0);
 
       // 获取对话历史
       let conversation = this.state.getConversationHistory();
@@ -251,47 +268,87 @@ class BusinessPlanGenerator {
         throw new Error('缺少对话历史，请先完成至少一轮对话');
       }
 
-      // 调用后端API使用完整文档提示词生成（真实注入对话）
-      const normalizedChapterIds = chapterIds.map(id => id.replace(/_/g, '-'));
-      const response = await this.api.request('/api/business-plan/generate-full', {
-        method: 'POST',
-        body: {
-          chapterIds: normalizedChapterIds,
-          conversationHistory: conversation,
-          type
-        },
-        timeout: 240000,
-        retry: 1
-      });
-
-      if (!response || response.code !== 0 || !response.data) {
-        throw new Error(response?.error || '生成失败，请稍后重试');
-      }
-
-      const { document, tokens, costStats } = response.data;
-
-      // 生成完成后统一更新进度（按所选章节数量）
+      const chapters = [];
+      let totalTokens = 0;
       for (let i = 0; i < chapterIds.length; i++) {
         const chapterId = chapterIds[i];
         const chapterTitle = this.getChapterTitle(type, chapterId);
+        this.progressManager.updateProgress(chapterId, 'working');
+
+        const response = await this.api.request('/api/business-plan/generate-chapter', {
+          method: 'POST',
+          body: {
+            chapterId,
+            conversationHistory: conversation,
+            type
+          },
+          timeout: 180000,
+          retry: 1
+        });
+
+        if (!response || response.code !== 0 || !response.data) {
+          throw new Error(response?.error || '生成失败，请稍后重试');
+        }
+
         const chapter = {
           id: chapterId,
           chapterId,
           title: chapterTitle,
-          content: '',
-          agent: 'AI文档生成'
+          content: response.data.content,
+          agent: response.data.agent,
+          emoji: response.data.emoji,
+          tokens: response.data.tokens,
+          timestamp: response.data.timestamp || Date.now()
         };
+
+        chapters.push(chapter);
+        totalTokens += response.data.tokens || 0;
+
         this.state.updateProgress(chapter.agent, i + 1, chapter);
         this.progressManager.updateProgress(chapterId, 'completed', chapter);
+
+        await this.persistGenerationState(type, {
+          status: 'generating',
+          selectedChapters: chapterIds,
+          progress: this.state.state.generation.progress,
+          data: {
+            chapters,
+            selectedChapters: chapterIds,
+            totalTokens,
+            timestamp: Date.now()
+          }
+        });
       }
+
+      let costStats = null;
+      try {
+        const costResponse = await this.api.request('/api/business-plan/cost-stats', { method: 'GET' });
+        if (costResponse && costResponse.code === 0) {
+          costStats = costResponse.data;
+        }
+      } catch (error) {}
 
       // 完成生成
       this.state.completeGeneration({
-        document,
         selectedChapters: chapterIds,
-        totalTokens: tokens,
+        chapters,
+        totalTokens,
         costStats,
         timestamp: Date.now()
+      });
+      await this.persistGenerationState(type, {
+        status: 'completed',
+        selectedChapters: chapterIds,
+        progress: this.state.state.generation.progress,
+        startTime: this.state.state.generation.startTime,
+        endTime: Date.now(),
+        data: {
+          chapters,
+          selectedChapters: chapterIds,
+          totalTokens,
+          costStats,
+          timestamp: Date.now()
+        }
       });
 
       // 延迟关闭进度框，让用户看到完成状态
@@ -300,15 +357,15 @@ class BusinessPlanGenerator {
 
       // 显示成功提示
       window.modalManager.alert(
-        `生成完成！共生成 ${chapterIds.length} 个章节，使用 ${tokens} tokens，成本 ${costStats.costString}`,
+        `生成完成！共生成 ${chapterIds.length} 个章节，使用 ${totalTokens} tokens${costStats?.costString ? `，成本 ${costStats.costString}` : ''}`,
         'success'
       );
 
       // 保存到存储
       await this.saveReport(type, {
-        document,
+        chapters,
         selectedChapters: chapterIds,
-        totalTokens: tokens,
+        totalTokens,
         costStats,
         timestamp: Date.now()
       });
@@ -318,6 +375,16 @@ class BusinessPlanGenerator {
     } catch (error) {
       // 更新状态为错误
       this.state.errorGeneration(error);
+      await this.persistGenerationState(type, {
+        status: 'error',
+        selectedChapters: chapterIds,
+        progress: this.state.state.generation.progress,
+        endTime: Date.now(),
+        error: {
+          message: error.message,
+          timestamp: Date.now()
+        }
+      });
 
       // 关闭进度框
       this.progressManager.close();
@@ -348,13 +415,84 @@ class BusinessPlanGenerator {
    */
   async saveReport(type, data) {
     try {
+      const chatId = this.state.state.currentChat || window.state?.currentChat || null;
       await window.storageManager.saveReport({
         id: `${type}-${Date.now()}`,
         type,
         data,
-        chatId: this.state.state.currentChat
+        chatId,
+        status: 'completed',
+        progress: {
+          current: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
+          total: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
+          currentAgent: null,
+          percentage: 100
+        },
+        selectedChapters: data.selectedChapters || [],
+        startTime: this.state.state.generation.startTime,
+        endTime: Date.now(),
+        error: null
       });
     } catch (error) {}
+  }
+
+  async persistGenerationState(type, updates) {
+    try {
+      if (!window.storageManager) {
+        return;
+      }
+      const chatId = this.state.state.currentChat || window.state?.currentChat || null;
+      if (!chatId) {
+        return;
+      }
+      const reports = await window.storageManager.getAllReports();
+      const existing = reports.find(r => r.type === type && r.chatId === chatId);
+      const payload = {
+        id: existing?.id,
+        type,
+        chatId,
+        data: updates.data ?? existing?.data ?? null,
+        status: updates.status ?? existing?.status,
+        progress: updates.progress ?? existing?.progress,
+        selectedChapters: updates.selectedChapters ?? existing?.selectedChapters,
+        startTime: updates.startTime ?? existing?.startTime,
+        endTime: updates.endTime ?? existing?.endTime,
+        error: updates.error ?? existing?.error
+      };
+      await window.storageManager.saveReport(payload);
+    } catch (error) {}
+  }
+
+  markChapterWorking(chapterIds, index) {
+    const chapterId = chapterIds[index];
+    if (!chapterId) {
+      return;
+    }
+    this.progressManager.updateProgress(chapterId, 'working');
+  }
+
+  restoreProgress(type, reportEntry) {
+    const payload = reportEntry?.data || reportEntry || {};
+    const chapterIds = payload.selectedChapters || reportEntry?.selectedChapters || [];
+    if (!Array.isArray(chapterIds) || chapterIds.length === 0) {
+      return;
+    }
+    this.progressManager.show(chapterIds);
+
+    const completed = Array.isArray(payload.chapters) ? payload.chapters.map(ch => ch.chapterId) : [];
+    chapterIds.forEach((chapterId, idx) => {
+      if (completed.includes(chapterId)) {
+        this.progressManager.updateProgress(chapterId, 'completed');
+      } else if (idx === completed.length) {
+        this.progressManager.updateProgress(chapterId, 'working');
+      }
+    });
+
+    const progress = reportEntry?.progress || this.state.state.generation.progress;
+    const completedCount = completed.length;
+    const total = chapterIds.length;
+    const percentage = progress?.percentage ?? Math.round((completedCount / total) * 100);
+    this.progressManager.updateOverallProgress(percentage, completedCount, total);
   }
 
   /**

@@ -59,11 +59,19 @@ export function saveCurrentChat() {
     if (!appState.settings.saveHistory || appState.messages.length === 0) return;
 
     let title = '新对话';
-    const firstUserMsg = appState.messages.find(m => m.role === 'user');
-    if (firstUserMsg) {
-        title = firstUserMsg.content.substring(0, 30);
-        if (firstUserMsg.content.length > 30) {
-            title += '...';
+    const existingChat = appState.currentChat !== null
+        ? appState.chats.find(c => c.id == appState.currentChat)
+        : null;
+    const titleEdited = Boolean(existingChat?.titleEdited);
+    if (titleEdited && existingChat?.title) {
+        title = existingChat.title;
+    } else {
+        const firstUserMsg = appState.messages.find(m => m.role === 'user');
+        if (firstUserMsg) {
+            title = firstUserMsg.content.substring(0, 30);
+            if (firstUserMsg.content.length > 30) {
+                title += '...';
+            }
         }
     }
 
@@ -76,6 +84,7 @@ export function saveCurrentChat() {
         const chat = {
             id: chatId,
             title: title,
+            titleEdited: false,
             messages: [...appState.messages],
             userData: {...appState.userData},
             conversationStep: appState.conversationStep,
@@ -92,6 +101,7 @@ export function saveCurrentChat() {
             appState.chats[index] = {
                 ...appState.chats[index],
                 title: title,
+                titleEdited: appState.chats[index].titleEdited || false,
                 messages: [...appState.messages],
                 userData: {...appState.userData},
                 conversationStep: appState.conversationStep,
@@ -102,6 +112,7 @@ export function saveCurrentChat() {
             const chat = {
                 id: appState.currentChat,
                 title: title,
+                titleEdited: titleEdited || false,
                 messages: [...appState.messages],
                 userData: {...appState.userData},
                 conversationStep: appState.conversationStep,
@@ -309,6 +320,7 @@ export function renameChat(e, chatId) {
     const newTitle = prompt('修改对话标题', chat.title);
     if (newTitle && newTitle.trim()) {
         chat.title = newTitle.trim();
+        chat.titleEdited = true;
         localStorage.setItem('thinkcraft_chats', JSON.stringify(appState.chats));
         loadChats();
         reopenChatMenu(chatId);

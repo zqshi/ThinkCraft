@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>立即清理Mock数据</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #dc3545;
+            margin-bottom: 10px;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: #856404;
+        }
+
+        .warning strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .mock-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .mock-list h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .mock-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 3px solid #dc3545;
+            font-size: 14px;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+        }
+
+        .log {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            display: none;
+        }
+
+        .log.show {
+            display: block;
+        }
+
+        .log-item {
+            padding: 4px 0;
+        }
+
+        .log-success {
+            color: #28a745;
+        }
+
+        .log-error {
+            color: #dc3545;
+        }
+
+        .log-info {
+            color: #17a2b8;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #dc3545;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            color: #155724;
+            display: none;
+            text-align: center;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .success-message h2 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .instructions {
+            background: #e7f3ff;
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .instructions strong {
+            color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ 立即清理Mock数据</h1>
+        <p class="subtitle">一键清除所有测试数据</p>
+
+        <div class="warning">
+            <strong>⚠️ 发现以下Mock数据：</strong>
+            <div class="mock-list">
+                <div class="mock-item">✗ 创意收集器</div>
+                <div class="mock-item">✗ 在线教育平台创意讨论</div>
+                <div class="mock-item">✗ 宠物社交APP验证</div>
+                <div class="mock-item">✗ 智能健身APP创意验证</div>
+            </div>
+            这些数据存储在浏览器中，需要立即清理！
+        </div>
+
+        <div class="btn-container">
+            <button class="btn btn-danger" id="btnClean" onclick="cleanAllData()">
+                <span id="cleanText">🗑️ 立即清理所有数据</span>
+            </button>
+            <button class="btn btn-info" onclick="scanData()">
+                🔍 扫描数据
+            </button>
+        </div>
+
+        <div class="instructions">
+            <strong>清理后请执行：</strong><br>
+            1. 强制刷新页面（Ctrl+Shift+R 或 Cmd+Shift+R）<br>
+            2. 重新打开ThinkCraft应用<br>
+            3. 验证Mock数据已消失
+        </div>
+
+        <div class="log" id="log"></div>
+        <div class="success-message" id="successMessage">
+            <h2>✅ 清理完成！</h2>
+            <p>所有Mock数据已清除</p>
+            <p style="margin-top: 10px;">请立即刷新ThinkCraft应用页面</p>
+            <p style="margin-top: 5px; font-size: 12px; color: #666;">
+                Windows/Linux: Ctrl+Shift+R<br>
+                Mac: Cmd+Shift+R
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function addLog(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(logItem);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            logDiv.classList.add('show');
+        }
+
+        async function cleanAllData() {
+            const btnClean = document.getElementById('btnClean');
+            const cleanText = document.getElementById('cleanText');
+            const successMessage = document.getElementById('successMessage');
+
+            btnClean.disabled = true;
+            cleanText.innerHTML = '清理中... <span class="loading"></span>';
+
+            try {
+                addLog('开始清理所有Mock数据...', 'info');
+
+                // 1. 清理 localStorage
+                addLog('清理 localStorage...', 'info');
+                const localStorageKeys = Object.keys(localStorage);
+                localStorageKeys.forEach(key => {
+                    localStorage.removeItem(key);
+                    addLog(`  删除: ${key}`, 'success');
+                });
+                addLog('✓ localStorage 已清空', 'success');
+
+                // 2. 清理 sessionStorage
+                addLog('清理 sessionStorage...', 'info');
+                sessionStorage.clear();
+                addLog('✓ sessionStorage 已清空', 'success');
+
+                // 3. 清理 IndexedDB
+                addLog('清理 IndexedDB...', 'info');
+                try {
+                    const db = await openIndexedDB();
+                    const stores = ['chats', 'reports', 'projects', 'inspirations', 'knowledge', 'artifacts', 'settings'];
+
+                    for (const storeName of stores) {
+                        await clearStore(db, storeName);
+                        addLog(`  清空: ${storeName}`, 'success');
+                    }
+
+                    db.close();
+                    addLog('✓ IndexedDB 已清空', 'success');
+                } catch (error) {
+                    addLog(`IndexedDB 清理失败: ${error.message}`, 'error');
+                }
+
+                // 4. 删除整个 IndexedDB 数据库
+                addLog('删除 ThinkCraft 数据库...', 'info');
+                await new Promise((resolve, reject) => {
+                    const request = indexedDB.deleteDatabase('ThinkCraft');
+                    request.onsuccess = () => {
+                        addLog('✓ ThinkCraft 数据库已删除', 'success');
+                        resolve();
+                    };
+                    request.onerror = () => reject(request.error);
+                    request.onblocked = () => {
+                        addLog('⚠ 数据库删除被阻止，请关闭所有ThinkCraft标签页', 'error');
+                        resolve();
+                    };
+                });
+
+                // 5. 清理 Cookies
+                addLog('清理 Cookies...', 'info');
+                const cookies = document.cookie.split(';');
+                cookies.forEach(cookie => {
+                    const name = cookie.split('=')[0].trim();
+                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                    addLog(`  删除: ${name}`, 'success');
+                });
+                addLog('✓ Cookies 已清空', 'success');
+
+                // 6. 清理缓存
+                addLog('清理应用缓存...', 'info');
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (const cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        addLog(`  删除缓存: ${cacheName}`, 'success');
+                    }
+                    addLog('✓ 应用缓存已清空', 'success');
+                }
+
+                // 7. 注销 Service Worker
+                addLog('注销 Service Worker...', 'info');
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                        addLog('  Service Worker 已注销', 'success');
+                    }
+                    addLog('✓ Service Worker 已清理', 'success');
+                }
+
+                addLog('', 'info');
+                addLog('========================================', 'success');
+                addLog('✓ 所有Mock数据已清除！', 'success');
+                addLog('========================================', 'success');
+                addLog('', 'info');
+                addLog('请立即刷新ThinkCraft应用页面', 'info');
+
+                successMessage.classList.add('show');
+
+            } catch (error) {
+                addLog(`清理失败: ${error.message}`, 'error');
+                alert('清理失败: ' + error.message);
+            } finally {
+                btnClean.disabled = false;
+                cleanText.textContent = '🗑️ 重新清理';
+            }
+        }
+
+        async function openIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('ThinkCraft', 7);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    const stores = ['chats', 'reports', 'projects', 'inspirations', 'knowledge', 'artifacts', 'settings'];
+                    stores.forEach(storeName => {
+                        if (!db.objectStoreNames.contains(storeName)) {
+                            db.createObjectStore(storeName, { keyPath: 'id' });
+                        }
+                    });
+                };
+            });
+        }
+
+        async function clearStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                } catch (error) {
+                    resolve(); // 如果存储不存在，直接resolve
+                }
+            });
+        }
+
+        async function scanData() {
+            addLog('开始扫描数据...', 'info');
+
+            // 扫描 localStorage
+            const localStorageCount = Object.keys(localStorage).length;
+            addLog(`localStorage: ${localStorageCount} 项`, 'info');
+
+            // 扫描 sessionStorage
+            const sessionStorageCount = Object.keys(sessionStorage).length;
+            addLog(`sessionStorage: ${sessionStorageCount} 项`, 'info');
+
+            // 扫描 IndexedDB
+            try {
+                const db = await openIndexedDB();
+                const stores = ['chats', 'reports', 'projects', 'inspirations', 'knowledge', 'artifacts'];
+
+                for (const storeName of stores) {
+                    const count = await getStoreCount(db, storeName);
+                    addLog(`IndexedDB.${storeName}: ${count} 条记录`, 'info');
+                }
+
+                db.close();
+            } catch (error) {
+                addLog(`IndexedDB 扫描失败: ${error.message}`, 'error');
+            }
+
+            addLog('扫描完成', 'success');
+        }
+
+        async function getStoreCount(db, storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.count();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => resolve(0);
+                } catch (error) {
+                    resolve(0);
+                }
+            });
+        }
+
+        // 页面加载时自动扫描
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                addLog('检测到Mock数据，请点击"立即清理所有数据"按钮', 'info');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -565,11 +565,11 @@
                     <!-- 章节列表将通过JavaScript动态生成 -->
                 </div>
 
-                <div class="modal-footer" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--border);">
+                <div class="modal-footer">
                     <p id="chapterStats" style="color: var(--text-secondary); font-size: 14px;">
                         已选 <strong style="color: var(--primary);">5</strong> 个章节，预计用时 <strong style="color: var(--primary);">2分钟</strong>
                     </p>
-                    <button class="btn-primary" onclick="startGeneration()" style="margin-top: 12px;">开始生成</button>
+                    <button class="btn-primary" onclick="startGeneration()">开始生成</button>
                 </div>
             </div>
         </div>
@@ -1008,8 +1008,6 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- 系统提示词配置 -->
-    <script src="config/system-prompts.js?v=20260128-2"></script>
     <!-- Legacy boot (split for maintainability) -->
     <script src="frontend/js/boot/legacy/index-app-state.js"></script>
 
@@ -1026,7 +1024,8 @@
     <!-- 功能模块 -->
     <script src="frontend/js/modules/project-manager.js"></script>
     <script src="frontend/js/modules/workflow-executor.js"></script>
-    <script src="frontend/js/modules/workflow-recommendation-manager.js"></script>
+    <script src="frontend/js/modules/preview-panel.js"></script>
+    <script src="frontend/js/modules/agent-collaboration.js"></script>
     <script src="frontend/js/modules/business-plan-generator.js"></script>
 
     <script src="frontend/js/app-boot.js?v=20260128-3"></script>

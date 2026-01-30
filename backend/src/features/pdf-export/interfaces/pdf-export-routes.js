@@ -55,5 +55,6 @@ router.get('/exports/:exportId/download', controller.downloadExport.bind(control
  * POST /api/pdf-export/report
  */
 router.post('/report', controller.exportReportPDF.bind(controller));
+router.post('/business-plan', controller.exportBusinessPlanPDF.bind(controller));
 
 export default router;

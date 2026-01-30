@@ -14,7 +14,7 @@ const router = express.Router();
  * 请求体: { phone: string, code: string }
  * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
  */
-router.post('/login', authController.login);
+router.post('/login', (req, res) => authController.login(req, res));
 
 /**
  * POST /api/auth/register
@@ -22,7 +22,7 @@ router.post('/login', authController.login);
  * 请求体: { phone: string, code: string }
  * 响应: { code: number, message: string, data: { accessToken: string, refreshToken: string, user: object } }
  */
-router.post('/register', authController.register);
+router.post('/register', (req, res) => authController.register(req, res));
 
 /**
  * POST /api/auth/refresh-token
@@ -30,7 +30,7 @@ router.post('/register', authController.register);
  * 请求体: { refreshToken: string }
  * 响应: { code: number, message: string, data: { accessToken: string, user: object } }
  */
-router.post('/refresh-token', authController.refreshToken);
+router.post('/refresh-token', (req, res) => authController.refreshToken(req, res));
 
 /**
  * GET /api/auth/me

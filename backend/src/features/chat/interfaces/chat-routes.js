@@ -414,10 +414,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    if (systemPrompt) {
-      const preview = String(systemPrompt).split('\n').slice(0, 2).join(' ').slice(0, 120);
-      console.log('[Chat API] systemPrompt loaded:', preview);
-    } else {
+    if (!systemPrompt) {
       console.warn('[Chat API] systemPrompt missing');
     }
 

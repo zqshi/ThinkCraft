@@ -40,7 +40,14 @@ const CHAPTER_AGENTS = {
     financial_projection: { name: '财务分析师', emoji: '💵', estimatedTime: 50 },
     risk_assessment: { name: '风险专家', emoji: '⚠️', estimatedTime: 35 },
     implementation_plan: { name: '项目经理', emoji: '📋', estimatedTime: 40 },
-    appendix: { name: '文档专家', emoji: '📎', estimatedTime: 25 }
+    appendix: { name: '文档专家', emoji: '📎', estimatedTime: 25 },
+    project_summary: { name: '产品经理', emoji: '📋', estimatedTime: 25 },
+    problem_insight: { name: '用户研究专家', emoji: '🔍', estimatedTime: 35 },
+    product_solution: { name: '产品设计专家', emoji: '💡', estimatedTime: 40 },
+    implementation_path: { name: '项目管理专家', emoji: '🛤️', estimatedTime: 35 },
+    competitive_analysis: { name: '竞品分析专家', emoji: '⚔️', estimatedTime: 30 },
+    budget_planning: { name: '财务规划专家', emoji: '💰', estimatedTime: 30 },
+    risk_control: { name: '风险管理专家', emoji: '⚠️', estimatedTime: 25 }
 };
 
 /**

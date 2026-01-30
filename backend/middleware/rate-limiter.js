@@ -11,6 +11,7 @@ export const generalLimiter = rateLimit({
     code: -1,
     error: '请求过于频繁，请稍后再试'
   },
+  skip: () => process.env.NODE_ENV === 'development',
   standardHeaders: true,
   legacyHeaders: false
 });

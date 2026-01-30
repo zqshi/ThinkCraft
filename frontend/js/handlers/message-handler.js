@@ -5,7 +5,6 @@
 
 import { appState } from '../core/app-state.js';
 import { scrollToBottom, forceScrollToBottom } from '../utils/helpers.js';
-import { SYSTEM_PROMPT } from '../app-config.js';
 
 /**
  * 发送消息到AI
@@ -82,25 +81,11 @@ export async function sendMessage() {
     appState.isLoading = appState.pendingChatIds.size > 0;
 
     try {
-        if (typeof window.loadSystemPrompts === 'function') {
-            await window.loadSystemPrompts();
-        }
-        const resolvedSystemPrompt =
-            window.SYSTEM_PROMPTS && window.DEFAULT_PROMPT
-                ? window.SYSTEM_PROMPTS[window.DEFAULT_PROMPT]
-                : SYSTEM_PROMPT;
-        if (resolvedSystemPrompt) {
-            console.log('[Chat] systemPrompt preview:', resolvedSystemPrompt.slice(0, 80));
-        } else {
-            console.warn('[Chat] systemPrompt missing, using model default');
-        }
-
         const response = await fetch(`${appState.settings.apiUrl}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                messages: appState.messages.map(m => ({ role: m.role, content: m.content })),
-                systemPrompt: resolvedSystemPrompt
+                messages: appState.messages.map(m => ({ role: m.role, content: m.content }))
             })
         });
 

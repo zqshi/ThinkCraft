@@ -6,7 +6,7 @@ import { ChatModel } from './chat.model.js';
 import { Chat } from '../domain/chat.aggregate.js';
 import { ChatStatus } from '../domain/chat-status.vo.js';
 import { Message } from '../domain/message.entity.js';
-import logger from '../../../infrastructure/logger/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class ChatMongoRepository {
   /**

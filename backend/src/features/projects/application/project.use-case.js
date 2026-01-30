@@ -14,7 +14,7 @@ import {
   SearchProjectsRequestDTO
 } from './project.dto.js';
 import { ProjectService } from '../domain/project.service.js';
-import { projectRepository } from '../infrastructure/project-inmemory.repository.js';
+import { projectRepository } from '../infrastructure/index.js';
 
 export class ProjectUseCase {
   constructor() {

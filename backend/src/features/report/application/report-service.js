@@ -25,6 +25,18 @@ function buildConversationSummary(messages) {
     .join('\n\n');
 }
 
+function sanitizeJSONText(text) {
+  if (!text) {
+    return text;
+  }
+  return text
+    .replace(/^\uFEFF/, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\u2028|\u2029/g, '')
+    .replace(/\u00A0/g, ' ');
+}
+
 export async function generateReport(messages) {
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return fail('必须提供有效的对话历史', 400);
@@ -43,15 +55,24 @@ export async function generateReport(messages) {
     let reportData;
 
     try {
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      const rawContent = response.content || '';
+      const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)```/i) || rawContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        reportData = JSON.parse(jsonMatch[0]);
+        const jsonText = jsonMatch[1] || jsonMatch[0];
+        reportData = JSON.parse(jsonText);
       } else {
-        reportData = JSON.parse(response.content);
+        reportData = JSON.parse(rawContent);
       }
     } catch (parseError) {
-      console.error('JSON解析失败:', response.content);
-      return fail('AI返回的报告格式无效', 500, response.content);
+      try {
+        const normalized = sanitizeJSONText(response.content || '');
+        const jsonMatch = normalized.match(/```json\s*([\s\S]*?)```/i) || normalized.match(/\{[\s\S]*\}/);
+        const jsonText = jsonMatch ? jsonMatch[1] || jsonMatch[0] : normalized;
+        reportData = JSON.parse(jsonText);
+      } catch (retryError) {
+        console.error('JSON解析失败:', response.content);
+        return fail('AI返回的报告格式无效', 500, response.content);
+      }
     }
 
     return ok({

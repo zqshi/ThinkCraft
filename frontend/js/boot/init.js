@@ -24,7 +24,10 @@ function initApp() {
 
   window.storageManager
     .init()
-    .then(() => {
+    .then(async () => {
+      if (window.storageManager?.migrateFromLocalStorage) {
+        await window.storageManager.migrateFromLocalStorage();
+      }
       loadGenerationStates();
     })
     .catch(error => {});

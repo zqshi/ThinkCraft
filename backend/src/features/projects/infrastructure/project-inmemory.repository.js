@@ -32,7 +32,10 @@ export class ProjectInMemoryRepository extends ProjectRepository {
     const ideaIdObj = ideaId instanceof IdeaId ? ideaId : new IdeaId(ideaId);
 
     for (const project of this.projects.values()) {
-      if (project.ideaId.equals(ideaIdObj)) {
+      if (
+        project.ideaId.equals(ideaIdObj) &&
+        project.status.value !== ProjectStatus.DELETED.value
+      ) {
         return project;
       }
     }
@@ -130,8 +133,15 @@ export class ProjectInMemoryRepository extends ProjectRepository {
    * 检查创意是否已有项目
    */
   async existsByIdeaId(ideaId) {
-    const project = await this.findByIdeaId(ideaId);
-    return project !== null;
+    for (const project of this.projects.values()) {
+      if (
+        project.ideaId.equals(ideaId instanceof IdeaId ? ideaId : new IdeaId(ideaId)) &&
+        project.status.value !== ProjectStatus.DELETED.value
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

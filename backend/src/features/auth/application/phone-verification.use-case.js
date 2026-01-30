@@ -101,8 +101,10 @@ export class PhoneVerificationUseCase {
         throw new Error('验证码已过期或不存在');
       }
 
-      // 验证码比对
-      if (storedCode !== code) {
+      // 验证码比对（转换为字符串比较）
+      const storedCodeStr = String(storedCode);
+      const inputCodeStr = String(code);
+      if (storedCodeStr !== inputCodeStr) {
         // 记录失败次数
         const failKey = `sms:fail:${phone}`;
         const failCount = await this.cacheService.get(failKey);

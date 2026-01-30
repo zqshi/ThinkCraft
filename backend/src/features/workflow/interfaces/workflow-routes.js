@@ -89,6 +89,31 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
+    strategy: `你是一位战略设计专家。基于创意与对话内容，输出战略设计方案。
+
+创意对话内容：
+{CONVERSATION}
+
+请生成以下内容：
+
+# 战略设计文档
+
+## 1. 战略目标
+（核心目标与阶段性目标）
+
+## 2. 关键假设
+（业务假设与验证路径）
+
+## 3. 核心策略
+（产品策略/技术策略/市场策略）
+
+## 4. 里程碑规划
+（关键节点与交付物）
+
+## 5. 风险与对策
+（潜在风险与缓释措施）
+
+请输出完整的Markdown格式文档。`,
     architecture: `你是一位资深的架构师。基于产品需求和设计方案，设计系统的技术架构。
 
 产品需求文档：
@@ -387,6 +412,7 @@ function getArtifactName(artifactType) {
         'ui-design': 'UI设计方案',
         'architecture-doc': '系统架构设计',
         'code': '开发实现指南',
+        'strategy-doc': '战略设计文档',
         'test-report': '测试报告',
         'deploy-doc': '部署文档',
         'marketing-plan': '运营推广方案'
@@ -399,12 +425,15 @@ function getArtifactName(artifactType) {
  */
 function getAgentName(agentType) {
     const nameMap = {
+        'strategy-design': '战略设计师',
         'product-manager': '产品经理',
-        'designer': 'UI设计师',
-        'backend-dev': '后端工程师',
-        'frontend-dev': '前端工程师',
-        'data-analyst': '测试工程师',
-        'marketing': '运营专家',
+        'ui-ux-designer': 'UI/UX设计师',
+        'tech-lead': '技术负责人',
+        'backend-developer': '后端开发',
+        'frontend-developer': '前端开发',
+        'qa-engineer': '测试工程师',
+        'devops': '运维工程师',
+        'marketing': '营销专家',
         'operations': '运营专家'
     };
     return nameMap[agentType] || agentType;

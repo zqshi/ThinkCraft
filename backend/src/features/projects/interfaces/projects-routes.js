@@ -4,8 +4,13 @@
  */
 import express from 'express';
 import { projectController } from './project.controller.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * POST /api/projects
@@ -16,20 +21,17 @@ const router = express.Router();
 router.post('/', projectController.createProject);
 
 /**
+ * POST /api/projects/cleanup
+ * 清理项目空间数据（仅开发环境）
+ * 响应: { code: number, message: string, data: { projects: number, businessPlans: number, analysisReports: number } }
+ */
+router.post('/cleanup', projectController.clearProjectSpace);
+
+/**
  * GET /api/projects/:id
  * 获取项目详情
  * 响应: { code: number, message: string, data: { project: object, stages: array, artifacts: array } }
  */
-router.get('/:id', projectController.getProject);
-
-/**
- * GET /api/projects
- * 获取所有项目
- * 查询参数: ?mode=development&status=planning|...\u0026limit=10\u0026offset=0\u0026sortBy=updatedAt
- * 响应: { code: number, message: string, data: { projects: array, total: number } }
- */
-router.get('/', projectController.getAllProjects);
-
 /**
  * PUT /api/projects/:id
  * 更新项目
@@ -59,6 +61,21 @@ router.put('/:id/workflow', projectController.customizeWorkflow);
  * 响应: { code: number, message: string, data: { project: object } }
  */
 router.get('/by-idea/:ideaId', projectController.getProjectByIdeaId);
+
+/**
+ * GET /api/projects/:id
+ * 获取项目详情
+ * 响应: { code: number, message: string, data: { project: object, stages: array, artifacts: array } }
+ */
+router.get('/:id', projectController.getProject);
+
+/**
+ * GET /api/projects
+ * 获取所有项目
+ * 查询参数: ?mode=development&status=planning|...\u0026limit=10\u0026offset=0\u0026sortBy=updatedAt
+ * 响应: { code: number, message: string, data: { projects: array, total: number } }
+ */
+router.get('/', projectController.getAllProjects);
 
 /**
  * GET /api/projects/statistics
@@ -126,6 +143,61 @@ router.get('/health', (req, res) => {
       timestamp: new Date().toISOString()
     }
   });
+});
+
+/**
+ * GET /api/projects/workflow-config/:category
+ * 获取指定类型的工作流配置
+ * 参数: category - 工作流类型（如 'product-development'）
+ * 响应: { code: number, message: string, data: { workflowId, workflowName, description, stages } }
+ */
+router.get('/workflow-config/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const workflowPath = path.join(
+      __dirname,
+      '../../../../../prompts/scene-2-agent-orchestration',
+      category,
+      'workflow.json'
+    );
+
+    const content = await fs.readFile(workflowPath, 'utf-8');
+    const config = JSON.parse(content);
+
+    // 转换为前端需要的格式
+    const stages = config.phases.map((phase, index) => ({
+      id: phase.phase_id,
+      name: phase.phase_name,
+      description: phase.description || '',
+      agents: phase.agents.map(a => a.agent_id),
+      agentRoles: phase.agents.map(a => ({
+        id: a.agent_id,
+        role: a.role,
+        tasks: a.tasks
+      })),
+      dependencies: phase.dependencies || [],
+      outputs: phase.outputs || [],
+      order: index + 1
+    }));
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        workflowId: config.workflow_id,
+        workflowName: config.workflow_name,
+        description: config.description,
+        stages
+      }
+    });
+  } catch (error) {
+    console.error('加载工作流配置失败:', error);
+    res.status(500).json({
+      code: -1,
+      message: '加载工作流配置失败',
+      error: error.message
+    });
+  }
 });
 
 export default router;

@@ -4,12 +4,28 @@
 import fs from 'fs';
 import path from 'path';
 import { PdfExportUseCase } from '../application/pdf-export.use-case.js';
+import PDFDocument from 'pdfkit';
 import { ExportInMemoryRepository } from '../infrastructure/export-inmemory.repository.js';
 import { PdfGenerationService } from '../application/pdf-generation.service.js';
 import { CreateExportRequestDto } from '../application/pdf-export.dto.js';
 import { logger } from '../../../../middleware/logger.js';
 
 export class PdfExportController {
+  resolveCjkFontPath() {
+    const candidates = [
+      '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+      '/System/Library/Fonts/PingFang.ttc',
+      '/System/Library/Fonts/Supplemental/Songti.ttc',
+      '/System/Library/Fonts/Supplemental/Heiti.ttc',
+      '/System/Library/Fonts/STHeiti Medium.ttc'
+    ];
+    for (const fontPath of candidates) {
+      if (fs.existsSync(fontPath)) {
+        return fontPath;
+      }
+    }
+    return null;
+  }
   constructor() {
     this.pdfExportUseCase = new PdfExportUseCase(
       new ExportInMemoryRepository(),
@@ -193,21 +209,108 @@ export class PdfExportController {
         });
       }
 
-      // 使用PDF生成服务直接生成PDF
-      const pdfBuffer = await this.pdfExportUseCase.pdfGenerationService.generateReportPDF(
-        reportData,
-        ideaTitle || '创意分析报告'
-      );
+      try {
+        const pdfBuffer = await this.pdfExportUseCase.pdfGenerationService.generateReportPDF(
+          reportData,
+          ideaTitle || '创意分析报告'
+        );
 
-      // 设置响应头
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
-      res.setHeader('Content-Length', pdfBuffer.length);
+        if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')) {
+          throw new Error('PDF生成失败：输出内容无效');
+        }
 
-      // 发送PDF
-      res.send(pdfBuffer);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.send(pdfBuffer);
+      } catch (puppeteerError) {
+        // 兼容无浏览器环境，降级为pdfkit文本PDF
+        const doc = new PDFDocument({ autoFirstPage: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
+        doc.pipe(res);
+
+        const cjkFont = this.resolveCjkFontPath();
+        if (cjkFont) {
+          doc.font(cjkFont);
+        }
+        doc.fontSize(20).text(ideaTitle || '创意分析报告', { align: 'center' });
+        doc.moveDown();
+
+        const chapters = reportData.chapters || {};
+        Object.keys(chapters).forEach((key, idx) => {
+          const chapter = chapters[key] || {};
+          const title = chapter.title || `章节 ${idx + 1}`;
+          doc.addPage();
+          doc.fontSize(16).text(title);
+          doc.moveDown(0.5);
+          const content = JSON.stringify(chapter, null, 2);
+          doc.fontSize(10).text(content);
+        });
+
+        doc.end();
+      }
     } catch (error) {
       logger.error('[PDF Export] 报告导出失败:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 快速导出商业计划书/产品立项材料为PDF
+   * POST /api/pdf-export/business-plan
+   */
+  async exportBusinessPlanPDF(req, res) {
+    try {
+      const { chapters, title, type } = req.body;
+      if (!Array.isArray(chapters) || chapters.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: '缺少报告章节数据'
+        });
+      }
+
+      try {
+        const pdfBuffer = await this.pdfExportUseCase.pdfGenerationService.generateBusinessPlanPDF(
+          chapters,
+          title || (type === 'proposal' ? '产品立项材料' : '商业计划书')
+        );
+
+        if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')) {
+          throw new Error('PDF生成失败：输出内容无效');
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.send(pdfBuffer);
+      } catch (puppeteerError) {
+        const doc = new PDFDocument({ autoFirstPage: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`);
+        doc.pipe(res);
+
+        const cjkFont = this.resolveCjkFontPath();
+        if (cjkFont) {
+          doc.font(cjkFont);
+        }
+        doc.fontSize(20).text(title || (type === 'proposal' ? '产品立项材料' : '商业计划书'), { align: 'center' });
+        doc.moveDown();
+
+        chapters.forEach((chapter, idx) => {
+          doc.addPage();
+          doc.fontSize(16).text(chapter.title || `章节 ${idx + 1}`);
+          doc.moveDown(0.5);
+          doc.fontSize(10).text(chapter.content || '');
+        });
+
+        doc.end();
+      }
+    } catch (error) {
+      logger.error('[PDF Export] 商业报告导出失败:', error);
       res.status(500).json({
         success: false,
         error: error.message

@@ -11,9 +11,9 @@ export class ProjectService {
    * 创建项目
    */
   async createProject(ideaId, name, mode) {
-    // 检查创意是否已有项目
-    const existingProject = await this.projectRepository.findByIdeaId(ideaId);
-    if (existingProject) {
+    // 检查创意是否已有有效项目
+    const hasActiveProject = await this.projectRepository.existsByIdeaId(ideaId);
+    if (hasActiveProject) {
       throw new Error('该创意已创建项目');
     }
 

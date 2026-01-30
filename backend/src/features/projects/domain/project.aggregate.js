@@ -20,7 +20,9 @@ export class Project extends AggregateRoot {
     name,
     mode,
     status = ProjectStatus.PLANNING,
-    workflow = null
+    workflow = null,
+    workflowCategory = 'product-development',
+    assignedAgents = []
   ) {
     super(id);
     this._ideaId = ideaId;
@@ -28,6 +30,8 @@ export class Project extends AggregateRoot {
     this._mode = mode;
     this._status = status;
     this._workflow = workflow;
+    this._workflowCategory = workflowCategory;
+    this._assignedAgents = assignedAgents;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
@@ -54,7 +58,9 @@ export class Project extends AggregateRoot {
       projectName,
       projectMode,
       ProjectStatus.PLANNING,
-      workflow
+      workflow,
+      'product-development',
+      []
     );
 
     // 添加项目创建事件
@@ -75,6 +81,18 @@ export class Project extends AggregateRoot {
 
     if (updates.status !== undefined) {
       this._status = ProjectStatus.fromString(updates.status);
+    }
+
+    if (updates.ideaId !== undefined) {
+      this._ideaId = new IdeaId(updates.ideaId);
+    }
+
+    if (updates.workflowCategory !== undefined) {
+      this._workflowCategory = updates.workflowCategory;
+    }
+
+    if (updates.assignedAgents !== undefined) {
+      this._assignedAgents = Array.isArray(updates.assignedAgents) ? updates.assignedAgents : [];
     }
 
     this.updateTimestamp();
@@ -144,6 +162,12 @@ export class Project extends AggregateRoot {
   get workflow() {
     return this._workflow;
   }
+  get workflowCategory() {
+    return this._workflowCategory;
+  }
+  get assignedAgents() {
+    return this._assignedAgents;
+  }
 
   toJSON() {
     return {
@@ -152,7 +176,9 @@ export class Project extends AggregateRoot {
       name: this._name.value,
       mode: this._mode.value,
       status: this._status.value,
-      workflow: this._workflow ? this._workflow.toJSON() : null
+      workflow: this._workflow ? this._workflow.toJSON() : null,
+      workflowCategory: this._workflowCategory,
+      assignedAgents: this._assignedAgents
     };
   }
 }

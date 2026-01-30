@@ -9,7 +9,9 @@
     "format": "prettier --write \"**/*.{js,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,css,md}\"",
     "postinstall": "cd backend && npm install",
-    "prepare": "husky"
+    "prepare": "husky",
+    "cleanup": "node backend/scripts/clear-project-space.js",
+    "cleanup:verify": "node -e \"const mongoose = require('mongoose'); mongoose.connect('mongodb://localhost:27017/thinkcraft').then(async () => { const db = mongoose.connection.db; const collections = ['projects', 'chats', 'business_plans', 'analysis_reports', 'users']; for (const col of collections) { const count = await db.collection(col).countDocuments(); console.log(col + ': ' + count); } process.exit(0); });\""
   },
   "lint-staged": {
     "*.js": [

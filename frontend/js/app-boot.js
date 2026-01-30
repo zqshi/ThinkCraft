@@ -237,19 +237,6 @@
             state.isLoading = state.pendingChatIds.size > 0;
 
             try {
-                if (typeof window.loadSystemPrompts === 'function') {
-                    await window.loadSystemPrompts();
-                }
-                const resolvedSystemPrompt =
-                    window.SYSTEM_PROMPTS && window.DEFAULT_PROMPT
-                        ? window.SYSTEM_PROMPTS[window.DEFAULT_PROMPT]
-                        : undefined;
-                if (resolvedSystemPrompt) {
-                    console.log('[Chat] systemPrompt preview:', resolvedSystemPrompt.slice(0, 80));
-                } else {
-                    console.warn('[Chat] systemPrompt missing, using model default');
-                }
-
                 // 调用后端API
                 const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
                     method: 'POST',
@@ -260,8 +247,7 @@
                         messages: state.messages.map(m => ({
                             role: m.role,
                             content: m.content
-                        })),
-                        systemPrompt: resolvedSystemPrompt
+                        }))
                     })
                 });
 
@@ -553,6 +539,15 @@
                         state.analysisCompleted = true;
                         prefetchAnalysisReport();
 
+                        const currentChat = state.chats.find(c => c.id == targetChatId);
+                        if (currentChat) {
+                            currentChat.analysisCompleted = true;
+                            currentChat.updatedAt = Date.now();
+                        }
+                        if (window.storageManager && currentChat) {
+                            window.storageManager.saveChat(currentChat).catch(() => {});
+                        }
+
                         actionElement.style.display = 'flex';
                         actionElement.innerHTML = `
                             <button class="view-report-btn" onclick="viewReport()">
@@ -713,11 +708,19 @@
 
             // 从第一条用户消息提取标题
             let title = '新对话';
-            const firstUserMsg = state.messages.find(m => m.role === 'user');
-            if (firstUserMsg) {
-                title = firstUserMsg.content.substring(0, 30);
-                if (firstUserMsg.content.length > 30) {
-                    title += '...';
+            const existingChat = state.currentChat !== null
+                ? state.chats.find(c => c.id == state.currentChat)
+                : null;
+            const titleEdited = Boolean(existingChat?.titleEdited);
+            if (titleEdited && existingChat?.title) {
+                title = existingChat.title;
+            } else {
+                const firstUserMsg = state.messages.find(m => m.role === 'user');
+                if (firstUserMsg) {
+                    title = firstUserMsg.content.substring(0, 30);
+                    if (firstUserMsg.content.length > 30) {
+                        title += '...';
+                    }
                 }
             }
 
@@ -730,6 +733,7 @@
                 const chat = {
                     id: chatId,
                     title: title,
+                    titleEdited: false,
                     messages: [...state.messages],
                     userData: {...state.userData},
                     conversationStep: state.conversationStep,
@@ -747,6 +751,7 @@
                     state.chats[index] = {
                         ...state.chats[index],
                         title: title,
+                        titleEdited: state.chats[index].titleEdited || false,
                         messages: [...state.messages],
                         userData: {...state.userData},
                         conversationStep: state.conversationStep,
@@ -758,6 +763,7 @@
                     const chat = {
                         id: state.currentChat,
                         title: title,
+                        titleEdited: titleEdited || false,
                         messages: [...state.messages],
                         userData: {...state.userData},
                         conversationStep: state.conversationStep,
@@ -976,6 +982,7 @@
             const newTitle = prompt('修改对话标题', chat.title);
             if (newTitle && newTitle.trim()) {
                 chat.title = newTitle.trim();
+                chat.titleEdited = true;
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
                 loadChats();
                 reopenChatMenu(chatId);
@@ -1193,31 +1200,162 @@
 
             loadGenerationStatesForChat(state.currentChat);
 
+            const reportContent = document.getElementById('reportContent');
+            const setAnalysisActionsEnabled = (enabled) => {
+                const exportBtn = document.querySelector('#reportModal .report-actions button.btn-secondary:nth-of-type(2)');
+                const shareBtn = document.getElementById('shareLinkBtn');
+                const hintId = 'analysisExportHint';
+                let hintEl = document.getElementById(hintId);
+                if (!hintEl) {
+                    const actions = document.querySelector('#reportModal .report-actions');
+                    hintEl = document.createElement('div');
+                    hintEl.id = hintId;
+                    hintEl.style.cssText = 'font-size: 12px; color: var(--text-tertiary); margin-top: 6px; text-align: right;';
+                    hintEl.textContent = '生成中不可导出';
+                    hintEl.style.display = 'none';
+                    actions && actions.appendChild(hintEl);
+                }
+                if (exportBtn) exportBtn.disabled = !enabled;
+                if (shareBtn) shareBtn.disabled = !enabled;
+                if (hintEl) hintEl.style.display = enabled ? 'none' : 'block';
+            };
+            const showGeneratingState = () => {
+                if (!reportContent) return;
+                setAnalysisActionsEnabled(false);
+                reportContent.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px;">
+                        <div style="margin-bottom: 20px;">${getDefaultIconSvg(48)}</div>
+                        <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                            AI正在生成分析报告...
+                        </div>
+                        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                            这可能需要10-20秒，请稍候
+                        </div>
+                        <div class="score-bar" style="max-width: 300px; margin: 0 auto;">
+                            <div class="score-track">
+                                <div class="score-fill" style="width: 0%; animation: loading 2s infinite;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <style>
+                        @keyframes loading {
+                            0% { width: 0%; }
+                            50% { width: 70%; }
+                            100% { width: 100%; }
+                        }
+                    </style>
+                `;
+            };
+
+            if (window.analysisReportGenerationInFlight) {
+                showGeneratingState();
+                return;
+            }
+
+            if (window.storageManager && state.currentChat) {
+                window.storageManager.getAllReports().then(reports => {
+                    const analysisEntry = reports.find(r => r.type === 'analysis' && r.chatId === state.currentChat);
+                    if (analysisEntry?.status === 'generating') {
+                        showGeneratingState();
+                        if (!window.analysisReportGenerationInFlight) {
+                            generateDetailedReport(true).catch(() => {});
+                        }
+                    }
+                }).catch(() => {});
+            }
+
             if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === getAnalysisReportKey()) {
                 renderAIReport(window.lastGeneratedReport);
+                setAnalysisActionsEnabled(true);
                 updateShareLinkButtonVisibility();
+                return;
+            }
+
+            // 优先从本地存储读取已生成的报告
+            if (window.storageManager && state.currentChat) {
+                window.storageManager.getAllReports().then(reports => {
+                    const reportEntry = reports.find(r => r.type === 'analysis' && r.chatId === state.currentChat);
+                    if (reportEntry?.data?.chapters) {
+                        window.lastGeneratedReport = reportEntry.data;
+                        window.lastGeneratedReportKey = getAnalysisReportKey();
+                        renderAIReport(reportEntry.data);
+                        setAnalysisActionsEnabled(true);
+                        updateShareLinkButtonVisibility();
+                        return;
+                    }
+                    requestAnimationFrame(() => {
+                        fetchCachedAnalysisReport().then(cached => {
+                            if (cached) return;
+                            generateDetailedReport(true).catch(error => {
+                                console.error('Failed to generate report:', error);
+                                const reportContent = document.getElementById('reportContent');
+                                if (reportContent) {
+                                    reportContent.innerHTML = `
+                                        <div style="text-align: center; padding: 60px 20px;">
+                                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                                报告生成失败
+                                            </div>
+                                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                                ${error.message || '生成报告时发生未知错误'}
+                                            </div>
+                                            <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
+                                        </div>
+                                    `;
+                                }
+                            });
+                        });
+                    });
+                }).catch(() => {
+                    requestAnimationFrame(() => {
+                        fetchCachedAnalysisReport().then(cached => {
+                            if (cached) return;
+                            generateDetailedReport(true).catch(error => {
+                                console.error('Failed to generate report:', error);
+                                const reportContent = document.getElementById('reportContent');
+                                if (reportContent) {
+                                    reportContent.innerHTML = `
+                                        <div style="text-align: center; padding: 60px 20px;">
+                                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                                报告生成失败
+                                            </div>
+                                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                                ${error.message || '生成报告时发生未知错误'}
+                                            </div>
+                                            <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
+                                        </div>
+                                    `;
+                                }
+                            });
+                        });
+                    });
+                });
                 return;
             }
 
             // 让出主线程，确保弹窗先渲染
             requestAnimationFrame(() => {
-                generateDetailedReport().catch(error => {
-                    console.error('Failed to generate report:', error);
-                    const reportContent = document.getElementById('reportContent');
-                    if (reportContent) {
-                        reportContent.innerHTML = `
-                            <div style="text-align: center; padding: 60px 20px;">
-                                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                                <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                                    报告生成失败
+                fetchCachedAnalysisReport().then(cached => {
+                    if (cached) return;
+                    generateDetailedReport(true).catch(error => {
+                        console.error('Failed to generate report:', error);
+                        const reportContent = document.getElementById('reportContent');
+                        if (reportContent) {
+                            reportContent.innerHTML = `
+                                <div style="text-align: center; padding: 60px 20px;">
+                                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                    <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                        报告生成失败
+                                    </div>
+                                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                        ${error.message || '生成报告时发生未知错误'}
+                                    </div>
+                                    <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
                                 </div>
-                                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-                                    ${error.message || '生成报告时发生未知错误'}
-                                </div>
-                                <button class="btn-primary" onclick="generateDetailedReport()">重试</button>
-                            </div>
-                        `;
-                    }
+                            `;
+                        }
+                    });
                 });
             });
         }
@@ -1227,6 +1365,25 @@
             // 确认操作
             if (!confirm('确定要重新生成分析报告吗？\n\n这将使用AI重新分析您的创意对话，可能会生成不同的洞察内容。')) {
                 return;
+            }
+
+            window.lastGeneratedReport = null;
+            window.lastGeneratedReportKey = null;
+            window.analysisReportGenerationInFlight = false;
+
+            if (window.storageManager && state.currentChat) {
+                try {
+                    await window.storageManager.saveReport({
+                        type: 'analysis',
+                        chatId: state.currentChat,
+                        data: null,
+                        status: 'generating',
+                        progress: { current: 0, total: 1, percentage: 0 },
+                        startTime: Date.now(),
+                        endTime: null,
+                        error: null
+                    });
+                } catch (error) {}
             }
 
             // 重新生成报告
@@ -1293,11 +1450,85 @@
             }
         }
 
+        async function fetchCachedAnalysisReport() {
+            try {
+                if (!state.messages || state.messages.length < 2) {
+                    return false;
+                }
+                const apiBaseUrl = state.settings.apiUrl || window.location.origin;
+                const apiClient = window.apiClient || (window.APIClient ? new window.APIClient(apiBaseUrl) : null);
+                if (!apiClient) {
+                    return false;
+                }
+                if (apiClient.setBaseURL) {
+                    apiClient.setBaseURL(apiBaseUrl);
+                }
+                window.apiClient = apiClient;
+
+                const data = await apiClient.request('/api/report/generate', {
+                    method: 'POST',
+                    body: {
+                        messages: state.messages.map(m => ({
+                            role: m.role,
+                            content: m.content
+                        })),
+                        reportKey: getAnalysisReportKey(),
+                        force: false,
+                        cacheOnly: true
+                    },
+                    timeout: 120000,
+                    retry: 0
+                });
+
+                if (data && data.code !== 0) {
+                    return false;
+                }
+
+                const reportData = data?.data?.report;
+                if (!reportData || !reportData.chapters) {
+                    return false;
+                }
+
+                window.lastGeneratedReport = reportData;
+                window.lastGeneratedReportKey = getAnalysisReportKey();
+                updateShareLinkButtonVisibility();
+                renderAIReport(reportData);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
         async function generateDetailedReport(force = false) {
             const reportContent = document.getElementById('reportContent');
+            const exportBtn = document.querySelector('#reportModal .report-actions button.btn-secondary:nth-of-type(2)');
+            const shareBtn = document.getElementById('shareLinkBtn');
+
+            if (window.analysisReportGenerationInFlight) {
+                return;
+            }
+            window.analysisReportGenerationInFlight = true;
+            if (exportBtn) exportBtn.disabled = true;
+            if (shareBtn) shareBtn.disabled = true;
+
+            if (window.storageManager && state.currentChat) {
+                try {
+                    await window.storageManager.saveReport({
+                        type: 'analysis',
+                        chatId: state.currentChat,
+                        data: null,
+                        status: 'generating',
+                        progress: { current: 0, total: 1, percentage: 0 },
+                        startTime: Date.now(),
+                        endTime: null,
+                        error: null
+                    });
+                } catch (error) {}
+            }
 
             // 检查是否有足够的对话历史
             if (state.messages.length < 2) {
+                window.analysisReportGenerationInFlight = false;
                 reportContent.innerHTML = `
                     <div style="text-align: center; padding: 60px 20px;">
                         <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
@@ -1378,8 +1609,27 @@
                 window.lastGeneratedReportKey = getAnalysisReportKey();
                 updateShareLinkButtonVisibility();
 
+                if (window.storageManager && state.currentChat) {
+                    try {
+                        await window.storageManager.saveReport({
+                            id: `analysis-${Date.now()}`,
+                            type: 'analysis',
+                            data: reportData,
+                            chatId: state.currentChat,
+                            status: 'completed',
+                            progress: { current: 1, total: 1, percentage: 100 },
+                            startTime: Date.now(),
+                            endTime: Date.now(),
+                            error: null
+                        });
+                    } catch (error) {}
+                }
+
                 // 渲染AI生成的报告
                 renderAIReport(reportData);
+                if (exportBtn) exportBtn.disabled = false;
+                if (shareBtn) shareBtn.disabled = false;
+                window.analysisReportGenerationInFlight = false;
 
             } catch (error) {
                 reportContent.innerHTML = `
@@ -1395,6 +1645,22 @@
                     </div>
                 `;
                 updateShareLinkButtonVisibility();
+                if (exportBtn) exportBtn.disabled = false;
+                if (shareBtn) shareBtn.disabled = false;
+                window.analysisReportGenerationInFlight = false;
+                if (window.storageManager && state.currentChat) {
+                    try {
+                        await window.storageManager.saveReport({
+                            type: 'analysis',
+                            chatId: state.currentChat,
+                            data: null,
+                            status: 'error',
+                            progress: { current: 0, total: 1, percentage: 0 },
+                            endTime: Date.now(),
+                            error: { message: error.message, timestamp: Date.now() }
+                        });
+                    } catch (err) {}
+                }
             }
         }
 
@@ -1403,7 +1669,7 @@
     const reportContent = document.getElementById('reportContent');
     const normalizeArray = (value) => Array.isArray(value) ? value : [];
     const normalizeObject = (value) => (value && typeof value === 'object') ? value : {};
-    const normalizeText = (value, fallback = '待补充') => (value === undefined || value === null || value === '') ? fallback : value;
+    const normalizeText = (value, fallback = '') => (value === undefined || value === null || value === '') ? fallback : value;
 
     // 验证数据结构
     if (!reportData || !reportData.chapters) {
@@ -1944,7 +2210,11 @@
                     startGenerationFlow(type);
                 }
             } else if (currentStatus === 'generating') {
-                // 生成中：不做任何操作（按钮已禁用）
+                // 生成中：打开进度弹窗并恢复状态
+                const reportEntry = generatedReports[type];
+                if (reportEntry && window.businessPlanGenerator?.restoreProgress) {
+                    window.businessPlanGenerator.restoreProgress(type, reportEntry);
+                }
                 return;
             } else {
                 // idle或error状态：开始生成
@@ -2156,7 +2426,9 @@
                     // 保存生成的报告
                     generatedReports[type] = {
                         data: generationState.results,
-                        chatId: state.currentChat
+                        chatId: state.currentChat,
+                        status: 'completed',
+                        progress: generationState.progress
                     };
                     break;
 
@@ -2164,6 +2436,12 @@
                     btn.classList.add('btn-error');
                     btn.dataset.status = 'error';
                     updateButtonContent(type, iconSpan, textSpan, 'error');
+                    generatedReports[type] = {
+                        ...(generatedReports[type] || {}),
+                        status: 'error',
+                        progress: generationState.progress,
+                        chatId: state.currentChat
+                    };
                     break;
             }
         }
@@ -2225,14 +2503,43 @@
                 if (!chatId) return;
                 // 从IndexedDB加载已保存的报告
                 const reports = await window.storageManager.getAllReports();
+                const GENERATION_TIMEOUT_MS = 15 * 60 * 1000;
 
                 if (reports && reports.length > 0) {
                     // 按类型分组
                     reports.forEach(report => {
                         if ((report.type === 'business' || report.type === 'proposal') && report.chatId === chatId) {
+                            if (report.status === 'generating' && report.startTime) {
+                                const elapsed = Date.now() - report.startTime;
+                                if (elapsed > GENERATION_TIMEOUT_MS) {
+                                    report.status = 'error';
+                                    report.error = {
+                                        message: '生成超时，请重试',
+                                        timestamp: Date.now()
+                                    };
+                                    if (window.storageManager) {
+                                        window.storageManager.saveReport({
+                                            id: report.id,
+                                            type: report.type,
+                                            chatId: report.chatId,
+                                            data: report.data ?? null,
+                                            status: report.status,
+                                            progress: report.progress,
+                                            selectedChapters: report.selectedChapters,
+                                            startTime: report.startTime,
+                                            endTime: Date.now(),
+                                            error: report.error
+                                        }).catch(() => {});
+                                    }
+                                }
+                            }
                             generatedReports[report.type] = {
                                 data: report.data,
-                                chatId: report.chatId
+                                chatId: report.chatId,
+                                status: report.status,
+                                progress: report.progress,
+                                selectedChapters: report.selectedChapters,
+                                error: report.error
                             };
 
                             // 更新按钮为已完成状态
@@ -2240,12 +2547,26 @@
                                          report.type === 'proposal' ? 'proposalBtn' : null;
                             const btn = document.getElementById(btnId);
                             if (btn) {
-                                btn.classList.add('btn-completed');
-                                btn.dataset.status = 'completed';
-
                                 const iconSpan = btn.querySelector('.btn-icon');
                                 const textSpan = btn.querySelector('.btn-text');
-                                updateButtonContent(report.type, iconSpan, textSpan, 'completed');
+                                const status = report.status || (report.data ? 'completed' : 'idle');
+
+                                btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
+                                btn.dataset.status = status;
+
+                                if (status === 'generating') {
+                                    btn.classList.add('btn-generating');
+                                    updateButtonContent(report.type, iconSpan, textSpan, 'generating', report.progress || { percentage: 0 });
+                                } else if (status === 'completed') {
+                                    btn.classList.add('btn-completed');
+                                    updateButtonContent(report.type, iconSpan, textSpan, 'completed');
+                                } else if (status === 'error') {
+                                    btn.classList.add('btn-error');
+                                    updateButtonContent(report.type, iconSpan, textSpan, 'error');
+                                } else {
+                                    btn.classList.add('btn-idle');
+                                    updateButtonContent(report.type, iconSpan, textSpan, 'idle');
+                                }
                             }
                         }
                     });
@@ -2352,8 +2673,10 @@
                 const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
 
                 // 获取已生成的报告数据
-                const reportData = generatedReports[currentReportType];
-                if (!reportData || !reportData.chapters) {
+                const reportEntry = generatedReports[currentReportType];
+                const reportData = reportEntry?.data || reportEntry || {};
+                const chapters = reportData.chapters || reportData.data?.chapters || [];
+                if (!Array.isArray(chapters) || chapters.length === 0) {
                     alert('❌ 无报告数据可导出');
                     return;
                 }
@@ -2367,7 +2690,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        chapters: reportData.chapters,
+                        chapters,
                         title: state.userData.idea || typeTitle,
                         type: currentReportType
                     })
@@ -2399,7 +2722,8 @@
         async function shareBusinessReport() {
             try {
                 const typeTitle = currentReportType === 'business' ? '商业计划书' : '产品立项材料';
-                const reportData = generatedReports[currentReportType];
+                const reportEntry = generatedReports[currentReportType];
+                const reportData = reportEntry?.data || reportEntry;
 
                 if (!reportData) {
                     alert('❌ 无报告数据可分享');
@@ -2446,7 +2770,26 @@
         /* ===== 数字员工管理系统 ===== */
 
         // 存储当前用户ID和Agent数据
-        const USER_ID = 'user_' + Date.now(); // 生产环境应使用真实用户ID
+        function getAgentUserId() {
+            try {
+                const raw = sessionStorage.getItem('thinkcraft_user');
+                if (raw) {
+                    const user = JSON.parse(raw);
+                    const id = user?.userId || user?.id || user?.phone;
+                    if (id) {
+                        return String(id);
+                    }
+                }
+            } catch (error) {}
+
+            const cached = localStorage.getItem('thinkcraft_user_id');
+            if (cached) {
+                return cached;
+            }
+            const fallback = `guest_${Date.now()}`;
+            localStorage.setItem('thinkcraft_user_id', fallback);
+            return fallback;
+        }
         let myAgents = []; // 用户雇佣的Agent列表
         let availableAgentTypes = []; // 可雇佣的Agent类型
 
@@ -2475,7 +2818,7 @@
         // 加载用户的Agent团队
         async function loadMyAgents() {
             try {
-                const response = await fetch(`${state.settings.apiUrl}/api/agents/my/${USER_ID}`);
+                const response = await fetch(`${state.settings.apiUrl}/api/agents/my/${getAgentUserId()}`);
                 if (response.ok) {
                     const result = await response.json();
                     if (result.code === 0) {
@@ -2897,7 +3240,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        userId: USER_ID,
+                        userId: getAgentUserId(),
                         agentType: agentType
                     })
                 });
@@ -2936,7 +3279,7 @@
             }
 
             try {
-                const response = await fetch(`${state.settings.apiUrl}/api/agents/${USER_ID}/${agentId}`, {
+                const response = await fetch(`${state.settings.apiUrl}/api/agents/${getAgentUserId()}/${agentId}`, {
                     method: 'DELETE'
                 });
 
@@ -2983,7 +3326,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        userId: USER_ID,
+                        userId: getAgentUserId(),
                         agentId: agentId,
                         task: task,
                         context: state.userData.idea || ''
@@ -3297,7 +3640,7 @@
 
             state.teamSpace.projects.unshift(project);
             saveTeamSpace();
-            renderProjectList();
+            window.projectManager.renderProjectList('projectListContainer');
 
             // 自动打开新建的项目
             openProject(project.id);
@@ -3309,7 +3652,7 @@
             if (!project) return;
 
             state.currentProject = projectId;
-            renderProjectList();  // 更新侧边栏激活状态
+            window.projectManager.renderProjectList('projectListContainer');  // 更新侧边栏激活状态
             renderProjectDetail(project);  // 在主内容区显示项目详情
         }
 
@@ -3654,7 +3997,7 @@
 
             saveTeamSpace();
             renderHiredAgents();
-            renderProjectList();  // 刷新项目列表
+            window.projectManager.renderProjectList('projectListContainer');  // 刷新项目列表
             alert(`${agent.name} 已被解雇`);
         }
 
@@ -3770,12 +4113,16 @@
             project.updatedAt = new Date().toISOString();
 
             saveTeamSpace();
-            renderProjectList();
+            window.projectManager.renderProjectList('projectListContainer');
             renderProjectDetail(project);
         }
 
         // 删除项目
         function deleteProject(projectId) {
+            if (window.projectManager && projectId && projectId.startsWith('project_')) {
+                window.projectManager.deleteProject(projectId);
+                return;
+            }
             const project = state.teamSpace.projects.find(p => p.id === projectId);
             if (!project) return;
 
@@ -3789,7 +4136,7 @@
                 saveTeamSpace();
 
                 // 返回项目列表视图
-                renderProjectList();
+                window.projectManager.renderProjectList('projectListContainer');
 
                 // 清空主内容区，显示空状态
                 const chatContainer = document.getElementById('chatContainer');
@@ -3893,12 +4240,14 @@
         }
 
         function getProjectName(projectId) {
-            const projectNames = {
-                'project_001': '智能健身APP项目',
-                'project_002': '在线教育平台',
-                'project_003': '智能家居控制系统'
-            };
-            return projectNames[projectId] || '未知项目';
+            // 从实际项目数据中获取项目名称
+            if (window.projectManager && window.projectManager.projects) {
+                const project = window.projectManager.projects.find(p => p.id === projectId);
+                if (project) {
+                    return project.name || '未命名项目';
+                }
+            }
+            return '未知项目';
         }
 
         function switchKnowledgeOrg(orgType) {
@@ -4635,6 +4984,35 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                     <div id="messageList" style="display: none;"></div>
                 </div>
 
+                <!-- 项目右侧面板 -->
+                <aside class="project-panel" id="projectPanel" style="display: none;">
+                    <div class="project-panel-header">
+                        <div class="project-panel-title" id="projectPanelTitle">项目详情</div>
+                        <div class="project-panel-header-actions">
+                            <!-- 知识库入口已暂时屏蔽，后续按需开放 -->
+                            <!--
+                            <button class="icon-btn" onclick="projectManager.openProjectKnowledgePanel()" title="项目知识库">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                </svg>
+                            </button>
+                            -->
+                            <button class="icon-btn" onclick="projectManager.editCurrentProjectName()" title="编辑项目">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 7.125L16.862 4.487"/>
+                                </svg>
+                            </button>
+                            <button class="icon-btn icon-btn-danger" onclick="projectManager.confirmDeleteCurrentProject()" title="删除项目">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m4 0H5"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="project-panel-body" id="projectPanelBody"></div>
+                </aside>
+
                 <!-- 知识库面板（右侧切换面板）-->
                 <div class="knowledge-panel" id="knowledgePanel" style="display: none;">
                     <div class="knowledge-panel-content">
@@ -5148,12 +5526,6 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                 return;
             }
 
-            if (project?.mode === 'development') {
-                if (!confirm('当前为协同开发模式，移除成员可能影响流程执行与交付质量。确认继续移除？')) {
-                    return;
-                }
-            }
-
             const index = project.assignedAgents.indexOf(agentId);
             if (index > -1) {
                 project.assignedAgents.splice(index, 1);
@@ -5223,7 +5595,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
             renderAvailableAgents();
             renderProjectHiredAgents(); // 同时刷新已雇佣Tab
             renderProjectMembers(project);
-            renderProjectList(); // 刷新项目列表，确保回显
+            window.projectManager.renderProjectList('projectListContainer'); // 刷新项目列表，确保回显
 
             // 刷新主内容区的项目详情页面（关键修复）
             renderProjectDetail(project);
@@ -5245,7 +5617,7 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
 
                 // 重新渲染
                 renderProjectMembers(project);
-                renderProjectList(); // 刷新项目列表，确保回显
+                window.projectManager.renderProjectList('projectListContainer'); // 刷新项目列表，确保回显
 
                 // 刷新主内容区的项目详情页面（关键修复）
                 renderProjectDetail(project);
@@ -6052,7 +6424,6 @@ ${projectMembers.map(m => `- ${m.name}（${m.role}）：${m.skills.join('、')}`
                         </div>
                         <div class="project-card-badges">
                             <span class="project-pill status-planning">规划中</span>
-                            <span class="project-pill">协同开发模式</span>
                         </div>
                         <div class="project-card-meta">
                             <span>更新 刚刚</span>

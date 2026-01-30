@@ -13,9 +13,8 @@ prompts/
 │   └── proposal/                  # 产品立项材料生成
 │
 └── scene-2-agent-orchestration/   # 场景二：Agent调度链路
-    ├── shared/                    # 共享规范（所有开发类型共用）
-    ├── agent-product-development/ # Agent产品开发
-    └── traditional-product-development/ # 传统产品开发
+    ├── shared/                    # 共享规范（统一流程共用）
+    └── product-development/       # 统一产品开发
 ```
 
 ## 两个场景
@@ -38,7 +37,7 @@ prompts/
 
 **特点**：
 
-- 按开发类型组织
+- 按统一流程组织
 - 面向Agent系统
 - 包含Agent角色定义、工作流编排、协作规范
 
@@ -59,7 +58,7 @@ const businessPlanPrompt = await promptLoader.buildDocumentPrompt(
 
 // 场景二：Agent调度链路
 const demandManager = await promptLoader.load(
-  'scene-2-agent-orchestration/agent-product-development/agents/demand-design/product-demand-manager'
+  'scene-2-agent-orchestration/product-development/agents/product-manager-agent'
 );
 const sharedStandard = await promptLoader.load(
   'scene-2-agent-orchestration/shared/agent-collaboration'
@@ -90,11 +89,8 @@ touch prompts/scene-1-dialogue/new-feature/full-document.md
 #### 场景二：添加新Agent
 
 ```bash
-# Agent产品开发
-touch prompts/scene-2-agent-orchestration/agent-product-development/agents/demand-design/new-agent.md
-
-# 传统产品开发
-touch prompts/scene-2-agent-orchestration/traditional-product-development/agents/new-agent.md
+# 统一产品开发
+touch prompts/scene-2-agent-orchestration/product-development/agents/new-agent.md
 ```
 
 ## 版本管理
@@ -104,7 +100,7 @@ touch prompts/scene-2-agent-orchestration/traditional-product-development/agents
 ```markdown
 ---
 version: 1.0.0
-last_updated: 2026-01-27
+last_updated: 2026-01-29
 changelog:
   - 1.0.0: 初始版本
 ---
@@ -138,7 +134,7 @@ npm run test-prompt-loading
 ### 设计原则
 
 1. **场景分离**：对话链路和Agent调度链路完全独立
-2. **功能导向**：场景一按功能组织，场景二按开发类型组织
+2. **功能导向**：场景一按功能组织，场景二按统一流程组织
 3. **共享复用**：相同部分创建共享文档，通过引用机制使用
 4. **单一数据源**：每个提示词只在一个地方维护
 5. **干净架构**：全新设计，不考虑历史兼容
@@ -160,7 +156,7 @@ npm run test-prompt-loading
 **A**：
 
 1. 确定场景：对话链路还是Agent调度链路
-2. 确定功能/开发类型
+2. 确定功能/流程
 3. 在对应目录下查找
 
 ### Q2：如何测试提示词效果？

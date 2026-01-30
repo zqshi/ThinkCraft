@@ -5,15 +5,11 @@ import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class ProjectUpdatedEvent extends DomainEvent {
   constructor(projectId, oldData, newData) {
-    super({
-      aggregateId: projectId,
-      eventType: 'project.updated',
-      data: {
-        projectId,
-        oldData,
-        newData,
-        updatedAt: new Date()
-      }
+    super('project.updated', {
+      projectId,
+      oldData,
+      newData,
+      updatedAt: new Date()
     });
   }
 

@@ -45,6 +45,8 @@ export class CreateProjectResponseDTO {
       name: project.name.value,
       mode: project.mode.value,
       status: project.status.value,
+      workflowCategory: project.workflowCategory,
+      assignedAgents: project.assignedAgents,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt
     };
@@ -92,6 +94,18 @@ export class UpdateProjectRequestDTO {
         throw new Error(`无效的项目状态: ${this.updates.status}`);
       }
     }
+
+    if (this.updates.workflowCategory !== undefined) {
+      if (typeof this.updates.workflowCategory !== 'string') {
+        throw new Error('流程类型必须是字符串');
+      }
+    }
+
+    if (this.updates.assignedAgents !== undefined) {
+      if (!Array.isArray(this.updates.assignedAgents)) {
+        throw new Error('assignedAgents 必须是数组');
+      }
+    }
   }
 }
 
@@ -102,6 +116,8 @@ export class ProjectResponseDTO {
     this.name = project.name.value;
     this.mode = project.mode.value;
     this.status = project.status.value;
+    this.workflowCategory = project.workflowCategory;
+    this.assignedAgents = project.assignedAgents;
     this.createdAt = project.createdAt;
     this.updatedAt = project.updatedAt;
 

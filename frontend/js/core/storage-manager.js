@@ -276,13 +276,31 @@ class StorageManager {
    * @returns {Promise<void>}
    */
   async saveReport(report) {
+    let reportId = report.id || null;
+    if (!reportId && report.type && report.chatId) {
+      try {
+        const reports = await this.getAllReports();
+        const existing = reports.find(r => r.type === report.type && r.chatId === report.chatId);
+        if (existing?.id) {
+          reportId = existing.id;
+        }
+      } catch (error) {}
+    }
+
+    const dataForSize = report.data ?? {};
     const reportData = {
-      id: report.id || `report-${Date.now()}`,
+      id: reportId || `report-${Date.now()}`,
       type: report.type, // 'business' | 'proposal'
-      data: report.data,
+      data: report.data ?? null,
       chatId: report.chatId || null,
       timestamp: Date.now(),
-      size: JSON.stringify(report.data).length
+      size: JSON.stringify(dataForSize).length,
+      status: report.status,
+      progress: report.progress,
+      selectedChapters: report.selectedChapters,
+      startTime: report.startTime,
+      endTime: report.endTime,
+      error: report.error
     };
     await this.save('reports', reportData);
   }
@@ -994,7 +1012,13 @@ class StorageManager {
       const request = index.get(ideaId);
 
       request.onsuccess = () => {
-        resolve(request.result || null);
+        const project = request.result || null;
+        // 排除已删除的项目
+        if (project && project.status === 'deleted') {
+          resolve(null);
+        } else {
+          resolve(project);
+        }
       };
 
       request.onerror = () => {
@@ -1075,7 +1099,13 @@ class StorageManager {
    * @returns {Promise<void>}
    */
   async deleteProject(id) {
-    return this.delete('projects', id);
+    const project = await this.getProject(id);
+    if (!project) {
+      return;
+    }
+    project.status = 'deleted';
+    project.updatedAt = Date.now();
+    await this.saveProject(project);
   }
 
   /**

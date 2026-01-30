@@ -130,16 +130,15 @@ userSchema.statics.findActive = function () {
 };
 
 // 查询中间件：默认排除已删除用户
-userSchema.pre(/^find/, function (next) {
+userSchema.pre(/^find/, function () {
   if (!this.getOptions().includeDeleted) {
     this.where({ deletedAt: null });
   }
-  next();
 });
 
 // 保存前中间件
-userSchema.pre('save', function (next) {
-  next();
+userSchema.pre('save', function () {
+  // 保存前的逻辑（如果需要）
 });
 
 // 创建模型

@@ -486,7 +486,7 @@ class PromptLoader {
 
   /**
    * 加载workflow配置
-   * @param {string} workflowId - workflow ID (agent-product 或 traditional-product)
+   * @param {string} workflowId - workflow ID (product-development)
    * @returns {Promise<Object>} workflow配置对象
    */
   async loadWorkflowConfig(workflowId) {
