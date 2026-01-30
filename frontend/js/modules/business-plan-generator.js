@@ -261,6 +261,13 @@ class BusinessPlanGenerator {
     const modal = document.getElementById('chapterSelectionModal');
     const type = modal?.dataset?.reportType || 'business';
 
+    // 验证type参数
+    if (type !== 'business' && type !== 'proposal') {
+      console.error('[开始生成] 无效的报告类型', { type, typeOf: typeof type });
+      alert('系统错误：无效的报告类型');
+      return;
+    }
+
     console.log('[开始生成] 报告类型:', type, '选中章节:', selectedChapters);
 
     // 开始生成流程
