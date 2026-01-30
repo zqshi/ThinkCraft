@@ -3,13 +3,15 @@
  * 提供SVG图标生成和Agent图标映射功能
  */
 
+/* eslint-disable no-unused-vars */
+
 /**
  * 获取默认图标SVG
  * @param {number} size - 图标大小
  * @param {string} className - CSS类名
  * @returns {string} SVG字符串
  */
-export function getDefaultIconSvg(size = 48, className = 'empty-icon') {
+function getDefaultIconSvg(size = 48, className = 'empty-icon') {
     return `
         <svg class="${className}" width="${size}" height="${size}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
@@ -24,7 +26,7 @@ export function getDefaultIconSvg(size = 48, className = 'empty-icon') {
  * @param {string} className - CSS类名
  * @returns {string} SVG字符串
  */
-export function buildIconSvg(paths, size, className) {
+function buildIconSvg(paths, size, className) {
     return `
         <svg class="${className}" width="${size}" height="${size}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             ${paths.map(d => `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"/>`).join('')}
@@ -37,7 +39,7 @@ export function buildIconSvg(paths, size, className) {
  * @param {string} key - Agent角色或技能关键词
  * @returns {string} 图标键名
  */
-export function resolveAgentIconKey(key) {
+function resolveAgentIconKey(key) {
     const value = String(key || '');
     if (/市场|📊/.test(value)) return 'chart';
     if (/技术|架构|工程|⚙️|👨‍💻|👩‍💻/.test(value)) return 'cog';
@@ -60,7 +62,7 @@ export function resolveAgentIconKey(key) {
  * @param {string} className - CSS类名
  * @returns {string} SVG字符串
  */
-export function getAgentIconSvg(key, size = 28, className = 'agent-avatar-icon') {
+function getAgentIconSvg(key, size = 28, className = 'agent-avatar-icon') {
     const iconKey = resolveAgentIconKey(key);
     const icons = {
         default: [

@@ -3,11 +3,13 @@
  * 提供常用的DOM操作和UI交互功能
  */
 
+/* eslint-disable no-unused-vars, no-undef */
+
 /**
  * 自动调整textarea高度
  * @param {HTMLTextAreaElement} textarea - 文本输入框元素
  */
-export function autoResize(textarea) {
+function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
 }
@@ -16,13 +18,12 @@ export function autoResize(textarea) {
  * 滚动到聊天容器底部
  * @param {boolean} force - 是否强制滚动（忽略锁定状态）
  */
-export function scrollToBottom(force = false) {
+function scrollToBottom(force = false) {
     const container = document.getElementById('chatContainer');
     if (!container) return;
 
     // 从全局state获取滚动状态
-    const state = window.state;
-    if (!force && state && (state.autoScrollLocked || !state.autoScrollEnabled)) return;
+    if (!force && (state.autoScrollLocked || !state.autoScrollEnabled)) return;
 
     container.scrollTop = container.scrollHeight;
 }
@@ -31,7 +32,7 @@ export function scrollToBottom(force = false) {
  * 聚焦输入框
  * @param {string} inputId - 输入框ID，默认为'mainInput'
  */
-export function focusInput(inputId = 'mainInput') {
+function focusInput(inputId = 'mainInput') {
     const input = document.getElementById(inputId);
     if (input) {
         input.focus();
@@ -42,10 +43,7 @@ export function focusInput(inputId = 'mainInput') {
  * 锁定自动滚动
  * @param {number} duration - 锁定持续时间（毫秒），默认3000ms
  */
-export function lockAutoScroll(duration = 3000) {
-    const state = window.state;
-    if (!state) return;
-
+function lockAutoScroll(duration = 3000) {
     state.autoScrollLocked = true;
     if (state.autoScrollUnlockTimer) {
         clearTimeout(state.autoScrollUnlockTimer);
@@ -58,10 +56,7 @@ export function lockAutoScroll(duration = 3000) {
 /**
  * 解锁自动滚动
  */
-export function unlockAutoScroll() {
-    const state = window.state;
-    if (!state) return;
-
+function unlockAutoScroll() {
     state.autoScrollLocked = false;
     if (state.autoScrollUnlockTimer) {
         clearTimeout(state.autoScrollUnlockTimer);
@@ -73,7 +68,7 @@ export function unlockAutoScroll() {
  * 显示元素
  * @param {string|HTMLElement} element - 元素ID或元素对象
  */
-export function showElement(element) {
+function showElement(element) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (el) {
         el.style.display = '';
@@ -84,7 +79,7 @@ export function showElement(element) {
  * 隐藏元素
  * @param {string|HTMLElement} element - 元素ID或元素对象
  */
-export function hideElement(element) {
+function hideElement(element) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (el) {
         el.style.display = 'none';
@@ -96,7 +91,7 @@ export function hideElement(element) {
  * @param {string|HTMLElement} element - 元素ID或元素对象
  * @returns {boolean} 切换后的显示状态
  */
-export function toggleElement(element) {
+function toggleElement(element) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (!el) return false;
 
@@ -110,7 +105,7 @@ export function toggleElement(element) {
  * @param {string|HTMLElement} element - 元素ID或元素对象
  * @param {string} className - CSS类名
  */
-export function addClass(element, className) {
+function addClass(element, className) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (el) {
         el.classList.add(className);
@@ -122,7 +117,7 @@ export function addClass(element, className) {
  * @param {string|HTMLElement} element - 元素ID或元素对象
  * @param {string} className - CSS类名
  */
-export function removeClass(element, className) {
+function removeClass(element, className) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (el) {
         el.classList.remove(className);
@@ -135,7 +130,7 @@ export function removeClass(element, className) {
  * @param {string} className - CSS类名
  * @returns {boolean} 切换后的状态
  */
-export function toggleClass(element, className) {
+function toggleClass(element, className) {
     const el = typeof element === 'string' ? document.getElementById(element) : element;
     if (!el) return false;
 

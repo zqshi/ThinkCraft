@@ -3,12 +3,14 @@
  * 提供时间、ID等数据的格式化功能
  */
 
+/* eslint-disable no-unused-vars */
+
 /**
  * 格式化时间戳为相对时间
  * @param {number} timestamp - 时间戳（毫秒）
  * @returns {string} 格式化后的时间字符串
  */
-export function formatTime(timestamp) {
+function formatTime(timestamp) {
     const now = Date.now();
     const diff = now - timestamp;
     const minute = 60 * 1000;
@@ -30,7 +32,7 @@ export function formatTime(timestamp) {
  * 生成唯一的聊天ID
  * @returns {number} 聊天ID
  */
-export function generateChatId() {
+function generateChatId() {
     const base = Date.now();
     const suffix = Math.floor(Math.random() * 1000);
     return base * 1000 + suffix;
@@ -41,7 +43,7 @@ export function generateChatId() {
  * @param {string|number} chatId - 聊天ID
  * @returns {number} 规范化后的聊天ID
  */
-export function normalizeChatId(chatId) {
+function normalizeChatId(chatId) {
     return typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
 }
 
@@ -50,7 +52,7 @@ export function normalizeChatId(chatId) {
  * @param {Date|number|string} date - 日期对象、时间戳或日期字符串
  * @returns {string} 格式化后的日期字符串
  */
-export function formatDate(date) {
+function formatDate(date) {
     const d = date instanceof Date ? date : new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -63,7 +65,7 @@ export function formatDate(date) {
  * @param {Date|number|string} date - 日期对象、时间戳或日期字符串
  * @returns {string} 格式化后的日期时间字符串
  */
-export function formatDateTime(date) {
+function formatDateTime(date) {
     const d = date instanceof Date ? date : new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -80,7 +82,7 @@ export function formatDateTime(date) {
  * @param {number} maxLength - 最大长度
  * @returns {string} 截断后的文本
  */
-export function truncateText(text, maxLength = 50) {
+function truncateText(text, maxLength = 50) {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
 }
@@ -90,7 +92,7 @@ export function truncateText(text, maxLength = 50) {
  * @param {number} length - ID长度，默认8
  * @returns {string} 随机ID
  */
-export function generateRandomId(length = 8) {
+function generateRandomId(length = 8) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < length; i++) {
@@ -104,7 +106,7 @@ export function generateRandomId(length = 8) {
  * @param {number} bytes - 字节数
  * @returns {string} 格式化后的文件大小
  */
-export function formatFileSize(bytes) {
+function formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -117,7 +119,7 @@ export function formatFileSize(bytes) {
  * @param {number} num - 数字
  * @returns {string} 格式化后的数字字符串
  */
-export function formatNumber(num) {
+function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
@@ -126,7 +128,7 @@ export function formatNumber(num) {
  * @param {string} text - Markdown文本
  * @returns {Array<{language: string, code: string}>} 代码块数组
  */
-export function parseCodeBlocks(text) {
+function parseCodeBlocks(text) {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const blocks = [];
     let match;
@@ -146,7 +148,7 @@ export function parseCodeBlocks(text) {
  * @param {string} text - 原始文本
  * @returns {string} 转义后的文本
  */
-export function escapeHtml(text) {
+function escapeHtml(text) {
     const map = {
         '&': '&amp;',
         '<': '&lt;',
