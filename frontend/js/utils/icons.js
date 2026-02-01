@@ -105,3 +105,12 @@ function getAgentIconSvg(key, size = 28, className = 'agent-avatar-icon') {
 
     return buildIconSvg(icons[iconKey] || icons.default, size, className);
 }
+
+// 在测试环境中将函数导出到全局作用域
+if (typeof global !== 'undefined') {
+    global.getDefaultIconSvg = getDefaultIconSvg;
+    global.buildIconSvg = buildIconSvg;
+    global.resolveAgentIconKey = resolveAgentIconKey;
+    global.getAgentIconSvg = getAgentIconSvg;
+}
+

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音按钮调试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .test-btn {
+            width: 100%;
+            padding: 20px;
+            margin: 10px 0;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .test-btn:active {
+            background: #4f46e5;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-item {
+            padding: 5px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+        .log-item.success {
+            color: #059669;
+        }
+        .log-item.error {
+            color: #dc2626;
+        }
+        .log-item.info {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 语音按钮调试工具</h1>
+
+    <h2>测试1: 基础点击事件</h2>
+    <button class="test-btn" id="testBtn1">点击测试 (click)</button>
+
+    <h2>测试2: 触摸事件</h2>
+    <button class="test-btn" id="testBtn2">触摸测试 (touch)</button>
+
+    <h2>测试3: 模拟移动端按钮</h2>
+    <button class="test-btn mobile-voice-btn" id="mobileVoiceBtn">
+        <span>按住说话</span>
+    </button>
+
+    <h2>事件日志</h2>
+    <button onclick="clearLog()" style="padding: 8px 16px; margin-bottom: 10px;">清除日志</button>
+    <div class="log" id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+
+        function addLog(message, type = 'info') {
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.insertBefore(item, log.firstChild);
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+        }
+
+        // 测试1: 基础点击
+        const testBtn1 = document.getElementById('testBtn1');
+        testBtn1.addEventListener('click', (e) => {
+            addLog('✅ click 事件触发', 'success');
+        });
+
+        // 测试2: 触摸事件
+        const testBtn2 = document.getElementById('testBtn2');
+        testBtn2.addEventListener('touchstart', (e) => {
+            addLog('✅ touchstart 事件触发', 'success');
+        });
+        testBtn2.addEventListener('touchend', (e) => {
+            addLog('✅ touchend 事件触发', 'success');
+        });
+        testBtn2.addEventListener('click', (e) => {
+            addLog('✅ click 事件触发 (触摸后)', 'success');
+        });
+
+        // 测试3: 模拟移动端按钮
+        const mobileVoiceBtn = document.getElementById('mobileVoiceBtn');
+
+        if (!mobileVoiceBtn) {
+            addLog('❌ 移动端语音按钮未找到', 'error');
+        } else {
+            addLog('✅ 移动端语音按钮已找到', 'success');
+
+            // 绑定所有可能的事件
+            mobileVoiceBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                addLog('✅ mobileVoiceBtn: click 事件触发', 'success');
+            });
+
+            mobileVoiceBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                addLog('✅ mobileVoiceBtn: touchstart 事件触发', 'success');
+            });
+
+            mobileVoiceBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                addLog('✅ mobileVoiceBtn: touchend 事件触发', 'success');
+            });
+
+            mobileVoiceBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                addLog('⚠️ mobileVoiceBtn: touchcancel 事件触发', 'info');
+            });
+
+            mobileVoiceBtn.addEventListener('mousedown', (e) => {
+                addLog('✅ mobileVoiceBtn: mousedown 事件触发', 'success');
+            });
+
+            mobileVoiceBtn.addEventListener('mouseup', (e) => {
+                addLog('✅ mobileVoiceBtn: mouseup 事件触发', 'success');
+            });
+
+            addLog('✅ 所有事件监听器已绑定', 'success');
+        }
+
+        // 检测设备类型
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        addLog(`📱 设备类型: ${isMobile ? '移动设备' : '桌面设备'}`, 'info');
+
+        // 检测触摸支持
+        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        addLog(`👆 触摸支持: ${hasTouch ? '支持' : '不支持'}`, 'info');
+
+        // 检测语音识别支持
+        const hasSpeech = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+        addLog(`🎤 语音识别: ${hasSpeech ? '支持' : '不支持'}`, 'info');
+
+        // 检测麦克风API
+        const hasMic = 'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices;
+        addLog(`🎙️ 麦克风API: ${hasMic ? '支持' : '不支持'}`, 'info');
+
+        addLog('🚀 调试工具已就绪', 'success');
+    </script>
+</body>
+</html>

@@ -58,10 +58,8 @@ class MessageHandler {
         input.value = '';
         input.style.height = 'auto';
 
-        // 移动端文本模式发送后自动切回语音模式
-        if (input === mobileInput && typeof switchToVoiceMode === 'function') {
-            setTimeout(() => switchToVoiceMode(), 200);
-        }
+        // 移动端：不自动切换输入模式，保持用户选择的模式
+        // 用户可以通过点击按钮手动切换
 
         // 将消息添加到state.messages
         state.messages.push({
@@ -292,11 +290,81 @@ class MessageHandler {
         if (role === 'assistant' && !skipTyping) {
             typeWriter(textElement, content, 30, state.currentChat);
         } else {
-            textElement.textContent = content;
+            // 处理 [ANALYSIS_COMPLETE] 标记
+            let displayContent = content;
+            let hasAnalysisMarker = false;
+
+            if (content.includes('[ANALYSIS_COMPLETE]')) {
+                hasAnalysisMarker = true;
+                displayContent = content.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
+            }
+
+            textElement.textContent = displayContent;
             if (window.markdownRenderer && role === 'assistant') {
-                const renderedHTML = window.markdownRenderer.render(content);
+                const renderedHTML = window.markdownRenderer.render(displayContent);
                 textElement.innerHTML = renderedHTML;
                 textElement.classList.add('markdown-content');
+            }
+
+            // 如果有分析完成标记且是加载历史对话，验证报告状态后显示按钮
+            if (hasAnalysisMarker && skipTyping) {
+                // 异步验证报告状态
+                if (window.reportStatusManager) {
+                    window.reportStatusManager.shouldShowReportButton(
+                        state.currentChat,
+                        'analysis'
+                    ).then(buttonState => {
+                        if (buttonState.shouldShow) {
+                            const actionElement = document.createElement('div');
+                            actionElement.className = 'message-actions';
+                            actionElement.style.display = 'flex';
+                            actionElement.innerHTML = `
+                                <button class="view-report-btn ${buttonState.buttonState}"
+                                        onclick="viewReport()"
+                                        data-state="${buttonState.buttonState}">
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                    ${buttonState.buttonText}
+                                </button>
+                            `;
+                            messageDiv.querySelector('.message-content').appendChild(actionElement);
+                        }
+                    }).catch(error => {
+                        console.error('[MessageHandler] 验证报告状态失败:', error);
+                        // 回退：显示默认按钮
+                        const actionElement = document.createElement('div');
+                        actionElement.className = 'message-actions';
+                        actionElement.style.display = 'flex';
+                        actionElement.innerHTML = `
+                            <button class="view-report-btn" onclick="viewReport()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                查看完整报告
+                            </button>
+                        `;
+                        messageDiv.querySelector('.message-content').appendChild(actionElement);
+                    });
+                } else {
+                    // 回退：reportStatusManager 未初始化，显示默认按钮
+                    console.warn('[MessageHandler] reportStatusManager 未初始化，使用默认按钮');
+                    const actionElement = document.createElement('div');
+                    actionElement.className = 'message-actions';
+                    actionElement.style.display = 'flex';
+                    actionElement.innerHTML = `
+                        <button class="view-report-btn" onclick="viewReport()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            查看完整报告
+                        </button>
+                    `;
+                    messageDiv.querySelector('.message-content').appendChild(actionElement);
+                }
+
+                // 设置状态标志
+                state.analysisCompleted = true;
             }
         }
 
@@ -355,3 +423,10 @@ function quickReply(text) {
 function isCurrentChatBusy() {
     return window.messageHandler.isCurrentChatBusy();
 }
+
+// 暴露到window对象
+window.sendMessage = sendMessage;
+window.addMessage = addMessage;
+window.handleAPIResponse = handleAPIResponse;
+window.quickReply = quickReply;
+window.isCurrentChatBusy = isCurrentChatBusy;

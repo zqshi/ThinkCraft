@@ -2,11 +2,14 @@
 <html lang="zh-CN">
 <head>
     <script>
-        const isOSPage = /\/OS\.html(?:[?#]|$)/.test(window.location.pathname);
+        // ✅ 检查是否在登录相关页面
+        const isLoginPage = /\/(login|OS)\.html(?:[?#]|$)/.test(window.location.pathname);
         const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
 
-        if (!isLoggedIn && !isOSPage) {
-            window.location.replace('OS.html' + window.location.search + window.location.hash);
+        // ✅ 未登录且不在登录页面，跳转到登录页
+        if (!isLoggedIn && !isLoginPage) {
+            console.log('[认证检查] 未登录，跳转到登录页面');
+            window.location.replace('login.html' + window.location.search + window.location.hash);
         }
     </script>
     <meta charset="UTF-8">
@@ -416,7 +419,6 @@
                             class="btn-primary generation-btn btn-idle"
                             data-type="business"
                             data-status="idle"
-                            onclick="handleGenerationBtnClick('business')"
                             style="flex: 1;">
                             <span class="btn-icon">📊</span>
                             <span class="btn-text">商业计划书</span>
@@ -426,7 +428,6 @@
                             class="btn-primary generation-btn btn-idle"
                             data-type="proposal"
                             data-status="idle"
-                            onclick="handleGenerationBtnClick('proposal')"
                             style="flex: 1;">
                             <span class="btn-icon">📋</span>
                             <span class="btn-text">产品立项材料</span>
@@ -663,7 +664,7 @@
                     </div>
 
                     <!-- 动态组织树 -->
-                    <div id="knowledgeOrgTree" class="knowledge-org-tree">
+                    <div id="knowledgeModalOrgTree" class="knowledge-org-tree">
                         <!-- 由JS动态渲染 -->
                     </div>
                 </div>
@@ -672,8 +673,8 @@
                 <div class="knowledge-main">
                     <!-- 工具栏 -->
                     <div class="knowledge-toolbar">
-                        <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
-                        <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
+                        <input type="text" id="knowledgeModalSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
+                        <select id="knowledgeModalTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
                             <option value="">所有类型</option>
                             <option value="prd">PRD</option>
                             <option value="tech">技术方案</option>
@@ -691,12 +692,12 @@
                     </div>
 
                     <!-- 知识卡片列表 -->
-                    <div id="knowledgeList" class="knowledge-grid">
+                    <div id="knowledgeModalList" class="knowledge-grid">
                         <!-- 由JS动态渲染 -->
                     </div>
 
                     <!-- 空状态 -->
-                    <div id="knowledgeEmpty" class="empty-state" style="display: none;">
+                    <div id="knowledgeModalEmpty" class="empty-state" style="display: none;">
                         <div class="empty-icon">📚</div>
                         <div class="empty-text">暂无知识沉淀</div>
                         <button class="btn-primary" onclick="createKnowledge()">创建第一个</button>
@@ -1016,44 +1017,89 @@
     <!-- Legacy boot (split for maintainability) -->
     <script src="frontend/js/boot/legacy/index-app-state.js"></script>
 
-    <!-- 核心模块 -->
+    <!-- 完整 StateManager（依赖 window.state） -->
     <script src="frontend/js/core/state-manager.js"></script>
+
+    <!-- 核心模块 -->
     <script src="frontend/js/core/api-client.js"></script>
     <script src="frontend/js/core/storage-manager.js"></script>
 
     <!-- 工具函数 -->
-    <script src="frontend/js/utils/format.js"></script>
-    <script src="frontend/js/utils/dom.js"></script>
-    <script src="frontend/js/utils/icons.js"></script>
+    <script src="frontend/js/utils/logger.js?v=20260131-fix3"></script>
+    <script src="frontend/js/utils/format.js?v=20260131-fix"></script>
+    <script src="frontend/js/utils/dom.js?v=20260131-fix"></script>
+    <script src="frontend/js/utils/icons.js?v=20260131-fix"></script>
+    <script src="frontend/js/utils/app-helpers.js"></script>
+    <script src="frontend/js/utils/global-bridges.js"></script>
+
+    <!-- Toast提示工具 -->
+    <script src="frontend/js/utils/toast.js?v=20260201-toast"></script>
+
+    <!-- 导出验证工具 -->
+    <script src="frontend/js/utils/export-validator.js?v=20260201-export"></script>
+
+    <!-- 调试工具（开发环境） -->
+    <script src="frontend/js/utils/debug-progress.js?v=20260201-debug"></script>
 
     <!-- 组件模块 -->
     <script src="frontend/js/components/modal-manager.js"></script>
     <script src="frontend/js/components/agent-progress.js"></script>
     <script src="frontend/js/components/markdown-renderer.js"></script>
 
+    <!-- 报告状态管理器（必须在聊天模块之前加载） -->
+    <script src="frontend/js/modules/report/report-status-manager.js"></script>
+
     <!-- 聊天模块 -->
     <script src="frontend/js/modules/chat/typing-effect.js"></script>
     <script src="frontend/js/modules/chat/message-handler.js"></script>
     <script src="frontend/js/modules/chat/chat-list.js"></script>
+    <script src="frontend/js/modules/chat/chat-manager.js"></script>
 
-    <!-- 报告模块 -->
-    <script src="frontend/js/modules/report/report-viewer.js"></script>
-    <script src="frontend/js/modules/report/report-generator.js"></script>
-    <script src="frontend/js/modules/report/share-card.js"></script>
-
-    <!-- 其他功能模块 -->
-    <script src="frontend/js/modules/knowledge-base.js"></script>
+    <!-- ==================== 核心模块（立即加载） ==================== -->
+    <!-- 输入处理器（高优先级：用户可能立即使用） -->
     <script src="frontend/js/modules/input-handler.js"></script>
-    <script src="frontend/js/modules/ui-controller.js"></script>
 
-    <!-- 功能模块 -->
-    <script src="frontend/js/modules/project-manager.js"></script>
-    <script src="frontend/js/modules/workflow-executor.js"></script>
-    <script src="frontend/js/modules/preview-panel.js"></script>
-    <script src="frontend/js/modules/agent-collaboration.js"></script>
-    <script src="frontend/js/modules/business-plan-generator.js"></script>
+    <!-- UI控制器（高优先级：界面交互） -->
+    <script src="frontend/js/modules/ui-controller.js?v=20260201-fix"></script>
 
-    <script src="frontend/js/app-boot.js?v=20260130-2"></script>
-    <script src="frontend/js/boot/init.js"></script>
+    <!-- ==================== 启动文件 ==================== -->
+    <script src="frontend/js/app-boot.js?v=20260131-lazy"></script>
+    <script src="frontend/js/boot/init.js?v=20260131-lazy"></script>
+
+    <!-- ==================== 低优先级模块（延迟加载） ==================== -->
+    <!-- 报告模块（用户点击"生成报告"时才需要） -->
+    <script defer src="frontend/js/modules/report/report-viewer.js"></script>
+    <script defer src="frontend/js/modules/report/report-generator.js?v=20260201-fix"></script>
+    <script defer src="frontend/js/modules/report/share-card.js?v=20260201-fix"></script>
+
+    <!-- 项目管理（用户点击"项目"时才需要） -->
+    <script defer src="frontend/js/modules/project-manager.js?v=20260131-fix2"></script>
+
+    <!-- 知识库（用户点击"知识库"时才需要） -->
+    <script defer src="frontend/js/modules/knowledge-base.js?v=20260201-fix"></script>
+
+    <!-- Agent系统（用户点击"Agent管理"时才需要） -->
+    <script defer src="frontend/js/modules/agent-collaboration.js?v=20260131-4"></script>
+
+    <!-- 商业计划书（用户点击"生成商业计划书"时才需要） -->
+    <script defer src="frontend/js/modules/business-plan-generator.js?v=20260131-fix2"></script>
+
+    <!-- 工作流执行器（按需加载） -->
+    <script defer src="frontend/js/modules/workflow-executor.js"></script>
+
+    <!-- 预览面板（按需加载） -->
+    <script defer src="frontend/js/modules/preview-panel.js"></script>
+
+    <!-- 团队协作（按需加载） -->
+    <script defer src="frontend/js/modules/team/team-collaboration.js?v=20260131-fix2"></script>
+
+    <!-- 设置管理（用户点击"设置"时才需要） -->
+    <script defer src="frontend/js/modules/settings/settings-manager.js?v=20260131-fix2"></script>
+
+    <!-- 新手引导（条件加载：仅首次访问） -->
+    <script defer src="frontend/js/modules/onboarding/onboarding-manager.js?v=20260131-fix2"></script>
+
+    <!-- 按钮管理器 -->
+    <script defer src="frontend/js/modules/state/report-button-manager.js?v=20260201-fix"></script>
 </body>
 </html>

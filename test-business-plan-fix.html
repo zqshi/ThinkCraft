@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BusinessPlanGenerator 修复验证</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+        }
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+        }
+        .test-section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-item {
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #ddd;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .test-item.pass {
+            border-left-color: #4caf50;
+            background: #e8f5e9;
+        }
+        .test-item.fail {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .test-item.warning {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+        .test-label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .test-result {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #666;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow-x: auto;
+        }
+        .test-error {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            margin: 5px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .summary {
+            font-size: 20px;
+            font-weight: bold;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .summary.pass {
+            background: #4caf50;
+            color: white;
+        }
+        .summary.fail {
+            background: #f44336;
+            color: white;
+        }
+        .summary.warning {
+            background: #ff9800;
+            color: white;
+        }
+        .code-block {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .missing-functions {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .missing-functions h3 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .missing-functions ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        .missing-functions li {
+            margin: 5px 0;
+            color: #d84315;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 BusinessPlanGenerator 修复验证</h1>
+        <p>测试 StateManager 修复是否解决了核心问题</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🎮 测试控制</h2>
+        <button onclick="runAllTests()">▶️ 运行所有测试</button>
+        <button onclick="testBusinessPlanGenerator()">📊 测试 BusinessPlanGenerator</button>
+        <button onclick="location.reload()">🔄 刷新页面</button>
+    </div>
+
+    <div id="results"></div>
+
+    <!-- 加载必要的脚本 -->
+    <script src="frontend/js/boot/legacy/index-app-state.js"></script>
+    <script src="frontend/js/core/state-manager.js"></script>
+    <script src="frontend/js/core/api-client.js"></script>
+    <script src="frontend/js/components/modal-manager.js"></script>
+    <script src="frontend/js/components/agent-progress.js"></script>
+    <script src="frontend/js/modules/business-plan-generator.js"></script>
+
+    <script>
+        const results = [];
+        const missingFunctions = [];
+
+        function addTest(name, passed, details, isWarning = false) {
+            results.push({ name, passed, details, isWarning });
+            renderResults();
+        }
+
+        function addMissingFunction(funcName, location) {
+            missingFunctions.push({ funcName, location });
+        }
+
+        function renderResults() {
+            const container = document.getElementById('results');
+            const passCount = results.filter(r => r.passed && !r.isWarning).length;
+            const failCount = results.filter(r => !r.passed && !r.isWarning).length;
+            const warningCount = results.filter(r => r.isWarning).length;
+
+            let summaryClass = 'pass';
+            let summaryText = `✅ 所有测试通过 (${passCount}/${results.length})`;
+
+            if (failCount > 0) {
+                summaryClass = 'fail';
+                summaryText = `❌ ${failCount} 个测试失败, ${passCount} 个通过`;
+            } else if (warningCount > 0) {
+                summaryClass = 'warning';
+                summaryText = `⚠️ ${warningCount} 个警告, ${passCount} 个通过`;
+            }
+
+            let html = `<div class="summary ${summaryClass}">${summaryText}</div>`;
+
+            // 显示缺失的函数
+            if (missingFunctions.length > 0) {
+                html += `
+                    <div class="missing-functions">
+                        <h3>⚠️ 检测到 ${missingFunctions.length} 个缺失的全局函数</h3>
+                        <p>这些函数在 app-boot.js.backup 中存在，但当前版本中缺失：</p>
+                        <ul>
+                            ${missingFunctions.map(f => `<li><strong>${f.funcName}</strong> - ${f.location}</li>`).join('')}
+                        </ul>
+                        <p><strong>建议</strong>：如果测试失败，需要从 backup 文件中恢复这些函数。</p>
+                    </div>
+                `;
+            }
+
+            results.forEach(test => {
+                const statusClass = test.isWarning ? 'warning' : (test.passed ? 'pass' : 'fail');
+                const icon = test.isWarning ? '⚠️' : (test.passed ? '✅' : '❌');
+                html += `
+                    <div class="test-item ${statusClass}">
+                        <div class="test-label">
+                            ${icon} ${test.name}
+                        </div>
+                        <div class="test-result">${test.details}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function checkGlobalFunction(funcName, location) {
+            const exists = typeof window[funcName] === 'function';
+            if (!exists) {
+                addMissingFunction(funcName, location);
+            }
+            return exists;
+        }
+
+        function runAllTests() {
+            results.length = 0;
+            missingFunctions.length = 0;
+            renderResults();
+
+            console.log('=== 开始测试 ===');
+
+            // ========== 第一部分：基础环境测试 ==========
+
+            // 测试1: window.state 存在
+            const hasState = typeof window.state === 'object' && window.state !== null;
+            addTest(
+                '1. window.state 存在',
+                hasState,
+                hasState ? `✓ window.state 已初始化` : `✗ window.state 未定义`
+            );
+
+            // 测试2: window.stateManager 存在
+            const hasStateManager = typeof window.stateManager === 'object' && window.stateManager !== null;
+            addTest(
+                '2. window.stateManager 存在',
+                hasStateManager,
+                hasStateManager ? `✓ window.stateManager 已创建` : `✗ window.stateManager 未定义`
+            );
+
+            // 测试3: 数据同步
+            const sameReference = window.state === window.stateManager?.state;
+            addTest(
+                '3. window.state === stateManager.state (数据同步)',
+                sameReference,
+                sameReference ? `✓ 数据引用相同，状态同步正常` : `✗ 数据引用不同，可能导致状态不同步`
+            );
+
+            // ========== 第二部分：StateManager 方法测试 ==========
+
+            const requiredMethods = [
+                'startGeneration',
+                'getGenerationState',
+                'completeGeneration',
+                'errorGeneration',
+                'resetGeneration',
+                'updateProgress',
+                'getConversationHistory'
+            ];
+
+            requiredMethods.forEach((method, index) => {
+                const exists = typeof window.stateManager?.[method] === 'function';
+                addTest(
+                    `${4 + index}. StateManager.${method} 方法存在`,
+                    exists,
+                    exists ? `✓ 方法可用` : `✗ 方法缺失`
+                );
+            });
+
+            // ========== 第三部分：BusinessPlanGenerator 测试 ==========
+
+            // 测试11: BusinessPlanGenerator 存在
+            const hasBPG = typeof window.BusinessPlanGenerator === 'function';
+            addTest(
+                '11. BusinessPlanGenerator 类存在',
+                hasBPG,
+                hasBPG ? `✓ 类已加载` : `✗ 类未定义`
+            );
+
+            // 测试12: 创建 BusinessPlanGenerator 实例
+            let bpgInstance = null;
+            let bpgError = null;
+            try {
+                // 创建必要的依赖
+                if (!window.apiClient) {
+                    window.apiClient = new APIClient('http://localhost:3000');
+                }
+                if (!window.modalManager) {
+                    window.modalManager = new ModalManager();
+                }
+                if (!window.agentProgressManager) {
+                    window.agentProgressManager = new AgentProgressManager(window.modalManager);
+                }
+
+                bpgInstance = new BusinessPlanGenerator(
+                    window.apiClient,
+                    window.stateManager,
+                    window.agentProgressManager
+                );
+
+                addTest(
+                    '12. 创建 BusinessPlanGenerator 实例',
+                    true,
+                    `✓ 实例创建成功`
+                );
+            } catch (error) {
+                bpgError = error;
+                addTest(
+                    '12. 创建 BusinessPlanGenerator 实例',
+                    false,
+                    `✗ 创建失败: ${error.message}\n\n堆栈:\n${error.stack}`
+                );
+            }
+
+            // 测试13: 测试 this.state.state.currentChat 访问
+            if (bpgInstance) {
+                try {
+                    // 模拟设置 currentChat
+                    window.state.currentChat = 'test-chat-123';
+
+                    // 测试访问路径
+                    const chatId1 = bpgInstance.state.state.currentChat;
+                    const chatId2 = window.state.currentChat;
+
+                    const accessWorks = chatId1 === chatId2 && chatId1 === 'test-chat-123';
+
+                    addTest(
+                        '13. this.state.state.currentChat 访问正常',
+                        accessWorks,
+                        accessWorks
+                            ? `✓ 访问路径正确: ${chatId1}`
+                            : `✗ 访问路径错误: this.state.state.currentChat = ${chatId1}, window.state.currentChat = ${chatId2}`
+                    );
+                } catch (error) {
+                    addTest(
+                        '13. this.state.state.currentChat 访问正常',
+                        false,
+                        `✗ 访问失败: ${error.message}`
+                    );
+                }
+            }
+
+            // ========== 第四部分：关键全局函数检查 ==========
+
+            const globalFunctions = [
+                { name: 'saveCurrentSessionState', location: 'app-boot.js.backup:1850' },
+                { name: 'getReportsForChat', location: 'app-boot.js.backup:1870' },
+                { name: 'normalizeChatId', location: 'app-boot.js.backup:1890' },
+                { name: 'handleGenerationBtnClick', location: 'app-boot.js.backup:2262' },
+                { name: 'loadGenerationStates', location: 'app-boot.js.backup:2100' },
+                { name: 'initAgentSystem', location: 'app-boot.js.backup:3500' },
+                { name: 'getAgentUserId', location: 'app-boot.js.backup:3480' }
+            ];
+
+            globalFunctions.forEach((func, index) => {
+                const exists = checkGlobalFunction(func.name, func.location);
+                addTest(
+                    `${14 + index}. 全局函数 ${func.name} 存在`,
+                    exists,
+                    exists ? `✓ 函数可用` : `⚠️ 函数缺失 (位置: ${func.location})`,
+                    !exists // 标记为警告而非失败
+                );
+            });
+
+            console.log('=== 测试完成 ===');
+        }
+
+        function testBusinessPlanGenerator() {
+            console.log('=== 测试 BusinessPlanGenerator 核心功能 ===');
+
+            if (!window.businessPlanGenerator) {
+                alert('❌ window.businessPlanGenerator 未初始化\n\n请先在主应用中初始化，或在控制台运行：\nwindow.businessPlanGenerator = new BusinessPlanGenerator(window.apiClient, window.stateManager, window.agentProgressManager)');
+                return;
+            }
+
+            try {
+                // 模拟点击生成按钮
+                console.log('模拟点击"生成商业计划书"按钮...');
+                window.businessPlanGenerator.showChapterSelection('business');
+
+                alert('✅ 测试成功！\n\n如果章节选择弹窗正常显示，说明 BusinessPlanGenerator 基本功能正常。\n\n请继续测试：\n1. 选择章节\n2. 点击"开始生成"\n3. 观察进度弹窗\n4. 检查控制台是否有错误');
+            } catch (error) {
+                alert(`❌ 测试失败！\n\n错误: ${error.message}\n\n堆栈:\n${error.stack}`);
+                console.error('BusinessPlanGenerator 测试失败:', error);
+            }
+        }
+
+        // 页面加载后自动运行测试
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 500);
+        });
+    </script>
+</body>
+</html>

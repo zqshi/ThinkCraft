@@ -299,7 +299,7 @@ class AgentCollaboration {
             根据创意深度思考给出雇佣建议，本期暂不支持对雇佣成员组合进行调整。
           </div>
         </div>
-        <div style="display: flex; gap: 12px; position: sticky; bottom: 0; background: white; padding-top: 12px; border-top: 1px solid var(--border);">
+        <div style="display: flex; gap: 12px; position: sticky; bottom: -24px; background: white; padding: 16px 0; margin: 0 -24px; padding-left: 24px; padding-right: 24px; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.08);">
           ${collaborationExecuted
             ? '<button class="btn-primary" id="collaborationClose" style="flex: 1;">关闭</button>'
             : `
@@ -593,8 +593,748 @@ class AgentCollaboration {
       window.modalManager?.alert('执行失败，请重试', 'error');
     }
   }
+
+  // ==================== Agent System Management ====================
+
+  /**
+   * 获取用户ID（用于Agent系统）
+   * @returns {String} 用户ID
+   */
+  getAgentUserId() {
+    try {
+      const raw = sessionStorage.getItem('thinkcraft_user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        const id = user?.userId || user?.id || user?.phone;
+        if (id) {
+          return String(id);
+        }
+      }
+    } catch (error) {}
+
+    const cached = localStorage.getItem('thinkcraft_user_id');
+    if (cached) {
+      return cached;
+    }
+    const fallback = `guest_${Date.now()}`;
+    localStorage.setItem('thinkcraft_user_id', fallback);
+    return fallback;
+  }
+
+  /**
+   * 初始化Agent系统
+   */
+  async initAgentSystem() {
+    try {
+      // 获取可用的Agent类型
+      const response = await fetch(`${this.apiUrl}/api/agents/types`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          this.availableAgentTypes = result.data.types;
+        }
+      }
+
+      // 获取用户已雇佣的Agent
+      await this.loadMyAgents();
+
+      // 更新侧边栏显示
+      this.updateAgentTeamSummary();
+    } catch (error) {
+      console.error('[Agent系统] 初始化失败:', error);
+    }
+  }
+
+  /**
+   * 加载用户已雇佣的Agent
+   */
+  async loadMyAgents() {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/agents/my/${this.getAgentUserId()}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          this.myAgents = result.data.agents || [];
+        }
+      }
+    } catch (error) {
+      console.error('[Agent系统] 加载我的Agent失败:', error);
+    }
+  }
+
+  /**
+   * 更新Agent团队摘要显示
+   */
+  updateAgentTeamSummary() {
+    const summaryEl = document.getElementById('agentTeamSummary');
+    if (summaryEl) {
+      if (!this.myAgents || this.myAgents.length === 0) {
+        summaryEl.textContent = '点击管理你的AI员工团队';
+      } else {
+        summaryEl.textContent = `已雇佣 ${this.myAgents.length} 名员工`;
+      }
+    }
+  }
+
+  /**
+   * 雇佣Agent
+   * @param {String} agentType - Agent类型
+   * @param {String} agentName - Agent名称
+   */
+  async hireAgent(agentType, agentName) {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/agents/hire`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: this.getAgentUserId(),
+          agentType: agentType
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('雇佣失败');
+      }
+
+      const result = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.error || '雇佣失败');
+      }
+
+      if (window.modalManager) {
+        window.modalManager.alert(`✅ 成功雇佣 ${agentName}！`, 'success');
+      } else {
+        alert(`✅ 成功雇佣 ${agentName}！`);
+      }
+
+      // 重新加载数据
+      await this.loadMyAgents();
+      this.updateAgentTeamSummary();
+
+      // 刷新当前视图
+      const contentEl = document.getElementById('agentContent');
+      if (contentEl) {
+        this.renderHireHall(contentEl);
+      }
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.alert(`❌ 雇佣失败: ${error.message}`, 'error');
+      } else {
+        alert(`❌ 雇佣失败: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * 解雇Agent
+   * @param {String} agentId - Agent ID
+   */
+  async fireAgent(agentId) {
+    const agent = this.myAgents?.find(a => a.id === agentId);
+    if (!agent) return;
+
+    if (!confirm(`确定要解雇 ${agent.nickname} 吗？`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/agents/${this.getAgentUserId()}/${agentId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('解雇失败');
+      }
+
+      const result = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.error || '解雇失败');
+      }
+
+      if (window.modalManager) {
+        window.modalManager.alert(`✅ 已解雇 ${agent.nickname}`, 'success');
+      } else {
+        alert(`✅ 已解雇 ${agent.nickname}`);
+      }
+
+      // 重新加载数据
+      await this.loadMyAgents();
+      this.updateAgentTeamSummary();
+
+      // 刷新当前视图
+      const contentEl = document.getElementById('agentContent');
+      if (contentEl) {
+        this.renderMyTeam(contentEl);
+      }
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.alert(`❌ 解雇失败: ${error.message}`, 'error');
+      } else {
+        alert(`❌ 解雇失败: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * 分配任务给Agent
+   * @param {String} agentId - Agent ID
+   */
+  async assignTaskToAgent(agentId) {
+    const agent = this.myAgents?.find(a => a.id === agentId);
+    if (!agent) return;
+
+    const task = prompt(`请输入要分配给 ${agent.nickname} 的任务：\n\n例如：分析竞品的优势和劣势`);
+    if (!task || task.trim() === '') {
+      return;
+    }
+
+    try {
+      alert(`${agent.nickname} 开始工作中，请稍候...`);
+
+      const response = await fetch(`${this.apiUrl}/api/agents/assign-task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: this.getAgentUserId(),
+          agentId: agentId,
+          task: task,
+          context: window.state?.userData?.idea || ''
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('任务分配失败');
+      }
+
+      const result = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.error || '任务分配失败');
+      }
+
+      // 显示结果
+      const taskResult = result.data;
+      if (typeof window.showTaskResult === 'function') {
+        window.showTaskResult(taskResult);
+      }
+
+      // 重新加载团队数据
+      await this.loadMyAgents();
+    } catch (error) {
+      alert(`❌ 任务分配失败: ${error.message}`);
+    }
+  }
+
+  // ==================== Agent UI Management ====================
+
+  /**
+   * 显示Agent管理面板
+   */
+  showAgentManagement() {
+    // 创建模态框HTML
+    const modalHTML = `
+      <div class="modal" id="agentManagementModal">
+        <div class="modal-content" style="max-width: 900px; height: 80vh;">
+          <div class="modal-header">
+            <h2>👥 数字员工团队管理</h2>
+            <button class="close-btn" onclick="window.agentCollaboration.closeAgentManagement()">×</button>
+          </div>
+          <div class="modal-body" style="padding: 0; height: calc(100% - 60px);">
+            <div style="display: flex; height: 100%; border-top: 1px solid var(--border);">
+              <!-- 左侧导航 -->
+              <div style="width: 200px; border-right: 1px solid var(--border); background: #f9fafb; overflow-y: auto;">
+                <div class="agent-nav-item active" onclick="window.agentCollaboration.switchAgentTab('my-team')" data-tab="my-team">
+                  <span style="margin-right: 8px;">👥</span>
+                  我的团队
+                </div>
+                <div class="agent-nav-item" onclick="window.agentCollaboration.switchAgentTab('hire')" data-tab="hire">
+                  <span style="margin-right: 8px;">🎯</span>
+                  招聘大厅
+                </div>
+                <div class="agent-nav-item" onclick="window.agentCollaboration.switchAgentTab('tasks')" data-tab="tasks">
+                  <span style="margin-right: 8px;">📋</span>
+                  任务管理
+                </div>
+                <div class="agent-nav-item" onclick="window.agentCollaboration.switchAgentTab('collaboration')" data-tab="collaboration">
+                  <span style="margin-right: 8px;">🤝</span>
+                  团队协同
+                </div>
+              </div>
+
+              <!-- 右侧内容区 -->
+              <div style="flex: 1; overflow-y: auto; padding: 24px;" id="agentContent">
+                <!-- 动态内容 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        .agent-nav-item {
+          padding: 16px 20px;
+          cursor: pointer;
+          font-size: 14px;
+          color: var(--text-secondary);
+          transition: all 0.2s;
+          border-left: 3px solid transparent;
+        }
+        .agent-nav-item:hover {
+          background: white;
+          color: var(--text-primary);
+        }
+        .agent-nav-item.active {
+          background: white;
+          color: var(--primary);
+          font-weight: 600;
+          border-left-color: var(--primary);
+        }
+        .agent-card {
+          background: white;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 16px;
+          transition: all 0.3s;
+        }
+        .agent-card:hover {
+          border-color: var(--primary);
+          box-shadow: 0 4px 12px rgba(79,70,229,0.1);
+        }
+        .agent-skill-tag {
+          display: inline-block;
+          background: #f3f4f6;
+          color: #6b7280;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          margin: 4px 4px 4px 0;
+        }
+        .hire-btn {
+          background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+          color: white;
+          border: none;
+          padding: 8px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s;
+        }
+        .hire-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+        }
+        .fire-btn {
+          background: #ef4444;
+          color: white;
+          border: none;
+          padding: 6px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+          margin-left: 8px;
+        }
+        .assign-task-btn {
+          background: var(--primary);
+          color: white;
+          border: none;
+          padding: 6px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+      </style>
+    `;
+
+    // 检查是否已存在模态框，如果存在则移除
+    const existingModal = document.getElementById('agentManagementModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // 添加到body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // 显示模态框
+    setTimeout(() => {
+      document.getElementById('agentManagementModal').classList.add('active');
+      // 默认显示"我的团队"
+      this.switchAgentTab('my-team');
+    }, 10);
+  }
+
+  /**
+   * 关闭Agent管理面板
+   */
+  closeAgentManagement() {
+    const modal = document.getElementById('agentManagementModal');
+    if (modal) {
+      modal.classList.remove('active');
+      setTimeout(() => modal.remove(), 300);
+    }
+  }
+
+  /**
+   * 切换Agent标签页
+   * @param {String} tab - 标签页名称
+   */
+  switchAgentTab(tab) {
+    // 更新导航样式
+    document.querySelectorAll('.agent-nav-item').forEach(item => {
+      if (item.dataset.tab === tab) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    // 更新内容
+    const content = document.getElementById('agentContent');
+    switch (tab) {
+      case 'my-team':
+        this.renderMyTeam(content);
+        break;
+      case 'hire':
+        this.renderHireHall(content);
+        break;
+      case 'tasks':
+        this.renderTasks(content);
+        break;
+      case 'collaboration':
+        this.renderCollaboration(content);
+        break;
+    }
+  }
+
+  /**
+   * 渲染"我的团队"标签页
+   * @param {HTMLElement} container - 容器元素
+   */
+  renderMyTeam(container) {
+    if (!this.myAgents || this.myAgents.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 60px 20px;">
+          <div style="font-size: 48px; margin-bottom: 16px;">👥</div>
+          <h3 style="color: var(--text-secondary); margin-bottom: 8px;">还没有雇佣员工</h3>
+          <p style="color: var(--text-tertiary); margin-bottom: 24px;">去"招聘大厅"雇佣你的第一个数字员工</p>
+          <button class="btn-primary" onclick="window.agentCollaboration.switchAgentTab('hire')">
+            前往招聘大厅
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const agentsHTML = this.myAgents.map(agent => {
+      const skillsHTML = (agent.skills || []).map(skill =>
+        `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`
+      ).join('');
+
+      return `
+        <div class="agent-card">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 32px; margin-right: 12px;">${agent.emoji || '🧠'}</div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 16px;">${this.escapeHtml(agent.nickname || agent.name)}</div>
+              <div style="color: var(--text-secondary); font-size: 14px;">${this.escapeHtml(agent.type || '数字员工')}</div>
+            </div>
+          </div>
+          <div style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+            ${this.escapeHtml(agent.description || '暂无描述')}
+          </div>
+          <div style="margin-bottom: 12px;">
+            ${skillsHTML}
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="assign-task-btn" onclick="window.agentCollaboration.assignTaskToAgent('${agent.id}')">
+              分配任务
+            </button>
+            <button class="fire-btn" onclick="window.agentCollaboration.fireAgent('${agent.id}')">
+              解雇
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <h3 style="margin-bottom: 20px;">我的团队 (${this.myAgents.length})</h3>
+      ${agentsHTML}
+    `;
+  }
+
+  /**
+   * 渲染"招聘大厅"标签页
+   * @param {HTMLElement} container - 容器元素
+   */
+  renderHireHall(container) {
+    const availableAgents = this.availableAgentTypes || [];
+    const hiredIds = (this.myAgents || []).map(a => a.id);
+
+    if (availableAgents.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 60px 20px;">
+          <div style="font-size: 48px; margin-bottom: 16px;">🎯</div>
+          <h3 style="color: var(--text-secondary);">暂无可雇佣的员工</h3>
+        </div>
+      `;
+      return;
+    }
+
+    const agentsHTML = availableAgents.map(agent => {
+      const isHired = hiredIds.includes(agent.id);
+      const skillsHTML = (agent.skills || []).map(skill =>
+        `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`
+      ).join('');
+
+      return `
+        <div class="agent-card ${isHired ? 'hired' : ''}">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 32px; margin-right: 12px;">${agent.emoji || '🧠'}</div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 16px;">${this.escapeHtml(agent.name)}</div>
+              <div style="color: var(--text-secondary); font-size: 14px;">${this.escapeHtml(agent.type || '数字员工')}</div>
+            </div>
+          </div>
+          <div style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+            ${this.escapeHtml(agent.description || '暂无描述')}
+          </div>
+          <div style="margin-bottom: 12px;">
+            ${skillsHTML}
+          </div>
+          <button class="hire-btn ${isHired ? 'hired' : ''}"
+                  onclick="window.agentCollaboration.hireAgent('${agent.type}', '${this.escapeHtml(agent.name)}')"
+                  ${isHired ? 'disabled' : ''}>
+            ${isHired ? '✓ 已雇佣' : '雇佣'}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <h3 style="margin-bottom: 20px;">招聘大厅</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+        ${agentsHTML}
+      </div>
+    `;
+  }
+
+  /**
+   * 渲染"任务管理"标签页
+   * @param {HTMLElement} container - 容器元素
+   */
+  renderTasks(container) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px;">
+        <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+        <h3 style="color: var(--text-secondary);">任务管理功能开发中</h3>
+        <p style="color: var(--text-tertiary); margin-top: 8px;">敬请期待</p>
+      </div>
+    `;
+  }
+
+  /**
+   * 渲染"团队协同"标签页
+   * @param {HTMLElement} container - 容器元素
+   */
+  renderCollaboration(container) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px;">
+        <div style="font-size: 48px; margin-bottom: 16px;">🤝</div>
+        <h3 style="color: var(--text-secondary);">团队协同功能开发中</h3>
+        <p style="color: var(--text-tertiary); margin-top: 8px;">敬请期待</p>
+      </div>
+    `;
+  }
+
+  // ==================== Team Space Agent Management ====================
+
+  /**
+   * 雇佣团队Agent（用于团队空间）
+   * @param {String} agentId - Agent ID
+   */
+  hireTeamAgent(agentId) {
+    const AVAILABLE_AGENTS = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const agent = AVAILABLE_AGENTS.find(a => a.id === agentId);
+    if (!agent) return;
+
+    // 检查是否已经雇佣
+    const teamAgents = window.state?.teamSpace?.agents || [];
+    if (teamAgents.find(a => a.id === agentId)) {
+      alert('该员工已经被雇佣');
+      return;
+    }
+
+    // 添加到已雇佣列表
+    if (window.state?.teamSpace) {
+      window.state.teamSpace.agents.push({
+        ...agent,
+        hiredAt: new Date().toISOString()
+      });
+
+      if (typeof window.saveTeamSpace === 'function') {
+        window.saveTeamSpace();
+      }
+
+      // 刷新视图
+      if (typeof window.renderAgentMarket === 'function') {
+        window.renderAgentMarket();
+      }
+
+      alert(`✅ 成功雇佣 ${agent.name}`);
+    }
+  }
+
+  /**
+   * 解雇团队Agent（用于团队空间）
+   * @param {String} agentId - Agent ID
+   */
+  fireTeamAgent(agentId) {
+    const teamAgents = window.state?.teamSpace?.agents || [];
+    const agent = teamAgents.find(a => a.id === agentId);
+    if (!agent) return;
+
+    if (!confirm(`确定要解雇 ${agent.name} 吗？`)) return;
+
+    // 从所有项目中移除该员工
+    if (window.state?.teamSpace?.projects) {
+      window.state.teamSpace.projects.forEach(project => {
+        project.assignedAgents = (project.assignedAgents || []).filter(id => id !== agentId);
+      });
+    }
+
+    // 从已雇佣列表中移除
+    if (window.state?.teamSpace) {
+      window.state.teamSpace.agents = teamAgents.filter(a => a.id !== agentId);
+
+      if (typeof window.saveTeamSpace === 'function') {
+        window.saveTeamSpace();
+      }
+
+      // 刷新视图
+      if (typeof window.renderHiredAgents === 'function') {
+        window.renderHiredAgents();
+      }
+      if (window.projectManager?.renderProjectList) {
+        window.projectManager.renderProjectList('projectListContainer');
+      }
+
+      alert(`${agent.name} 已被解雇`);
+    }
+  }
+
+  /**
+   * 从项目模态框解雇Agent
+   * @param {String} agentId - Agent ID
+   */
+  fireAgentFromModal(agentId) {
+    const project = window.currentProject;
+    if (!project) return;
+
+    const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const agent = agentMarket.find(item => item.id === agentId);
+    const agentName = agent?.name || '该成员';
+
+    if (!confirm(`确定要将 ${agentName} 从项目中移除吗？`)) {
+      return;
+    }
+
+    const assignedAgents = project.assignedAgents || [];
+    const index = assignedAgents.indexOf(agentId);
+    if (index > -1) {
+      assignedAgents.splice(index, 1);
+      project.assignedAgents = assignedAgents;
+
+      // 保存到 localStorage
+      if (typeof window.saveTeamSpace === 'function') {
+        window.saveTeamSpace();
+      }
+
+      // 刷新视图
+      if (typeof window.renderProjectHiredAgents === 'function') {
+        window.renderProjectHiredAgents();
+      }
+      if (typeof window.renderAvailableAgents === 'function') {
+        window.renderAvailableAgents();
+      }
+      if (typeof window.renderProjectMembers === 'function') {
+        window.renderProjectMembers(project);
+      }
+
+      const memberCountEl = document.getElementById('projectMemberCount');
+      if (memberCountEl) {
+        memberCountEl.textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+      }
+    }
+  }
+
+  /**
+   * 切换Agent雇佣状态（用于项目）
+   * @param {String} agentId - Agent ID
+   */
+  toggleAgentHire(agentId) {
+    const project = window.currentProject;
+    if (!project) return;
+
+    const hiredAgents = project.assignedAgents || [];
+    const index = hiredAgents.indexOf(agentId);
+
+    if (index > -1) {
+      // 已雇佣的情况不应该走到这里，因为按钮已经disabled
+      return;
+    }
+
+    // 执行雇佣
+    hiredAgents.push(agentId);
+    project.assignedAgents = hiredAgents;
+
+    // 保存到 localStorage
+    if (typeof window.saveTeamSpace === 'function') {
+      window.saveTeamSpace();
+    }
+
+    // 重新渲染
+    if (typeof window.renderAvailableAgents === 'function') {
+      window.renderAvailableAgents();
+    }
+    if (typeof window.renderProjectHiredAgents === 'function') {
+      window.renderProjectHiredAgents();
+    }
+    if (typeof window.renderProjectMembers === 'function') {
+      window.renderProjectMembers(project);
+    }
+    if (window.projectManager?.renderProjectList) {
+      window.projectManager.renderProjectList('projectListContainer');
+    }
+
+    // 刷新主内容区的项目详情页面
+    if (typeof window.renderProjectDetail === 'function') {
+      window.renderProjectDetail(project);
+    }
+
+    const memberCountEl = document.getElementById('projectMemberCount');
+    if (memberCountEl) {
+      memberCountEl.textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+    }
+  }
 }
 
 if (typeof window !== 'undefined') {
   window.agentCollaboration = new AgentCollaboration();
+
+  // 全局函数桥接（保持向后兼容）
+  window.initAgentSystem = () => window.agentCollaboration?.initAgentSystem();
+  window.loadMyAgents = () => window.agentCollaboration?.loadMyAgents();
+  window.updateAgentTeamSummary = () => window.agentCollaboration?.updateAgentTeamSummary();
+  window.showAgentManagement = () => window.agentCollaboration?.showAgentManagement();
+  window.closeAgentManagement = () => window.agentCollaboration?.closeAgentManagement();
+  window.switchAgentTab = (tab) => window.agentCollaboration?.switchAgentTab(tab);
+  window.getAgentUserId = () => window.agentCollaboration?.getAgentUserId();
 }

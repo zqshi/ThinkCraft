@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThinkCraft 数据清理工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: start;
+            gap: 10px;
+        }
+
+        .warning-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .warning-text {
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background: #e9ecef;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            flex: 1;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .checkbox-desc {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-clear:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .log-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .log-container.show {
+            display: block;
+        }
+
+        .log-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .log-item {
+            font-size: 13px;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .log-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .log-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .log-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .log-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar.show {
+            display: block;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ 数据清理工具</h1>
+        <p class="subtitle">清理 ThinkCraft 的所有本地数据</p>
+
+        <div class="warning">
+            <div class="warning-icon">⚠️</div>
+            <div class="warning-text">
+                <strong>警告：此操作不可逆！</strong><br>
+                清理后，所有选中的数据将被永久删除，无法恢复。请确保你已经备份了重要数据。
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                📊 选择要清理的数据
+            </div>
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearChats" checked>
+                    <div class="checkbox-label">
+                        <div>对话数据</div>
+                        <div class="checkbox-desc">包括所有对话历史、消息记录</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearReports" checked>
+                    <div class="checkbox-label">
+                        <div>报告数据</div>
+                        <div class="checkbox-desc">包括商业计划书、立项材料、分析报告</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearProjects" checked>
+                    <div class="checkbox-label">
+                        <div>项目数据</div>
+                        <div class="checkbox-desc">包括所有项目信息、工作流、阶段数据</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearInspiration" checked>
+                    <div class="checkbox-label">
+                        <div>灵感数据</div>
+                        <div class="checkbox-desc">包括灵感收件箱中的所有条目</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearKnowledge" checked>
+                    <div class="checkbox-label">
+                        <div>知识库数据</div>
+                        <div class="checkbox-desc">包括所有知识条目、文档</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearLocalStorage" checked>
+                    <div class="checkbox-label">
+                        <div>本地存储</div>
+                        <div class="checkbox-desc">包括设置、缓存、临时数据</div>
+                    </div>
+                </label>
+
+                <label class="checkbox-item">
+                    <input type="checkbox" id="clearCache" checked>
+                    <div class="checkbox-label">
+                        <div>浏览器缓存</div>
+                        <div class="checkbox-desc">包括 Service Worker 缓存</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="chatCount">-</div>
+                <div class="stat-label">对话数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="reportCount">-</div>
+                <div class="stat-label">报告数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="projectCount">-</div>
+                <div class="stat-label">项目数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="storageSize">-</div>
+                <div class="stat-label">存储大小</div>
+            </div>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-cancel" onclick="window.close()">取消</button>
+            <button class="btn-clear" id="clearBtn" onclick="startClear()">开始清理</button>
+        </div>
+
+        <div class="log-container" id="logContainer">
+            <div class="log-title">清理日志</div>
+            <div id="logContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // 日志函数
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logContent = document.getElementById('logContent');
+            logContainer.classList.add('show');
+
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContent.appendChild(logItem);
+
+            // 自动滚动到底部
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 更新进度条
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            progressBar.classList.add('show');
+            progressFill.style.width = percent + '%';
+        }
+
+        // 加载统计信息
+        async function loadStats() {
+            try {
+                const db = await openDB();
+
+                // 获取对话数量
+                const chats = await getAllFromStore(db, 'chats');
+                document.getElementById('chatCount').textContent = chats.length;
+
+                // 获取报告数量
+                const reports = await getAllFromStore(db, 'reports');
+                document.getElementById('reportCount').textContent = reports.length;
+
+                // 获取项目数量
+                const projects = await getAllFromStore(db, 'projects');
+                document.getElementById('projectCount').textContent = projects.length;
+
+                // 估算存储大小
+                const storageEstimate = await navigator.storage.estimate();
+                const usedMB = (storageEstimate.usage / 1024 / 1024).toFixed(2);
+                document.getElementById('storageSize').textContent = usedMB + ' MB';
+
+                document.getElementById('stats').style.display = 'grid';
+            } catch (error) {
+                console.error('加载统计信息失败:', error);
+            }
+        }
+
+        // 打开 IndexedDB
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('ThinkCraftDB', 1);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // 获取存储中的所有数据
+        function getAllFromStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction(storeName, 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result || []);
+                    request.onerror = () => reject(request.error);
+                } catch (error) {
+                    resolve([]);
+                }
+            });
+        }
+
+        // 清空存储
+        function clearStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction(storeName, 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                } catch (error) {
+                    resolve(); // 如果存储不存在，忽略错误
+                }
+            });
+        }
+
+        // 开始清理
+        async function startClear() {
+            const clearBtn = document.getElementById('clearBtn');
+            clearBtn.disabled = true;
+            clearBtn.textContent = '清理中...';
+
+            const options = {
+                chats: document.getElementById('clearChats').checked,
+                reports: document.getElementById('clearReports').checked,
+                projects: document.getElementById('clearProjects').checked,
+                inspiration: document.getElementById('clearInspiration').checked,
+                knowledge: document.getElementById('clearKnowledge').checked,
+                localStorage: document.getElementById('clearLocalStorage').checked,
+                cache: document.getElementById('clearCache').checked
+            };
+
+            log('开始清理数据...', 'info');
+            updateProgress(0);
+
+            try {
+                const db = await openDB();
+                let progress = 0;
+                const totalSteps = Object.values(options).filter(v => v).length;
+                const stepProgress = 100 / totalSteps;
+
+                // 清理对话数据
+                if (options.chats) {
+                    log('清理对话数据...', 'info');
+                    await clearStore(db, 'chats');
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 对话数据已清理', 'success');
+                }
+
+                // 清理报告数据
+                if (options.reports) {
+                    log('清理报告数据...', 'info');
+                    await clearStore(db, 'reports');
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 报告数据已清理', 'success');
+                }
+
+                // 清理项目数据
+                if (options.projects) {
+                    log('清理项目数据...', 'info');
+                    await clearStore(db, 'projects');
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 项目数据已清理', 'success');
+                }
+
+                // 清理灵感数据
+                if (options.inspiration) {
+                    log('清理灵感数据...', 'info');
+                    await clearStore(db, 'inspirations');
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 灵感数据已清理', 'success');
+                }
+
+                // 清理知识库数据
+                if (options.knowledge) {
+                    log('清理知识库数据...', 'info');
+                    await clearStore(db, 'knowledge');
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 知识库数据已清理', 'success');
+                }
+
+                // 清理 localStorage
+                if (options.localStorage) {
+                    log('清理本地存储...', 'info');
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 本地存储已清理', 'success');
+                }
+
+                // 清理缓存
+                if (options.cache) {
+                    log('清理浏览器缓存...', 'info');
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(cacheNames.map(name => caches.delete(name)));
+                    }
+                    progress += stepProgress;
+                    updateProgress(progress);
+                    log('✓ 浏览器缓存已清理', 'success');
+                }
+
+                updateProgress(100);
+                log('========================================', 'info');
+                log('✓ 所有数据清理完成！', 'success');
+                log('========================================', 'info');
+                log('建议：刷新页面以应用更改', 'warning');
+
+                clearBtn.textContent = '清理完成';
+
+                // 3秒后刷新页面
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+
+            } catch (error) {
+                log('✗ 清理失败: ' + error.message, 'error');
+                clearBtn.disabled = false;
+                clearBtn.textContent = '重试';
+            }
+        }
+
+        // 页面加载时加载统计信息
+        window.addEventListener('load', loadStats);
+    </script>
+</body>
+</html>

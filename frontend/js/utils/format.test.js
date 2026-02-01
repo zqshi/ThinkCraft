@@ -3,23 +3,10 @@
  * 测试各种格式化功能
  */
 
-// 由于format.js使用全局函数，我们需要在测试环境中加载它
-import './format.js';
-
-// 从全局作用域获取函数
-const {
-  formatTime,
-  generateChatId,
-  normalizeChatId,
-  formatDate,
-  formatDateTime,
-  truncateText,
-  generateRandomId,
-  formatFileSize,
-  formatNumber,
-  parseCodeBlocks,
-  escapeHtml
-} = global;
+// 加载format.js到全局环境
+beforeAll(async () => {
+  await import('./format.js');
+});
 
 describe('formatTime', () => {
   test('应该返回"刚刚"当时间差小于1分钟', () => {
@@ -126,7 +113,8 @@ describe('formatDateTime', () => {
 describe('truncateText', () => {
   test('应该截断超长文本', () => {
     const text = '这是一段很长的文本内容，需要被截断处理';
-    expect(truncateText(text, 10)).toBe('这是一段很长的文本内容...');
+    // substring(0, 10) = "这是一段很长的文本内容", 加上 "..." = "这是一段很长的文本内..."
+    expect(truncateText(text, 10)).toBe('这是一段很长的文本内...');
   });
 
   test('应该保持短文本不变', () => {

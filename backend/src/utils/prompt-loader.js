@@ -384,7 +384,7 @@ class PromptLoader {
       await Promise.all(
         config.chapters.map(async chapter => {
           const content = await this.loadChapterTemplate('business-plan', chapter.id);
-          chapters[chapter.id.replace(/-/g, '_')] = content;
+          chapters[chapter.id] = content;
         })
       );
 
@@ -411,7 +411,7 @@ class PromptLoader {
         chapterIds.map(async id => {
           try {
             const promptName = `business-plan/business-plan-${id}`;
-            chapters[id.replace(/-/g, '_')] = await this.load(promptName);
+            chapters[id] = await this.load(promptName);
           } catch (err) {
             console.warn(`[PromptLoader] 跳过章节: ${id}`);
           }
@@ -433,7 +433,7 @@ class PromptLoader {
       await Promise.all(
         config.chapters.map(async chapter => {
           const content = await this.loadChapterTemplate('proposal', chapter.id);
-          chapters[chapter.id.replace(/-/g, '_')] = content;
+          chapters[chapter.id] = content;
         })
       );
 

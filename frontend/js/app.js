@@ -73,12 +73,13 @@ function initApp() {
       })
       .catch(error => {});
   }
-  if (window.stateManager) {
-    window.stateManager.subscribe(newState => {
-      window.updateGenerationButtonState && window.updateGenerationButtonState(newState.generation);
-    });
-  }
   if (window.businessPlanGenerator) {
+  }
+
+  // 初始化报告状态管理器
+  if (window.ReportStatusManager && !window.reportStatusManager) {
+    window.reportStatusManager = new window.ReportStatusManager();
+    console.log('[App] ReportStatusManager 已初始化');
   }
 }
 

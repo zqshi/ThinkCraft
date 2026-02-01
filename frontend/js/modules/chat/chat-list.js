@@ -55,6 +55,13 @@ class ChatList {
      * 加载对话列表
      */
     loadChats() {
+        // 1. 先清理所有已经portal到body的菜单
+        document.querySelectorAll('.chat-item-menu').forEach(menu => {
+            if (menu.parentElement === document.body) {
+                menu.remove();
+            }
+        });
+
         const saved = localStorage.getItem('thinkcraft_chats');
 
         if (!saved || saved === '[]') {
@@ -212,9 +219,6 @@ class ChatList {
             chat.titleEdited = true;
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
             this.loadChats();
-            if (typeof reopenChatMenu === 'function') {
-                reopenChatMenu(chatId);
-            }
         }
     }
 
@@ -231,9 +235,6 @@ class ChatList {
         chat.isPinned = !chat.isPinned;
         localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
         this.loadChats();
-        if (typeof reopenChatMenu === 'function') {
-            reopenChatMenu(chatId);
-        }
     }
 
     /**
@@ -284,12 +285,43 @@ class ChatList {
             return;
         }
 
+        // 先清空当前对话的消息，防止 startNewChat() 重新保存
+        state.messages = [];
+        state.currentChat = null;
+        state.userData = {};
+        state.conversationStep = 0;
+        state.analysisCompleted = false;
+
+        // 清空对话列表
         state.chats = [];
         localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+
+        // 清除其他存储
+        localStorage.removeItem('thinkcraft_reports');
+        sessionStorage.clear();
+
+        // 清除IndexedDB（如果存在）
+        if (window.storageManager && window.storageManager.clearAll) {
+            window.storageManager.clearAll().catch(() => {});
+        }
+
+        // 重新加载对话列表
         this.loadChats();
 
-        // 重置当前对话
+        // 重置UI（不会触发保存，因为 messages 已经清空）
         this.startNewChat();
+
+        // 关闭设置弹窗（桌面端和移动端）
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.classList.remove('active');
+        }
+        const bottomSheet = document.getElementById('bottomSettingsSheet');
+        if (bottomSheet) {
+            bottomSheet.classList.remove('active');
+        }
+
+        alert('✅ 历史记录已清除');
     }
 }
 
@@ -320,3 +352,11 @@ function deleteChat(e, chatId) {
 function clearAllHistory() {
     window.chatList.clearAllHistory();
 }
+
+// 暴露到window对象
+window.startNewChat = startNewChat;
+window.loadChats = loadChats;
+window.renameChat = renameChat;
+window.togglePinChat = togglePinChat;
+window.deleteChat = deleteChat;
+window.clearAllHistory = clearAllHistory;

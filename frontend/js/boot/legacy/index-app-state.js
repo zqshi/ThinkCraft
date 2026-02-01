@@ -24,6 +24,7 @@ const state = {
   autoScrollLocked: false, // 用户手动上滑后锁定，直到回到底部
   currentProject: null, // 当前打开的项目ID
   teamSpace: null, // 团队空间数据（延迟初始化）
+  generation: {}, // 报告生成状态 { [chatId]: { business: {...}, proposal: {...}, analysis: {...} } }
   settings: {
     darkMode: false,
     saveHistory: true,

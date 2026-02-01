@@ -49,15 +49,6 @@ function generateChatId() {
 }
 
 /**
- * 规范化聊天ID（确保为数字类型）
- * @param {string|number} chatId - 聊天ID
- * @returns {number} 规范化后的聊天ID
- */
-function normalizeChatId(chatId) {
-  return typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
-}
-
-/**
  * 格式化日期为YYYY-MM-DD格式
  * @param {Date|number|string} date - 日期对象、时间戳或日期字符串
  * @returns {string} 格式化后的日期字符串
@@ -178,7 +169,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     formatTime,
     generateChatId,
-    normalizeChatId,
     formatDate,
     formatDateTime,
     truncateText,
@@ -190,17 +180,17 @@ if (typeof module !== 'undefined' && module.exports) {
   };
 }
 
-// ES模块导出
-export {
-  formatTime,
-  generateChatId,
-  normalizeChatId,
-  formatDate,
-  formatDateTime,
-  truncateText,
-  generateRandomId,
-  formatFileSize,
-  formatNumber,
-  parseCodeBlocks,
-  escapeHtml
-};
+// 在测试环境中将函数导出到全局作用域
+if (typeof global !== 'undefined') {
+  global.formatTime = formatTime;
+  global.generateChatId = generateChatId;
+  global.formatDate = formatDate;
+  global.formatDateTime = formatDateTime;
+  global.truncateText = truncateText;
+  global.generateRandomId = generateRandomId;
+  global.formatFileSize = formatFileSize;
+  global.formatNumber = formatNumber;
+  global.parseCodeBlocks = parseCodeBlocks;
+  global.escapeHtml = escapeHtml;
+}
+

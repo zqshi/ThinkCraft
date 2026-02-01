@@ -4,7 +4,7 @@
  * Version: 1.0.0
  */
 
-const CACHE_VERSION = 'thinkcraft-v1.0.12';
+const CACHE_VERSION = 'thinkcraft-v1.0.20';
 const CACHE_NAME = `${CACHE_VERSION}`;
 const APP_BOOT_PATH = '/frontend/js/app-boot.js';
 const CRITICAL_SCRIPTS = new Set([

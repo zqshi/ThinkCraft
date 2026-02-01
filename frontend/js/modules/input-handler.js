@@ -28,6 +28,7 @@ class InputHandler {
     this.state = window.state;
     this.isRecording = false;
     this.recognition = null;
+    this.microphonePermissionGranted = false;
   }
 
   /**
@@ -73,10 +74,36 @@ class InputHandler {
   }
 
   /**
+   * 请求麦克风权限
+   * @returns {Promise<boolean>} 是否授权成功
+   */
+  async requestMicrophonePermission() {
+    try {
+      // 尝试获取麦克风权限
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 立即停止流，我们只是为了获取权限
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (error) {
+      console.error('麦克风权限请求失败:', error);
+
+      // 根据错误类型给出不同提示
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        alert('❌ 麦克风权限被拒绝\n\n请在浏览器设置中允许访问麦克风，然后刷新页面重试。\n\niOS用户：设置 > Safari > 麦克风\nAndroid用户：设置 > 应用 > 浏览器 > 权限 > 麦克风');
+      } else if (error.name === 'NotFoundError') {
+        alert('❌ 未检测到麦克风设备\n\n请确保设备已连接麦克风');
+      } else {
+        alert('❌ 无法访问麦克风\n\n错误信息：' + error.message);
+      }
+      return false;
+    }
+  }
+
+  /**
    * 处理语音输入
    * 支持Web Speech API进行语音识别
    */
-  handleVoice() {
+  async handleVoice() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('❌ 您的浏览器不支持语音识别\n\n请使用 Chrome、Edge 或 Safari 浏览器');
       return;
@@ -89,6 +116,21 @@ class InputHandler {
       }
       this.isRecording = false;
       return;
+    }
+
+    // 检查网络连接
+    if (!navigator.onLine) {
+      alert('❌ 网络未连接\n\n语音识别需要网络连接，请检查网络后重试');
+      return;
+    }
+
+    // 首次使用时请求麦克风权限
+    if (!this.microphonePermissionGranted) {
+      const granted = await this.requestMicrophonePermission();
+      if (!granted) {
+        return;
+      }
+      this.microphonePermissionGranted = true;
     }
 
     // 初始化语音识别
@@ -147,7 +189,50 @@ class InputHandler {
     };
 
     this.recognition.onerror = event => {
-      alert(`❌ 语音识别失败：${event.error}\n\n请检查麦克风权限`);
+      console.error('语音识别错误:', event.error);
+
+      // 根据错误类型给出不同提示
+      let errorMessage = '❌ 语音识别失败\n\n';
+      switch (event.error) {
+        case 'no-speech':
+          errorMessage += '未检测到语音输入，请重试';
+          break;
+        case 'audio-capture':
+          errorMessage += '无法访问麦克风，请检查设备连接和权限设置';
+          this.microphonePermissionGranted = false; // 重置权限状态
+          break;
+        case 'not-allowed':
+          errorMessage += '麦克风权限被拒绝\n\n请在浏览器设置中允许访问麦克风：\n\niOS: 设置 > Safari > 麦克风\nAndroid: 设置 > 应用 > 浏览器 > 权限';
+          this.microphonePermissionGranted = false; // 重置权限状态
+          break;
+        case 'network':
+          errorMessage += '网络连接失败\n\n';
+          errorMessage += '语音识别需要连接到Google服务器。\n\n';
+          errorMessage += '可能的原因：\n';
+          errorMessage += '1. 网络未连接或不稳定\n';
+          errorMessage += '2. 无法访问Google服务\n';
+          errorMessage += '3. 防火墙或代理阻止连接\n\n';
+          errorMessage += '建议：\n';
+          errorMessage += '• 检查网络连接\n';
+          errorMessage += '• 尝试切换到文字输入\n';
+          errorMessage += '• 使用VPN或更换网络环境';
+          break;
+        case 'aborted':
+          // 用户主动取消，不显示错误
+          this.resetVoiceInput();
+          return;
+        case 'service-not-allowed':
+          errorMessage += '语音识别服务不可用\n\n可能是网络限制或服务暂时不可用';
+          break;
+        default:
+          errorMessage += `错误代码: ${event.error}\n\n`;
+          errorMessage += '请尝试：\n';
+          errorMessage += '1. 检查网络连接\n';
+          errorMessage += '2. 刷新页面重试\n';
+          errorMessage += '3. 使用文字输入';
+      }
+
+      alert(errorMessage);
       this.resetVoiceInput();
     };
 
@@ -461,13 +546,18 @@ class InputHandler {
    * 切换到文本模式
    */
   switchToTextMode() {
-    const voiceMode = document.getElementById('voiceMode');
-    const textMode = document.getElementById('textMode');
+    const voiceMode = document.getElementById('mobileVoiceMode');
+    const textMode = document.getElementById('mobileTextMode');
     if (voiceMode) {
       voiceMode.style.display = 'none';
     }
     if (textMode) {
       textMode.style.display = 'flex';
+      // 聚焦到文本输入框
+      const mobileTextInput = document.getElementById('mobileTextInput');
+      if (mobileTextInput) {
+        setTimeout(() => mobileTextInput.focus(), 100);
+      }
     }
   }
 
@@ -475,14 +565,28 @@ class InputHandler {
    * 切换到语音模式
    */
   switchToVoiceMode() {
-    const voiceMode = document.getElementById('voiceMode');
-    const textMode = document.getElementById('textMode');
+    const voiceMode = document.getElementById('mobileVoiceMode');
+    const textMode = document.getElementById('mobileTextMode');
     if (voiceMode) {
       voiceMode.style.display = 'flex';
     }
     if (textMode) {
       textMode.style.display = 'none';
     }
+  }
+
+  /**
+   * 处理输入法组合开始事件
+   */
+  handleCompositionStart() {
+    window.isComposing = true;
+  }
+
+  /**
+   * 处理输入法组合结束事件
+   */
+  handleCompositionEnd() {
+    window.isComposing = false;
   }
 
   /**
@@ -493,10 +597,10 @@ class InputHandler {
     const mainInput = document.getElementById('mainInput');
     if (mainInput) {
       mainInput.addEventListener('compositionstart', () => {
-        window.isComposing = true;
+        this.handleCompositionStart();
       });
       mainInput.addEventListener('compositionend', () => {
-        window.isComposing = false;
+        this.handleCompositionEnd();
       });
     }
 
@@ -538,10 +642,18 @@ function quickStart(type) {
 }
 
 function switchToTextMode() {
+  if (!window.inputHandler) {
+    console.error('InputHandler not initialized');
+    return;
+  }
   window.inputHandler.switchToTextMode();
 }
 
 function switchToVoiceMode() {
+  if (!window.inputHandler) {
+    console.error('InputHandler not initialized');
+    return;
+  }
   window.inputHandler.switchToVoiceMode();
 }
 
@@ -551,4 +663,12 @@ function getSmartInputMode() {
 
 function applySmartInputHint() {
   window.inputHandler.applySmartInputHint();
+}
+
+function handleCompositionStart() {
+  window.inputHandler.handleCompositionStart();
+}
+
+function handleCompositionEnd() {
+  window.inputHandler.handleCompositionEnd();
 }

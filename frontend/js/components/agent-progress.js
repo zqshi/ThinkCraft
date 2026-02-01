@@ -12,24 +12,24 @@ class AgentProgressManager {
 
     // Agent配置（与后端保持一致）
     this.agentConfig = {
-      executive_summary: { name: '综合分析师', emoji: '🤖' },
-      market_analysis: { name: '市场分析师', emoji: '📊' },
-      solution: { name: '产品专家', emoji: '💡' },
-      business_model: { name: '商业顾问', emoji: '💰' },
-      competitive_landscape: { name: '竞争分析师', emoji: '⚔️' },
-      marketing_strategy: { name: '营销专家', emoji: '📈' },
-      team_structure: { name: '组织顾问', emoji: '👥' },
-      financial_projection: { name: '财务分析师', emoji: '💵' },
-      risk_assessment: { name: '风险专家', emoji: '⚠️' },
-      implementation_plan: { name: '项目经理', emoji: '📋' },
-      appendix: { name: '文档专家', emoji: '📎' },
-      project_summary: { name: '产品经理', emoji: '📋' },
-      problem_insight: { name: '用户研究专家', emoji: '🔍' },
-      product_solution: { name: '产品设计专家', emoji: '💡' },
-      implementation_path: { name: '项目管理专家', emoji: '🛤️' },
-      competitive_analysis: { name: '竞品分析专家', emoji: '⚔️' },
-      budget_planning: { name: '财务规划专家', emoji: '💰' },
-      risk_control: { name: '风险管理专家', emoji: '⚠️' }
+      'executive-summary': { name: '综合分析师', emoji: '🤖' },
+      'market-analysis': { name: '市场分析师', emoji: '📊' },
+      'solution': { name: '产品专家', emoji: '💡' },
+      'business-model': { name: '商业顾问', emoji: '💰' },
+      'competitive-landscape': { name: '竞争分析师', emoji: '⚔️' },
+      'marketing-strategy': { name: '营销专家', emoji: '📈' },
+      'team-structure': { name: '组织顾问', emoji: '👥' },
+      'financial-projection': { name: '财务分析师', emoji: '💵' },
+      'risk-assessment': { name: '风险专家', emoji: '⚠️' },
+      'implementation-plan': { name: '项目经理', emoji: '📋' },
+      'appendix': { name: '文档专家', emoji: '📎' },
+      'project-summary': { name: '产品经理', emoji: '📋' },
+      'problem-insight': { name: '用户研究专家', emoji: '🔍' },
+      'product-solution': { name: '产品设计专家', emoji: '💡' },
+      'implementation-path': { name: '项目管理专家', emoji: '🛤️' },
+      'competitive-analysis': { name: '竞品分析专家', emoji: '⚔️' },
+      'budget-planning': { name: '财务规划专家', emoji: '💰' },
+      'risk-control': { name: '风险管理专家', emoji: '⚠️' }
     };
 
     // 监听窗口大小变化
@@ -207,24 +207,24 @@ class AgentProgressManager {
    */
   getChapterTitle(chapterId) {
     const titles = {
-      executive_summary: '执行摘要',
-      market_analysis: '市场分析',
-      solution: '解决方案',
-      business_model: '商业模式',
-      competitive_landscape: '竞争格局',
-      marketing_strategy: '市场策略',
-      team_structure: '团队架构',
-      financial_projection: '财务预测',
-      risk_assessment: '风险评估',
-      implementation_plan: '实施计划',
-      appendix: '附录',
-      project_summary: '项目摘要',
-      problem_insight: '问题洞察',
-      product_solution: '产品方案',
-      implementation_path: '实施路径',
-      competitive_analysis: '竞品分析',
-      budget_planning: '预算规划',
-      risk_control: '风险控制'
+      'executive-summary': '执行摘要',
+      'market-analysis': '市场分析',
+      'solution': '解决方案',
+      'business-model': '商业模式',
+      'competitive-landscape': '竞争格局',
+      'marketing-strategy': '市场策略',
+      'team-structure': '团队架构',
+      'financial-projection': '财务预测',
+      'risk-assessment': '风险评估',
+      'implementation-plan': '实施计划',
+      'appendix': '附录',
+      'project-summary': '项目摘要',
+      'problem-insight': '问题洞察',
+      'product-solution': '产品方案',
+      'implementation-path': '实施路径',
+      'competitive-analysis': '竞品分析',
+      'budget-planning': '预算规划',
+      'risk-control': '风险控制'
     };
     return titles[chapterId] || chapterId;
   }
@@ -236,16 +236,38 @@ class AgentProgressManager {
    * @param {Object} result - 结果数据（可选）
    */
   updateProgress(chapterId, status, result = null) {
+    console.log('[AgentProgress] 更新进度:', { chapterId, status, result });
+
     // 查找Agent
     const agent = this.agents.find(a => a.id === chapterId);
     if (!agent) {
-      console.warn('[AgentProgress] Agent not found:', chapterId);
+      console.warn('[AgentProgress] 找不到章节:', chapterId);
+      console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
+
+      // 尝试模糊匹配（处理命名不一致）
+      const fuzzyMatch = this.agents.find(a =>
+        a.id.includes(chapterId) || chapterId.includes(a.id)
+      );
+
+      if (fuzzyMatch) {
+        console.log('[AgentProgress] 使用模糊匹配:', fuzzyMatch.id);
+        return this.updateProgress(fuzzyMatch.id, status, result);
+      }
+
+      // 匹配失败 - 显示错误而不是静默失败
+      console.error('[AgentProgress] 章节ID不匹配，无法更新进度');
+      if (window.showToast) {
+        window.showToast(`章节 ${chapterId} 不存在，进度更新失败`, 'error');
+      }
       return;
     }
 
     // 更新状态
     agent.status = status;
     agent.statusText = this.getStatusText(status);
+    if (result) {
+      agent.result = result;
+    }
 
     // 使用重试机制更新DOM
     this._updateDOMWithRetry(chapterId, status, agent, 0);
@@ -255,6 +277,7 @@ class AgentProgressManager {
     const totalCount = this.agents.length;
     const percentage = Math.round((completedCount / totalCount) * 100);
 
+    console.log('[AgentProgress] 整体进度:', { completedCount, totalCount, percentage });
     this.updateOverallProgress(percentage, completedCount, totalCount);
 
     // 移动端：只显示当前工作的Agent
@@ -275,7 +298,7 @@ class AgentProgressManager {
 
     if (agentElement && statusElement) {
       // DOM元素存在，执行更新
-      agentElement.classList.remove('pending', 'working', 'completed');
+      agentElement.classList.remove('pending', 'working', 'completed', 'error');
       agentElement.classList.add(status);
 
       const avatar = agentElement.querySelector('.agent-avatar');
@@ -284,6 +307,9 @@ class AgentProgressManager {
       }
 
       statusElement.textContent = agent.statusText;
+      if (agent.result) {
+        statusElement.title = `完成时间: ${new Date(agent.result.timestamp).toLocaleTimeString()}`;
+      }
 
       console.log('[AgentProgress] DOM updated successfully:', chapterId, status);
     } else if (retryCount < maxRetries) {
@@ -293,8 +319,27 @@ class AgentProgressManager {
         this._updateDOMWithRetry(chapterId, status, agent, retryCount + 1);
       });
     } else {
-      // 达到最大重试次数
-      console.error('[AgentProgress] Failed to update DOM after retries:', chapterId);
+      // 达到最大重试次数 - 增强错误处理
+      const errorMsg = `[AgentProgress] DOM更新失败: 找不到元素 agent-${chapterId} 或 status-${chapterId}`;
+      console.error(errorMsg);
+
+      // 显示用户友好的错误提示
+      if (window.showToast) {
+        window.showToast('进度更新失败，请刷新页面重试', 'error');
+      }
+
+      // 记录到 StateManager 以便调试
+      if (window.stateManager) {
+        window.stateManager.logError('progress-update-failed', {
+          chapterId,
+          status,
+          retryCount,
+          availableElements: {
+            agentElement: !!agentElement,
+            statusElement: !!statusElement
+          }
+        });
+      }
     }
   }
 
@@ -307,7 +352,8 @@ class AgentProgressManager {
     const statusMap = {
       pending: '⏸️ 等待中',
       working: '🔄 生成中...',
-      completed: '✅ 已完成'
+      completed: '✅ 已完成',
+      error: '❌ 生成失败'
     };
     return statusMap[status] || status;
   }

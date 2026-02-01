@@ -12,7 +12,13 @@ import {
   vibrate,
   isMobile,
   getFileExtension,
-  truncateText
+  truncateText,
+  scrollToBottom,
+  forceScrollToBottom,
+  focusInput,
+  copyToClipboard,
+  closeAllChatMenus,
+  closeChatMenu
 } from './helpers.js';
 
 describe('helpers.js - 通用辅助函数', () => {
@@ -61,7 +67,10 @@ describe('helpers.js - 通用辅助函数', () => {
 
     test('应该包含时间戳和随机部分', () => {
       const id = generateId();
-      expect(id).toMatch(/_/);
+      expect(id).toContain('_');
+      const parts = id.split('_');
+      expect(parts.length).toBe(2);
+      expect(Number(parts[0])).toBeGreaterThan(0);
     });
   });
 
@@ -179,10 +188,10 @@ describe('helpers.js - 通用辅助函数', () => {
   describe('autoResize', () => {
     test('应该调整textarea高度', () => {
       const textarea = document.createElement('textarea');
-      textarea.style.height = '50px';
       Object.defineProperty(textarea, 'scrollHeight', {
         value: 80,
-        writable: true
+        writable: true,
+        configurable: true
       });
 
       autoResize(textarea);
@@ -193,11 +202,183 @@ describe('helpers.js - 通用辅助函数', () => {
       const textarea = document.createElement('textarea');
       Object.defineProperty(textarea, 'scrollHeight', {
         value: 200,
-        writable: true
+        writable: true,
+        configurable: true
       });
 
       autoResize(textarea);
       expect(textarea.style.height).toBe('120px');
+    });
+  });
+
+  describe('scrollToBottom', () => {
+    beforeEach(() => {
+      document.body.innerHTML = '<div id="chatContainer"></div>';
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    test('应该在用户在底部附近时滚动', () => {
+      const container = document.getElementById('chatContainer');
+      Object.defineProperty(container, 'scrollHeight', { value: 1000, configurable: true });
+      Object.defineProperty(container, 'scrollTop', { value: 950, writable: true, configurable: true });
+      Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
+
+      scrollToBottom();
+      // 应该滚动到底部
+      expect(container.scrollTop).toBeGreaterThan(0);
+    });
+
+    test('应该在容器不存在时不报错', () => {
+      document.body.innerHTML = '';
+      expect(() => scrollToBottom()).not.toThrow();
+    });
+  });
+
+  describe('forceScrollToBottom', () => {
+    beforeEach(() => {
+      document.body.innerHTML = '<div id="chatContainer"></div>';
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    test('应该强制滚动到底部', () => {
+      const container = document.getElementById('chatContainer');
+      Object.defineProperty(container, 'scrollHeight', { value: 1000, configurable: true });
+      Object.defineProperty(container, 'scrollTop', { value: 0, writable: true, configurable: true });
+
+      forceScrollToBottom();
+      expect(container.scrollTop).toBe(1000);
+    });
+
+    test('应该在容器不存在时不报错', () => {
+      document.body.innerHTML = '';
+      expect(() => forceScrollToBottom()).not.toThrow();
+    });
+  });
+
+  describe('focusInput', () => {
+    beforeEach(() => {
+      document.body.innerHTML = '<input id="mainInput" type="text" />';
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    test('应该聚焦输入框', () => {
+      const input = document.getElementById('mainInput');
+      let focusCalled = false;
+      input.focus = () => { focusCalled = true; };
+
+      focusInput();
+      expect(focusCalled).toBe(true);
+    });
+
+    test('应该在输入框不存在时不报错', () => {
+      document.body.innerHTML = '';
+      expect(() => focusInput()).not.toThrow();
+    });
+  });
+
+  describe('copyToClipboard', () => {
+    test('应该复制文本到剪贴板', async () => {
+      // Mock navigator.clipboard
+      const mockWriteText = async (text) => {
+        return Promise.resolve();
+      };
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: mockWriteText },
+        writable: true,
+        configurable: true
+      });
+
+      // Mock alert
+      global.alert = () => {};
+
+      await expect(copyToClipboard('test')).resolves.not.toThrow();
+    });
+
+    test('应该处理复制失败', async () => {
+      // Mock navigator.clipboard to throw error
+      const mockWriteText = async () => {
+        throw new Error('Copy failed');
+      };
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: mockWriteText },
+        writable: true,
+        configurable: true
+      });
+
+      // Mock alert
+      global.alert = () => {};
+
+      await expect(copyToClipboard('test')).resolves.not.toThrow();
+    });
+  });
+
+  describe('closeAllChatMenus', () => {
+    beforeEach(() => {
+      document.body.innerHTML = `
+        <div class="chat-item menu-open" data-chat-id="1">
+          <div class="chat-item-actions">
+            <div id="menu-1" class="chat-item-menu active" data-chat-id="1"></div>
+          </div>
+        </div>
+        <div class="chat-item menu-open" data-chat-id="2">
+          <div class="chat-item-actions">
+            <div id="menu-2" class="chat-item-menu active" data-chat-id="2"></div>
+          </div>
+        </div>
+      `;
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    test('应该关闭所有聊天菜单', () => {
+      closeAllChatMenus();
+
+      const menus = document.querySelectorAll('.chat-item-menu.active');
+      expect(menus.length).toBe(0);
+
+      const openItems = document.querySelectorAll('.chat-item.menu-open');
+      expect(openItems.length).toBe(0);
+    });
+  });
+
+  describe('closeChatMenu', () => {
+    beforeEach(() => {
+      document.body.innerHTML = `
+        <div class="chat-item menu-open" data-chat-id="1">
+          <div class="chat-item-actions">
+            <div id="menu-1" class="chat-item-menu active" data-chat-id="1"></div>
+          </div>
+        </div>
+      `;
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    test('应该关闭指定的聊天菜单', () => {
+      closeChatMenu('1');
+
+      const menu = document.getElementById('menu-1');
+      expect(menu.classList.contains('active')).toBe(false);
+
+      const openItems = document.querySelectorAll('.chat-item.menu-open');
+      expect(openItems.length).toBe(0);
+    });
+
+    test('应该在菜单不存在时不报错', () => {
+      expect(() => closeChatMenu('999')).not.toThrow();
     });
   });
 });

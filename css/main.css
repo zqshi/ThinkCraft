@@ -1737,6 +1737,15 @@ body {
   color: var(--text-tertiary);
 }
 
+/* 移动端：向上移动empty-state */
+@media (max-width: 640px) {
+  .empty-state {
+    justify-content: flex-start;
+    padding-top: 15vh; /* 从顶部15%的位置开始，考虑到底部输入框 */
+    padding-bottom: 25vh; /* 为底部输入框留出空间 */
+  }
+}
+
 .empty-icon {
   width: 64px;
   height: 64px;
@@ -1958,6 +1967,25 @@ body {
 
 .view-report-btn:hover {
   background: var(--primary-dark);
+}
+
+/* 报告按钮状态样式 */
+.view-report-btn.generating {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.view-report-btn.error {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.view-report-btn.completed {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }
 
 .share-btn {
@@ -3382,13 +3410,15 @@ body {
     text-align: center;
   }
 
+  /* 修复：增加chat-container底部padding，避免被输入框遮挡 */
   .chat-container {
     padding: 12px;
-    padding-bottom: calc(70px + var(--safe-area-bottom));
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* 修复：提高floating-report-btn位置，避免被输入框遮挡 */
   .floating-report-btn {
-    bottom: max(80px, calc(80px + var(--safe-area-bottom)));
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
     right: 16px;
     padding: 12px 16px;
     font-size: 13px;
@@ -3396,6 +3426,11 @@ body {
 
   .input-container {
     padding: 12px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
   }
 
   .analysis-grid {
@@ -3663,7 +3698,7 @@ body {
   .modal-header {
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 100;
     background: white;
     padding: max(16px, var(--safe-area-top)) 16px 16px;
     border-bottom: 1px solid var(--border);
@@ -3754,7 +3789,10 @@ body {
     min-width: 44px;
     min-height: 44px;
     padding: 0;
-    margin: -8px;
+    margin: 0;
+    position: relative;
+    z-index: 101;
+    pointer-events: auto;
   }
 
   /* 报告弹窗特殊优化 */
@@ -5773,4 +5811,94 @@ body {
 
 .project-stage-tab-status.status-pending {
   background: #9ca3af;
+}
+
+/* ==================== Toast提示样式 ==================== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+  max-width: 400px;
+  animation: toast-slide-in 0.3s ease-out;
+  pointer-events: auto;
+}
+
+.toast-success {
+  border-left: 4px solid #4caf50;
+}
+
+.toast-error {
+  border-left: 4px solid #f44336;
+}
+
+.toast-warning {
+  border-left: 4px solid #ff9800;
+}
+
+.toast-info {
+  border-left: 4px solid #2196f3;
+}
+
+.toast-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.toast-fade-out {
+  animation: toast-fade-out 0.3s ease-out forwards;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-fade-out {
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .toast {
+    min-width: auto;
+    max-width: none;
+  }
 }

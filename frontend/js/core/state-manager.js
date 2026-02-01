@@ -6,65 +6,114 @@
 class StateManager {
   constructor() {
     const defaultApiUrl = this.getDefaultApiUrl();
-    this.state = {
-      // 对话状态
-      currentChat: null,
-      chats: [],
-      messages: [],
-      userData: {},
-      conversationStep: 0,
-      isTyping: false,
-      isLoading: false,
-      analysisCompleted: false,
 
-      // 生成流程状态机（核心新增）- 按会话ID隔离
-      // 结构：generation[chatId] = { business: {...}, proposal: {...} }
-      generation: {},
-
-      // 灵感收件箱状态（Phase 3新增）
-      inspiration: {
-        mode: 'full', // 'full' | 'quick' (快速捕捉模式)
-        items: [], // 灵感列表
-        currentEdit: null, // 当前编辑的灵感ID
-        filter: 'unprocessed', // 'all' | 'unprocessed' | 'processing' | 'completed'
-        autoSaveDelay: 2000, // 自动保存延迟（ms）
-        lastSync: null, // 最后同步时间
-        totalCount: 0, // 总数统计
-        stats: {
-          unprocessed: 0,
-          processing: 0,
-          completed: 0
-        }
-      },
-
-      // 知识库状态（Phase 4新增）
-      knowledge: {
-        viewMode: 'project', // 'project' | 'global' | 'aggregated'
-        currentProjectId: null, // 当前查看的项目ID
-        organizationType: 'byProject', // 'byProject' | 'byType' | 'byTimeline' | 'byTags'
-        selectedTags: [], // 选中的标签
-        items: [], // 知识条目列表
-        filter: {
-          type: null, // 文档类型过滤
-          projectId: null, // 项目过滤
-          tags: [] // 标签过滤
-        },
-        searchKeyword: '', // 搜索关键词
-        stats: {
-          total: 0,
-          byProject: {},
-          byType: {},
-          byTag: {}
-        }
-      },
-
-      // 设置
-      settings: {
-        darkMode: false,
-        saveHistory: true,
-        apiUrl: defaultApiUrl
+    // 如果 window.state 已存在，使用它（避免数据不同步）
+    if (window.state) {
+      this.state = window.state;
+      // 补充缺失的属性
+      if (!this.state.generation) {
+        this.state.generation = {};
       }
-    };
+      if (!this.state.inspiration) {
+        this.state.inspiration = {
+          mode: 'full',
+          items: [],
+          currentEdit: null,
+          filter: 'unprocessed',
+          autoSaveDelay: 2000,
+          lastSync: null,
+          totalCount: 0,
+          stats: {
+            unprocessed: 0,
+            processing: 0,
+            completed: 0
+          }
+        };
+      }
+      if (!this.state.knowledge) {
+        this.state.knowledge = {
+          viewMode: 'project',
+          currentProjectId: null,
+          organizationType: 'byProject',
+          selectedTags: [],
+          items: [],
+          filter: {
+            type: null,
+            projectId: null,
+            tags: []
+          },
+          searchKeyword: '',
+          stats: {
+            total: 0,
+            byProject: {},
+            byType: {},
+            byTag: {}
+          }
+        };
+      }
+    } else {
+      // 否则创建新的状态对象
+      this.state = {
+        // 对话状态
+        currentChat: null,
+        chats: [],
+        messages: [],
+        userData: {},
+        conversationStep: 0,
+        isTyping: false,
+        isLoading: false,
+        analysisCompleted: false,
+
+        // 生成流程状态机（核心新增）- 按会话ID隔离
+        // 结构：generation[chatId] = { business: {...}, proposal: {...} }
+        generation: {},
+
+        // 灵感收件箱状态（Phase 3新增）
+        inspiration: {
+          mode: 'full', // 'full' | 'quick' (快速捕捉模式)
+          items: [], // 灵感列表
+          currentEdit: null, // 当前编辑的灵感ID
+          filter: 'unprocessed', // 'all' | 'unprocessed' | 'processing' | 'completed'
+          autoSaveDelay: 2000, // 自动保存延迟（ms）
+          lastSync: null, // 最后同步时间
+          totalCount: 0, // 总数统计
+          stats: {
+            unprocessed: 0,
+            processing: 0,
+            completed: 0
+          }
+        },
+
+        // 知识库状态（Phase 4新增）
+        knowledge: {
+          viewMode: 'project', // 'project' | 'global' | 'aggregated'
+          currentProjectId: null, // 当前查看的项目ID
+          organizationType: 'byProject', // 'byProject' | 'byType' | 'byTimeline' | 'byTags'
+          selectedTags: [], // 选中的标签
+          items: [], // 知识条目列表
+          filter: {
+            type: null, // 文档类型过滤
+            projectId: null, // 项目过滤
+            tags: [] // 标签过滤
+          },
+          searchKeyword: '', // 搜索关键词
+          stats: {
+            total: 0,
+            byProject: {},
+            byType: {},
+            byTag: {}
+          }
+        },
+
+        // 设置
+        settings: {
+          darkMode: false,
+          saveHistory: true,
+          apiUrl: defaultApiUrl
+        }
+      };
+      window.state = this.state;
+    }
 
     // 观察者列表
     this.listeners = [];
@@ -168,6 +217,21 @@ class StateManager {
     // 如果该会话还没有生成状态，初始化
     if (!this.state.generation[normalizedChatId]) {
       this.state.generation[normalizedChatId] = {
+        analysis: {
+          type: 'analysis',
+          status: 'idle',
+          selectedChapters: [],
+          progress: {
+            current: 0,
+            total: 0,
+            currentAgent: null,
+            percentage: 0
+          },
+          results: {},
+          error: null,
+          startTime: null,
+          endTime: null
+        },
         business: {
           type: 'business',
           status: 'idle',
@@ -860,6 +924,60 @@ class StateManager {
       }
   }
 
+  /**
+   * 清除所有用户数据（登出时调用）
+   * @description 重置所有用户相关的状态数据，但保留设置
+   */
+  clearUserData() {
+    console.log('[StateManager] 清除所有用户数据');
+
+    // 重置对话状态
+    this.state.currentChat = null;
+    this.state.chats = [];
+    this.state.messages = [];
+    this.state.userData = {};
+    this.state.conversationStep = 0;
+    this.state.isTyping = false;
+    this.state.isLoading = false;
+    this.state.analysisCompleted = false;
+
+    // 清除所有会话的生成状态
+    this.state.generation = {};
+
+    // 清除灵感收件箱
+    this.state.inspiration.items = [];
+    this.state.inspiration.currentEdit = null;
+    this.state.inspiration.totalCount = 0;
+    this.state.inspiration.lastSync = null;
+    this.state.inspiration.stats = {
+        unprocessed: 0,
+        processing: 0,
+        completed: 0
+    };
+
+    // 清除知识库
+    this.state.knowledge.items = [];
+    this.state.knowledge.currentProjectId = null;
+    this.state.knowledge.selectedTags = [];
+    this.state.knowledge.searchKeyword = '';
+    this.state.knowledge.filter = {
+        type: null,
+        projectId: null,
+        tags: []
+    };
+    this.state.knowledge.stats = {
+        total: 0,
+        byProject: {},
+        byType: {},
+        byTag: {}
+    };
+
+    // 通知所有监听器
+    this.notify();
+
+    console.log('[StateManager] 用户数据清除完成');
+  }
+
   // ========== 工具方法 ==========
 
   /**
@@ -915,7 +1033,47 @@ class StateManager {
    * 调试：打印当前状态
    */
   debug() {
+  }
+
+  /**
+   * 记录错误日志（用于调试）
+   */
+  logError(errorType, details) {
+    if (!this.state.errorLogs) {
+      this.state.errorLogs = [];
     }
+
+    const errorLog = {
+      type: errorType,
+      details,
+      timestamp: Date.now(),
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    };
+
+    this.state.errorLogs.push(errorLog);
+
+    // 只保留最近 50 条错误日志
+    if (this.state.errorLogs.length > 50) {
+      this.state.errorLogs = this.state.errorLogs.slice(-50);
+    }
+
+    console.error('[StateManager] 错误日志:', errorLog);
+  }
+
+  /**
+   * 获取错误日志
+   */
+  getErrorLogs() {
+    return this.state.errorLogs || [];
+  }
+
+  /**
+   * 清除错误日志
+   */
+  clearErrorLogs() {
+    this.state.errorLogs = [];
+  }
 }
 
 // 导出单例实例

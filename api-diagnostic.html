@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThinkCraft API 诊断工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .test-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .result.success {
+            border-color: #28a745;
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .result.error {
+            border-color: #dc3545;
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .result.info {
+            border-color: #17a2b8;
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-badge.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-badge.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-badge.pending {
+            background: #ffc107;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 ThinkCraft API 诊断工具</h1>
+
+        <!-- 测试 1: 后端健康检查 -->
+        <div class="test-section">
+            <h2>1. 后端健康检查 <span id="health-status"></span></h2>
+            <button onclick="testHealth()">测试健康检查</button>
+            <div id="health-result"></div>
+        </div>
+
+        <!-- 测试 2: Chat API 测试 -->
+        <div class="test-section">
+            <h2>2. Chat API 测试 <span id="chat-status"></span></h2>
+            <button onclick="testChat()">测试聊天接口</button>
+            <button onclick="testChatWithTimeout(5000)">测试（5秒超时）</button>
+            <button onclick="testChatWithTimeout(30000)">测试（30秒超时）</button>
+            <div id="chat-result"></div>
+        </div>
+
+        <!-- 测试 3: 网络延迟测试 -->
+        <div class="test-section">
+            <h2>3. 网络延迟测试 <span id="latency-status"></span></h2>
+            <button onclick="testLatency()">测试延迟</button>
+            <div id="latency-result"></div>
+        </div>
+
+        <!-- 测试 4: 浏览器信息 -->
+        <div class="test-section">
+            <h2>4. 浏览器信息</h2>
+            <button onclick="showBrowserInfo()">显示信息</button>
+            <div id="browser-result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+
+        function setStatus(elementId, status, text) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = `<span class="status-badge ${status}">${text}</span>`;
+        }
+
+        function showResult(elementId, content, type = 'info') {
+            const el = document.getElementById(elementId);
+            el.innerHTML = `<div class="result ${type}">${content}</div>`;
+        }
+
+        function showLoading(elementId) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = '<div class="loading"></div>';
+        }
+
+        async function testHealth() {
+            const resultId = 'health-result';
+            showLoading(resultId);
+            setStatus('health-status', 'pending', '测试中...');
+
+            try {
+                const start = Date.now();
+                const response = await fetch(`${API_URL}/health`);
+                const duration = Date.now() - start;
+                const text = await response.text();
+
+                if (response.ok) {
+                    setStatus('health-status', 'success', '✓ 正常');
+                    showResult(resultId, `✅ 后端服务正常\n响应时间: ${duration}ms\n响应内容: ${text}`, 'success');
+                } else {
+                    setStatus('health-status', 'error', '✗ 异常');
+                    showResult(resultId, `❌ 健康检查失败\nHTTP ${response.status}\n响应: ${text}`, 'error');
+                }
+            } catch (error) {
+                setStatus('health-status', 'error', '✗ 失败');
+                showResult(resultId, `❌ 连接失败\n错误: ${error.message}\n\n可能原因:\n1. 后端服务未启动\n2. 端口 3000 被占用\n3. 防火墙阻止连接`, 'error');
+            }
+        }
+
+        async function testChat() {
+            await testChatWithTimeout(120000); // 默认 120 秒
+        }
+
+        async function testChatWithTimeout(timeout) {
+            const resultId = 'chat-result';
+            showLoading(resultId);
+            setStatus('chat-status', 'pending', '测试中...');
+
+            try {
+                const start = Date.now();
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                const response = await fetch(`${API_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: '你好，这是一个测试消息' }]
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                const duration = Date.now() - start;
+                const data = await response.json();
+
+                if (response.ok && data.code === 0) {
+                    setStatus('chat-status', 'success', '✓ 正常');
+                    showResult(resultId, `✅ Chat API 正常\n响应时间: ${duration}ms\n\n响应数据:\n${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    setStatus('chat-status', 'error', '✗ 异常');
+                    showResult(resultId, `❌ Chat API 返回错误\nHTTP ${response.status}\n响应时间: ${duration}ms\n\n响应数据:\n${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                setStatus('chat-status', 'error', '✗ 失败');
+                if (error.name === 'AbortError') {
+                    showResult(resultId, `❌ 请求超时 (${timeout/1000}秒)\n\n可能原因:\n1. DeepSeek API 响应慢\n2. 网络连接不稳定\n3. 后端处理时间过长`, 'error');
+                } else {
+                    showResult(resultId, `❌ 请求失败\n错误: ${error.message}\n\n可能原因:\n1. 后端服务异常\n2. CORS 配置问题\n3. 网络连接中断`, 'error');
+                }
+            }
+        }
+
+        async function testLatency() {
+            const resultId = 'latency-result';
+            showLoading(resultId);
+            setStatus('latency-status', 'pending', '测试中...');
+
+            const results = [];
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const start = Date.now();
+                    await fetch(`${API_URL}/health`);
+                    const duration = Date.now() - start;
+                    results.push(duration);
+                } catch (error) {
+                    results.push(-1);
+                }
+            }
+
+            const validResults = results.filter(r => r > 0);
+            if (validResults.length > 0) {
+                const avg = validResults.reduce((a, b) => a + b, 0) / validResults.length;
+                const min = Math.min(...validResults);
+                const max = Math.max(...validResults);
+
+                setStatus('latency-status', 'success', '✓ 完成');
+                showResult(resultId, `📊 延迟统计 (5次测试):\n\n平均延迟: ${avg.toFixed(2)}ms\n最小延迟: ${min}ms\n最大延迟: ${max}ms\n\n详细结果: ${results.map((r, i) => `\n  第${i+1}次: ${r > 0 ? r + 'ms' : '失败'}`).join('')}`, 'success');
+            } else {
+                setStatus('latency-status', 'error', '✗ 失败');
+                showResult(resultId, `❌ 所有测试都失败了\n请检查后端服务是否正常运行`, 'error');
+            }
+        }
+
+        function showBrowserInfo() {
+            const resultId = 'browser-result';
+            const info = {
+                'User Agent': navigator.userAgent,
+                '浏览器': navigator.appName,
+                '版本': navigator.appVersion,
+                '平台': navigator.platform,
+                '语言': navigator.language,
+                'Cookie 启用': navigator.cookieEnabled,
+                '在线状态': navigator.onLine,
+                '屏幕分辨率': `${screen.width}x${screen.height}`,
+                '当前 URL': window.location.href,
+                '协议': window.location.protocol
+            };
+
+            const infoText = Object.entries(info)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n');
+
+            showResult(resultId, `ℹ️ 浏览器信息:\n\n${infoText}`, 'info');
+        }
+
+        // 页面加载时自动测试健康检查
+        window.addEventListener('load', () => {
+            testHealth();
+        });
+    </script>
+</body>
+</html>

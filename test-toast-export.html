@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toast和导出验证测试</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        body {
+            padding: 40px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-bottom: 15px;
+            color: #111827;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-error { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-info { background: #2196f3; color: white; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Toast提示和导出验证测试</h1>
+
+    <div class="test-section">
+        <h2>1. Toast提示测试</h2>
+        <div class="btn-group">
+            <button class="btn-success" onclick="testToastSuccess()">成功提示</button>
+            <button class="btn-error" onclick="testToastError()">错误提示</button>
+            <button class="btn-warning" onclick="testToastWarning()">警告提示</button>
+            <button class="btn-info" onclick="testToastInfo()">信息提示</button>
+            <button class="btn-info" onclick="testToastMultiple()">多个提示（堆叠）</button>
+            <button class="btn-info" onclick="testToastLongText()">长文本提示</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 导出验证器测试</h2>
+        <div class="btn-group">
+            <button class="btn-info" onclick="testValidatorNoChat()">测试：无会话ID</button>
+            <button class="btn-info" onclick="testValidatorGenerating()">测试：报告生成中</button>
+            <button class="btn-info" onclick="testValidatorNoData()">测试：无报告数据</button>
+            <button class="btn-info" onclick="testValidatorInvalidData()">测试：数据不完整</button>
+            <button class="btn-success" onclick="testValidatorValid()">测试：验证通过</button>
+        </div>
+        <div class="result" id="validatorResult"></div>
+    </div>
+
+    <script src="frontend/js/utils/toast.js"></script>
+    <script src="frontend/js/utils/export-validator.js"></script>
+    <script>
+        // 初始化Toast管理器
+        window.toast = new ToastManager();
+
+        // Toast测试函数
+        function testToastSuccess() {
+            window.toast.success('✅ 操作成功！这是一个成功提示');
+        }
+
+        function testToastError() {
+            window.toast.error('❌ 操作失败！这是一个错误提示');
+        }
+
+        function testToastWarning() {
+            window.toast.warning('⚠️ 请注意！这是一个警告提示');
+        }
+
+        function testToastInfo() {
+            window.toast.info('ℹ️ 提示信息：这是一个普通信息提示');
+        }
+
+        function testToastMultiple() {
+            window.toast.info('第1个提示');
+            setTimeout(() => window.toast.success('第2个提示'), 300);
+            setTimeout(() => window.toast.warning('第3个提示'), 600);
+            setTimeout(() => window.toast.error('第4个提示（超过3个会移除最早的）'), 900);
+        }
+
+        function testToastLongText() {
+            window.toast.warning(
+                '报告正在生成中（45%）\n已完成 3/6 个章节\n请耐心等待...',
+                5000
+            );
+        }
+
+        // 模拟StateManager和StorageManager
+        const mockStateManager = {
+            getGenerationState: (chatId) => {
+                if (chatId === 'generating') {
+                    return {
+                        analysis: {
+                            status: 'generating',
+                            progress: {
+                                percentage: 45,
+                                current: 3,
+                                total: 6
+                            }
+                        }
+                    };
+                }
+                return null;
+            }
+        };
+
+        const mockStorageManager = {
+            getReport: async (type, chatId) => {
+                if (chatId === 'no-data') {
+                    return null;
+                }
+                if (chatId === 'invalid-data') {
+                    return { data: { type: 'analysis' } }; // 缺少chapters
+                }
+                if (chatId === 'valid') {
+                    return {
+                        data: {
+                            type: 'analysis',
+                            chapters: {
+                                chapter1: { title: '章节1', content: '内容1' },
+                                chapter2: { title: '章节2', content: '内容2' },
+                                chapter3: { title: '章节3', content: '内容3' },
+                                chapter4: { title: '章节4', content: '内容4' },
+                                chapter5: { title: '章节5', content: '内容5' },
+                                chapter6: { title: '章节6', content: '内容6' }
+                            }
+                        }
+                    };
+                }
+                return null;
+            }
+        };
+
+        // 初始化导出验证器
+        window.exportValidator = new ExportValidator(mockStateManager, mockStorageManager);
+
+        // 导出验证器测试函数
+        async function testValidatorNoChat() {
+            const result = await window.exportValidator.validateExport('analysis', null);
+            displayResult(result);
+        }
+
+        async function testValidatorGenerating() {
+            const result = await window.exportValidator.validateExport('analysis', 'generating');
+            displayResult(result);
+        }
+
+        async function testValidatorNoData() {
+            const result = await window.exportValidator.validateExport('analysis', 'no-data');
+            displayResult(result);
+        }
+
+        async function testValidatorInvalidData() {
+            const result = await window.exportValidator.validateExport('analysis', 'invalid-data');
+            displayResult(result);
+        }
+
+        async function testValidatorValid() {
+            const result = await window.exportValidator.validateExport('analysis', 'valid');
+            displayResult(result);
+        }
+
+        function displayResult(result) {
+            const resultDiv = document.getElementById('validatorResult');
+            resultDiv.innerHTML = `
+                <strong>验证结果：</strong><br>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+            `;
+
+            // 同时显示toast提示
+            if (!result.valid) {
+                if (result.action === 'wait') {
+                    window.toast.warning(`${result.error}\n${result.detail}`, 5000);
+                } else {
+                    window.toast.error(result.error, 4000);
+                }
+            } else {
+                window.toast.success('✅ 验证通过，可以导出！', 3000);
+            }
+        }
+    </script>
+</body>
+</html>

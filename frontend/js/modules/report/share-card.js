@@ -162,3 +162,10 @@ function copyShareText() {
 function closeShareModal() {
     window.shareCard.closeShareModal();
 }
+
+// 暴露到全局（用于 HTML onclick 事件）
+window.showShareCard = showShareCard;
+window.generateShareLink = generateShareLink;
+window.downloadCard = downloadCard;
+window.copyShareText = copyShareText;
+window.closeShareModal = closeShareModal;

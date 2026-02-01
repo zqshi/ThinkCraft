@@ -3,6 +3,11 @@
  * 测试DOM操作工具函数
  */
 
+// 加载dom.js到全局环境
+beforeAll(async () => {
+  await import('./dom.js');
+});
+
 describe('dom.js - DOM操作工具函数', () => {
   // 在每个测试前设置DOM环境
   beforeEach(() => {
@@ -100,25 +105,29 @@ describe('dom.js - DOM操作工具函数', () => {
 
   describe('focusInput', () => {
     test('应该聚焦默认输入框', () => {
-      const input = document.getElementById('mainInput');
+      let input = document.getElementById('mainInput');
       if (!input) {
         // 如果不存在，创建一个
-        const newInput = document.createElement('input');
-        newInput.id = 'mainInput';
-        document.body.appendChild(newInput);
+        input = document.createElement('input');
+        input.id = 'mainInput';
+        document.body.appendChild(input);
       }
 
-      const focusSpy = jest.spyOn(document.getElementById('mainInput'), 'focus');
+      // 模拟focus方法
+      let focusCalled = false;
+      input.focus = () => { focusCalled = true; };
       focusInput();
-      expect(focusSpy).toHaveBeenCalled();
+      expect(focusCalled).toBe(true);
     });
 
     test('应该聚焦指定的输入框', () => {
       const input = document.getElementById('testInput');
-      const focusSpy = jest.spyOn(input, 'focus');
+      // 模拟focus方法
+      let focusCalled = false;
+      input.focus = () => { focusCalled = true; };
 
       focusInput('testInput');
-      expect(focusSpy).toHaveBeenCalled();
+      expect(focusCalled).toBe(true);
     });
   });
 

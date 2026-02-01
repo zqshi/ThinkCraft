@@ -1,45 +1,288 @@
 /**
  * 报告生成器模块
  * 负责生成各类分析报告
+ *
+ * @module ReportGenerator
+ * @description 处理报告的生成、缓存和预取功能
+ *
+ * @requires state - 全局状态管理器
+ * @requires apiClient - API客户端
+ * @requires storageManager - 存储管理器
+ * @requires reportViewer - 报告查看器
  */
 
 /* eslint-disable no-unused-vars, no-undef */
+/* global normalizeChatId */
+
+// 创建日志实例
+var logger = window.createLogger ? window.createLogger('ReportGenerator') : console;
+
 
 class ReportGenerator {
     constructor() {
         this.state = window.state;
+        this.currentController = null; // 用于跟踪当前的请求控制器
+        this.isGenerating = false; // 防止重复请求
+    }
+
+    /**
+     * 预取分析报告（后台静默获取）
+     *
+     * @async
+     * @returns {Promise<void>}
+     *
+     * @description
+     * 在后台静默获取报告，不显示UI。用于提前缓存报告数据。
+     * 如果报告已存在或消息不足，则跳过。
+     */
+    async prefetchAnalysisReport() {
+        try {
+            if (window.lastGeneratedReport && window.lastGeneratedReport.chapters && window.lastGeneratedReportKey === this.getAnalysisReportKey()) {
+                return;
+            }
+            // 严格验证 messages 数组
+            if (!this.state.messages || !Array.isArray(this.state.messages) || this.state.messages.length < 2) {
+                return;
+            }
+            const apiBaseUrl = this.state.settings.apiUrl || window.location.origin;
+            const apiClient = window.apiClient || (window.APIClient ? new window.APIClient(apiBaseUrl) : null);
+            if (!apiClient) {
+                return;
+            }
+            if (apiClient.setBaseURL) {
+                apiClient.setBaseURL(apiBaseUrl);
+            }
+            window.apiClient = apiClient;
+
+            const data = await apiClient.request('/api/report/generate', {
+                method: 'POST',
+                body: {
+                    messages: this.state.messages.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    })),
+                    reportKey: this.getAnalysisReportKey(),
+                    force: false
+                },
+                timeout: 180000, // 增加到3分钟
+                retry: 2 // 增加重试次数
+            });
+
+            if (data && data.code !== 0) {
+                return;
+            }
+
+            const reportData = data?.data?.report;
+            if (!reportData || !reportData.chapters) {
+                return;
+            }
+
+            window.lastGeneratedReport = reportData;
+            window.lastGeneratedReportKey = this.getAnalysisReportKey();
+            if (typeof updateShareLinkButtonVisibility === 'function') {
+                updateShareLinkButtonVisibility();
+            }
+        } catch (error) {
+            // 静默失败，不影响用户体验
+            console.warn('Prefetch analysis report failed:', error.message);
+
+            // 记录失败状态
+            if (error.message.includes('timeout') || error.message.includes('超时')) {
+                this.state.reportPrefetchFailed = true;
+                this.state.reportPrefetchError = 'timeout';
+            }
+        }
+    }
+
+    /**
+     * 从缓存获取分析报告
+     *
+     * @async
+     * @returns {Promise<boolean>} 是否成功获取缓存报告
+     *
+     * @description
+     * 尝试从后端缓存获取报告，如果成功则渲染显示。
+     * 使用cacheOnly参数确保只获取缓存，不触发新生成。
+     */
+    async fetchCachedAnalysisReport() {
+        try {
+            if (!this.state.messages || this.state.messages.length < 2) {
+                return false;
+            }
+            const apiBaseUrl = this.state.settings.apiUrl || window.location.origin;
+            const apiClient = window.apiClient || (window.APIClient ? new window.APIClient(apiBaseUrl) : null);
+            if (!apiClient) {
+                return false;
+            }
+            if (apiClient.setBaseURL) {
+                apiClient.setBaseURL(apiBaseUrl);
+            }
+            window.apiClient = apiClient;
+
+            const data = await apiClient.request('/api/report/generate', {
+                method: 'POST',
+                body: {
+                    messages: this.state.messages.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    })),
+                    reportKey: this.getAnalysisReportKey(),
+                    force: false,
+                    cacheOnly: true
+                },
+                timeout: 120000,
+                retry: 0
+            });
+
+            if (data && data.code !== 0) {
+                return false;
+            }
+
+            const reportData = data?.data?.report;
+            if (!reportData || !reportData.chapters) {
+                return false;
+            }
+
+            window.lastGeneratedReport = reportData;
+            window.lastGeneratedReportKey = this.getAnalysisReportKey();
+            if (typeof updateShareLinkButtonVisibility === 'function') {
+                updateShareLinkButtonVisibility();
+            }
+            if (window.reportViewer) {
+                window.reportViewer.renderAIReport(reportData);
+            }
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * 获取分析报告的唯一键
+     *
+     * @returns {string} 报告键（基于消息内容的哈希）
+     *
+     * @description
+     * 生成基于当前对话消息的唯一键，用于缓存和去重。
+     */
+    getAnalysisReportKey() {
+        if (!this.state.messages || this.state.messages.length === 0) {
+            return '';
+        }
+        const content = this.state.messages.map(m => m.content).join('|');
+        return this.simpleHash(content);
+    }
+
+    /**
+     * 简单哈希函数
+     *
+     * @param {string} str - 要哈希的字符串
+     * @returns {string} 哈希值
+     */
+    simpleHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(36);
     }
 
     /**
      * 生成详细报告
+     *
+     * @async
      * @param {boolean} forceRegenerate - 是否强制重新生成
+     * @returns {Promise<void>}
+     *
+     * @throws {Error} 当API调用失败时抛出错误
+     *
+     * @description
+     * 生成完整的分析报告，包括验证、API调用、保存和渲染。
+     * 支持强制重新生成选项。
      */
     async generateDetailedReport(forceRegenerate = false) {
-        if (!state.currentChat) {
+        if (!this.state.currentChat) {
             alert('请先开始一个对话');
             return;
         }
 
-        if (state.messages.length === 0) {
+        // 严格验证 messages 数组
+        if (!this.state.messages || !Array.isArray(this.state.messages) || this.state.messages.length === 0) {
             alert('对话内容为空，无法生成报告');
+            return;
+        }
+
+        // 防止重复请求
+        if (this.isGenerating) {
+            console.warn('[生成报告] 已有报告正在生成中，跳过重复请求');
             return;
         }
 
         const reportContent = document.getElementById('reportContent');
         reportContent.innerHTML = '<div style="text-align: center; padding: 60px 20px;"><div class="loading-spinner"></div><div style="margin-top: 20px;">正在生成报告...</div></div>';
 
+        const chatId = String(this.state.currentChat).trim();
+
+        // 验证对话消息
+        if (!this.state.messages || this.state.messages.length === 0) {
+            console.error('[生成报告] 对话消息为空');
+            reportContent.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">💬</div>
+                    <div style="font-size: 18px; color: #666; margin-bottom: 10px;">暂无对话内容</div>
+                    <div style="font-size: 14px; color: #999;">请先与AI进行对话，然后再生成报告</div>
+                </div>
+            `;
+            this.isGenerating = false;
+            return;
+        }
+
+        // 取消之前的请求（如果存在）
+        if (this.currentController) {
+            this.currentController.abort();
+            this.currentController = null;
+        }
+
+        this.isGenerating = true;
+
         try {
-            const response = await fetch(`${state.settings.apiUrl}/api/analysis/generate`, {
+            // 开始生成流程 - 更新StateManager状态
+            // 分析报告是单个整体，设置 total=1 表示1个任务
+            if (window.stateManager) {
+                window.stateManager.startGeneration(chatId, 'analysis', ['full-report']);
+            }
+
+            // 使用标准超时API，3分钟
+            this.currentController = new AbortController();
+            const timeoutId = setTimeout(() => {
+                if (this.currentController) {
+                    this.currentController.abort();
+                }
+            }, 180000);
+
+            const response = await fetch(`${this.state.settings.apiUrl}/api/report/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: state.messages,
-                    chatId: state.currentChat
-                })
+                    messages: this.state.messages.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    })),
+                    reportKey: this.getAnalysisReportKey(),
+                    force: forceRegenerate || false
+                }),
+                signal: this.currentController.signal
             });
 
+            clearTimeout(timeoutId);
+            this.currentController = null;
+
             if (!response.ok) {
-                throw new Error(`API错误: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error || `API错误: ${response.status}`;
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
@@ -55,7 +298,7 @@ class ReportGenerator {
             if (window.storageManager) {
                 await window.storageManager.saveReport({
                     type: 'analysis',
-                    chatId: String(state.currentChat).trim(),
+                    chatId: chatId,
                     data: report,
                     status: 'completed',
                     progress: { current: 1, total: 1, percentage: 100 },
@@ -65,13 +308,63 @@ class ReportGenerator {
                 });
             }
 
+            // 完成生成流程 - 更新StateManager状态
+            if (window.stateManager) {
+                // 先更新进度为 1/1 (100%)
+                window.stateManager.updateProgress(chatId, 'analysis', 'AI分析师', 1, report);
+                window.stateManager.completeGeneration(chatId, 'analysis', report);
+            }
+
+            // 通知状态管理器清除缓存
+            if (window.reportStatusManager) {
+                window.reportStatusManager.onReportStatusChange(chatId, 'analysis', 'completed');
+            }
+
             // 渲染报告
             if (window.reportViewer) {
                 window.reportViewer.renderAIReport(report);
             }
 
+            // 重置生成状态
+            this.isGenerating = false;
+
         } catch (error) {
             console.error('[生成报告] 失败:', error);
+
+            // 重置生成状态
+            this.isGenerating = false;
+            this.currentController = null;
+
+            // 生成失败 - 更新StateManager状态
+            if (window.stateManager) {
+                window.stateManager.errorGeneration(chatId, 'analysis', error);
+            }
+
+            // 通知状态管理器清除缓存
+            if (window.reportStatusManager) {
+                window.reportStatusManager.onReportStatusChange(chatId, 'analysis', 'error');
+            }
+
+            let errorMessage = error.message;
+            let actionButton = '<button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>';
+
+            // 根据错误类型提供不同的建议
+            if (error.name === 'AbortError' || error.message.includes('timeout')) {
+                errorMessage = '报告生成超时（超过3分钟）';
+                actionButton = `
+                    <div style="display: flex; gap: 12px; justify-content: center;">
+                        <button class="btn-secondary" onclick="closeReport()">关闭</button>
+                        <button class="btn-primary" onclick="generateDetailedReport(true)">重试</button>
+                    </div>
+                `;
+            } else if (error.message.includes('Failed to fetch')) {
+                errorMessage = '无法连接到后端服务，请确认后端服务已启动';
+            } else if (error.message.includes('数据格式')) {
+                errorMessage = '后端返回的数据格式不正确，请检查后端服务是否正常运行';
+            } else if (error.message.includes('API错误')) {
+                errorMessage = '后端服务连接失败，请确认后端服务已启动';
+            }
+
             reportContent.innerHTML = `
                 <div style="text-align: center; padding: 60px 20px;">
                     <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
@@ -79,9 +372,9 @@ class ReportGenerator {
                         报告生成失败
                     </div>
                     <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-                        ${error.message}
+                        ${errorMessage}
                     </div>
-                    <button class="btn-primary" onclick="regenerateInsightsReport()">重试</button>
+                    ${actionButton}
                 </div>
             `;
         }
@@ -89,21 +382,35 @@ class ReportGenerator {
 
     /**
      * 重新生成报告
+     *
+     * @async
+     * @returns {Promise<void>}
+     *
+     * @description
+     * 清除现有报告缓存并重新生成。
+     * 会提示用户确认操作。
      */
     async regenerateInsightsReport() {
         if (!confirm('确定要重新生成分析报告吗？\n\n这将使用AI重新分析您的创意对话，可能会生成不同的洞察内容。')) {
             return;
         }
 
+        const chatId = String(this.state.currentChat).trim();
+
         window.lastGeneratedReport = null;
         window.lastGeneratedReportKey = null;
         window.analysisReportGenerationInFlight = false;
 
-        if (window.storageManager && state.currentChat) {
+        // 重置StateManager状态
+        if (window.stateManager) {
+            window.stateManager.resetGeneration(chatId, 'analysis', false);
+        }
+
+        if (window.storageManager && this.state.currentChat) {
             try {
                 await window.storageManager.saveReport({
                     type: 'analysis',
-                    chatId: String(state.currentChat).trim(),
+                    chatId: chatId,
                     data: null,
                     status: 'generating',
                     progress: { current: 0, total: 1, percentage: 0 },
@@ -120,30 +427,587 @@ class ReportGenerator {
     }
 
     /**
-     * 导出完整报告
+     * 导出完整报告为PDF
+     *
+     * @async
+     * @returns {Promise<void>}
+     *
+     * @throws {Error} 当PDF生成失败时抛出错误
+     *
+     * @description
+     * 将当前报告导出为PDF文件。
+     * 如果报告未生成，会先生成报告。
      */
-    exportFullReport() {
-        if (!window.lastGeneratedReport) {
-            alert('请先生成报告');
-            return;
+    async exportFullReport() {
+        try {
+            const chatId = String(this.state.currentChat).trim();
+
+            // 使用ExportValidator验证
+            const validation = await window.exportValidator.validateExport('analysis', chatId);
+
+            if (!validation.valid) {
+                // 根据action显示不同提示
+                if (validation.action === 'wait') {
+                    window.toast.warning(
+                        `${validation.error}\n${validation.detail}`,
+                        5000
+                    );
+                } else if (validation.action === 'generate') {
+                    window.toast.error(validation.error, 4000);
+                } else if (validation.action === 'regenerate') {
+                    window.toast.error(
+                        `${validation.error}\n${validation.detail}`,
+                        4000
+                    );
+                } else {
+                    window.toast.error(validation.error, 3000);
+                }
+                return;
+            }
+
+            // 验证通过，开始导出
+            window.toast.info('📄 正在生成PDF，请稍候...', 2000);
+
+            // 调用后端API
+            const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reportData: validation.data,
+                    ideaTitle: this.state.userData.idea || '创意分析报告'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('PDF生成失败');
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'PDF生成失败');
+            }
+
+            // 下载PDF
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `ThinkCraft_分析报告_${Date.now()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            window.toast.success('✅ PDF导出成功！', 3000);
+
+        } catch (error) {
+            console.error('[导出PDF] 失败:', error);
+            window.toast.error(`导出失败: ${error.message}`, 4000);
+        }
+    }
+
+    /**
+     * 验证报告数据格式
+     * @param {Object} report - 报告对象
+     * @returns {boolean} 是否有效
+     */
+    validateReportData(report) {
+        if (!report) {
+            console.error('[数据验证] 报告数据为空');
+            return false;
         }
 
-        const report = window.lastGeneratedReport;
-        let markdown = `# ${report.title || '创意分析报告'}\n\n`;
-        markdown += `生成时间：${new Date().toLocaleString('zh-CN')}\n\n---\n\n`;
+        const type = report.type;
+        const status = report.status;
 
-        report.chapters.forEach((chapter, index) => {
-            markdown += `## ${index + 1}. ${chapter.title}\n\n`;
-            markdown += `${chapter.content}\n\n`;
-        });
+        // 🔧 对于 generating 状态，允许 data 为 null 或空
+        // 生成中的报告，data 可能为 null 或空，这是正常的
+        if (status === 'generating') {
+            logger.debug('[数据验证] 生成中的报告，允许 data 为空', { type, status });
+            return true;
+        }
 
-        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${report.title || '创意分析报告'}_${Date.now()}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // 🔧 对于 completed 状态，必须有完整数据
+        if (status === 'completed') {
+            // 🔧 分析报告：只要有 data 对象就认为有效（兼容旧数据和不同的数据结构）
+            if (type === 'analysis') {
+                if (!report.data) {
+                    console.error('[数据验证] 已完成的分析报告缺少 data 字段', report);
+                    return false;
+                }
+                // 如果有 chapters 字段，验证其格式
+                if (report.data.chapters !== undefined) {
+                    if (!Array.isArray(report.data.chapters) || report.data.chapters.length === 0) {
+                        console.warn('[数据验证] 分析报告 chapters 格式异常，但仍然接受', report);
+                    }
+                }
+                logger.debug('[数据验证] 分析报告数据有效', { type, status, hasData: true });
+                return true;
+            }
+
+            // 商业计划书/立项材料必须有 document 或 chapters
+            if (type === 'business' || type === 'proposal') {
+                if (!report.data || (!report.data.document && !report.data.chapters)) {
+                    console.error('[数据验证] 已完成的报告缺少 document 或 chapters 字段', report);
+                    return false;
+                }
+            }
+        }
+
+        // 🔧 其他状态（idle、error）不需要验证数据
+        logger.debug('[数据验证] 报告数据有效', { type, status, hasData: !!report.data });
+        return true;
+    }
+
+    /**
+     * 清理 IndexedDB 中的重复报告记录
+     * @param {string} chatId - 会话ID
+     * @param {Object} deduplicatedReports - 去重后的报告对象 {type: report}
+     */
+    async cleanupDuplicateReports(chatId, deduplicatedReports) {
+        try {
+            if (!window.storageManager) return;
+
+            const normalizedChatId = normalizeChatId(chatId);
+            const allReports = await window.storageManager.getReportsByChatId(normalizedChatId);
+
+            // 找出需要保留的报告ID
+            const keepIds = new Set(Object.values(deduplicatedReports).map(r => r.id));
+
+            // 删除重复的报告
+            const deletePromises = [];
+            allReports.forEach(report => {
+                if (!keepIds.has(report.id)) {
+                    logger.debug('[清理重复] 删除重复报告', {
+                        id: report.id,
+                        type: report.type,
+                        status: report.status
+                    });
+                    deletePromises.push(
+                        window.storageManager.deleteReport(report.id).catch(err => {
+                            console.error('[清理重复] 删除失败', err);
+                        })
+                    );
+                }
+            });
+
+            if (deletePromises.length > 0) {
+                await Promise.all(deletePromises);
+                logger.debug('[清理重复] 清理完成', {
+                    deletedCount: deletePromises.length
+                });
+            }
+        } catch (error) {
+            console.error('[清理重复] 清理失败', error);
+        }
+    }
+
+    /**
+     * 加载对话的生成状态
+     *
+     * @async
+     * @param {string} chatId - 对话ID
+     * @returns {Promise<void>}
+     *
+     * @description
+     * 从存储中加载指定对话的报告生成状态，并更新UI。
+     * 处理超时检测和状态同步。
+     */
+    async loadGenerationStatesForChat(chatId) {
+        try {
+            const normalizedChatId = normalizeChatId(chatId);
+
+            // 🔍 记录开始时间
+            const startTime = Date.now();
+            logger.debug('[状态恢复] 开始加载', {
+                chatId: normalizedChatId,
+                timestamp: startTime
+            });
+
+            if (typeof logStateChange === 'function') {
+                logStateChange('加载生成状态', { chatId: normalizedChatId });
+            }
+
+            if (!normalizedChatId) {
+                logger.debug('[加载状态] 无chatId，重置按钮');
+                if (typeof resetGenerationButtons === 'function') {
+                    resetGenerationButtons();
+                }
+                return;
+            }
+
+            // 🔍 记录DOM状态
+            const businessBtn = document.getElementById('businessPlanBtn');
+            const proposalBtn = document.getElementById('proposalBtn');
+            logger.debug('[状态恢复] DOM按钮状态', {
+                businessBtn: businessBtn ? {
+                    classList: Array.from(businessBtn.classList),
+                    dataStatus: businessBtn.dataset.status
+                } : 'not found',
+                proposalBtn: proposalBtn ? {
+                    classList: Array.from(proposalBtn.classList),
+                    dataStatus: proposalBtn.dataset.status
+                } : 'not found'
+            });
+
+            // 🔧 不要立即重置按钮，先检查是否有生成中的报告
+            // 如果有生成中的报告，保持按钮状态不变
+            // 只在确认没有任何生成中的报告时才重置
+
+            // 2. 清理旧会话的UI状态
+            document.querySelectorAll('.generation-btn').forEach(btn => {
+                const btnChatId = btn.dataset.chatId;
+                // 只清理不属于当前会话的按钮
+                if (btnChatId && btnChatId !== normalizedChatId) {
+                    btn.removeAttribute('data-chat-id');
+                    btn.removeAttribute('data-status');
+                }
+            });
+
+            // 3. 从StateManager获取当前会话的内存状态
+            const memoryStates = {};
+            if (window.stateManager?.getGenerationState) {
+                const genState = window.stateManager.getGenerationState(normalizedChatId);
+                logger.debug('[状态恢复] StateManager状态', genState);
+
+                if (genState) {
+                    ['business', 'proposal', 'analysis'].forEach(type => {
+                        const gen = genState[type];
+                        if (gen && gen.status === 'generating') {
+                            memoryStates[type] = {
+                                status: 'generating',
+                                progress: gen.progress,
+                                selectedChapters: gen.selectedChapters,
+                                chatId: normalizedChatId
+                            };
+                            logger.debug(`[状态恢复] 内存中有${type}生成状态`, memoryStates[type]);
+                        }
+                    });
+                }
+            }
+
+            // 4. 从IndexedDB获取持久化的报告
+            const allReports = await window.storageManager?.getReportsByChatId(normalizedChatId);
+            logger.debug('[状态恢复] IndexedDB报告', {
+                count: allReports?.length || 0,
+                reports: allReports?.map(r => ({
+                    type: r.type,
+                    status: r.status,
+                    chatId: r.chatId,
+                    progress: r.progress
+                }))
+            });
+
+            // 验证报告是否属于当前会话
+            const reports = (allReports || []).filter(report => {
+                const reportChatId = normalizeChatId(report.chatId);
+                if (reportChatId !== normalizedChatId) {
+                    console.warn(`[加载状态] 过滤掉不匹配的报告:`, {
+                        reportChatId,
+                        currentChatId: normalizedChatId,
+                        reportType: report.type
+                    });
+                    return false;
+                }
+                return true;
+            });
+
+            logger.debug('[加载状态] 验证后的报告:', reports);
+
+            // 5. 获取当前会话的报告对象
+            const currentReports = typeof getReportsForChat === 'function' ? getReportsForChat(normalizedChatId) : {};
+
+            // 6. 合并状态并更新UI
+            const GENERATION_TIMEOUT_MS = 30 * 60 * 1000; // 🔧 增加超时时间到30分钟
+            const processedTypes = new Set();
+
+            // 🔧 去重：如果有多个相同类型的报告，优先保留 generating 状态的报告
+            const deduplicatedReports = {};
+            reports.forEach(report => {
+                const type = report.type;
+                if (!deduplicatedReports[type]) {
+                    deduplicatedReports[type] = report;
+                } else {
+                    // 如果新报告是 generating 状态，或者旧报告不是 generating 状态，则替换
+                    const existing = deduplicatedReports[type];
+                    if (report.status === 'generating' || existing.status !== 'generating') {
+                        // 优先保留 generating 状态
+                        if (report.status === 'generating' && existing.status !== 'generating') {
+                            logger.debug('[加载状态] 替换为 generating 状态的报告', {
+                                type,
+                                oldStatus: existing.status,
+                                newStatus: report.status
+                            });
+                            deduplicatedReports[type] = report;
+                        } else if (report.status === existing.status) {
+                            // 如果状态相同，保留最新的（根据 startTime 或 id）
+                            const existingTime = existing.startTime || 0;
+                            const reportTime = report.startTime || 0;
+                            if (reportTime > existingTime) {
+                                deduplicatedReports[type] = report;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 先处理去重后的报告
+            Object.values(deduplicatedReports).forEach(report => {
+                const type = report.type;
+                logger.debug('[加载状态] 处理报告:', { type, status: report.status, chatId: report.chatId });
+                if (type !== 'business' && type !== 'proposal' && type !== 'analysis') {
+                    logger.debug('[加载状态] 跳过非报告类型:', type);
+                    return;
+                }
+
+                // ✅ 添加数据验证
+                if (!this.validateReportData(report)) {
+                    console.warn('[加载状态] 跳过无效报告数据', {
+                        type: report.type,
+                        status: report.status,
+                        hasData: !!report.data,
+                        dataKeys: report.data ? Object.keys(report.data) : []
+                    });
+                    // 🔧 数据无效时，不要重置所有按钮，只跳过这个报告
+                    // 避免影响其他正在生成的报告
+                    return;
+                }
+
+                // 🔧 检查是否所有章节都已完成但状态还是 'generating'
+                if (report.status === 'generating' && report.data?.chapters && report.selectedChapters) {
+                    const completedCount = report.data.chapters.length;
+                    const totalCount = report.selectedChapters.length;
+                    if (completedCount === totalCount && completedCount > 0) {
+                        logger.debug('[加载状态] 所有章节已完成，自动更新状态为 completed');
+                        report.status = 'completed';
+                        report.endTime = Date.now();
+                        report.progress = {
+                            ...report.progress,
+                            current: totalCount,
+                            total: totalCount,
+                            percentage: 100
+                        };
+                        // 异步保存更新后的状态
+                        window.storageManager?.saveReport({
+                            id: report.id,
+                            type: report.type,
+                            chatId: report.chatId,
+                            data: report.data,
+                            status: report.status,
+                            progress: report.progress,
+                            selectedChapters: report.selectedChapters,
+                            startTime: report.startTime,
+                            endTime: report.endTime,
+                            error: null
+                        }).catch(() => {});
+                    }
+                }
+
+                // 检查超时
+                if (report.status === 'generating' && report.startTime) {
+                    const elapsed = Date.now() - report.startTime;
+                    if (elapsed > GENERATION_TIMEOUT_MS) {
+                        report.status = 'error';
+                        report.error = {
+                            message: '生成超时，请重试',
+                            timestamp: Date.now()
+                        };
+                        // 异步保存错误状态
+                        window.storageManager?.saveReport({
+                            id: report.id,
+                            type: report.type,
+                            chatId: report.chatId,
+                            data: report.data ?? null,
+                            status: report.status,
+                            progress: report.progress,
+                            selectedChapters: report.selectedChapters,
+                            startTime: report.startTime,
+                            endTime: Date.now(),
+                            error: report.error
+                        }).catch(() => {});
+                    }
+                }
+
+                // 优先使用内存中的generating状态
+                if (memoryStates[type]?.status === 'generating') {
+                    currentReports[type] = memoryStates[type];
+                    if (typeof updateGenerationButtonState === 'function') {
+                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                    }
+                } else {
+                    currentReports[type] = {
+                        data: report.data,
+                        chatId: report.chatId,
+                        status: report.status,
+                        progress: report.progress,
+                        selectedChapters: report.selectedChapters,
+                        error: report.error
+                    };
+                    if (typeof updateGenerationButtonState === 'function') {
+                        updateGenerationButtonState(type, currentReports[type], normalizedChatId);
+                    }
+                }
+
+                processedTypes.add(type);
+            });
+
+            // 处理内存中有但IndexedDB中没有的generating状态
+            Object.keys(memoryStates).forEach(type => {
+                if (!processedTypes.has(type)) {
+                    currentReports[type] = memoryStates[type];
+                    if (typeof updateGenerationButtonState === 'function') {
+                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                    }
+                    processedTypes.add(type);
+                }
+            });
+
+            // 🔧 只重置那些没有找到报告的按钮类型
+            ['business', 'proposal'].forEach(type => {
+                if (!processedTypes.has(type)) {
+                    logger.debug(`[加载状态] ${type} 没有报告，重置按钮`);
+                    if (typeof updateGenerationButtonState === 'function') {
+                        updateGenerationButtonState(type, { status: 'idle' }, normalizedChatId);
+                    }
+                }
+            });
+
+            // 🔧 强制同步：确保按钮状态与数据一致
+            setTimeout(() => {
+                logger.debug('[状态恢复] 执行强制同步验证');
+
+                ['business', 'proposal'].forEach(type => {
+                    const btn = document.getElementById(type === 'business' ? 'businessPlanBtn' : 'proposalBtn');
+                    if (!btn) return;
+
+                    const expectedStatus = currentReports[type]?.status || 'idle';
+                    const actualStatus = btn.dataset.status;
+
+                    if (expectedStatus !== actualStatus) {
+                        logger.warn('[状态恢复] 检测到状态不一致，强制更新', {
+                            type,
+                            expected: expectedStatus,
+                            actual: actualStatus
+                        });
+
+                        // 强制重新更新按钮
+                        if (typeof updateGenerationButtonState === 'function') {
+                            updateGenerationButtonState(type, currentReports[type] || { status: 'idle' }, normalizedChatId);
+                        }
+                    }
+                });
+            }, 100); // 延迟100ms确保DOM完全更新
+
+            // 🔍 记录完成时间和最终状态
+            const endTime = Date.now();
+            logger.debug('[状态恢复] 完成加载', {
+                duration: endTime - startTime,
+                finalButtonStates: {
+                    businessBtn: businessBtn ? {
+                        classList: Array.from(businessBtn.classList),
+                        dataStatus: businessBtn.dataset.status
+                    } : 'not found',
+                    proposalBtn: proposalBtn ? {
+                        classList: Array.from(proposalBtn.classList),
+                        dataStatus: proposalBtn.dataset.status
+                    } : 'not found'
+                }
+            });
+
+            // 🔧 清理 IndexedDB 中的重复记录
+            if (reports.length > Object.keys(deduplicatedReports).length) {
+                logger.debug('[状态恢复] 检测到重复记录，开始清理', {
+                    totalReports: reports.length,
+                    uniqueTypes: Object.keys(deduplicatedReports).length
+                });
+                this.cleanupDuplicateReports(normalizedChatId, deduplicatedReports).catch(err => {
+                    console.error('[状态恢复] 清理重复记录失败', err);
+                });
+            }
+
+        } catch (error) {
+            logger.error('[状态恢复] 加载失败', error);
+            if (typeof resetGenerationButtons === 'function') {
+                resetGenerationButtons();
+            }
+        }
+    }
+
+    /**
+     * 全局加载生成状态（页面初始化时调用）
+     *
+     * @async
+     * @returns {Promise<void>}
+     *
+     * @description
+     * 在页面加载时调用，加载当前对话的报告生成状态。
+     * 等待 currentChat 初始化（最多3秒），避免时序问题导致状态重置。
+     */
+    async loadGenerationStates() {
+        try {
+            logger.debug('[全局加载] 开始加载生成状态');
+
+            // 🔧 优化等待策略：
+            // 1. 先等待currentChat初始化（最多3秒）
+            // 2. 然后等待DOM完全准备好（检查按钮是否存在）
+
+            let waitCount = 0;
+            const maxWait = 30; // 3秒 / 100ms = 30次
+
+            // 等待currentChat
+            while (!this.state.currentChat && waitCount < maxWait) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                waitCount++;
+            }
+
+            // 等待DOM按钮准备好
+            waitCount = 0;
+            while (waitCount < 10) { // 最多等待1秒
+                const businessBtn = document.getElementById('businessPlanBtn');
+                const proposalBtn = document.getElementById('proposalBtn');
+
+                if (businessBtn && proposalBtn) {
+                    logger.debug('[全局加载] DOM按钮已准备好');
+                    break;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+                waitCount++;
+            }
+
+            // 如果当前有对话，加载该对话的生成状态
+            if (this.state.currentChat) {
+                logger.debug('[全局加载] 当前对话ID:', this.state.currentChat);
+                await this.loadGenerationStatesForChat(this.state.currentChat);
+
+                // 🔧 额外延迟，确保UI更新完成
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // 🔧 最终验证
+                const businessBtn = document.getElementById('businessPlanBtn');
+                const proposalBtn = document.getElementById('proposalBtn');
+                logger.debug('[全局加载] 最终按钮状态', {
+                    businessBtn: businessBtn ? {
+                        classList: Array.from(businessBtn.classList),
+                        dataStatus: businessBtn.dataset.status
+                    } : 'not found',
+                    proposalBtn: proposalBtn ? {
+                        classList: Array.from(proposalBtn.classList),
+                        dataStatus: proposalBtn.dataset.status
+                    } : 'not found'
+                });
+
+            } else {
+                logger.debug('[全局加载] 没有当前对话，重置按钮状态');
+                if (typeof resetGenerationButtons === 'function') {
+                    resetGenerationButtons();
+                }
+            }
+        } catch (error) {
+            console.error('[全局加载] 加载生成状态失败:', error);
+        }
     }
 }
 
@@ -160,5 +1024,41 @@ function regenerateInsightsReport() {
 }
 
 function exportFullReport() {
-    window.reportGenerator.exportFullReport();
+    return window.reportGenerator.exportFullReport();
 }
+
+function prefetchAnalysisReport() {
+    return window.reportGenerator.prefetchAnalysisReport();
+}
+
+function fetchCachedAnalysisReport() {
+    return window.reportGenerator.fetchCachedAnalysisReport();
+}
+
+function loadGenerationStatesForChat(chatId) {
+    return window.reportGenerator.loadGenerationStatesForChat(chatId);
+}
+
+function loadGenerationStates() {
+    return window.reportGenerator.loadGenerationStates();
+}
+
+function canShareReport() {
+    return Boolean(window.lastGeneratedReport && window.lastGeneratedReport.chapters);
+}
+
+function updateShareLinkButtonVisibility() {
+    const btn = document.getElementById('shareLinkBtn');
+    if (!btn) return;
+    btn.style.display = canShareReport() ? 'inline-flex' : 'none';
+}
+
+// 暴露到window对象
+window.regenerateInsightsReport = regenerateInsightsReport;
+window.exportFullReport = exportFullReport;
+window.prefetchAnalysisReport = prefetchAnalysisReport;
+window.fetchCachedAnalysisReport = fetchCachedAnalysisReport;
+window.loadGenerationStatesForChat = loadGenerationStatesForChat;
+window.loadGenerationStates = loadGenerationStates;
+window.canShareReport = canShareReport;
+window.updateShareLinkButtonVisibility = updateShareLinkButtonVisibility;

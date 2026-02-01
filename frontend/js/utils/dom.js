@@ -136,3 +136,19 @@ function toggleClass(element, className) {
 
     return el.classList.toggle(className);
 }
+
+// 在测试环境中将函数导出到全局作用域
+if (typeof global !== 'undefined') {
+    global.autoResize = autoResize;
+    global.scrollToBottom = scrollToBottom;
+    global.focusInput = focusInput;
+    global.lockAutoScroll = lockAutoScroll;
+    global.unlockAutoScroll = unlockAutoScroll;
+    global.showElement = showElement;
+    global.hideElement = hideElement;
+    global.toggleElement = toggleElement;
+    global.addClass = addClass;
+    global.removeClass = removeClass;
+    global.toggleClass = toggleClass;
+}
+

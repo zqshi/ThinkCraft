@@ -456,7 +456,7 @@ export class ReportController {
 \`\`\`
 
 ## 质量约束
-1. 禁止出现“待补充/暂无/空白/略/TBD/N/A”等占位语
+1. 禁止出现"待补充/暂无/空白/略/TBD/N/A"等占位语
 2. 所有数组至少 3 条，stages 至少 2 个阶段
 3. 中期探索方向必须具体到目标/方法/对象或样本/周期/产出
 4. 概念延伸提示必须给出关联理由与验证切入点（写入 extendedIdeas 句子中）
@@ -545,10 +545,23 @@ export class ReportController {
         reportData = JSON.parse(repairText);
       }
 
+      // 在返回前验证数据完整性
+      if (!reportData || !reportData.chapters) {
+        throw new Error('AI返回的报告数据缺少chapters字段');
+      }
+
+      // 验证必需的章节
+      const requiredChapters = ['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'];
+      for (const ch of requiredChapters) {
+        if (!reportData.chapters[ch]) {
+          throw new Error(`报告缺少必需章节: ${ch}`);
+        }
+      }
+
       return reportData;
     } catch (error) {
       console.error('[ReportController] 生成创意分析报告失败:', error);
-      throw new Error(`报告生成失败: ${error.message}`);
+      throw new Error(`报告生成失败: ${error.message}。请检查: 1) 对话内容是否足够 2) AI服务是否正常 3) 网络连接是否稳定`);
     }
   }
 }

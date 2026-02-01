@@ -1,0 +1,184 @@
+{
+  "timestamp": "2026-01-30T22:16:30.674160",
+  "total_functions": 29,
+  "removed_functions": [
+    {
+      "name": "handleKeyDown",
+      "start_line": 22,
+      "end_line": 40,
+      "lines_removed": 19
+    },
+    {
+      "name": "handleCompositionStart",
+      "start_line": 42,
+      "end_line": 44,
+      "lines_removed": 3
+    },
+    {
+      "name": "handleCompositionEnd",
+      "start_line": 46,
+      "end_line": 48,
+      "lines_removed": 3
+    },
+    {
+      "name": "handleKeyUp",
+      "start_line": 50,
+      "end_line": 60,
+      "lines_removed": 11
+    },
+    {
+      "name": "handleGenerationBtnClick",
+      "start_line": 338,
+      "end_line": 424,
+      "lines_removed": 87
+    },
+    {
+      "name": "updateButtonContent",
+      "start_line": 577,
+      "end_line": 611,
+      "lines_removed": 35
+    },
+    {
+      "name": "resetGenerationButtons",
+      "start_line": 614,
+      "end_line": 644,
+      "lines_removed": 31
+    },
+    {
+      "name": "showProjectProposalModal",
+      "start_line": 706,
+      "end_line": 708,
+      "lines_removed": 3
+    },
+    {
+      "name": "closeChapterSelection",
+      "start_line": 718,
+      "end_line": 724,
+      "lines_removed": 7
+    },
+    {
+      "name": "switchSidebarTab",
+      "start_line": 1198,
+      "end_line": 1250,
+      "lines_removed": 53
+    },
+    {
+      "name": "switchMarketTab",
+      "start_line": 1309,
+      "end_line": 1326,
+      "lines_removed": 18
+    },
+    {
+      "name": "toggleOrgGroup",
+      "start_line": 1692,
+      "end_line": 1702,
+      "lines_removed": 11
+    },
+    {
+      "name": "switchToTextMode",
+      "start_line": 2118,
+      "end_line": 2126,
+      "lines_removed": 9
+    },
+    {
+      "name": "switchToVoiceMode",
+      "start_line": 2128,
+      "end_line": 2131,
+      "lines_removed": 4
+    },
+    {
+      "name": "initVoiceInput",
+      "start_line": 2134,
+      "end_line": 2168,
+      "lines_removed": 35
+    },
+    {
+      "name": "switchDesktopToVoice",
+      "start_line": 2171,
+      "end_line": 2173,
+      "lines_removed": 3
+    },
+    {
+      "name": "switchDesktopToText",
+      "start_line": 2175,
+      "end_line": 2187,
+      "lines_removed": 13
+    },
+    {
+      "name": "toggleSaveHistory",
+      "start_line": 2236,
+      "end_line": 2239,
+      "lines_removed": 4
+    },
+    {
+      "name": "handleQuickVoice",
+      "start_line": 2447,
+      "end_line": 2461,
+      "lines_removed": 15
+    },
+    {
+      "name": "handleVoice",
+      "start_line": 2554,
+      "end_line": 2626,
+      "lines_removed": 73
+    },
+    {
+      "name": "handleCamera",
+      "start_line": 2650,
+      "end_line": 2664,
+      "lines_removed": 15
+    },
+    {
+      "name": "handleImageUpload",
+      "start_line": 2667,
+      "end_line": 2681,
+      "lines_removed": 15
+    },
+    {
+      "name": "toggleSidebar",
+      "start_line": 2763,
+      "end_line": 2765,
+      "lines_removed": 3
+    },
+    {
+      "name": "handleResponsiveSidebar",
+      "start_line": 2779,
+      "end_line": 2795,
+      "lines_removed": 17
+    },
+    {
+      "name": "handleLaunchParams",
+      "start_line": 2853,
+      "end_line": 2898,
+      "lines_removed": 46
+    },
+    {
+      "name": "initInputGestures",
+      "start_line": 2937,
+      "end_line": 2963,
+      "lines_removed": 27
+    },
+    {
+      "name": "initOnboarding",
+      "start_line": 2995,
+      "end_line": 3344,
+      "lines_removed": 350
+    },
+    {
+      "name": "showMockProjectPanel",
+      "start_line": 3122,
+      "end_line": 3173,
+      "lines_removed": 52
+    },
+    {
+      "name": "showStep",
+      "start_line": 3285,
+      "end_line": 3335,
+      "lines_removed": 51
+    }
+  ],
+  "failed_functions": [],
+  "total_lines_removed": 1013,
+  "original_lines": 3412,
+  "final_lines": 2424
+}

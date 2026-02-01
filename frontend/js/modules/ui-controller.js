@@ -5,6 +5,10 @@
 
 /* eslint-disable no-unused-vars, no-undef */
 
+// 创建日志实例
+var logger = window.createLogger ? window.createLogger('UIController') : console;
+
+
 class UIController {
     constructor() {
         this.state = window.state;
@@ -26,16 +30,21 @@ class UIController {
      */
     switchSidebarTab(tab) {
         const tabs = document.querySelectorAll('.sidebar-tab');
-        const contents = document.querySelectorAll('.sidebar-content');
+        const views = document.querySelectorAll('.sidebar-view');
 
         tabs.forEach(t => t.classList.remove('active'));
-        contents.forEach(c => c.classList.remove('active'));
+        views.forEach(v => v.style.display = 'none');
 
         const activeTab = document.querySelector(`[data-tab="${tab}"]`);
-        const activeContent = document.getElementById(`${tab}Tab`);
+        const activeView = document.getElementById(`${tab}View`);
 
         if (activeTab) activeTab.classList.add('active');
-        if (activeContent) activeContent.classList.add('active');
+        if (activeView) activeView.style.display = 'block';
+
+        // 切换到项目空间时，渲染项目列表
+        if (tab === 'team' && window.projectManager && window.projectManager.renderProjectList) {
+            window.projectManager.renderProjectList('projectListContainer');
+        }
     }
 
     /**
@@ -82,27 +91,20 @@ class UIController {
      * @param {boolean} toggle - 是否启用
      */
     toggleTeamFeature(toggle) {
-        console.log('切换团队功能:', toggle);
+        logger.debug('切换团队功能:', toggle);
         // 实现团队功能切换逻辑
-    }
-
-    /**
-     * 处理登出
-     */
-    handleLogout() {
-        if (confirm('确定要退出登录吗？')) {
-            localStorage.clear();
-            window.location.reload();
-        }
     }
 
     /**
      * 打开底部设置
      */
     openBottomSettings() {
-        const panel = document.getElementById('bottomSettingsPanel');
+        const panel = document.getElementById('bottomSettingsSheet');  // ✅ 修正ID
         if (panel) {
             panel.style.display = 'block';
+            logger.debug('✅ 底部设置面板已打开');
+        } else {
+            console.error('❌ 找不到 bottomSettingsSheet 元素');
         }
     }
 
@@ -110,9 +112,52 @@ class UIController {
      * 关闭底部设置
      */
     closeBottomSettings() {
-        const panel = document.getElementById('bottomSettingsPanel');
+        const panel = document.getElementById('bottomSettingsSheet');  // ✅ 修正ID
         if (panel) {
             panel.style.display = 'none';
+            logger.debug('✅ 底部设置面板已关闭');
+        } else {
+            console.error('❌ 找不到 bottomSettingsSheet 元素');
+        }
+    }
+
+    /**
+     * 关闭章节选择弹窗
+     */
+    closeChapterSelection() {
+        const modal = document.getElementById('chapterSelectionModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 关闭商业计划书弹窗
+     */
+    closeBusinessReport() {
+        const modal = document.getElementById('businessReportModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 关闭项目弹窗
+     */
+    closeProjectModal() {
+        const modal = document.getElementById('projectModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 关闭Agent市场弹窗
+     */
+    closeAgentMarket() {
+        const modal = document.getElementById('agentMarketModal');
+        if (modal) {
+            modal.style.display = 'none';
         }
     }
 
@@ -168,10 +213,6 @@ function toggleTeamFeature(toggle) {
     window.uiController.toggleTeamFeature(toggle);
 }
 
-function handleLogout() {
-    window.uiController.handleLogout();
-}
-
 function openBottomSettings() {
     window.uiController.openBottomSettings();
 }
@@ -179,3 +220,34 @@ function openBottomSettings() {
 function closeBottomSettings() {
     window.uiController.closeBottomSettings();
 }
+
+function closeChapterSelection() {
+    window.uiController.closeChapterSelection();
+}
+
+function closeBusinessReport() {
+    window.uiController.closeBusinessReport();
+}
+
+function closeProjectModal() {
+    window.uiController.closeProjectModal();
+}
+
+function closeAgentMarket() {
+    window.uiController.closeAgentMarket();
+}
+
+// 暴露全局函数（用于 HTML onclick 事件）
+window.toggleSidebar = toggleSidebar;
+window.switchSidebarTab = switchSidebarTab;
+window.showSettings = showSettings;
+window.closeSettings = closeSettings;
+window.toggleDarkMode = toggleDarkMode;
+window.toggleSaveHistory = toggleSaveHistory;
+window.toggleTeamFeature = toggleTeamFeature;
+window.openBottomSettings = openBottomSettings;
+window.closeBottomSettings = closeBottomSettings;
+window.closeChapterSelection = closeChapterSelection;
+window.closeBusinessReport = closeBusinessReport;
+window.closeProjectModal = closeProjectModal;
+window.closeAgentMarket = closeAgentMarket;

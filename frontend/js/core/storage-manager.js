@@ -311,10 +311,13 @@ class StorageManager {
    */
   async saveReport(report) {
     let reportId = report.id || null;
-    if (!reportId && report.type && report.chatId) {
+    // 🔧 统一 chatId 格式为字符串，确保索引查询一致性
+    const normalizedChatId = report.chatId ? String(report.chatId).trim() : null;
+
+    if (!reportId && report.type && normalizedChatId) {
       try {
         const reports = await this.getAllReports();
-        const existing = reports.find(r => r.type === report.type && r.chatId === report.chatId);
+        const existing = reports.find(r => r.type === report.type && String(r.chatId).trim() === normalizedChatId);
         if (existing?.id) {
           reportId = existing.id;
         }
@@ -326,7 +329,7 @@ class StorageManager {
       id: reportId || `report-${Date.now()}`,
       type: report.type, // 'business' | 'proposal'
       data: report.data ?? null,
-      chatId: report.chatId || null,
+      chatId: normalizedChatId, // 🔧 确保 chatId 为字符串
       timestamp: Date.now(),
       size: JSON.stringify(dataForSize).length,
       status: report.status,
@@ -365,7 +368,28 @@ class StorageManager {
     if (!chatId) {
       return [];
     }
-    return this.getByIndex('reports', 'chatId', String(chatId));
+    // 🔧 统一 chatId 格式为字符串，确保与保存时一致
+    const normalizedChatId = String(chatId).trim();
+
+    // 🔧 先尝试用字符串查询
+    let reports = await this.getByIndex('reports', 'chatId', normalizedChatId);
+
+    // 🔧 如果没找到，尝试用数字查询（兼容旧数据）
+    if (reports.length === 0 && !isNaN(normalizedChatId)) {
+      const numericChatId = Number(normalizedChatId);
+      reports = await this.getByIndex('reports', 'chatId', numericChatId);
+
+      // 🔧 如果找到了旧数据，迁移为字符串格式
+      if (reports.length > 0) {
+        console.log('[StorageManager] 发现旧格式数据，正在迁移 chatId 为字符串格式');
+        for (const report of reports) {
+          report.chatId = normalizedChatId;
+          await this.save('reports', report);
+        }
+      }
+    }
+
+    return reports;
   }
 
   /**
@@ -383,6 +407,19 @@ class StorageManager {
   }
 
   /**
+   * 删除报告（通过ID）
+   * @param {String} id - 报告ID
+   * @returns {Promise<void>}
+   */
+  async deleteReport(id) {
+    if (!id) {
+      return;
+    }
+    await this.delete('reports', id);
+    console.log('[StorageManager] 已删除报告', { reportId: id });
+  }
+
+  /**
    * 删除指定会话和类型的报告
    * @param {String} chatId - 会话ID
    * @param {String} type - 报告类型 ('business' | 'proposal' | 'analysis')
@@ -394,7 +431,7 @@ class StorageManager {
     }
     const report = await this.getReportByChatIdAndType(chatId, type);
     if (report && report.id) {
-      await this.delete('reports', report.id);
+      await this.deleteReport(report.id);
       console.log('[StorageManager] 已删除报告', { chatId, type, reportId: report.id });
     }
   }

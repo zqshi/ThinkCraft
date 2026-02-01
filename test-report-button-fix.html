@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试报告按钮修复</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .test-step {
+            background: #f8f9fa;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .test-step h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .test-step p {
+            margin: 5px 0;
+            color: #666;
+            line-height: 1.6;
+        }
+        .expected {
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .expected strong {
+            color: #2e7d32;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #45a049;
+        }
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #0b7dda;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-pending {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: #d32f2f;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            color: #999;
+            font-size: 18px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1>🧪 报告按钮修复测试</h1>
+        <p class="subtitle">验证【查看完整报告】按钮在刷新后是否正常显示</p>
+
+        <div class="test-step">
+            <h3>📋 测试场景 1：首次生成报告 <span class="status status-pending">待测试</span></h3>
+            <p>1. 打开应用：<a href="http://localhost:8000/index.html" target="_blank" class="code">http://localhost:8000/index.html</a></p>
+            <p>2. 发送消息触发分析（例如："帮我分析一下创业想法"）</p>
+            <p>3. 等待 AI 回复包含分析内容</p>
+            <div class="expected">
+                <strong>✅ 预期结果：</strong>
+                <ul>
+                    <li>【查看完整报告】按钮显示在消息下方</li>
+                    <li>按钮包含文档图标和文字</li>
+                    <li>点击按钮能打开报告弹窗</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>🔄 测试场景 2：刷新页面后 <span class="status status-pending">待测试</span></h3>
+            <p>1. 在场景1的基础上，按 <span class="code">F5</span> 或 <span class="code">Cmd+R</span> 刷新页面</p>
+            <p>2. 等待页面加载完成</p>
+            <p>3. 查看历史消息中的按钮</p>
+            <div class="expected">
+                <strong>✅ 预期结果：</strong>
+                <ul>
+                    <li>【查看完整报告】按钮仍然显示 ⭐</li>
+                    <li>按钮位置和样式正确</li>
+                    <li>点击按钮能正常打开报告</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>🔀 测试场景 3：切换对话 <span class="status status-pending">待测试</span></h3>
+            <p>1. 生成报告后，点击左侧创建新对话</p>
+            <p>2. 再切换回有报告的对话</p>
+            <p>3. 查看按钮状态</p>
+            <div class="expected">
+                <strong>✅ 预期结果：</strong>
+                <ul>
+                    <li>【查看完整报告】按钮显示</li>
+                    <li>按钮功能正常</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>🔁 测试场景 4：多次生成 <span class="status status-pending">待测试</span></h3>
+            <p>1. 在同一对话中多次触发分析</p>
+            <p>2. 观察按钮数量</p>
+            <div class="expected">
+                <strong>✅ 预期结果：</strong>
+                <ul>
+                    <li>每条分析消息只有一个按钮</li>
+                    <li>不会出现重复按钮</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <a href="http://localhost:8000/index.html" target="_blank" class="btn btn-primary">
+                🚀 开始测试
+            </a>
+            <button class="btn btn-secondary" onclick="showChecklist()">
+                📝 查看检查清单
+            </button>
+        </div>
+    </div>
+
+    <div class="test-card" id="checklist" style="display: none;">
+        <h2>✅ 测试检查清单</h2>
+        <ul class="checklist">
+            <li>首次生成报告时，按钮正常显示</li>
+            <li>刷新页面后，按钮仍然显示（核心修复点）</li>
+            <li>切换对话后，按钮正常显示</li>
+            <li>多次生成不会重复添加按钮</li>
+            <li>按钮点击后能正常打开报告弹窗</li>
+            <li>按钮样式和图标显示正确</li>
+            <li>控制台没有JavaScript错误</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🔧 修复说明</h2>
+        <p><strong>修改文件：</strong></p>
+        <ul>
+            <li><span class="code">frontend/js/modules/chat/message-handler.js</span> - 移除了 state.analysisCompleted 条件</li>
+            <li><span class="code">frontend/js/modules/chat/typing-effect.js</span> - 添加了重复检查逻辑</li>
+        </ul>
+        <p><strong>核心改动：</strong></p>
+        <ul>
+            <li>只要检测到 <span class="code">[ANALYSIS_COMPLETE]</span> 标记就显示按钮</li>
+            <li>不再依赖 <span class="code">state.analysisCompleted</span> 状态</li>
+            <li>防止按钮重复添加</li>
+        </ul>
+    </div>
+
+    <script>
+        function showChecklist() {
+            const checklist = document.getElementById('checklist');
+            checklist.style.display = checklist.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // 自动检查服务器状态
+        async function checkServers() {
+            try {
+                const frontendResponse = await fetch('http://localhost:8000/index.html');
+                const backendResponse = await fetch('http://localhost:3000/api/health');
+
+                if (frontendResponse.ok && backendResponse.ok) {
+                    console.log('✅ 前后端服务器都已就绪');
+                }
+            } catch (error) {
+                console.warn('⚠️ 服务器检查失败:', error.message);
+            }
+        }
+
+        checkServers();
+    </script>
+</body>
+</html>

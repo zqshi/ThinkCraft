@@ -11,7 +11,11 @@ export default {
   moduleFileExtensions: ['js', 'json'],
 
   // 测试文件匹配模式
-  testMatch: ['**/frontend/js/**/*.test.js', '**/frontend/js/**/__tests__/**/*.js'],
+  testMatch: [
+    '**/frontend/js/**/*.test.js',
+    '**/frontend/js/**/__tests__/**/*.js',
+    '**/tests/**/*.test.js'
+  ],
 
   // 覆盖率收集配置
   collectCoverageFrom: [
