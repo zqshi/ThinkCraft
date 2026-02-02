@@ -154,7 +154,7 @@ class MessageHandler {
 
             // AI回复后更新对话
             if (state.settings.saveHistory && state.currentChat == chatId && typeof saveCurrentChat === 'function') {
-                saveCurrentChat();
+                await saveCurrentChat();
             }
 
         } catch (error) {
@@ -166,12 +166,16 @@ class MessageHandler {
                         ? [...state.chats[index].messages]
                         : [];
                     chatMessages.push({ role: 'assistant', content: errorMsg });
-                    state.chats[index] = {
+                    const updatedChat = {
                         ...state.chats[index],
                         messages: chatMessages,
                         updatedAt: new Date().toISOString()
                     };
-                    localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    state.chats[index] = updatedChat;
+                    // 保存到 IndexedDB
+                    if (window.storageManager) {
+                        await window.storageManager.saveChat(updatedChat);
+                    }
                 }
             }
             if (state.currentChat == chatId) {
@@ -188,7 +192,7 @@ class MessageHandler {
 
             // 即使出错也保存对话
             if (state.settings.saveHistory && state.currentChat == chatId && typeof saveCurrentChat === 'function') {
-                saveCurrentChat();
+                await saveCurrentChat();
             }
         } finally {
             if (chatId !== null) {

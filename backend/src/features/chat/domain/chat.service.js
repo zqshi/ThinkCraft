@@ -15,11 +15,30 @@ export class ChatService extends DomainService {
   /**
    * 创建新的聊天会话
    */
-  async createChat(chatId, title, initialMessage = null) {
-    this.validateParams({ chatId, title });
+  async createChat(chatId, userId, title, initialMessage = null) {
+    this.validateParams({ chatId, userId, title });
 
     try {
-      const chat = Chat.create(chatId, title, initialMessage);
+      let initialMessageEntity = null;
+      if (initialMessage) {
+        if (typeof initialMessage === 'string') {
+          initialMessageEntity = this._createMessage(
+            this._generateMessageId(),
+            initialMessage,
+            'text',
+            'user'
+          );
+        } else {
+          initialMessageEntity = this._createMessage(
+            this._generateMessageId(),
+            initialMessage.content,
+            initialMessage.type || 'text',
+            initialMessage.sender || 'user'
+          );
+        }
+      }
+
+      const chat = Chat.createForUser(chatId, userId, title, initialMessageEntity);
       return chat;
     } catch (error) {
       throw new Error(`创建聊天失败: ${error.message}`);

@@ -8,6 +8,7 @@ class APIClient {
     this.baseURL = baseURL;
     this.requestQueue = [];
     this.processing = false;
+    this.refreshingPromise = null;
 
     // 默认配置
     this.config = {
@@ -29,13 +30,17 @@ class APIClient {
       body = null,
       headers = {},
       timeout = this.config.timeout,
-      retry = this.config.retry
+      retry = this.config.retry,
+      _authRetry = false
     } = options;
 
     const url = `${this.baseURL}${endpoint}`;
 
     // 请求配置
-    const authToken = sessionStorage.getItem('thinkcraft_access_token');
+    const authToken =
+      sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('accessToken');
     const fetchOptions = {
       method,
       headers: {
@@ -62,6 +67,14 @@ class APIClient {
 
         // 处理HTTP错误
         if (!response.ok) {
+          if (response.status === 401 && !_authRetry) {
+            const refreshed = await this.refreshAccessToken();
+            if (refreshed) {
+              return this.request(endpoint, { ...options, _authRetry: true });
+            }
+            this.handleUnauthorized();
+          }
+
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
         }
@@ -79,6 +92,67 @@ class APIClient {
         const delay = this.config.retryDelay * Math.pow(2, i);
         await this.sleep(delay);
       }
+    }
+  }
+
+  /**
+   * 刷新访问令牌
+   * @returns {Promise<boolean>}
+   */
+  async refreshAccessToken() {
+    const refreshToken = localStorage.getItem('thinkcraft_refresh_token');
+    if (!refreshToken) {
+      return false;
+    }
+
+    if (this.refreshingPromise) {
+      return this.refreshingPromise;
+    }
+
+    this.refreshingPromise = (async () => {
+      try {
+        const response = await fetch(`${this.baseURL}/api/auth/refresh-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        if (!response.ok) {
+          return false;
+        }
+
+        const data = await response.json().catch(() => null);
+        const newAccessToken = data?.data?.accessToken;
+        if (!newAccessToken) {
+          return false;
+        }
+
+        sessionStorage.setItem('thinkcraft_access_token', newAccessToken);
+        localStorage.setItem('accessToken', newAccessToken);
+        return true;
+      } catch (error) {
+        console.warn('[APIClient] 刷新令牌失败:', error);
+        return false;
+      } finally {
+        this.refreshingPromise = null;
+      }
+    })();
+
+    return this.refreshingPromise;
+  }
+
+  /**
+   * 处理未授权状态
+   */
+  handleUnauthorized() {
+    sessionStorage.removeItem('thinkcraft_access_token');
+    localStorage.removeItem('thinkcraft_refresh_token');
+    localStorage.removeItem('accessToken');
+
+    if (typeof window !== 'undefined') {
+      window.location.href = 'login.html';
     }
   }
 

@@ -78,8 +78,8 @@ router.post(
   validateRequest,
   async (req, res) => {
     try {
-      const dto = new CreateChatDTO(req.body);
-      const result = await chatUseCase.createChat(dto);
+      const dto = new CreateChatDTO({ ...req.body, userId: req.user?.userId });
+      const result = await chatUseCase.createChat(dto, req.user?.userId);
 
       res.json({
         code: 0,
@@ -116,7 +116,7 @@ router.post(
   async (req, res) => {
     try {
       const dto = new AddMessageDTO(req.body);
-      const result = await chatUseCase.sendMessage(dto);
+      const result = await chatUseCase.sendMessage(dto, req.user?.userId);
 
       res.json({
         code: 0,
@@ -141,7 +141,7 @@ router.get(
   async (req, res) => {
     try {
       const { chatId } = req.params;
-      const result = await chatUseCase.getChat(chatId);
+      const result = await chatUseCase.getChat(chatId, req.user?.userId);
 
       res.json({
         code: 0,
@@ -187,7 +187,7 @@ router.get(
         filters.isPinned = req.query.isPinned === 'true';
       }
 
-      const result = await chatUseCase.getChatList(page, pageSize, filters);
+      const result = await chatUseCase.getChatList(page, pageSize, filters, req.user?.userId);
 
       res.json({
         code: 0,
@@ -223,7 +223,7 @@ router.put(
     try {
       const { chatId } = req.params;
       const dto = new UpdateChatDTO(req.body);
-      const result = await chatUseCase.updateChat(chatId, dto);
+      const result = await chatUseCase.updateChat(chatId, dto, req.user?.userId);
 
       res.json({
         code: 0,
@@ -248,7 +248,7 @@ router.delete(
   async (req, res) => {
     try {
       const { chatId } = req.params;
-      await chatUseCase.deleteChat(chatId);
+      await chatUseCase.deleteChat(chatId, req.user?.userId);
 
       res.json({
         code: 0,
@@ -277,7 +277,7 @@ router.post(
   async (req, res) => {
     try {
       const { keyword } = req.body;
-      const results = await chatUseCase.searchChats(keyword);
+      const results = await chatUseCase.searchChats(keyword, req.user?.userId);
 
       res.json({
         code: 0,
@@ -302,7 +302,7 @@ router.post(
   async (req, res) => {
     try {
       const { chatId } = req.params;
-      const result = await chatUseCase.archiveChat(chatId);
+      const result = await chatUseCase.archiveChat(chatId, req.user?.userId);
 
       res.json({
         code: 0,
@@ -327,7 +327,7 @@ router.post(
   async (req, res) => {
     try {
       const { chatId } = req.params;
-      const result = await chatUseCase.restoreChat(chatId);
+      const result = await chatUseCase.restoreChat(chatId, req.user?.userId);
 
       res.json({
         code: 0,
@@ -356,7 +356,7 @@ router.post(
   async (req, res) => {
     try {
       const { targetChatId, sourceChatIds } = req.body;
-      const result = await chatUseCase.mergeChats(targetChatId, sourceChatIds);
+      const result = await chatUseCase.mergeChats(targetChatId, sourceChatIds, req.user?.userId);
 
       res.json({
         code: 0,
@@ -376,7 +376,7 @@ router.post(
  */
 router.get('/stats', async (req, res) => {
   try {
-    const stats = await chatUseCase.getChatStats();
+    const stats = await chatUseCase.getChatStats(req.user?.userId);
 
     res.json({
       code: 0,

@@ -37,7 +37,7 @@ export class ProjectMongoRepository {
     try {
       const { status, mode, limit = 50, offset = 0 } = options;
 
-      const query = { userId };
+      const query = { userId, status: { $ne: ProjectStatus.DELETED.value } };
       if (status) {
         query.status = status;
       }
@@ -61,13 +61,18 @@ export class ProjectMongoRepository {
   /**
    * 根据IdeaID查找项目
    */
-  async findByIdeaId(ideaId) {
+  async findByIdeaId(ideaId, userId) {
     try {
       const ideaIdValue = ideaId instanceof IdeaId ? ideaId.value : ideaId;
-      const doc = await ProjectModel.findOne({
+      const query = {
         ideaId: ideaIdValue,
         status: { $ne: ProjectStatus.DELETED.value }
-      }).lean();
+      };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const doc = await ProjectModel.findOne(query).lean();
 
       if (!doc) {
         return null;
@@ -83,22 +88,19 @@ export class ProjectMongoRepository {
   /**
    * 检查创意是否已有有效项目
    */
-  async existsByIdeaId(ideaId) {
+  async existsByIdeaId(ideaId, userId) {
     try {
       const ideaIdValue = ideaId instanceof IdeaId ? ideaId.value : ideaId;
 
-      // 调试：查看所有相关项目
-      const allProjects = await ProjectModel.find({ ideaId: ideaIdValue }).lean();
-      console.log('[DEBUG] existsByIdeaId - ideaId:', ideaIdValue);
-      console.log('[DEBUG] existsByIdeaId - all projects:', allProjects.map(p => ({ id: p._id, status: p.status })));
-
-      const count = await ProjectModel.countDocuments({
+      const query = {
         ideaId: ideaIdValue,
         status: { $ne: ProjectStatus.DELETED.value }
-      });
+      };
+      if (userId) {
+        query.userId = userId;
+      }
 
-      console.log('[DEBUG] existsByIdeaId - count (non-deleted):', count);
-      console.log('[DEBUG] existsByIdeaId - DELETED.value:', ProjectStatus.DELETED.value);
+      const count = await ProjectModel.countDocuments(query);
 
       return count > 0;
     } catch (error) {
@@ -186,13 +188,16 @@ export class ProjectMongoRepository {
    */
   async findAll(filters = {}) {
     try {
-      const { status, mode, limit = 50, offset = 0, sortBy = 'updatedAt' } = filters;
+      const { status, mode, limit = 50, offset = 0, sortBy = 'updatedAt', userId } = filters;
 
       const query = {};
 
       // 排除已删除的项目
       query.status = { $ne: 'deleted' };
 
+      if (userId) {
+        query.userId = userId;
+      }
       if (status) {
         query.status = status;
       }
@@ -218,13 +223,16 @@ export class ProjectMongoRepository {
    */
   async count(filters = {}) {
     try {
-      const { status, mode } = filters;
+      const { status, mode, userId } = filters;
 
       const query = {};
 
       // 排除已删除的项目
       query.status = { $ne: 'deleted' };
 
+      if (userId) {
+        query.userId = userId;
+      }
       if (status) {
         query.status = status;
       }
@@ -237,6 +245,63 @@ export class ProjectMongoRepository {
       logger.error('[ProjectMongoRepository] 统计项目数量失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 按状态统计项目数量
+   */
+  async countByStatus(userId) {
+    const match = { status: { $ne: 'deleted' } };
+    if (userId) {
+      match.userId = userId;
+    }
+
+    const results = await ProjectModel.aggregate([
+      { $match: match },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    return results.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, {});
+  }
+
+  /**
+   * 按模式统计项目数量
+   */
+  async countByMode(userId) {
+    const match = { status: { $ne: 'deleted' } };
+    if (userId) {
+      match.userId = userId;
+    }
+
+    const results = await ProjectModel.aggregate([
+      { $match: match },
+      { $group: { _id: '$mode', count: { $sum: 1 } } }
+    ]);
+
+    return results.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, {});
+  }
+
+  /**
+   * 获取最近的项目
+   */
+  async findRecent(limit = 10, userId) {
+    const query = { status: { $ne: 'deleted' } };
+    if (userId) {
+      query.userId = userId;
+    }
+
+    const docs = await ProjectModel.find(query)
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return docs.map(doc => this._toDomain(doc));
   }
 
   /**
@@ -256,6 +321,7 @@ export class ProjectMongoRepository {
 
     const project = new Project(
       projectId,
+      doc.userId,
       ideaId,
       name,
       mode,
@@ -281,7 +347,7 @@ export class ProjectMongoRepository {
     return {
       _id: json.id,
       ideaId: json.ideaId,
-      userId: json.userId || 'system', // TODO: 从上下文获取userId
+      userId: json.userId,
       name: json.name,
       mode: json.mode,
       status: json.status,

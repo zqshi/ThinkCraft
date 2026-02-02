@@ -32,14 +32,64 @@
     <meta name="description" content="快速捕捉灵感，通过苏格拉底式提问深化思维，AI辅助生成商业计划书">
     <meta name="keywords" content="AI助手,思维工具,灵感记录,商业计划,创意分析">
 
-    <link rel="stylesheet" href="frontend/css/inline.css">
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/main.css">
-    <script src="frontend/js/core/device-detector.js"></script>
-    <script src="frontend/js/core/gesture-handler.js"></script>
+    <!-- CSS文件从public目录加载，避免FOUC -->
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/main.css">
+
+    <script src="/frontend/js/core/device-detector.js"></script>
+    <script src="/frontend/js/core/gesture-handler.js"></script>
+    <script src="/frontend/js/core/state-validator.js"></script>
+    <script src="/frontend/js/utils/error-handler.js"></script>
+
+    <!-- 关键CSS：确保移动端侧边栏默认隐藏（在外部CSS加载前生效） -->
+    <style>
+        @media (max-width: 640px) {
+            .sidebar {
+                position: absolute !important;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 100;
+                width: 100%;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease;
+            }
+            .sidebar.active {
+                transform: translateX(0) !important;
+            }
+            .menu-toggle {
+                display: block !important;
+            }
+            .main-content {
+                width: 100% !important;
+                margin-left: 0 !important;
+            }
+
+            /* 移动端悬浮输入区：固定在底部 */
+            .input-container {
+                position: fixed !important;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 50;
+                background: white;
+                box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+                padding: 12px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+
+            /* 调整聊天容器底部边距，为悬浮输入区留出空间 */
+            .chat-container {
+                padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
+            }
+        }
+
+        /* 桌面端：菜单按钮默认隐藏 */
+        .menu-toggle {
+            display: none;
+        }
 
     <!-- 响应式优化：弹窗按钮样式 -->
-    <style>
         /* ============ 桌面端优化 - 所有弹窗按钮更紧凑 ============ */
         @media (min-width: 768px) {
             /* 全局弹窗按钮优化 */
@@ -1015,91 +1065,91 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Legacy boot (split for maintainability) -->
-    <script src="frontend/js/boot/legacy/index-app-state.js"></script>
+    <script src="/frontend/js/boot/legacy/index-app-state.js"></script>
 
     <!-- 完整 StateManager（依赖 window.state） -->
-    <script src="frontend/js/core/state-manager.js"></script>
+    <script src="/frontend/js/core/state-manager.js"></script>
 
     <!-- 核心模块 -->
-    <script src="frontend/js/core/api-client.js"></script>
-    <script src="frontend/js/core/storage-manager.js"></script>
+    <script src="/frontend/js/core/api-client.js"></script>
+    <script src="/frontend/js/core/storage-manager.js"></script>
 
     <!-- 工具函数 -->
-    <script src="frontend/js/utils/logger.js?v=20260131-fix3"></script>
-    <script src="frontend/js/utils/format.js?v=20260131-fix"></script>
-    <script src="frontend/js/utils/dom.js?v=20260131-fix"></script>
-    <script src="frontend/js/utils/icons.js?v=20260131-fix"></script>
-    <script src="frontend/js/utils/app-helpers.js"></script>
-    <script src="frontend/js/utils/global-bridges.js"></script>
+    <script src="/frontend/js/utils/logger.js?v=20260131-fix3"></script>
+    <script src="/frontend/js/utils/format.js?v=20260131-fix"></script>
+    <script src="/frontend/js/utils/dom.js?v=20260131-fix"></script>
+    <script src="/frontend/js/utils/icons.js?v=20260131-fix"></script>
+    <script src="/frontend/js/utils/app-helpers.js"></script>
+    <script src="/frontend/js/utils/global-bridges.js"></script>
 
     <!-- Toast提示工具 -->
-    <script src="frontend/js/utils/toast.js?v=20260201-toast"></script>
+    <script src="/frontend/js/utils/toast.js?v=20260201-toast"></script>
 
     <!-- 导出验证工具 -->
-    <script src="frontend/js/utils/export-validator.js?v=20260201-export"></script>
+    <script src="/frontend/js/utils/export-validator.js?v=20260201-export"></script>
 
     <!-- 调试工具（开发环境） -->
-    <script src="frontend/js/utils/debug-progress.js?v=20260201-debug"></script>
+    <script src="/frontend/js/utils/debug-progress.js?v=20260201-debug"></script>
 
     <!-- 组件模块 -->
-    <script src="frontend/js/components/modal-manager.js"></script>
-    <script src="frontend/js/components/agent-progress.js"></script>
-    <script src="frontend/js/components/markdown-renderer.js"></script>
+    <script src="/frontend/js/components/modal-manager.js"></script>
+    <script src="/frontend/js/components/agent-progress.js"></script>
+    <script src="/frontend/js/components/markdown-renderer.js"></script>
 
     <!-- 报告状态管理器（必须在聊天模块之前加载） -->
-    <script src="frontend/js/modules/report/report-status-manager.js"></script>
+    <script src="/frontend/js/modules/report/report-status-manager.js"></script>
 
     <!-- 聊天模块 -->
-    <script src="frontend/js/modules/chat/typing-effect.js"></script>
-    <script src="frontend/js/modules/chat/message-handler.js"></script>
-    <script src="frontend/js/modules/chat/chat-list.js"></script>
-    <script src="frontend/js/modules/chat/chat-manager.js"></script>
+    <script src="/frontend/js/modules/chat/typing-effect.js"></script>
+    <script src="/frontend/js/modules/chat/message-handler.js"></script>
+    <script src="/frontend/js/modules/chat/chat-list.js"></script>
+    <script src="/frontend/js/modules/chat/chat-manager.js"></script>
 
     <!-- ==================== 核心模块（立即加载） ==================== -->
     <!-- 输入处理器（高优先级：用户可能立即使用） -->
-    <script src="frontend/js/modules/input-handler.js"></script>
+    <script src="/frontend/js/modules/input-handler.js"></script>
 
     <!-- UI控制器（高优先级：界面交互） -->
-    <script src="frontend/js/modules/ui-controller.js?v=20260201-fix"></script>
+    <script src="/frontend/js/modules/ui-controller.js?v=20260201-fix"></script>
 
     <!-- ==================== 启动文件 ==================== -->
-    <script src="frontend/js/app-boot.js?v=20260131-lazy"></script>
-    <script src="frontend/js/boot/init.js?v=20260131-lazy"></script>
+    <script src="/frontend/js/app-boot.js?v=20260131-lazy"></script>
+    <script src="/frontend/js/boot/init.js?v=20260131-lazy"></script>
 
     <!-- ==================== 低优先级模块（延迟加载） ==================== -->
     <!-- 报告模块（用户点击"生成报告"时才需要） -->
-    <script defer src="frontend/js/modules/report/report-viewer.js"></script>
-    <script defer src="frontend/js/modules/report/report-generator.js?v=20260201-fix"></script>
-    <script defer src="frontend/js/modules/report/share-card.js?v=20260201-fix"></script>
+    <script defer src="/frontend/js/modules/report/report-viewer.js"></script>
+    <script defer src="/frontend/js/modules/report/report-generator.js?v=20260201-fix"></script>
+    <script defer src="/frontend/js/modules/report/share-card.js?v=20260201-fix"></script>
 
     <!-- 项目管理（用户点击"项目"时才需要） -->
-    <script defer src="frontend/js/modules/project-manager.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/project-manager.js?v=20260131-fix2"></script>
 
     <!-- 知识库（用户点击"知识库"时才需要） -->
-    <script defer src="frontend/js/modules/knowledge-base.js?v=20260201-fix"></script>
+    <script defer src="/frontend/js/modules/knowledge-base.js?v=20260201-fix"></script>
 
     <!-- Agent系统（用户点击"Agent管理"时才需要） -->
-    <script defer src="frontend/js/modules/agent-collaboration.js?v=20260131-4"></script>
+    <script defer src="/frontend/js/modules/agent-collaboration.js?v=20260131-4"></script>
 
     <!-- 商业计划书（用户点击"生成商业计划书"时才需要） -->
-    <script defer src="frontend/js/modules/business-plan-generator.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/business-plan-generator.js?v=20260131-fix2"></script>
 
     <!-- 工作流执行器（按需加载） -->
-    <script defer src="frontend/js/modules/workflow-executor.js"></script>
+    <script defer src="/frontend/js/modules/workflow-executor.js"></script>
 
     <!-- 预览面板（按需加载） -->
-    <script defer src="frontend/js/modules/preview-panel.js"></script>
+    <script defer src="/frontend/js/modules/preview-panel.js"></script>
 
     <!-- 团队协作（按需加载） -->
-    <script defer src="frontend/js/modules/team/team-collaboration.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/team/team-collaboration.js?v=20260131-fix2"></script>
 
     <!-- 设置管理（用户点击"设置"时才需要） -->
-    <script defer src="frontend/js/modules/settings/settings-manager.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/settings/settings-manager.js?v=20260131-fix2"></script>
 
     <!-- 新手引导（条件加载：仅首次访问） -->
-    <script defer src="frontend/js/modules/onboarding/onboarding-manager.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/onboarding/onboarding-manager.js?v=20260131-fix2"></script>
 
     <!-- 按钮管理器 -->
-    <script defer src="frontend/js/modules/state/report-button-manager.js?v=20260201-fix"></script>
+    <script defer src="/frontend/js/modules/state/report-button-manager.js?v=20260201-fix"></script>
 </body>
 </html>

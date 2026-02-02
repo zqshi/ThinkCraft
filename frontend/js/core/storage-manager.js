@@ -280,11 +280,26 @@ class StorageManager {
 
   /**
    * 获取对话
-   * @param {Number} id - 对话ID
+   * @param {Number|String} id - 对话ID
    * @returns {Promise<Object|null>}
    */
   async getChat(id) {
-    return this.get('chats', id);
+    // 先尝试原始类型查询
+    let chat = await this.get('chats', id);
+
+    // 如果找不到，尝试类型转换后再查询
+    if (!chat) {
+      // 如果传入的是字符串，尝试转换为数字
+      if (typeof id === 'string' && !isNaN(Number(id))) {
+        chat = await this.get('chats', Number(id));
+      }
+      // 如果传入的是数字，尝试转换为字符串
+      else if (typeof id === 'number') {
+        chat = await this.get('chats', String(id));
+      }
+    }
+
+    return chat;
   }
 
   /**
@@ -464,6 +479,11 @@ class StorageManager {
    */
   async migrateFromLocalStorage() {
     try {
+      // 检查是否已迁移
+      if (localStorage.getItem('thinkcraft_migrated') === 'true') {
+        return;
+      }
+
       // 迁移对话历史
       const chatsJSON = localStorage.getItem('thinkcraft_chats');
       if (chatsJSON) {
@@ -471,6 +491,7 @@ class StorageManager {
         for (const chat of chats) {
           await this.saveChat(chat);
         }
+        console.log(`[StorageManager] 已迁移 ${chats.length} 个对话到 IndexedDB`);
       }
 
       // 迁移设置
@@ -484,7 +505,13 @@ class StorageManager {
 
       // 标记迁移完成
       localStorage.setItem('thinkcraft_migrated', 'true');
-    } catch (error) {}
+
+      // 清除旧数据（保留迁移标记）
+      localStorage.removeItem('thinkcraft_chats');
+      console.log('[StorageManager] localStorage 数据迁移完成，旧数据已清除');
+    } catch (error) {
+      console.error('[StorageManager] 数据迁移失败:', error);
+    }
   }
 
   /**

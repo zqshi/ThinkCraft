@@ -20,9 +20,10 @@ export class ProjectController {
   async createProject(req, res) {
     try {
       const { ideaId, name, mode } = req.body;
+      const userId = req.user?.userId;
 
       // 创建创建项目请求DTO
-      const createRequest = new CreateProjectRequestDTO(ideaId, name, mode);
+      const createRequest = new CreateProjectRequestDTO(ideaId, name, mode, userId);
 
       // 执行创建项目用例
       const response = await projectUseCase.createProject(createRequest);
@@ -50,9 +51,10 @@ export class ProjectController {
   async getProject(req, res) {
     try {
       const { id } = req.params;
+      const userId = req.user?.userId;
 
       // 执行获取项目用例
-      const project = await projectUseCase.getProject(id);
+      const project = await projectUseCase.getProject(id, userId);
 
       // 提取相关信息
       const stages = project.workflow?.stages || [];
@@ -85,6 +87,7 @@ export class ProjectController {
   async getAllProjects(req, res) {
     try {
       const { mode, status, limit, offset, sortBy } = req.query;
+      const userId = req.user?.userId;
 
       // 构建过滤器
       const filters = {};
@@ -105,7 +108,7 @@ export class ProjectController {
       }
 
       // 执行获取所有项目用例
-      const response = await projectUseCase.getAllProjects(filters);
+      const response = await projectUseCase.getAllProjects(filters, userId);
 
       // 返回成功响应
       res.json({
@@ -131,12 +134,13 @@ export class ProjectController {
     try {
       const { id } = req.params;
       const updates = req.body;
+      const userId = req.user?.userId;
 
       // 创建更新项目请求DTO
       const updateRequest = new UpdateProjectRequestDTO(updates);
 
       // 执行更新项目用例
-      const project = await projectUseCase.updateProject(id, updateRequest);
+      const project = await projectUseCase.updateProject(id, updateRequest, userId);
 
       // 返回成功响应
       res.json({
@@ -161,9 +165,10 @@ export class ProjectController {
   async deleteProject(req, res) {
     try {
       const { id } = req.params;
+      const userId = req.user?.userId;
 
       // 执行删除项目用例
-      await projectUseCase.deleteProject(id);
+      await projectUseCase.deleteProject(id, userId);
 
       // 返回成功响应
       res.json({
@@ -189,12 +194,13 @@ export class ProjectController {
     try {
       const { id } = req.params;
       const { stages } = req.body;
+      const userId = req.user?.userId;
 
       // 创建自定义工作流请求DTO
       const customizeRequest = new CustomizeWorkflowRequestDTO(stages);
 
       // 执行自定义工作流用例
-      const response = await projectUseCase.customizeWorkflow(id, customizeRequest);
+      const response = await projectUseCase.customizeWorkflow(id, customizeRequest, userId);
 
       // 返回成功响应
       res.json({
@@ -219,9 +225,10 @@ export class ProjectController {
   async getProjectByIdeaId(req, res) {
     try {
       const { ideaId } = req.params;
+      const userId = req.user?.userId;
 
       // 执行根据创意ID获取项目用例
-      const project = await projectUseCase.getProjectByIdeaId(ideaId);
+      const project = await projectUseCase.getProjectByIdeaId(ideaId, userId);
 
       // 返回成功响应
       res.json({
@@ -245,8 +252,9 @@ export class ProjectController {
    */
   async getProjectStatistics(req, res) {
     try {
+      const userId = req.user?.userId;
       // 执行获取项目统计用例
-      const statistics = await projectUseCase.getProjectStatistics();
+      const statistics = await projectUseCase.getProjectStatistics(userId);
 
       // 返回成功响应
       res.json({
@@ -271,12 +279,13 @@ export class ProjectController {
   async searchProjects(req, res) {
     try {
       const { q, mode, status } = req.query;
+      const userId = req.user?.userId;
 
       // 创建搜索请求DTO
       const searchRequest = new SearchProjectsRequestDTO(q, { mode, status });
 
       // 执行搜索项目用例
-      const response = await projectUseCase.searchProjects(searchRequest);
+      const response = await projectUseCase.searchProjects(searchRequest, userId);
 
       // 返回成功响应
       res.json({
@@ -301,9 +310,10 @@ export class ProjectController {
   async getProjectProgress(req, res) {
     try {
       const { id } = req.params;
+      const userId = req.user?.userId;
 
       // 执行获取项目进度用例
-      const progress = await projectUseCase.getProjectProgress(id);
+      const progress = await projectUseCase.getProjectProgress(id, userId);
 
       // 返回成功响应
       res.json({
@@ -329,9 +339,10 @@ export class ProjectController {
     try {
       const { id } = req.params;
       const { limit = 5 } = req.query;
+      const userId = req.user?.userId;
 
       // 执行获取相关项目用例
-      const response = await projectUseCase.getRelatedProjects(id, parseInt(limit));
+      const response = await projectUseCase.getRelatedProjects(id, parseInt(limit), userId);
 
       // 返回成功响应
       res.json({
@@ -356,9 +367,10 @@ export class ProjectController {
   async archiveProject(req, res) {
     try {
       const { id } = req.params;
+      const userId = req.user?.userId;
 
       // 执行归档项目用例
-      const project = await projectUseCase.archiveProject(id);
+      const project = await projectUseCase.archiveProject(id, userId);
 
       // 返回成功响应
       res.json({
@@ -384,9 +396,10 @@ export class ProjectController {
     try {
       const { id } = req.params;
       const { name } = req.body;
+      const userId = req.user?.userId;
 
       // 执行复制项目用例
-      const response = await projectUseCase.duplicateProject(id, name);
+      const response = await projectUseCase.duplicateProject(id, name, userId);
 
       // 返回成功响应
       res.status(201).json({
@@ -411,9 +424,10 @@ export class ProjectController {
   async batchUpdateStatus(req, res) {
     try {
       const { projectIds, status } = req.body;
+      const userId = req.user?.userId;
 
       // 执行批量更新项目状态用例
-      const response = await projectUseCase.batchUpdateStatus(projectIds, status);
+      const response = await projectUseCase.batchUpdateStatus(projectIds, status, userId);
 
       // 返回成功响应
       res.json({

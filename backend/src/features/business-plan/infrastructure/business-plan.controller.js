@@ -9,14 +9,12 @@ import {
   GenerateChapterDto,
   GenerateBatchChaptersDto
 } from '../application/business-plan.dto.js';
-import { BusinessPlanInMemoryRepository } from './business-plan-inmemory.repository.js';
+import { getRepository } from '../../../shared/infrastructure/repository.factory.js';
 
 const router = express.Router();
 
 // 初始化应用服务
-const businessPlanService = new BusinessPlanApplicationService(
-  new BusinessPlanInMemoryRepository()
-);
+const businessPlanService = new BusinessPlanApplicationService(getRepository('business-plan'));
 
 /**
  * POST /api/business-plan
@@ -25,7 +23,7 @@ const businessPlanService = new BusinessPlanApplicationService(
 router.post('/', async (req, res, next) => {
   try {
     const { title, projectId } = req.body;
-    const userId = req.user?.id; // 假设已通过认证中间件
+    const userId = req.user?.userId; // 假设已通过认证中间件
 
     if (!userId) {
       return res.status(401).json({
@@ -58,7 +56,7 @@ router.post('/', async (req, res, next) => {
 router.get('/project/:projectId', async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -180,7 +178,7 @@ router.get('/chapters', (req, res) => {
  */
 router.get('/', async (req, res, next) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
 
     if (!userId) {
       return res.status(401).json({

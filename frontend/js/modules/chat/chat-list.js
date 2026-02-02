@@ -13,11 +13,11 @@ class ChatList {
     /**
      * 开始新对话
      */
-    startNewChat() {
+    async startNewChat() {
         // ⭐ 静默保存当前对话（无需确认弹窗）
         if (state.messages.length > 0 && state.settings.saveHistory) {
             if (typeof saveCurrentChat === 'function') {
-                saveCurrentChat();
+                await saveCurrentChat();
             }
         }
 
@@ -42,6 +42,27 @@ class ChatList {
             sidebar.classList.remove('active');
         }
 
+        // 切换到对话tab（如果当前在项目空间tab）
+        if (typeof window.switchSidebarTab === 'function') {
+            window.switchSidebarTab('chats');
+        }
+
+        // 关闭项目面板，显示对话容器
+        const projectPanel = document.getElementById('projectPanel');
+        const chatContainer = document.getElementById('chatContainer');
+        const mainContent = document.querySelector('.main-content');
+
+        if (projectPanel) {
+            projectPanel.style.display = 'none';
+            projectPanel.classList.remove('active');
+        }
+        if (chatContainer) {
+            chatContainer.style.display = 'flex';
+        }
+        if (mainContent) {
+            mainContent.classList.remove('project-panel-open');
+        }
+
         // 刷新对话列表（移除active状态）
         this.loadChats();
 
@@ -54,7 +75,7 @@ class ChatList {
     /**
      * 加载对话列表
      */
-    loadChats() {
+    async loadChats() {
         // 1. 先清理所有已经portal到body的菜单
         document.querySelectorAll('.chat-item-menu').forEach(menu => {
             if (menu.parentElement === document.body) {
@@ -62,13 +83,16 @@ class ChatList {
             }
         });
 
-        const saved = localStorage.getItem('thinkcraft_chats');
-
-        if (!saved || saved === '[]') {
-            state.chats = [];
+        // 从 IndexedDB 加载对话
+        if (window.storageManager) {
+            try {
+                state.chats = await window.storageManager.getAllChats();
+            } catch (error) {
+                console.error('[ChatList] 加载对话失败:', error);
+                state.chats = [];
+            }
         } else {
-            // 加载已保存的数据
-            state.chats = JSON.parse(saved);
+            state.chats = [];
         }
 
         // 排序：置顶优先，其次按 chat ID + requestID 倒序
@@ -158,7 +182,7 @@ class ChatList {
         // 保存当前对话
         if (state.currentChat && state.currentChat !== chatId && state.messages.length > 0 && state.settings.saveHistory) {
             if (typeof saveCurrentChat === 'function') {
-                saveCurrentChat();
+                await saveCurrentChat();
             }
         }
 
@@ -189,6 +213,22 @@ class ChatList {
             sidebar.classList.remove('active');
         }
 
+        // 关闭项目面板，显示对话容器
+        const projectPanel = document.getElementById('projectPanel');
+        const chatContainer = document.getElementById('chatContainer');
+        const mainContent = document.querySelector('.main-content');
+
+        if (projectPanel) {
+            projectPanel.style.display = 'none';
+            projectPanel.classList.remove('active');
+        }
+        if (chatContainer) {
+            chatContainer.style.display = 'flex';
+        }
+        if (mainContent) {
+            mainContent.classList.remove('project-panel-open');
+        }
+
         // 刷新对话列表（更新active状态）
         this.loadChats();
 
@@ -208,7 +248,7 @@ class ChatList {
      * @param {Event} e - 事件对象
      * @param {number} chatId - 对话ID
      */
-    renameChat(e, chatId) {
+    async renameChat(e, chatId) {
         e.stopPropagation();
         const chat = state.chats.find(c => c.id == chatId);
         if (!chat) return;
@@ -217,8 +257,13 @@ class ChatList {
         if (newTitle && newTitle.trim()) {
             chat.title = newTitle.trim();
             chat.titleEdited = true;
-            localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-            this.loadChats();
+
+            // 保存到 IndexedDB
+            if (window.storageManager) {
+                await window.storageManager.saveChat(chat);
+            }
+
+            await this.loadChats();
         }
     }
 
@@ -227,14 +272,19 @@ class ChatList {
      * @param {Event} e - 事件对象
      * @param {number} chatId - 对话ID
      */
-    togglePinChat(e, chatId) {
+    async togglePinChat(e, chatId) {
         e.stopPropagation();
         const chat = state.chats.find(c => c.id == chatId);
         if (!chat) return;
 
         chat.isPinned = !chat.isPinned;
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-        this.loadChats();
+
+        // 保存到 IndexedDB
+        if (window.storageManager) {
+            await window.storageManager.saveChat(chat);
+        }
+
+        await this.loadChats();
     }
 
     /**
@@ -242,7 +292,7 @@ class ChatList {
      * @param {Event} e - 事件对象
      * @param {number} chatId - 对话ID
      */
-    deleteChat(e, chatId) {
+    async deleteChat(e, chatId) {
         e.stopPropagation();
 
         if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
@@ -261,7 +311,11 @@ class ChatList {
         });
 
         state.chats = state.chats.filter(c => c.id != chatId);
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+
+        // 从 IndexedDB 删除
+        if (window.storageManager) {
+            await window.storageManager.deleteChat(chatId);
+        }
 
         // 如果删除的是当前对话，重置状态
         if (state.currentChat == chatId) {
@@ -274,13 +328,13 @@ class ChatList {
             document.getElementById('messageList').innerHTML = '';
         }
 
-        this.loadChats();
+        await this.loadChats();
     }
 
     /**
      * 清空所有历史记录
      */
-    clearAllHistory() {
+    async clearAllHistory() {
         if (!confirm('确定要清空所有历史记录吗？此操作不可恢复。')) {
             return;
         }
@@ -293,8 +347,15 @@ class ChatList {
         state.analysisCompleted = false;
 
         // 清空对话列表
+        const chatIds = state.chats.map(c => c.id);
         state.chats = [];
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+
+        // 从 IndexedDB 删除所有对话
+        if (window.storageManager) {
+            for (const chatId of chatIds) {
+                await window.storageManager.deleteChat(chatId);
+            }
+        }
 
         // 清除其他存储
         localStorage.removeItem('thinkcraft_reports');
@@ -329,28 +390,28 @@ class ChatList {
 window.chatList = new ChatList();
 
 // 暴露全局函数（向后兼容）
-function startNewChat() {
-    window.chatList.startNewChat();
+async function startNewChat() {
+    await window.chatList.startNewChat();
 }
 
-function loadChats() {
-    window.chatList.loadChats();
+async function loadChats() {
+    await window.chatList.loadChats();
 }
 
-function renameChat(e, chatId) {
-    window.chatList.renameChat(e, chatId);
+async function renameChat(e, chatId) {
+    await window.chatList.renameChat(e, chatId);
 }
 
-function togglePinChat(e, chatId) {
-    window.chatList.togglePinChat(e, chatId);
+async function togglePinChat(e, chatId) {
+    await window.chatList.togglePinChat(e, chatId);
 }
 
-function deleteChat(e, chatId) {
-    window.chatList.deleteChat(e, chatId);
+async function deleteChat(e, chatId) {
+    await window.chatList.deleteChat(e, chatId);
 }
 
-function clearAllHistory() {
-    window.chatList.clearAllHistory();
+async function clearAllHistory() {
+    await window.chatList.clearAllHistory();
 }
 
 // 暴露到window对象

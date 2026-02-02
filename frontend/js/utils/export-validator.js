@@ -128,8 +128,25 @@ class ExportValidator {
             }
         } else if (reportType === 'business' || reportType === 'proposal') {
             // 商业计划书/产品立项材料必须有chapters数组或document字符串
-            if (!reportData.chapters && !reportData.document) {
-                return { valid: false, reason: '缺少chapters或document字段' };
+            const hasChapters = Array.isArray(reportData.chapters) && reportData.chapters.length > 0;
+            const hasDocument = typeof reportData.document === 'string' && reportData.document.length > 0;
+
+            if (!hasChapters && !hasDocument) {
+                return {
+                    valid: false,
+                    reason: '缺少chapters数组或document字符串。请确保报告已完全生成。'
+                };
+            }
+
+            // 如果有chapters数组，验证每个章节的完整性
+            if (hasChapters) {
+                const invalidChapters = reportData.chapters.filter(ch => !ch.content || !ch.title);
+                if (invalidChapters.length > 0) {
+                    return {
+                        valid: false,
+                        reason: `有${invalidChapters.length}个章节内容不完整`
+                    };
+                }
             }
         }
         return { valid: true };

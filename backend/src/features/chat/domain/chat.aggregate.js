@@ -12,6 +12,7 @@ import { ChatStatusChangedEvent } from './events/chat-status-changed.event.js';
 export class Chat extends AggregateRoot {
   /**
    * @param {string} id - 聊天ID
+   * @param {string} userId - 用户ID
    * @param {string} title - 聊天标题
    * @param {ChatStatus} status - 聊天状态
    * @param {Message[]} messages - 消息列表
@@ -22,6 +23,7 @@ export class Chat extends AggregateRoot {
    */
   constructor(
     id,
+    userId,
     title,
     status = ChatStatus.ACTIVE,
     messages = [],
@@ -31,6 +33,7 @@ export class Chat extends AggregateRoot {
     updatedAt = new Date()
   ) {
     super(id);
+    this._userId = userId;
     this._title = title;
     this._status = status;
     this._messages = messages;
@@ -46,7 +49,7 @@ export class Chat extends AggregateRoot {
    * 创建新的聊天会话
    */
   static create(id, title, initialMessage = null) {
-    const chat = new Chat(id, title);
+    const chat = new Chat(id, 'system', title);
 
     // 添加领域事件
     chat.addDomainEvent(
@@ -58,6 +61,28 @@ export class Chat extends AggregateRoot {
     );
 
     // 如果有初始消息，添加它
+    if (initialMessage) {
+      chat.addMessage(initialMessage);
+    }
+
+    return chat;
+  }
+
+  /**
+   * 创建带用户信息的聊天会话
+   */
+  static createForUser(id, userId, title, initialMessage = null) {
+    const chat = new Chat(id, userId, title);
+
+    chat.addDomainEvent(
+      new ChatCreatedEvent({
+        chatId: id,
+        title: title,
+        userId: userId,
+        timestamp: new Date()
+      })
+    );
+
     if (initialMessage) {
       chat.addMessage(initialMessage);
     }
@@ -192,6 +217,10 @@ export class Chat extends AggregateRoot {
       throw new Error('聊天ID必须是字符串');
     }
 
+    if (!this._userId || typeof this._userId !== 'string') {
+      throw new Error('用户ID必须是字符串');
+    }
+
     if (!this._title || typeof this._title !== 'string') {
       throw new Error('聊天标题必须是字符串');
     }
@@ -221,6 +250,9 @@ export class Chat extends AggregateRoot {
   get title() {
     return this._title;
   }
+  get userId() {
+    return this._userId;
+  }
   get status() {
     return this._status;
   }
@@ -247,8 +279,10 @@ export class Chat extends AggregateRoot {
     const messages = json.messages ? json.messages.map(msg => Message.fromJSON(msg)) : [];
     const status = ChatStatus.create(json.status);
 
+    const resolvedUserId = json.userId || 'system';
     return new Chat(
       json.id,
+      resolvedUserId,
       json.title,
       status,
       messages,
@@ -266,6 +300,7 @@ export class Chat extends AggregateRoot {
     const base = super.toJSON();
     return {
       ...base,
+      userId: this._userId,
       title: this._title,
       status: this._status.value,
       messages: this._messages.map(msg => msg.toJSON()),

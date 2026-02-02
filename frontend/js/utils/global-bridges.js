@@ -58,19 +58,23 @@ function cancelGeneration() {
  */
 function adjustBusinessReportChapters() {
     try {
-        // 关闭报告模态框
+        // 1. 获取当前报告类型
         const reportModal = document.getElementById('businessReportModal');
+        const reportType = reportModal?.dataset?.reportType || 'business';
+
+        console.log('[adjustBusinessReportChapters] 当前报告类型:', reportType);
+
+        // 2. 关闭报告模态框
         if (reportModal) {
             reportModal.style.display = 'none';
         }
 
-        // 重新打开章节选择模态框
-        const chapterModal = document.getElementById('businessChapterModal');
-        if (chapterModal) {
-            chapterModal.style.display = 'flex';
+        // 3. 调用 showChapterSelection 渲染章节列表
+        if (window.businessPlanGenerator) {
+            window.businessPlanGenerator.showChapterSelection(reportType);
+            console.log('[adjustBusinessReportChapters] 已调用 showChapterSelection');
         } else {
-            console.error('[adjustBusinessReportChapters] 章节选择模态框未找到');
-            alert('系统错误：无法打开章节选择界面');
+            throw new Error('BusinessPlanGenerator 未初始化');
         }
     } catch (error) {
         console.error('[adjustBusinessReportChapters] 执行失败:', error);

@@ -30,19 +30,59 @@ class ProjectManager {
     this.hiredAgentsPromise = null;
     this.apiUrl = window.appState?.settings?.apiUrl || getDefaultApiUrl();
     this.storageManager = window.storageManager;
+    this.stageDetailPanel = null; // 阶段详情面板
+    this.stageDetailOverlay = null; // 遮罩层
+  }
+
+  getAuthToken() {
+    return (
+      sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('accessToken')
+    );
+  }
+
+  buildAuthHeaders(extra = {}) {
+    const token = this.getAuthToken();
+    return {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extra
+    };
+  }
+
+  async fetchWithAuth(url, options = {}, retry = true) {
+    const headers = this.buildAuthHeaders(options.headers || {});
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401 && retry && window.apiClient?.refreshAccessToken) {
+      const refreshed = await window.apiClient.refreshAccessToken();
+      if (refreshed) {
+        return this.fetchWithAuth(url, options, false);
+      }
+    }
+    return response;
   }
 
   /**
-   * 规范化 ideaId：统一转换为字符串
+   * 规范化 ideaId：尝试转换为数字，如果失败则保持字符串
    * @param {*} value - 原始值
-   * @returns {String} 规范化后的字符串ID
+   * @returns {Number|String|null} 规范化后的ID（优先数字）
    */
   normalizeIdeaId(value) {
-    if (value === null || value === undefined) {
-      return value;
+    if (value === null || value === undefined || value === '') {
+      return null;
     }
-    // 统一转换为字符串，避免类型混淆
-    return String(value).trim();
+    // 尝试转换为数字（因为 generateChatId 生成的是数字）
+    const strValue = String(value).trim();
+    if (strValue === '') {
+      return null;
+    }
+    const numValue = Number(strValue);
+    // 如果是有效数字且不是 NaN，返回数字类型
+    if (!isNaN(numValue)) {
+      return numValue;
+    }
+    // 否则返回字符串
+    return strValue;
   }
 
   /**
@@ -232,8 +272,20 @@ class ProjectManager {
    */
   async createProject(ideaId, name) {
     try {
+      console.log('[createProject] 输入参数:', { ideaId, name, ideaIdType: typeof ideaId });
+
       // 统一转换为字符串，避免类型混淆
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
+      console.log('[createProject] 规范化后:', { normalizedIdeaId, type: typeof normalizedIdeaId });
+
+      // 验证 ideaId 有效性
+      if (!normalizedIdeaId && normalizedIdeaId !== 0) {
+        throw new Error('创意ID无效');
+      }
+
+      // 确保转换为字符串传给后端
+      const ideaIdString = String(normalizedIdeaId);
+      console.log('[createProject] 发送给后端:', { ideaIdString });
 
       // 检查该创意是否已创建项目
       const existing = await this.storageManager.getProjectByIdeaId(normalizedIdeaId);
@@ -245,7 +297,7 @@ class ProjectManager {
       const response = await fetch(`${this.apiUrl}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ideaId: normalizedIdeaId, name })
+        body: JSON.stringify({ ideaId: ideaIdString, name })
       });
 
       if (!response.ok) {
@@ -841,20 +893,9 @@ class ProjectManager {
     // 检查是否已执行协同模式
     const collaborationExecuted = project.collaborationExecuted || false;
 
-    const stageTabsHTML = collaborationExecuted
-      ? stages
-          .map(
-            stage => `
-            <button class="project-stage-tab ${stage.id === selectedStageId ? 'active' : ''}"
-                    data-stage-id="${stage.id}"
-                    onclick="projectManager.switchStage('${stage.id}')">
-                ${stage.name || stage.id}
-                <span class="project-stage-tab-status status-${stage.status || 'pending'}"></span>
-            </button>
-        `
-          )
-          .join('')
-      : '';
+    // 根据依赖关系对阶段进行拓扑排序
+    const sortedStages = collaborationExecuted ? this.sortStagesByDependencies(stages) : stages;
+    const shouldRenderWorkflow = hasStages;
 
     title.textContent = project.name;
 
@@ -904,18 +945,18 @@ class ProjectManager {
                 </div>
                 <div class="project-panel-section project-panel-card project-panel-span-2">
                     <div class="project-panel-section-title">流程阶段</div>
-                    <div class="project-stage-tabs">
-                        ${
-                          collaborationExecuted
-                            ? stageTabsHTML || '<div class="project-panel-empty">暂无阶段</div>'
-                            : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' + (typeof window.getDefaultIconSvg === 'function' ? window.getDefaultIconSvg(64, 'empty-icon') : '🤝') + '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
-                        }
-                    </div>
-                </div>
-                <div class="project-panel-section project-panel-card project-panel-span-2">
-                    <div id="projectStageContent" class="project-stage-content">
-                        <div class="project-panel-empty">请选择阶段</div>
-                    </div>
+                    ${
+                      shouldRenderWorkflow
+                        ? `
+                          <!-- 横向步骤条 -->
+                          <div class="project-workflow-steps">
+                            ${this.renderWorkflowSteps(sortedStages, selectedStageId)}
+                          </div>
+                          <!-- 阶段详情展开区域 -->
+                          ${sortedStages.map(stage => this.renderStageDetailSection(project, stage)).join('')}
+                        `
+                        : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' + (typeof window.getDefaultIconSvg === 'function' ? window.getDefaultIconSvg(64, 'empty-icon') : '🤝') + '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
+                    }
                 </div>
                 <div class="project-panel-section project-panel-card project-panel-span-2">
                     <div class="project-panel-section-title">项目成员</div>
@@ -939,7 +980,7 @@ class ProjectManager {
 
     this.renderProjectMembersPanel(project);
     this.renderProjectIdeasPanel(project);
-    this.renderStageContent(project, selectedStageId);
+    // 不再需要 renderStageContent，因为阶段详情已经在 renderProjectPanel 中渲染
   }
 
   async openCollaborationMode(projectId) {
@@ -1035,7 +1076,7 @@ class ProjectManager {
         const typeLabel = this.getArtifactTypeLabel(artifact);
         const isActive = artifact.id === selectedArtifact?.id;
         return `
-            <div class="project-deliverable-item ${isActive ? 'active' : ''}" onclick="projectManager.selectArtifact('${stageId}', '${artifact.id}')">
+            <div class="project-deliverable-item ${isActive ? 'active' : ''}" onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stageId}', '${artifact.id}')">
                 <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
                 <div class="project-panel-item-sub">${typeLabel}</div>
             </div>
@@ -1049,11 +1090,28 @@ class ProjectManager {
     // 新增：显示阶段依赖
     const dependencies = stage.dependencies || [];
     const dependencyHTML = dependencies.length > 0
-      ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
-           依赖阶段：${dependencies.map(d => {
-             const depStage = project.workflow.stages.find(s => s.id === d);
-             return depStage ? this.escapeHtml(depStage.name) : d;
-           }).join('、')}
+      ? `<div class="stage-dependencies">
+           <div class="stage-info-label">
+             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+             </svg>
+             依赖阶段
+           </div>
+           <div class="stage-dependency-list">
+             ${dependencies.map(d => {
+               const depStage = project.workflow.stages.find(s => s.id === d);
+               if (!depStage) return '';
+               const depStatus = depStage.status || 'pending';
+               const depStatusIcon = depStatus === 'completed' ? '✓' : depStatus === 'active' ? '⚡' : '○';
+               const depStatusClass = `status-${depStatus}`;
+               return `
+                 <span class="stage-dependency-tag ${depStatusClass}">
+                   <span class="dependency-icon">${depStatusIcon}</span>
+                   ${this.escapeHtml(depStage.name)}
+                 </span>
+               `;
+             }).join('')}
+           </div>
          </div>`
       : '';
 
@@ -1112,10 +1170,32 @@ class ProjectManager {
 
   renderStageAction(project, stage) {
     const workflowReady = Boolean(window.workflowExecutor);
+
+    // 检查依赖阶段是否完成
+    const dependencies = stage.dependencies || [];
+    const unmetDependencies = [];
+
+    if (dependencies.length > 0) {
+      const stages = project.workflow?.stages || [];
+      for (const depId of dependencies) {
+        const depStage = stages.find(s => s.id === depId);
+        if (depStage && depStage.status !== 'completed') {
+          unmetDependencies.push(depStage.name);
+        }
+      }
+    }
+
     if (stage.status === 'pending') {
       if (project?.status === 'in_progress') {
         return `<button class="btn-secondary" disabled>执行中...</button>`;
       }
+
+      // 如果有未完成的依赖，禁用按钮并显示提示
+      if (unmetDependencies.length > 0) {
+        const tooltip = `依赖阶段未完成：${unmetDependencies.join('、')}`;
+        return `<button class="btn-secondary" disabled title="${tooltip}">依赖未满足</button>`;
+      }
+
       return workflowReady
         ? `<button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}')">开始执行</button>`
         : `<button class="btn-secondary" disabled title="工作流执行器未就绪">开始执行</button>`;
@@ -1139,6 +1219,325 @@ class ProjectManager {
       'blocked': '阻塞中'
     };
     return labels[status] || status;
+  }
+
+  /**
+   * 计算阶段进度
+   * @param {Object} stage - 阶段对象
+   * @returns {number} 进度百分比 (0-100)
+   */
+  calculateStageProgress(stage) {
+    if (!stage) return 0;
+
+    // 根据状态返回进度
+    if (stage.status === 'completed') {
+      return 100;
+    }
+
+    if (stage.status === 'pending') {
+      return 0;
+    }
+
+    // 如果是进行中，根据交付物完成情况计算
+    if (stage.status === 'active' || stage.status === 'in_progress') {
+      const artifacts = stage.artifacts || [];
+      if (artifacts.length === 0) {
+        return 50; // 默认50%
+      }
+
+      const completedCount = artifacts.filter(a => a.status === 'completed').length;
+      return Math.round((completedCount / artifacts.length) * 100);
+    }
+
+    return 0;
+  }
+
+  /**
+   * 获取Agent定义
+   * @param {string} agentType - Agent类型ID
+   * @returns {Object|null} Agent定义对象
+   */
+  getAgentDefinition(agentType) {
+    const agentDefs = {
+      'product-manager': { name: '产品经理', emoji: '📱', icon: '📱' },
+      'ui-ux-designer': { name: 'UI/UX设计师', emoji: '🎨', icon: '🎨' },
+      'frontend-developer': { name: '前端开发', emoji: '💻', icon: '💻' },
+      'backend-developer': { name: '后端开发', emoji: '⚙️', icon: '⚙️' },
+      'qa-engineer': { name: '测试工程师', emoji: '🔍', icon: '🔍' },
+      'devops': { name: '运维工程师', emoji: '🚀', icon: '🚀' },
+      'marketing': { name: '市场营销', emoji: '📢', icon: '📢' },
+      'operations': { name: '运营专员', emoji: '📊', icon: '📊' },
+      'strategy-design': { name: '战略设计师', emoji: '🎯', icon: '🎯' },
+      'tech-lead': { name: '技术负责人', emoji: '👨‍💻', icon: '👨‍💻' }
+    };
+    return agentDefs[agentType] || null;
+  }
+
+  /**
+   * 获取交付物类型定义
+   * @param {string} artifactType - 交付物类型
+   * @returns {Object|null} 交付物类型定义
+   */
+  getArtifactTypeDefinition(artifactType) {
+    const artifactDefs = {
+      'prd': { name: '产品需求文档', icon: '📋' },
+      'user-story': { name: '用户故事', icon: '👤' },
+      'feature-list': { name: '功能清单', icon: '📝' },
+      'design': { name: '设计稿', icon: '🎨' },
+      'design-spec': { name: '设计规范', icon: '📐' },
+      'prototype': { name: '交互原型', icon: '🖼️' },
+      'code': { name: '代码', icon: '💻' },
+      'component-lib': { name: '组件库', icon: '🧩' },
+      'api-doc': { name: 'API文档', icon: '📡' },
+      'test-report': { name: '测试报告', icon: '📊' },
+      'deployment-guide': { name: '部署指南', icon: '🚀' },
+      'document': { name: '文档', icon: '📄' },
+      'report': { name: '报告', icon: '📈' },
+      'plan': { name: '计划', icon: '📝' },
+      'strategy-doc': { name: '战略设计文档', icon: '🎯' },
+      'ui-design': { name: 'UI设计方案', icon: '🎨' },
+      'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
+      'marketing-plan': { name: '运营推广方案', icon: '📈' },
+      'deploy-doc': { name: '部署文档', icon: '🚀' },
+      'preview': { name: '可交互预览', icon: '🖥️' },
+      'ui-preview': { name: 'UI预览', icon: '🖼️' },
+      'image': { name: '图片', icon: '🖼️' }
+    };
+    return artifactDefs[artifactType] || { name: artifactType, icon: '📄' };
+  }
+
+  /**
+   * 获取交付物图标
+   * @param {String} artifactType - 交付物类型
+   * @returns {String} 图标emoji
+   */
+  getArtifactIcon(artifactType) {
+    const def = this.getArtifactTypeDefinition(artifactType);
+    return def.icon;
+  }
+
+  /**
+   * 渲染横向步骤条
+   * @param {Array} stages - 阶段数组
+   * @param {String} selectedStageId - 当前选中的阶段ID
+   * @returns {String} HTML字符串
+   */
+  renderWorkflowSteps(stages, selectedStageId) {
+    return stages.map((stage, index) => {
+      const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+      const isSelected = stage.id === selectedStageId;
+      const statusClass = `status-${stage.status || 'pending'}`;
+      const selectedClass = isSelected ? 'selected' : '';
+
+      // 状态图标
+      const statusIcon = {
+        pending: '⏸️',
+        active: '⚡',
+        completed: '✅'
+      }[stage.status] || '📋';
+
+      return `
+        <div class="workflow-step ${statusClass} ${selectedClass}"
+             data-stage-id="${stage.id}"
+             onclick="projectManager.selectStage('${stage.id}')">
+          <div class="workflow-step-icon">
+            <span>${definition?.icon || '📋'}</span>
+            <span class="workflow-step-status">${statusIcon}</span>
+          </div>
+          <div class="workflow-step-title">${stage.name || stage.id}</div>
+          <div class="workflow-step-connector"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * 渲染阶段详情展开区域
+   * @param {Object} project - 项目对象
+   * @param {Object} stage - 阶段对象
+   * @returns {String} HTML字符串
+   */
+  renderStageDetailSection(project, stage) {
+    const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+    const statusText = this.getStageStatusLabel(stage.status || 'pending');
+    const statusColor = {
+      pending: '#9ca3af',
+      active: '#3b82f6',
+      completed: '#10b981'
+    }[stage.status] || '#9ca3af';
+
+    // 渲染Agent列表
+    const agentsHTML = (stage.agents || []).length > 0 ? `
+      <div class="workflow-stage-agents">
+        <div class="workflow-stage-agents-title">
+          <span>🤖</span>
+          <span>负责数字员工</span>
+        </div>
+        <div class="workflow-stage-agents-list">
+          ${(stage.agents || []).map(agentType => {
+            const agentDef = this.getAgentDefinition(agentType);
+            return `
+              <div class="workflow-stage-agent-tag">
+                <span>${agentDef?.icon || '👤'}</span>
+                <span>${agentDef?.name || agentType}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // 渲染预期交付物
+    const expectedArtifactsHTML = definition?.expectedArtifacts?.length > 0 ? `
+      <div class="workflow-stage-artifacts">
+        <div class="workflow-stage-artifacts-title">
+          <span>📋</span>
+          <span>预期交付物</span>
+        </div>
+        <div class="workflow-stage-artifacts-grid">
+          ${definition.expectedArtifacts.map(artifactType => {
+            const artifactDef = this.getArtifactTypeDefinition(artifactType);
+            return `
+              <div class="workflow-stage-artifact-card" style="opacity: 0.6; cursor: default;">
+                <span class="workflow-stage-artifact-icon">${artifactDef?.icon || '📄'}</span>
+                <div class="workflow-stage-artifact-info">
+                  <div class="workflow-stage-artifact-name">${artifactDef?.name || artifactType}</div>
+                  <div class="workflow-stage-artifact-type">待生成</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // 渲染实际交付物（已完成阶段）
+    const actualArtifactsHTML = stage.status === 'completed' && (stage.artifacts || []).length > 0 ? `
+      <div class="workflow-stage-artifacts">
+        <div class="workflow-stage-artifacts-title">
+          <span>📦</span>
+          <span>最终交付物 (${stage.artifacts.length})</span>
+        </div>
+        <div class="workflow-stage-artifacts-grid">
+          ${(stage.artifacts || []).map(artifact => {
+            const icon = this.getArtifactIcon(artifact.type);
+            const typeLabel = this.getArtifactTypeLabel(artifact);
+            return `
+              <div class="workflow-stage-artifact-card"
+                   onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifact.id}')">
+                <span class="workflow-stage-artifact-icon">${icon}</span>
+                <div class="workflow-stage-artifact-info">
+                  <div class="workflow-stage-artifact-name">${this.escapeHtml(artifact.name || artifact.fileName || '未命名')}</div>
+                  <div class="workflow-stage-artifact-type">${typeLabel}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // 操作按钮
+    let actionsHTML = '';
+    if (stage.status === 'pending') {
+      const dependencies = stage.dependencies || [];
+      const unmetDependencies = [];
+      if (dependencies.length > 0) {
+        const stages = project.workflow?.stages || [];
+        for (const depId of dependencies) {
+          const depStage = stages.find(s => s.id === depId);
+          if (depStage && depStage.status !== 'completed') {
+            unmetDependencies.push(depStage.name);
+          }
+        }
+      }
+
+      const isBlocked = unmetDependencies.length > 0;
+      const workflowReady = Boolean(window.workflowExecutor);
+
+      if (isBlocked) {
+        actionsHTML = `
+          <button class="btn-secondary" disabled title="依赖阶段未完成：${unmetDependencies.join('、')}" style="opacity: 0.5;">
+            🔒 依赖未满足
+          </button>
+        `;
+      } else if (workflowReady) {
+        actionsHTML = `
+          <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);">
+            ▶️ 开始执行
+          </button>
+        `;
+      }
+    } else if (stage.status === 'completed') {
+      // 已完成阶段不显示按钮，用户可以直接点击交付物卡片查看详情
+      actionsHTML = '';
+    } else if (stage.status === 'active') {
+      actionsHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+          <div style="width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <span style="font-size: 14px; font-weight: 500; color: #3b82f6;">正在执行中...</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="workflow-stage-detail ${stage.id === this.currentStageId ? 'active' : ''}"
+           data-stage-id="${stage.id}">
+        <div class="workflow-stage-detail-header">
+          <div class="workflow-stage-detail-title">
+            <span style="font-size: 36px;">${definition?.icon || '📋'}</span>
+            <div>
+              <h3>${definition?.name || stage.name}</h3>
+              <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">${definition?.description || ''}</p>
+            </div>
+          </div>
+          <div class="workflow-stage-detail-badge" style="background: ${statusColor};">
+            ${statusText}
+          </div>
+        </div>
+        <div class="workflow-stage-detail-content">
+          ${agentsHTML}
+          ${stage.status === 'completed' ? actualArtifactsHTML : expectedArtifactsHTML}
+        </div>
+        ${actionsHTML ? `<div class="workflow-stage-detail-actions">${actionsHTML}</div>` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * 选择阶段（切换展开的阶段详情）
+   * @param {String} stageId - 阶段ID
+   */
+  selectStage(stageId) {
+    this.currentStageId = stageId;
+
+    // 更新步骤条选中状态
+    document.querySelectorAll('.workflow-step').forEach(step => {
+      if (step.dataset.stageId === stageId) {
+        step.classList.add('selected');
+      } else {
+        step.classList.remove('selected');
+      }
+    });
+
+    // 更新阶段详情展开状态
+    document.querySelectorAll('.workflow-stage-detail').forEach(detail => {
+      if (detail.dataset.stageId === stageId) {
+        detail.classList.add('active');
+      } else {
+        detail.classList.remove('active');
+      }
+    });
+  }
+
+  /**
+   * 查看所有交付物（占位方法）
+   * @param {String} projectId - 项目ID
+   * @param {String} stageId - 阶段ID
+   */
+  viewAllArtifacts(projectId, stageId) {
+    // 可以实现一个模态框显示所有交付物
+    console.log('查看所有交付物:', projectId, stageId);
   }
 
   switchDeliverableTab(stageId, tab) {
@@ -1205,13 +1604,10 @@ class ProjectManager {
     if (!artifact || !artifact.type) {
       return '文档';
     }
-    if (['code', 'component-lib', 'api-doc'].includes(artifact.type)) {
-      return '代码';
-    }
-    if (['preview', 'ui-preview'].includes(artifact.type)) {
-      return '预览';
-    }
-    return '文档';
+
+    // 使用 getArtifactTypeDefinition 获取类型名称
+    const def = this.getArtifactTypeDefinition(artifact.type);
+    return def.name;
   }
 
   renderStageArtifacts(stage, projectId, displayArtifacts) {
@@ -1426,17 +1822,40 @@ class ProjectManager {
   async renderProjectMembersPanel(project) {
     const container = document.getElementById('projectPanelMembers');
     if (!container) {
+      console.warn('[项目成员面板] 容器不存在');
       return;
     }
 
     const assignedIds = project.assignedAgents || [];
-    const hiredAgents = await this.getUserHiredAgents();
-    const members = hiredAgents.filter(agent => assignedIds.includes(agent.id));
+    console.log('[项目成员面板] 分配的成员ID:', assignedIds);
 
-    if (members.length === 0) {
+    if (assignedIds.length === 0) {
       container.classList.add('is-empty');
       container.innerHTML = '<div class="project-panel-empty centered">暂未添加成员</div>';
       return;
+    }
+
+    // 尝试从已雇佣列表获取成员
+    const hiredAgents = await this.getUserHiredAgents();
+    console.log('[项目成员面板] 已雇佣的成员:', hiredAgents.length);
+
+    let members = hiredAgents.filter(agent => assignedIds.includes(agent.id));
+    console.log('[项目成员面板] 从已雇佣列表匹配的成员:', members.length);
+
+    // 如果没有匹配到已雇佣的成员，则根据成员类型生成虚拟成员卡片
+    if (members.length === 0) {
+      console.log('[项目成员面板] 使用成员类型生成虚拟成员卡片');
+      members = assignedIds.map(agentType => {
+        const agentDef = this.getAgentDefinition(agentType);
+        return {
+          id: agentType,
+          name: agentDef?.name || agentType,
+          nickname: agentDef?.name || agentType,
+          emoji: agentDef?.icon || agentDef?.emoji || '👤',
+          desc: `负责${agentDef?.name || agentType}相关工作`,
+          skills: []
+        };
+      });
     }
 
     container.classList.remove('is-empty');
@@ -1627,9 +2046,26 @@ class ProjectManager {
         .join('');
 
     const buildAnalysisHTML = reportData => {
-      const chapters = reportData?.chapters;
+      // 兼容性处理：提取嵌套的report字段
+      if (reportData && reportData.report && !reportData.chapters) {
+        console.warn('[项目面板] 检测到旧数据格式，自动提取 report 字段');
+        reportData = reportData.report;
+      }
+
+      let chapters = reportData?.chapters;
       if (!chapters) {
         return '';
+      }
+
+      // 数组格式转换为对象格式
+      if (Array.isArray(chapters)) {
+        console.warn('[项目面板] chapters是数组格式，转换为对象格式');
+        const chaptersObj = {};
+        chapters.forEach((ch, idx) => {
+          chaptersObj[`chapter${idx + 1}`] = ch;
+        });
+        chapters = chaptersObj;
+        reportData.chapters = chaptersObj;
       }
 
       if (Array.isArray(chapters)) {
@@ -1848,7 +2284,22 @@ class ProjectManager {
     const metaHTML = type === 'analysis' ? `<div class="report-meta">项目面板 · 只读预览</div>` : '';
     let contentHTML = '';
     if (type === 'analysis') {
-      contentHTML = metaHTML + buildAnalysisHTML(data);
+      // 检查数据是否有效
+      if (!data || !data.chapters) {
+        contentHTML = metaHTML + `
+          <div style="text-align: center; padding: 60px 20px;">
+            <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
+            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+              暂无分析报告内容
+            </div>
+            <div style="font-size: 14px; color: var(--text-secondary);">
+              报告数据不完整或格式错误
+            </div>
+          </div>
+        `;
+      } else {
+        contentHTML = metaHTML + buildAnalysisHTML(data);
+      }
     } else if (type === 'business' || type === 'proposal') {
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
       const ideaTitle = chat?.userData?.idea || chat?.title || '创意项目';
@@ -2128,9 +2579,9 @@ class ProjectManager {
     }
 
     const userId = this.getUserId();
-    const response = await fetch(`${this.apiUrl}/api/agents/hire`, {
+    const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/hire`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ userId, agentType: agentId })
     }).catch(() => null);
     if (!response || !response.ok) {
@@ -2184,7 +2635,10 @@ class ProjectManager {
 
   async handleFireAgent(project, agentId) {
     const userId = this.getUserId();
-    await fetch(`${this.apiUrl}/api/agents/${userId}/${agentId}`, { method: 'DELETE' }).catch(() => null);
+    await this.fetchWithAuth(`${this.apiUrl}/api/agents/${userId}/${agentId}`, {
+      method: 'DELETE',
+      headers: this.buildAuthHeaders()
+    }).catch(() => null);
     const assignedAgents = (project.assignedAgents || []).filter(id => id !== agentId);
     const updatedProject = await this.updateProject(project.id, { assignedAgents }, { allowFallback: true });
     const viewProject = updatedProject || { ...project, assignedAgents };
@@ -2214,14 +2668,14 @@ class ProjectManager {
       return this.agentMarket;
     }
     try {
-      const response = await fetch(
+      const response = await this.fetchWithAuth(
         `${this.apiUrl}/api/agents/types-by-workflow?workflowCategory=${encodeURIComponent(category)}`
       );
       let result = null;
       if (response.ok) {
         result = await response.json();
       } else {
-        const fallback = await fetch(`${this.apiUrl}/api/agents/types`);
+        const fallback = await this.fetchWithAuth(`${this.apiUrl}/api/agents/types`);
         if (!fallback.ok) {
           return [];
         }
@@ -2259,7 +2713,7 @@ class ProjectManager {
     this.hiredAgentsPromise = (async () => {
       try {
         const userId = this.getUserId();
-        const response = await fetch(`${this.apiUrl}/api/agents/my/${userId}`);
+        const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/my/${userId}`);
         if (!response.ok) {
           return this.cachedHiredAgents || [];
         }
@@ -2472,16 +2926,24 @@ class ProjectManager {
           let hint = '';
           if (hasProject) {
             const projectName = chatIdToProjectName.get(chatIdKey);
-            hint = `· 已被项目“${this.escapeHtml(projectName || '未命名项目')}”引用`;
+            hint = `· 已被项目"${this.escapeHtml(projectName || '未命名项目')}"引用`;
           } else if (!chat.analysisCompleted) {
             hint = '· 未完成对话分析';
           } else if (!analysisMap.has(chatIdKey)) {
             hint = '· 未生成分析报告';
           }
 
+          // 调试日志
+          console.log('[创建项目对话框] 创意:', {
+            id: chat.id,
+            title: chat.title,
+            disabled,
+            analysisReady
+          });
+
           return `
                     <label class="idea-item ${disabledClass}" style="display: flex; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; cursor: ${disabled ? 'not-allowed' : 'pointer'}; opacity: ${disabled ? '0.5' : '1'};">
-                        <input type="radio" name="selectedIdea" value="${chat.id}" ${disabledAttr} style="margin-top: 4px;">
+                        <input type="radio" name="selectedIdea" value="${chat.id || ''}" ${disabledAttr} style="margin-top: 4px;">
                         <div style="flex: 1;">
                             <div style="font-weight: 500; margin-bottom: 4px;">${this.escapeHtml(chat.title)}</div>
                             <div style="font-size: 14px; color: var(--text-secondary);">
@@ -2569,46 +3031,208 @@ class ProjectManager {
       return;
     }
 
+    console.log('[应用协作建议] 开始应用', { projectId, suggestion });
+
     const recommendedAgents = suggestion.recommendedAgents || [];
-    const stages = project.workflow?.stages || [];
+    const suggestedStages = suggestion.stages || [];  // AI返回的阶段
+    console.log('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
+    console.log('[应用协作建议] AI建议的阶段:', suggestedStages);
 
-    // 根据推荐Agent标记阶段优先级
-    const adjustedStages = stages.map(stage => {
-      const stageAgents = stage.agents || [];
-      const hasRecommendedAgent = stageAgents.some(a =>
-        recommendedAgents.includes(a)
-      );
+    // 使用AI返回的阶段，而不是从固定的workflow中过滤
+    let adjustedStages = [];
 
-      return {
-        ...stage,
-        priority: hasRecommendedAgent ? 'high' : 'normal',
-        recommended: hasRecommendedAgent
-      };
+    if (suggestedStages.length > 0) {
+      // 使用AI返回的阶段
+      adjustedStages = suggestedStages.map((stage, index) => ({
+        id: stage.id,
+        name: stage.name,
+        description: stage.description || '',
+        agents: stage.agents || [],
+        dependencies: stage.dependencies || [],
+        outputs: stage.outputs || [],
+        status: 'pending',
+        order: index + 1,
+        priority: 'high',
+        recommended: true
+      }));
+      console.log('[应用协作建议] 使用AI生成的阶段，数量:', adjustedStages.length);
+    } else {
+      // 降级方案：如果AI没有返回阶段，从现有workflow中过滤
+      console.log('[应用协作建议] AI未返回阶段，使用降级方案');
+      const stages = project.workflow?.stages || [];
+      adjustedStages = stages
+        .map(stage => {
+          const stageAgents = stage.agents || [];
+          const recommendedForStage = stageAgents.filter(a =>
+            recommendedAgents.includes(a)
+          );
+          const hasRecommendedAgent = recommendedForStage.length > 0;
+
+          return {
+            ...stage,
+            agents: recommendedForStage,
+            priority: 'high',
+            recommended: true,
+            hasRecommendedAgent
+          };
+        })
+        .filter(stage => stage.hasRecommendedAgent)
+        .map((stage, index) => {
+          const { hasRecommendedAgent, ...cleanStage } = stage;
+          return {
+            ...cleanStage,
+            order: index + 1
+          };
+        });
+    }
+
+    // 清理阶段依赖关系：移除不存在的阶段依赖
+    const stageIds = new Set(adjustedStages.map(s => s.id));
+    adjustedStages.forEach(stage => {
+      if (stage.dependencies && stage.dependencies.length > 0) {
+        stage.dependencies = stage.dependencies.filter(depId => stageIds.has(depId));
+      }
     });
 
-    // 将推荐成员合并到项目成员列表
+    console.log('[应用协作建议] 最终阶段数量:', adjustedStages.length);
+    console.log('[应用协作建议] 阶段列表:', adjustedStages.map(s => ({ id: s.id, name: s.name, agents: s.agents })));
+
+    // 【修复点】将推荐的Agent类型ID转换为实际的Agent实例ID
+    // 直接调用API获取最新数据，完全绕过缓存
+    const userId = this.getUserId();
+    const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/my/${userId}`);
+    if (!response.ok) {
+      throw new Error('获取已雇佣Agent失败');
+    }
+    const result = await response.json();
+    const hiredAgents = result.data?.agents || [];
+    console.log('[应用协作建议] 已雇佣的Agent (直接从API):', hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name })));
+
     const currentAssignedAgents = project.assignedAgents || [];
-    const mergedAgents = Array.from(new Set([...currentAssignedAgents, ...recommendedAgents]));
+    console.log('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
+
+    // 为每个推荐的类型ID找到对应的已雇佣Agent实例
+    const recommendedAgentInstances = [];
+    const missingAgentTypes = [];
+
+    for (const agentType of recommendedAgents) {
+      // 通过agent.type字段匹配（而不是agent.id）
+      const hiredAgent = hiredAgents.find(agent => agent.type === agentType);
+      if (hiredAgent) {
+        console.log('[应用协作建议] 找到匹配的Agent:', { type: agentType, id: hiredAgent.id, name: hiredAgent.name });
+        recommendedAgentInstances.push(hiredAgent.id);
+      } else {
+        console.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
+        missingAgentTypes.push(agentType);
+      }
+    }
+
+    console.log('[应用协作建议] 推荐的Agent实例ID:', recommendedAgentInstances);
+    console.log('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
+
+    // 合并现有成员和推荐成员的实例ID
+    const mergedAgents = Array.from(new Set([...currentAssignedAgents, ...recommendedAgentInstances]));
+    console.log('[应用协作建议] 合并后的Agent ID:', mergedAgents);
+
+    // 如果有未雇佣的推荐Agent，记录到项目中以便后续提示
+    const updateData = {
+      workflow: {
+        ...project.workflow,
+        stages: adjustedStages
+      },
+      collaborationSuggestion: suggestion,
+      assignedAgents: mergedAgents
+    };
+
+    if (missingAgentTypes.length > 0) {
+      updateData.missingRecommendedAgents = missingAgentTypes;
+    }
 
     // 保存调整后的阶段和成员
-    await this.updateProject(
-      projectId,
-      {
-        workflow: {
-          ...project.workflow,
-          stages: adjustedStages
-        },
-        collaborationSuggestion: suggestion,
-        assignedAgents: mergedAgents
-      },
-      { localOnly: true }
-    );
+    await this.updateProject(projectId, updateData, { localOnly: true });
 
     // 刷新项目面板
     if (this.currentProject?.id === projectId) {
       this.currentProject = await this.getProject(projectId);
       this.refreshProjectPanel(this.currentProject);
     }
+
+    // 不再显示未雇佣Agent的提示（本期需求：不检测是否需要雇佣其他成员）
+    console.log('[应用协作建议] 应用完成，推荐成员已添加到项目');
+  }
+
+  /**
+   * 根据依赖关系对阶段进行拓扑排序
+   * @param {Array} stages - 阶段列表
+   * @returns {Array} 排序后的阶段列表
+   */
+  sortStagesByDependencies(stages) {
+    if (!stages || stages.length === 0) {
+      return [];
+    }
+
+    // 创建阶段ID到阶段对象的映射
+    const stageMap = new Map();
+    stages.forEach(stage => {
+      stageMap.set(stage.id, stage);
+    });
+
+    // 计算每个阶段的入度（被依赖的次数）
+    const inDegree = new Map();
+    stages.forEach(stage => {
+      inDegree.set(stage.id, 0);
+    });
+
+    stages.forEach(stage => {
+      const dependencies = stage.dependencies || [];
+      dependencies.forEach(depId => {
+        if (inDegree.has(depId)) {
+          inDegree.set(stage.id, inDegree.get(stage.id) + 1);
+        }
+      });
+    });
+
+    // 拓扑排序（Kahn算法）
+    const result = [];
+    const queue = [];
+
+    // 将所有入度为0的阶段加入队列
+    inDegree.forEach((degree, stageId) => {
+      if (degree === 0) {
+        queue.push(stageId);
+      }
+    });
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      const currentStage = stageMap.get(currentId);
+      if (currentStage) {
+        result.push(currentStage);
+      }
+
+      // 遍历所有阶段，找到依赖当前阶段的阶段
+      stages.forEach(stage => {
+        const dependencies = stage.dependencies || [];
+        if (dependencies.includes(currentId)) {
+          const newDegree = inDegree.get(stage.id) - 1;
+          inDegree.set(stage.id, newDegree);
+          if (newDegree === 0) {
+            queue.push(stage.id);
+          }
+        }
+      });
+    }
+
+    // 如果有循环依赖，将剩余的阶段按原顺序添加
+    if (result.length < stages.length) {
+      stages.forEach(stage => {
+        if (!result.find(s => s.id === stage.id)) {
+          result.push(stage);
+        }
+      });
+    }
+
+    return result;
   }
 
   async buildWorkflowStages(category) {
@@ -2648,14 +3272,63 @@ class ProjectManager {
         return;
       }
 
-      const ideaId = this.normalizeIdeaId(selectedIdeaInput.value);
+      const ideaId = selectedIdeaInput.value;
 
-      // 获取创意标题
+      console.log('[创建项目] 选中的创意ID:', ideaId, '类型:', typeof ideaId);
+
+      // 验证 ideaId 不为空
+      if (!ideaId || ideaId.trim() === '') {
+        console.error('[创建项目] 创意ID为空');
+        if (window.modalManager) {
+          window.modalManager.alert('创意ID无效，请重新选择', 'warning');
+        } else {
+          alert('创意ID无效，请重新选择');
+        }
+        return;
+      }
+
+      // 【增强】获取创意标题，尝试多种方式
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
-      const chat =
-        (await this.storageManager.getChat(normalizedIdeaId)) ||
-        (await this.storageManager.getChat(ideaId));
-      const projectName = chat ? `${chat.title} - 项目` : '新项目';
+      console.log('[创建项目] 规范化后的ID:', normalizedIdeaId, '类型:', typeof normalizedIdeaId);
+
+      // 再次验证规范化后的ID
+      if (!normalizedIdeaId) {
+        console.error('[创建项目] 规范化后的ID为空');
+        if (window.modalManager) {
+          window.modalManager.alert('创意ID格式错误，请重新选择', 'warning');
+        } else {
+          alert('创意ID格式错误，请重新选择');
+        }
+        return;
+      }
+
+      let chat = await this.storageManager.getChat(normalizedIdeaId);
+
+      // 如果normalized ID找不到，尝试原始ID
+      if (!chat) {
+        chat = await this.storageManager.getChat(ideaId);
+      }
+
+      // 如果还是找不到，尝试去掉前缀
+      if (!chat && ideaId.startsWith('idea-')) {
+        const rawId = ideaId.replace('idea-', '');
+        chat = await this.storageManager.getChat(rawId);
+      }
+
+      // 生成项目名称
+      let projectName = '新项目';
+      if (chat) {
+        if (chat.title && chat.title.trim()) {
+          projectName = `${chat.title.trim()} - 项目`;
+        } else {
+          // 如果标题为空，使用创意ID的最后部分
+          const idParts = ideaId.split('-');
+          const shortId = idParts[idParts.length - 1];
+          projectName = `创意${shortId} - 项目`;
+        }
+      } else {
+        console.warn('未找到创意对话，使用默认项目名称', { ideaId, normalizedIdeaId });
+      }
 
       // 关闭对话框
       if (window.modalManager) {
@@ -2663,8 +3336,9 @@ class ProjectManager {
       }
 
       // 直接创建项目（工作流编辑在项目面板中完成）
-      await this.createProjectFromIdea(ideaId, projectName);
+      await this.createProjectFromIdea(normalizedIdeaId, projectName);
     } catch (error) {
+      console.error('创建项目失败:', error);
       if (window.modalManager) {
         window.modalManager.alert('创建项目失败: ' + error.message, 'error');
       } else {
@@ -2800,14 +3474,14 @@ class ProjectManager {
 
     const progress = this.calculateWorkflowProgress(project.workflow);
 
-    // 渲染阶段卡片
+    // 渲染阶段卡片 - 优化版
     const stagesHTML = project.workflow.stages
       .map((stage, index) => {
         const definition = window.workflowExecutor?.getStageDefinition(stage.id);
         const statusText =
           {
-            pending: '未开始',
-            active: '进行中',
+            pending: '待执行',
+            active: '执行中',
             completed: '已完成'
           }[stage.status] || stage.status;
 
@@ -2819,57 +3493,188 @@ class ProjectManager {
           }[stage.status] || '#9ca3af';
 
         const artifactCount = stage.artifacts?.length || 0;
+        const isLastStage = index === project.workflow.stages.length - 1;
 
+        // 检查依赖关系
+        const dependencies = stage.dependencies || [];
+        const unmetDependencies = [];
+        if (dependencies.length > 0) {
+          const stages = project.workflow?.stages || [];
+          for (const depId of dependencies) {
+            const depStage = stages.find(s => s.id === depId);
+            if (depStage && depStage.status !== 'completed') {
+              unmetDependencies.push(depStage.name);
+            }
+          }
+        }
+
+        // 判断是否可执行
+        const isExecutable = stage.status === 'pending' && unmetDependencies.length === 0 && workflowReady;
+        const isBlocked = stage.status === 'pending' && unmetDependencies.length > 0;
+
+        // 卡片样式 - 根据状态动态调整
+        let cardStyle = '';
+        let cardClass = 'stage-card';
+
+        if (stage.status === 'completed') {
+          cardStyle = `
+            border: 1px solid #d1fae5;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-left: 4px solid #10b981;
+          `;
+        } else if (stage.status === 'active') {
+          cardStyle = `
+            border: 1px solid #dbeafe;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-left: 4px solid #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+          `;
+        } else if (isExecutable) {
+          cardStyle = `
+            border: 1px solid #e0e7ff;
+            background: white;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+          `;
+        } else if (isBlocked) {
+          cardStyle = `
+            border: 1px solid #f3f4f6;
+            background: #fafafa;
+            border-left: 4px solid #d1d5db;
+            opacity: 0.7;
+          `;
+        } else {
+          cardStyle = `
+            border: 1px solid var(--border);
+            background: white;
+            border-left: 4px solid ${definition?.color || '#667eea'};
+          `;
+        }
+
+        // 状态图标
+        const statusIcon = {
+          pending: isBlocked ? '🔒' : '⏸️',
+          active: '⚡',
+          completed: '✅'
+        }[stage.status] || '📋';
+
+        // 交付物展示
+        let artifactsHTML = '';
+        if (stage.status === 'completed' && artifactCount > 0) {
+          const artifactsList = (stage.artifacts || []).slice(0, 3).map(artifact => {
+            const fileName = artifact.fileName || artifact.title || '未命名文件';
+            const fileType = artifact.type || '文档';
+            return `
+              <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
+                <span style="font-size: 16px;">📄</span>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 13px; font-weight: 500; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.escapeHtml(fileName)}</div>
+                  <div style="font-size: 11px; color: #9ca3af;">${fileType}</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          const moreCount = artifactCount > 3 ? artifactCount - 3 : 0;
+          artifactsHTML = `
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05);">
+              <div style="font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">📦 交付物 (${artifactCount})</div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${artifactsList}
+                ${moreCount > 0 ? `<div style="font-size: 12px; color: #9ca3af; text-align: center;">还有 ${moreCount} 个交付物...</div>` : ''}
+              </div>
+            </div>
+          `;
+        }
+
+        // 依赖提示
+        let dependencyHTML = '';
+        if (isBlocked) {
+          dependencyHTML = `
+            <div style="margin-top: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 8px; border-left: 3px solid #f59e0b;">
+              <div style="font-size: 12px; color: #92400e;">
+                <span style="font-weight: 600;">⚠️ 依赖未满足：</span>
+                <span>${unmetDependencies.join('、')}</span>
+              </div>
+            </div>
+          `;
+        }
+
+        // 操作按钮
         let actionHTML = '';
         if (stage.status === 'pending') {
-          actionHTML = workflowReady
-            ? `
-                        <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);">
-                            开始执行
-                        </button>
-                    `
-            : `
-                        <button class="btn-secondary" disabled title="工作流执行器未就绪">
-                            开始执行
-                        </button>
-                    `;
+          if (isBlocked) {
+            actionHTML = `
+              <button class="btn-secondary" disabled title="依赖阶段未完成：${unmetDependencies.join('、')}" style="opacity: 0.5;">
+                🔒 依赖未满足
+              </button>
+            `;
+          } else if (workflowReady) {
+            actionHTML = `
+              <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                ▶️ 开始执行
+              </button>
+            `;
+          } else {
+            actionHTML = `
+              <button class="btn-secondary" disabled title="工作流执行器未就绪">
+                开始执行
+              </button>
+            `;
+          }
         } else if (stage.status === 'completed') {
           actionHTML = workflowReady
             ? `
-                        <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')">
-                            查看交付物 (${artifactCount})
-                        </button>
-                    `
+              <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')" style="background: white; border: 1px solid #10b981; color: #10b981;">
+                👁️ 查看全部交付物
+              </button>
+            `
             : `
-                        <button class="btn-secondary" disabled title="工作流执行器未就绪">
-                            查看交付物 (${artifactCount})
-                        </button>
-                    `;
+              <button class="btn-secondary" disabled title="工作流执行器未就绪">
+                查看交付物 (${artifactCount})
+              </button>
+            `;
         } else {
           actionHTML = `
-                    <button class="btn-secondary" disabled>执行中...</button>
-                `;
+            <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+              <div style="width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+              <span style="font-size: 14px; font-weight: 500; color: #3b82f6;">正在执行中...</span>
+            </div>
+          `;
         }
 
+        // 连接线（除了最后一个阶段）
+        const connectorHTML = !isLastStage ? `
+          <div style="display: flex; justify-content: center; margin: -8px 0;">
+            <div style="width: 2px; height: 24px; background: linear-gradient(to bottom, ${statusColor}, #e5e7eb); opacity: 0.5;"></div>
+          </div>
+        ` : '';
+
         return `
-                <div class="stage-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: white; border-left: 4px solid ${definition?.color || '#667eea'}; margin-bottom: 16px;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="font-size: 32px;">${definition?.icon || '📋'}</span>
-                            <div>
-                                <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600;">${definition?.name || stage.name}</h3>
-                                <p style="margin: 0; font-size: 14px; color: var(--text-secondary);">${definition?.description || ''}</p>
-                            </div>
-                        </div>
-                        <div style="padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 500; color: white; background: ${statusColor};">
-                            ${statusText}
-                        </div>
-                    </div>
-                    <div style="margin-top: 16px;">
-                        ${actionHTML}
-                    </div>
+          <div class="${cardClass}" style="${cardStyle} border-radius: 12px; padding: 20px; margin-bottom: 8px; transition: all 0.3s ease;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                <div style="font-size: 36px; line-height: 1;">${definition?.icon || '📋'}</div>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #111827;">${definition?.name || stage.name}</h3>
+                    <span style="font-size: 18px;">${statusIcon}</span>
+                  </div>
+                  <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">${definition?.description || ''}</p>
                 </div>
-            `;
+              </div>
+              <div style="padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; color: white; background: ${statusColor}; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                ${statusText}
+              </div>
+            </div>
+            ${dependencyHTML}
+            ${artifactsHTML}
+            <div style="margin-top: ${artifactsHTML || dependencyHTML ? '12' : '16'}px;">
+              ${actionHTML}
+            </div>
+          </div>
+          ${connectorHTML}
+        `;
       })
       .join('');
 
@@ -3350,6 +4155,515 @@ class ProjectManager {
       window.loadChat(chatId);
     }
   }
+
+  /**
+   * 开始工作流执行
+   * @param {String} projectId - 项目ID
+   */
+  async startWorkflowExecution(projectId) {
+    console.log('[开始执行] ========== 开始工作流执行 ==========');
+    console.log('[开始执行] 项目ID:', projectId);
+
+    try {
+      const project = await this.getProject(projectId);
+      if (!project) {
+        throw new Error('项目不存在');
+      }
+
+      console.log('[开始执行] 项目信息:', {
+        name: project.name,
+        status: project.status,
+        stageCount: project.workflow && project.workflow.stages ? project.workflow.stages.length : 0,
+        memberCount: project.assignedAgents ? project.assignedAgents.length : 0
+      });
+
+      if (!project.collaborationExecuted) {
+        if (window.ErrorHandler) {
+          window.ErrorHandler.showToast('请先确认协作模式', 'warning');
+        }
+        return;
+      }
+
+      if (!project.workflow || !project.workflow.stages || project.workflow.stages.length === 0) {
+        if (window.ErrorHandler) {
+          window.ErrorHandler.showToast('项目没有工作流阶段', 'warning');
+        }
+        return;
+      }
+
+      const memberCount = project.assignedAgents ? project.assignedAgents.length : 0;
+      const confirmed = confirm(
+        '确定要开始执行工作流吗？\n\n' +
+        '项目：' + project.name + '\n' +
+        '阶段数：' + project.workflow.stages.length + '\n' +
+        '成员数：' + memberCount + '\n\n' +
+        '执行过程可能需要较长时间，请耐心等待。'
+      );
+
+      if (!confirmed) {
+        console.log('[开始执行] 用户取消执行');
+        return;
+      }
+
+      console.log('[开始执行] 用户确认执行，开始调用 executeAllStages');
+
+      if (this.executeAllStages) {
+        await this.executeAllStages(projectId, {
+          skipConfirm: true
+        });
+      } else {
+        throw new Error('executeAllStages 方法不存在');
+      }
+
+      console.log('[开始执行] ========== 工作流执行完成 ==========');
+    } catch (error) {
+      console.error('[开始执行] 执行失败:', error);
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('执行失败：' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 打开交付物预览面板
+   * @param {String} projectId - 项目ID
+   * @param {String} stageId - 阶段ID
+   * @param {String} artifactId - 交付物ID
+   */
+  async openArtifactPreviewPanel(projectId, stageId, artifactId) {
+    try {
+      const project = await this.getProject(projectId);
+      if (!project || !project.workflow) {
+        throw new Error('项目不存在');
+      }
+
+      const stage = project.workflow.stages.find(s => s.id === stageId);
+      if (!stage) {
+        throw new Error('阶段不存在');
+      }
+
+      // 直接使用 stage.artifacts，不过滤类型
+      const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+      const artifact = artifacts.find(a => a.id === artifactId);
+      if (!artifact) {
+        console.error('[交付物预览] 未找到交付物:', {
+          artifactId,
+          availableArtifacts: artifacts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+        });
+        throw new Error('交付物不存在');
+      }
+
+      // 创建遮罩层
+      if (!this.stageDetailOverlay) {
+        this.stageDetailOverlay = document.createElement('div');
+        this.stageDetailOverlay.className = 'stage-detail-panel-overlay';
+        this.stageDetailOverlay.addEventListener('click', () => this.closeArtifactPreviewPanel());
+        document.body.appendChild(this.stageDetailOverlay);
+      }
+
+      // 创建面板
+      if (!this.stageDetailPanel) {
+        this.stageDetailPanel = document.createElement('div');
+        this.stageDetailPanel.className = 'stage-detail-panel';
+        document.body.appendChild(this.stageDetailPanel);
+      }
+
+      // 渲染面板内容
+      await this.renderArtifactPreviewPanel(project, stage, artifact);
+
+      // 显示面板
+      setTimeout(() => {
+        this.stageDetailOverlay.classList.add('open');
+        this.stageDetailPanel.classList.add('open');
+      }, 10);
+    } catch (error) {
+      console.error('[交付物预览] 打开失败:', error);
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('打开预览失败：' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 关闭交付物预览面板
+   */
+  closeArtifactPreviewPanel() {
+    if (this.stageDetailOverlay) {
+      this.stageDetailOverlay.classList.remove('open');
+    }
+    if (this.stageDetailPanel) {
+      this.stageDetailPanel.classList.remove('open');
+    }
+  }
+
+  /**
+   * 渲染交付物预览面板
+   * @param {Object} project - 项目对象
+   * @param {Object} stage - 阶段对象
+   * @param {Object} artifact - 交付物对象
+   */
+  async renderArtifactPreviewPanel(project, stage, artifact) {
+    if (!this.stageDetailPanel) return;
+
+    const icon = this.getArtifactIcon(artifact.type);
+    const typeLabel = this.getArtifactTypeLabel(artifact);
+
+    // 获取交付物内容
+    let contentHTML = '';
+
+    // 根据交付物类型渲染不同的预览内容
+    // 文档类型：包括各种文档、报告、计划等
+    const documentTypes = [
+      'document', 'report', 'plan',
+      'strategy-doc', 'prd', 'ui-design',
+      'architecture-doc', 'test-report',
+      'deployment-guide', 'deploy-doc',
+      'marketing-plan', 'user-story', 'feature-list',
+      'design-spec'  // 设计规范也是文档类型
+    ];
+
+    if (documentTypes.includes(artifact.type)) {
+      // 文档类型：显示文本内容
+      const content = artifact.content || artifact.text || '';
+      if (content) {
+        // 使用 markdownRenderer 渲染 Markdown
+        let renderedContent = '';
+        if (window.markdownRenderer) {
+          renderedContent = window.markdownRenderer.render(content);
+        } else if (window.marked) {
+          renderedContent = window.marked.parse(content);
+        } else {
+          renderedContent = content.replace(/\n/g, '<br>');
+        }
+
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-document markdown-content">
+              ${renderedContent}
+            </div>
+          </div>
+        `;
+      } else {
+        contentHTML = `
+          <div class="artifact-preview-empty">
+            <div class="artifact-preview-empty-icon">📄</div>
+            <div>暂无内容</div>
+          </div>
+        `;
+      }
+    } else if (artifact.type === 'code' || artifact.type === 'component-lib' || artifact.type === 'api-doc') {
+      // 代码类型：显示代码内容
+      const code = artifact.content || artifact.code || '';
+      const language = artifact.language || 'javascript';
+      if (code) {
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-code-header">
+              <span class="artifact-preview-code-language">${language}</span>
+              <button class="artifact-preview-copy-btn" onclick="projectManager.copyArtifactContent('${artifact.id}')">
+                📋 复制代码
+              </button>
+            </div>
+            <pre class="artifact-preview-code"><code class="language-${language}">${this.escapeHtml(code)}</code></pre>
+          </div>
+        `;
+      } else {
+        contentHTML = `
+          <div class="artifact-preview-empty">
+            <div class="artifact-preview-empty-icon">💻</div>
+            <div>暂无代码</div>
+          </div>
+        `;
+      }
+    } else if (artifact.type === 'preview' || artifact.type === 'ui-preview' || artifact.type === 'prototype') {
+      // 前端可交互系统：使用iframe显示
+      const previewUrl = artifact.previewUrl || artifact.url || '';
+      const htmlContent = artifact.htmlContent || artifact.content || '';
+
+      if (previewUrl) {
+        // 如果有预览URL，使用iframe加载
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-iframe-container">
+              <iframe
+                src="${previewUrl}"
+                class="artifact-preview-iframe"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                title="${this.escapeHtml(artifact.name || '预览')}">
+              </iframe>
+            </div>
+          </div>
+        `;
+      } else if (htmlContent) {
+        // 如果有HTML内容，使用srcdoc显示
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-iframe-container">
+              <iframe
+                srcdoc="${this.escapeHtml(htmlContent)}"
+                class="artifact-preview-iframe"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                title="${this.escapeHtml(artifact.name || '预览')}">
+              </iframe>
+            </div>
+          </div>
+        `;
+      } else {
+        contentHTML = `
+          <div class="artifact-preview-empty">
+            <div class="artifact-preview-empty-icon">🖥️</div>
+            <div>暂无预览内容</div>
+          </div>
+        `;
+      }
+    } else if (artifact.type === 'design' || artifact.type === 'image') {
+      // 设计类型：显示图片或设计稿
+      const imageUrl = artifact.imageUrl || artifact.url || '';
+      if (imageUrl) {
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-image">
+              <img src="${imageUrl}" alt="${this.escapeHtml(artifact.name)}" />
+            </div>
+          </div>
+        `;
+      } else {
+        contentHTML = `
+          <div class="artifact-preview-empty">
+            <div class="artifact-preview-empty-icon">🎨</div>
+            <div>暂无设计稿</div>
+          </div>
+        `;
+      }
+    } else {
+      // 其他类型：尝试智能识别内容
+      const content = artifact.content || artifact.text || artifact.code || '';
+
+      if (content) {
+        // 检查是否是HTML内容
+        if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
+          contentHTML = `
+            <div class="artifact-preview-content">
+              <div class="artifact-preview-iframe-container">
+                <iframe
+                  srcdoc="${this.escapeHtml(content)}"
+                  class="artifact-preview-iframe"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  title="${this.escapeHtml(artifact.name || '预览')}">
+                </iframe>
+              </div>
+            </div>
+          `;
+        } else {
+          // 默认显示为文档
+          let renderedContent = '';
+          if (window.markdownRenderer) {
+            renderedContent = window.markdownRenderer.render(content);
+          } else if (window.marked) {
+            renderedContent = window.marked.parse(content);
+          } else {
+            renderedContent = content.replace(/\n/g, '<br>');
+          }
+
+          contentHTML = `
+            <div class="artifact-preview-content">
+              <div class="artifact-preview-document markdown-content">
+                ${renderedContent}
+              </div>
+            </div>
+          `;
+        }
+      } else {
+        // 显示基本信息
+        contentHTML = `
+          <div class="artifact-preview-content">
+            <div class="artifact-preview-info">
+              <div class="artifact-preview-info-item">
+                <span class="label">文件名:</span>
+                <span class="value">${this.escapeHtml(artifact.fileName || artifact.name || '未命名')}</span>
+              </div>
+              <div class="artifact-preview-info-item">
+                <span class="label">类型:</span>
+                <span class="value">${typeLabel}</span>
+              </div>
+              ${artifact.size ? `
+                <div class="artifact-preview-info-item">
+                  <span class="label">大小:</span>
+                  <span class="value">${this.formatFileSize(artifact.size)}</span>
+                </div>
+              ` : ''}
+              ${artifact.createdAt ? `
+                <div class="artifact-preview-info-item">
+                  <span class="label">创建时间:</span>
+                  <span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 操作按钮
+    const actionsHTML = `
+      <div class="artifact-preview-actions">
+        ${artifact.previewUrl || artifact.url ? `
+          <button class="btn-primary" onclick="window.open('${artifact.previewUrl || artifact.url}', '_blank')">
+            🔗 新窗口打开
+          </button>
+        ` : ''}
+        ${artifact.downloadUrl ? `
+          <button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">
+            📥 下载
+          </button>
+        ` : ''}
+        ${(artifact.content || artifact.text || artifact.code) ? `
+          <button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">
+            📋 复制内容
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    this.stageDetailPanel.innerHTML = `
+      <div class="stage-detail-header">
+        <div class="stage-detail-header-top">
+          <div class="stage-detail-title">
+            <span>${icon}</span>
+            <span>${this.escapeHtml(artifact.name || artifact.fileName || '未命名交付物')}</span>
+          </div>
+          <button class="stage-detail-close" onclick="projectManager.closeArtifactPreviewPanel()">×</button>
+        </div>
+        <div class="stage-detail-meta">
+          <div class="stage-detail-meta-item">
+            <span class="label">阶段:</span>
+            <span class="value">${this.escapeHtml(stage.name)}</span>
+          </div>
+          <div class="stage-detail-meta-item">
+            <span class="label">类型:</span>
+            <span class="value">${typeLabel}</span>
+          </div>
+        </div>
+      </div>
+      <div class="stage-detail-body">
+        ${contentHTML}
+        ${actionsHTML}
+      </div>
+    `;
+
+    // 如果有代码高亮库，应用高亮
+    if (window.Prism && artifact.type === 'code') {
+      setTimeout(() => {
+        window.Prism.highlightAll();
+      }, 100);
+    }
+  }
+
+  /**
+   * 复制交付物内容
+   * @param {String} artifactId - 交付物ID
+   */
+  async copyArtifactContent(artifactId) {
+    try {
+      // 从当前项目中查找交付物
+      if (!this.currentProject) {
+        throw new Error('未选择项目');
+      }
+
+      const stages = this.currentProject.workflow?.stages || [];
+      let artifact = null;
+
+      // 直接从 stage.artifacts 中查找，不过滤类型
+      for (const stage of stages) {
+        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        artifact = artifacts.find(a => a.id === artifactId);
+        if (artifact) break;
+      }
+
+      if (!artifact) {
+        throw new Error('交付物不存在');
+      }
+
+      const content = artifact.content || artifact.text || artifact.code || '';
+      if (!content) {
+        throw new Error('交付物无内容');
+      }
+
+      await navigator.clipboard.writeText(content);
+
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('已复制到剪贴板', 'success');
+      }
+    } catch (error) {
+      console.error('[复制内容] 失败:', error);
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('复制失败：' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 下载交付物
+   * @param {String} artifactId - 交付物ID
+   */
+  async downloadArtifact(artifactId) {
+    try {
+      // 从当前项目中查找交付物
+      if (!this.currentProject) {
+        throw new Error('未选择项目');
+      }
+
+      const stages = this.currentProject.workflow?.stages || [];
+      let artifact = null;
+
+      // 直接从 stage.artifacts 中查找，不过滤类型
+      for (const stage of stages) {
+        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        artifact = artifacts.find(a => a.id === artifactId);
+        if (artifact) break;
+      }
+
+      if (!artifact) {
+        throw new Error('交付物不存在');
+      }
+
+      const downloadUrl = artifact.downloadUrl || artifact.url;
+      if (!downloadUrl) {
+        throw new Error('交付物无下载链接');
+      }
+
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = artifact.fileName || artifact.name || 'download';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('开始下载', 'success');
+      }
+    } catch (error) {
+      console.error('[下载交付物] 失败:', error);
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('下载失败：' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 格式化文件大小
+   * @param {Number} bytes - 字节数
+   * @returns {String} 格式化后的大小
+   */
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
 
   // 协同升级评估逻辑已移除（统一产品流程）
 }

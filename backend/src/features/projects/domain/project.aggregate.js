@@ -16,6 +16,7 @@ import { ProjectDeletedEvent } from './events/project-deleted.event.js';
 export class Project extends AggregateRoot {
   constructor(
     id,
+    userId,
     ideaId,
     name,
     mode,
@@ -25,6 +26,7 @@ export class Project extends AggregateRoot {
     assignedAgents = []
   ) {
     super(id);
+    this._userId = userId;
     this._ideaId = ideaId;
     this._name = name;
     this._mode = mode;
@@ -39,7 +41,7 @@ export class Project extends AggregateRoot {
   /**
    * 创建新项目
    */
-  static create(ideaId, name, mode) {
+  static create(ideaId, name, mode, userId) {
     const projectId = ProjectId.generate();
     const ideaIdObj = new IdeaId(ideaId);
     const projectName = new ProjectName(name);
@@ -54,6 +56,7 @@ export class Project extends AggregateRoot {
 
     const project = new Project(
       projectId,
+      userId,
       ideaIdObj,
       projectName,
       projectMode,
@@ -132,7 +135,7 @@ export class Project extends AggregateRoot {
    * 验证项目状态
    */
   validate() {
-    if (!this._ideaId || !this._name || !this._mode) {
+    if (!this._ideaId || !this._name || !this._mode || !this._userId) {
       throw new Error('项目信息不完整');
     }
 
@@ -149,6 +152,9 @@ export class Project extends AggregateRoot {
   // Getters
   get ideaId() {
     return this._ideaId;
+  }
+  get userId() {
+    return this._userId;
   }
   get name() {
     return this._name;
@@ -172,6 +178,7 @@ export class Project extends AggregateRoot {
   toJSON() {
     return {
       ...super.toJSON(),
+      userId: this._userId,
       ideaId: this._ideaId.value,
       name: this._name.value,
       mode: this._mode.value,

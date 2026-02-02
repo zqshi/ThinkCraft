@@ -184,7 +184,7 @@ export class BusinessPlanMongoRepository {
     return {
       _id: json.id,
       projectId: json.projectId,
-      userId: json.userId || 'system', // TODO: 从上下文获取userId
+      userId: json.generatedBy,
       title: json.title,
       status: json.status,
       chapters,

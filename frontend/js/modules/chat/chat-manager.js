@@ -21,12 +21,12 @@ class ChatManager {
      * 保存当前对话
      *
      * @description
-     * 将当前对话保存到localStorage。
+     * 将当前对话保存到 IndexedDB。
      * 如果是新对话（currentChat为null），创建新记录并分配ID。
      * 如果是现有对话，更新记录。
      * 自动从第一条用户消息提取标题（如果未手动编辑）。
      */
-    saveCurrentChat() {
+    async saveCurrentChat() {
         if (!this.state.settings.saveHistory || this.state.messages.length === 0) return;
 
         // 从第一条用户消息提取标题
@@ -48,12 +48,13 @@ class ChatManager {
         }
 
         const now = new Date().toISOString();
+        let chat;
 
         // 核心逻辑：区分创建新对话和更新现有对话
         if (this.state.currentChat === null) {
             // 场景1：创建新对话
             const chatId = generateChatId();
-            const chat = {
+            chat = {
                 id: chatId,
                 title: title,
                 titleEdited: false,
@@ -71,7 +72,7 @@ class ChatManager {
             // 场景2：更新现有对话
             const index = this.state.chats.findIndex(c => c.id == this.state.currentChat);
             if (index !== -1) {
-                this.state.chats[index] = {
+                chat = {
                     ...this.state.chats[index],
                     title: title,
                     titleEdited: this.state.chats[index].titleEdited || false,
@@ -81,9 +82,10 @@ class ChatManager {
                     analysisCompleted: this.state.analysisCompleted,
                     updatedAt: now
                 };
+                this.state.chats[index] = chat;
             } else {
                 // 降级处理：当前对话ID不存在，使用现有ID创建新对话
-                const chat = {
+                chat = {
                     id: this.state.currentChat,
                     title: title,
                     titleEdited: titleEdited || false,
@@ -98,7 +100,12 @@ class ChatManager {
             }
         }
 
-        localStorage.setItem('thinkcraft_chats', JSON.stringify(this.state.chats));
+        // 保存到 IndexedDB
+        if (window.storageManager) {
+            await window.storageManager.saveChat(chat);
+        }
+
+        // 刷新对话列表
         if (typeof loadChats === 'function') {
             loadChats();
         }
@@ -128,7 +135,7 @@ class ChatManager {
 
         // 保存当前对话
         if (this.state.currentChat && this.state.currentChat !== chatId && this.state.messages.length > 0 && this.state.settings.saveHistory) {
-            this.saveCurrentChat();
+            await this.saveCurrentChat();
         }
 
         // 加载选中的对话
@@ -336,8 +343,8 @@ class ChatManager {
 window.chatManager = new ChatManager();
 
 // 暴露全局函数（向后兼容）
-function saveCurrentChat() {
-    window.chatManager.saveCurrentChat();
+async function saveCurrentChat() {
+    await window.chatManager.saveCurrentChat();
 }
 
 function loadChat(chatId) {

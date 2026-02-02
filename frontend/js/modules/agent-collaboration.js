@@ -11,6 +11,34 @@ class AgentCollaboration {
     this.storageKeyPrefix = 'collaboration:plan';
   }
 
+  getAuthToken() {
+    return (
+      sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('accessToken')
+    );
+  }
+
+  buildAuthHeaders(extra = {}) {
+    const token = this.getAuthToken();
+    return {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extra
+    };
+  }
+
+  async fetchWithAuth(url, options = {}, retry = true) {
+    const headers = this.buildAuthHeaders(options.headers || {});
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401 && retry && window.apiClient?.refreshAccessToken) {
+      const refreshed = await window.apiClient.refreshAccessToken();
+      if (refreshed) {
+        return this.fetchWithAuth(url, options, false);
+      }
+    }
+    return response;
+  }
+
   escapeHtml(text) {
     return String(text || '')
       .replace(/&/g, '&amp;')
@@ -190,14 +218,14 @@ class AgentCollaboration {
         id: 'product-development',
         name: '统一产品开发流程',
         stages: [
-          { id: 'strategy', name: '战略设计阶段' },
-          { id: 'requirement', name: '需求阶段' },
-          { id: 'design', name: '设计阶段' },
-          { id: 'architecture', name: '架构阶段' },
-          { id: 'development', name: '开发阶段' },
-          { id: 'testing', name: '测试阶段' },
-          { id: 'deployment', name: '部署阶段' },
-          { id: 'operation', name: '运营阶段' }
+          { id: 'strategy', name: '战略设计' },
+          { id: 'requirement', name: '需求' },
+          { id: 'design', name: '设计' },
+          { id: 'architecture', name: '架构' },
+          { id: 'development', name: '开发' },
+          { id: 'testing', name: '测试' },
+          { id: 'deployment', name: '部署' },
+          { id: 'operation', name: '运营' }
         ],
         agents: {
           strategy: ['strategy-design'],
@@ -267,10 +295,11 @@ class AgentCollaboration {
     }`;
 
     // 初始显示：如果有缓存的推荐成员，显示推荐成员；否则显示加载提示
-    const cached = project?.collaborationSuggestion || this.loadSuggestion(this.getSuggestionStorageKey({
+    const storageKey = this.getSuggestionStorageKey({
       projectId,
       idea: ideaContext.displayName
-    }));
+    });
+    const cached = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
     const initialAgents = cached?.recommendedAgents?.length > 0 ? cached.recommendedAgents : [];
     const agentCards = initialAgents.length > 0
       ? this.renderMemberCards(await this.resolveMemberList(initialAgents, agents), true)
@@ -313,15 +342,9 @@ class AgentCollaboration {
 
     window.modalManager.showCustomModal('协同模式', contentHTML, 'collaborationModeModal');
 
-    const storageKey = this.getSuggestionStorageKey({
-      projectId,
-      idea: ideaContext.displayName
-    });
-    const cachedSuggestion = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
-
-    if (cachedSuggestion && cachedSuggestion.plan) {
-      this.renderSuggestionContent(cachedSuggestion.plan, cachedSuggestion.updatedAt, cachedSuggestion.collaborationMode);
-      const cachedList = Array.isArray(cachedSuggestion.recommendedAgents) ? cachedSuggestion.recommendedAgents : [];
+    if (cached && cached.plan) {
+      this.renderSuggestionContent(cached.plan, cached.updatedAt, cached.collaborationMode);
+      const cachedList = Array.isArray(cached.recommendedAgents) ? cached.recommendedAgents : [];
       const fallbackList =
         cachedList.length > 0 ? cachedList : this.getDefaultRecommendedAgentIds(workflowCategory);
       const memberList = fallbackList.length ? fallbackList : agents;
@@ -346,17 +369,40 @@ class AgentCollaboration {
 
       if (collaborationExecuted) {
         // 已执行状态：只显示关闭按钮
-        document.getElementById('collaborationClose')?.addEventListener('click', () => {
-          window.modalManager?.close('collaborationModeModal');
-        });
+        const closeBtn = document.getElementById('collaborationClose');
+        if (closeBtn) {
+          // 移除旧的监听器（通过克隆节点）
+          const newCloseBtn = closeBtn.cloneNode(true);
+          closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+
+          newCloseBtn.addEventListener('click', () => {
+            window.modalManager?.close('collaborationModeModal');
+          });
+        }
       } else {
         // 未执行状态：显示取消和确认按钮
-        document.getElementById('collaborationCancel')?.addEventListener('click', () => {
-          window.modalManager?.close('collaborationModeModal');
-        });
-        document.getElementById('collaborationConfirm')?.addEventListener('click', async () => {
-          await this.confirmExecution();
-        });
+        const cancelBtn = document.getElementById('collaborationCancel');
+        const confirmBtn = document.getElementById('collaborationConfirm');
+
+        if (cancelBtn) {
+          // 移除旧的监听器（通过克隆节点）
+          const newCancelBtn = cancelBtn.cloneNode(true);
+          cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+          newCancelBtn.addEventListener('click', () => {
+            window.modalManager?.close('collaborationModeModal');
+          });
+        }
+
+        if (confirmBtn) {
+          // 移除旧的监听器（通过克隆节点）
+          const newConfirmBtn = confirmBtn.cloneNode(true);
+          confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+          newConfirmBtn.addEventListener('click', async () => {
+            await this.confirmExecution();
+          });
+        }
       }
     }, 0);
   }
@@ -372,9 +418,9 @@ class AgentCollaboration {
     workflowCategory = ''
   ) {
     try {
-      const response = await fetch(`${this.apiUrl}/api/agents/collaboration-plan`, {
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/collaboration-plan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           idea,
           agents: agents.map(a => ({ id: a.id, name: a.nickname || a.name, type: a.type || a.name })),
@@ -542,29 +588,55 @@ class AgentCollaboration {
 
       // 检查并自动雇佣推荐成员
       if (suggestion?.recommendedAgents?.length > 0) {
-        const hiredAgents = (await window.projectManager?.getUserHiredAgents?.()) || [];
-        const hiredIds = hiredAgents.map(a => a.id);
-        const unhiredIds = suggestion.recommendedAgents.filter(id => !hiredIds.includes(id));
+        console.log('[协作模式] 推荐的Agent类型:', suggestion.recommendedAgents);
 
-        if (unhiredIds.length > 0) {
-          // 自动雇佣推荐成员
-          for (const agentId of unhiredIds) {
-            try {
-              await window.projectManager?.hireAgent?.(agentId);
-            } catch (error) {
-              console.warn(`自动雇佣成员 ${agentId} 失败:`, error);
-            }
+        const hiredAgents = (await window.projectManager?.getUserHiredAgents?.()) || [];
+        console.log('[协作模式] 已雇佣的Agent:', hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name })));
+
+        // 注意：suggestion.recommendedAgents 是 Agent 类型ID（如 'product-manager'）
+        // 而 hiredAgents 中的 id 是实例ID，type 才是类型ID
+        const hiredTypes = hiredAgents.map(a => a.type);
+        const unhiredTypes = suggestion.recommendedAgents.filter(type => !hiredTypes.includes(type));
+
+        console.log('[协作模式] 未雇佣的Agent类型:', unhiredTypes);
+
+        if (unhiredTypes.length > 0) {
+          // 自动雇佣推荐成员（直接调用API，不添加到项目）
+          const userId = window.projectManager?.getUserId?.();
+          const hirePromises = [];
+
+          // 并行雇佣所有未雇佣的Agent
+          for (const agentType of unhiredTypes) {
+            const hirePromise = this.fetchWithAuth(`${window.projectManager.apiUrl}/api/agents/hire`, {
+              method: 'POST',
+              headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ userId, agentType })
+            })
+              .then(response => response.ok ? response.json() : Promise.reject())
+              .then(result => {
+                console.log('[协作模式] 雇佣成功:', result.data);
+                return result.data;
+              })
+              .catch(error => {
+                console.warn(`雇佣 ${agentType} 失败:`, error);
+                return null;
+              });
+
+            hirePromises.push(hirePromise);
           }
+
+          // 等待所有雇佣操作完成
+          const hiredAgents = await Promise.all(hirePromises);
+          const successCount = hiredAgents.filter(Boolean).length;
+          console.log(`[协作模式] 雇佣完成: ${successCount}/${unhiredTypes.length}`);
+
+          // 清除缓存，强制重新获取
+          window.projectManager.hiredAgentsPromise = null;
+          window.projectManager.cachedHiredAgents = null;
         }
       }
 
-      // 标记项目为已执行状态
-      await window.storageManager?.saveProject({
-        ...project,
-        collaborationExecuted: true
-      });
-
-      // 应用协同建议到项目阶段
+      // 应用协同建议到项目阶段（在标记为已执行之前）
       if (suggestion && window.projectManager?.applyCollaborationSuggestion) {
         await window.projectManager.applyCollaborationSuggestion(
           this.currentContext.projectId,
@@ -572,21 +644,26 @@ class AgentCollaboration {
         );
       }
 
+      // 标记项目为已执行状态
+      const updatedProject = await window.storageManager?.getProject(this.currentContext.projectId);
+      await window.storageManager?.saveProject({
+        ...updatedProject,
+        collaborationExecuted: true
+      });
+
       // 关闭弹窗
       window.modalManager?.close('collaborationModeModal');
 
       // 刷新整个项目面板（确保阶段和成员都显示）
       if (window.projectManager?.currentProject?.id === this.currentContext.projectId) {
-        const updatedProject = await window.storageManager?.getProject(this.currentContext.projectId);
-        window.projectManager.currentProject = updatedProject;
-        window.projectManager.renderProjectPanel(updatedProject);
+        const finalProject = await window.storageManager?.getProject(this.currentContext.projectId);
+        window.projectManager.currentProject = finalProject;
+        window.projectManager.renderProjectPanel(finalProject);
       }
 
-      // 执行工作流
-      if (window.projectManager?.executeAllStages) {
-        await window.projectManager.executeAllStages(this.currentContext.projectId, {
-          skipConfirm: true
-        });
+      // 显示成功提示
+      if (window.ErrorHandler?.showToast) {
+        window.ErrorHandler.showToast('协作模式已确认！项目成员和流程阶段已更新。', 'success');
       }
     } catch (error) {
       console.error('确认执行失败:', error);
@@ -627,7 +704,7 @@ class AgentCollaboration {
   async initAgentSystem() {
     try {
       // 获取可用的Agent类型
-      const response = await fetch(`${this.apiUrl}/api/agents/types`);
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/types`);
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0) {
@@ -650,7 +727,7 @@ class AgentCollaboration {
    */
   async loadMyAgents() {
     try {
-      const response = await fetch(`${this.apiUrl}/api/agents/my/${this.getAgentUserId()}`);
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/my/${this.getAgentUserId()}`);
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0) {
@@ -683,11 +760,9 @@ class AgentCollaboration {
    */
   async hireAgent(agentType, agentName) {
     try {
-      const response = await fetch(`${this.apiUrl}/api/agents/hire`, {
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/hire`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           userId: this.getAgentUserId(),
           agentType: agentType
@@ -741,8 +816,9 @@ class AgentCollaboration {
     }
 
     try {
-      const response = await fetch(`${this.apiUrl}/api/agents/${this.getAgentUserId()}/${agentId}`, {
-        method: 'DELETE'
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/${this.getAgentUserId()}/${agentId}`, {
+        method: 'DELETE',
+        headers: this.buildAuthHeaders()
       });
 
       if (!response.ok) {
@@ -795,11 +871,9 @@ class AgentCollaboration {
     try {
       alert(`${agent.nickname} 开始工作中，请稍候...`);
 
-      const response = await fetch(`${this.apiUrl}/api/agents/assign-task`, {
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/assign-task`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           userId: this.getAgentUserId(),
           agentId: agentId,

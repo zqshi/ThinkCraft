@@ -3,7 +3,7 @@
 # Script to create frontend DDD module structure
 
 MODULE_NAME=$1
-MODULE_PATH="/Users/zqs/Downloads/project/ThinkCraft/frontend/src/features/${MODULE_NAME}"
+MODULE_PATH="/Users/zqs/Downloads/project/ThinkCraft/frontend/experimental-src/features/${MODULE_NAME}"
 
 if [ -z "$MODULE_NAME" ]; then
     echo "Usage: $0 <module-name>"

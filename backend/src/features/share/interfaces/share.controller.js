@@ -2,7 +2,7 @@
  * Share 控制器
  */
 import { ShareUseCase } from '../application/share.use-case.js';
-import { ShareInMemoryRepository } from '../infrastructure/share-inmemory.repository.js';
+import { getRepository } from '../../../shared/infrastructure/repository.factory.js';
 import {
   CreateShareRequestDto,
   UpdateShareRequestDto,
@@ -12,7 +12,7 @@ import {
 
 export class ShareController {
   constructor() {
-    this.shareUseCase = new ShareUseCase(new ShareInMemoryRepository());
+    this.shareUseCase = new ShareUseCase(getRepository('share'));
   }
 
   /**
@@ -30,7 +30,7 @@ export class ShareController {
         password: req.body.password
       });
 
-      const result = await this.shareUseCase.createShare(requestDto, req.user.id);
+      const result = await this.shareUseCase.createShare(requestDto, req.user.userId);
       res.json({
         success: true,
         data: result
@@ -80,7 +80,7 @@ export class ShareController {
    */
   async getShare(req, res) {
     try {
-      const result = await this.shareUseCase.getShare(req.params.shareId, req.user.id);
+      const result = await this.shareUseCase.getShare(req.params.shareId, req.user.userId);
       res.json({
         success: true,
         data: result
@@ -109,7 +109,7 @@ export class ShareController {
       const result = await this.shareUseCase.updateShare(
         req.params.shareId,
         requestDto,
-        req.user.id
+        req.user.userId
       );
       res.json({
         success: true,
@@ -128,7 +128,7 @@ export class ShareController {
    */
   async revokeShare(req, res) {
     try {
-      const result = await this.shareUseCase.revokeShare(req.params.shareId, req.user.id);
+      const result = await this.shareUseCase.revokeShare(req.params.shareId, req.user.userId);
       res.json({
         success: true,
         data: result
@@ -159,7 +159,7 @@ export class ShareController {
         }
       });
 
-      const result = await this.shareUseCase.getUserShares(req.user.id, filters);
+      const result = await this.shareUseCase.getUserShares(req.user.userId, filters);
       res.json({
         success: true,
         data: result
@@ -198,7 +198,7 @@ export class ShareController {
    */
   async getShareStats(req, res) {
     try {
-      const result = await this.shareUseCase.getShareStats(req.user.id);
+      const result = await this.shareUseCase.getShareStats(req.user.userId);
       res.json({
         success: true,
         data: result
@@ -221,7 +221,7 @@ export class ShareController {
         operation: req.body.operation
       });
 
-      const result = await this.shareUseCase.batchOperation(requestDto, req.user.id);
+      const result = await this.shareUseCase.batchOperation(requestDto, req.user.userId);
       res.json({
         success: true,
         data: result

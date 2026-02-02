@@ -53,6 +53,87 @@ export class ChatMongoRepository {
   }
 
   /**
+   * 查找置顶聊天
+   */
+  async findPinned(userId) {
+    try {
+      const query = { isPinned: true };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const docs = await ChatModel.find(query)
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      return docs.map(doc => this._toDomain(doc));
+    } catch (error) {
+      logger.error('[ChatMongoRepository] 查找置顶聊天失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据标签查找聊天
+   */
+  async findByTags(tags, userId) {
+    try {
+      if (!Array.isArray(tags) || tags.length === 0) {
+        return [];
+      }
+
+      const query = { tags: { $in: tags }, status: { $ne: 'deleted' } };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const docs = await ChatModel.find(query)
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      return docs.map(doc => this._toDomain(doc));
+    } catch (error) {
+      logger.error('[ChatMongoRepository] 根据标签查找聊天失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据状态查找聊天
+   */
+  async findByStatus(status, userId) {
+    try {
+      const query = { status };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const docs = await ChatModel.find(query)
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      return docs.map(doc => this._toDomain(doc));
+    } catch (error) {
+      logger.error('[ChatMongoRepository] 根据状态查找聊天失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 查找所有聊天
+   */
+  async findAll(userId) {
+    try {
+      const query = userId ? { userId } : {};
+      const docs = await ChatModel.find(query).sort({ updatedAt: -1 }).lean();
+      return docs.map(doc => this._toDomain(doc));
+    } catch (error) {
+      logger.error('[ChatMongoRepository] 查找聊天失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 根据标签查找聊天
    */
   async findByTag(userId, tag) {
@@ -174,6 +255,7 @@ export class ChatMongoRepository {
 
     return new Chat(
       doc._id,
+      doc.userId,
       doc.title,
       status,
       messages,
@@ -192,7 +274,7 @@ export class ChatMongoRepository {
 
     return {
       _id: json.id,
-      userId: json.userId || 'system', // TODO: 从上下文获取userId
+      userId: json.userId,
       title: json.title,
       status: json.status,
       messages: json.messages.map(msg => ({

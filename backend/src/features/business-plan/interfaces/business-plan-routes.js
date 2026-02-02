@@ -131,9 +131,24 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
         contentPreview: result.content.substring(0, 200)
     });
 
+    // 🔧 清理和验证内容，防止JSON解析错误
+    let cleanedContent = result.content;
+    try {
+        // 移除控制字符
+        cleanedContent = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+
+        // 确保内容不包含未转义的特殊字符
+        cleanedContent = cleanedContent.trim();
+
+        console.log('[生成章节] 内容已清理，长度:', cleanedContent.length);
+    } catch (cleanError) {
+        console.warn('[生成章节] 内容清理失败:', cleanError.message);
+        // 继续使用原始内容
+    }
+
     return {
         chapterId,
-        content: result.content,
+        content: cleanedContent,
         agent: agent.name,
         emoji: agent.emoji,
         tokens: result.usage.total_tokens,

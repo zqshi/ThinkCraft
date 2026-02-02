@@ -339,6 +339,95 @@ const STAGE_PROMPTS = {
 };
 
 /**
+ * 交付物类型的专门提示词
+ */
+const ARTIFACT_PROMPTS = {
+    'prd': `请生成完整的产品需求文档（PRD），包含：
+1. 产品概述（产品名称、定位、目标用户、核心价值）
+2. 功能需求（核心功能和辅助功能的详细描述）
+3. 用户故事（以用户视角描述功能需求）
+4. 功能优先级（P0/P1/P2划分）
+5. 非功能性需求（性能、安全、兼容性要求）
+
+请输出完整的Markdown格式文档。`,
+
+    'user-story': `请生成用户故事文档，包含：
+1. 用户角色定义（不同类型的用户及其特征）
+2. 核心用户故事（格式：作为[角色]，我想要[功能]，以便[目的]）
+3. 验收标准（每个用户故事的验收条件）
+4. 优先级排序（按业务价值和实现难度排序）
+
+请输出完整的Markdown格式文档。`,
+
+    'feature-list': `请生成功能清单文档，包含：
+1. 功能分类（按模块或功能域分类）
+2. 功能列表（每个功能的名称、描述、优先级）
+3. 功能依赖关系（功能之间的依赖和顺序）
+4. 实现建议（技术实现的简要建议）
+
+请输出完整的Markdown格式文档。`,
+
+    'strategy-doc': `请生成战略设计文档，包含：
+1. 战略目标（核心目标与阶段性目标）
+2. 关键假设（业务假设与验证路径）
+3. 核心策略（产品策略/技术策略/市场策略）
+4. 里程碑规划（关键节点与交付物）
+5. 风险与对策（潜在风险与缓释措施）
+
+请输出完整的Markdown格式文档。`,
+
+    'ui-design': `请生成UI设计方案文档，包含：
+1. 设计目标（设计理念、视觉风格、用户体验目标）
+2. 信息架构（页面结构和导航设计）
+3. 界面设计（主要页面的布局和交互设计）
+4. 组件库（UI组件规范：按钮、表单、卡片等）
+5. 交互流程（关键功能的交互流程图）
+
+请输出完整的Markdown格式文档。`,
+
+    'design-spec': `请生成设计规范文档（Design Specification），包含：
+1. 色彩系统
+   - 主色调（Primary Color）及其色值
+   - 辅助色（Secondary Color）
+   - 中性色（灰度系统）
+   - 语义色（成功、警告、错误、信息）
+2. 字体规范
+   - 字体家族
+   - 字号体系（标题、正文、辅助文字）
+   - 字重（Font Weight）
+   - 行高（Line Height）
+3. 间距规范
+   - 基础间距单位
+   - 组件内边距（Padding）
+   - 组件外边距（Margin）
+   - 栅格系统
+4. 圆角规范
+   - 按钮圆角
+   - 卡片圆角
+   - 输入框圆角
+5. 阴影规范
+   - 不同层级的阴影效果
+6. 图标规范
+   - 图标尺寸
+   - 图标风格
+   - 图标使用场景
+
+请输出完整的Markdown格式文档，包含具体的数值和色值。`,
+
+    'prototype': `请生成一个简单的HTML原型页面，展示产品的核心界面。
+
+要求：
+1. 使用纯HTML + CSS实现，不依赖外部库
+2. 包含产品的主要页面布局
+3. 展示核心功能的界面设计
+4. 使用现代化的设计风格
+5. 响应式设计，适配不同屏幕尺寸
+6. 包含必要的交互元素（按钮、表单、导航等）
+
+请直接输出完整的HTML代码，从<!DOCTYPE html>开始。`
+};
+
+/**
  * 执行单个阶段任务
  * @param {String} projectId - 项目ID
  * @param {String} stageId - 阶段ID
@@ -358,36 +447,80 @@ async function executeStage(projectId, stageId, context = {}) {
     }
 
     // 替换上下文变量
-    let prompt = promptTemplate;
+    let basePrompt = promptTemplate;
     for (const [key, value] of Object.entries(context)) {
-        prompt = prompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
+        basePrompt = basePrompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
     }
-
-    // 调用AI生成内容
-    const result = await callDeepSeekAPI(
-        [{ role: 'user', content: prompt }],
-        null,
-        {
-            max_tokens: 4000,
-            temperature: 0.7
-        }
-    );
 
     // 创建交付物
     const generatedArtifacts = [];
-    for (const artifactType of stage.artifactTypes) {
+    let totalTokens = 0;
+
+    // 如果只有一个交付物类型，使用原有逻辑
+    if (stage.artifactTypes.length === 1) {
+        const result = await callDeepSeekAPI(
+            [{ role: 'user', content: basePrompt }],
+            null,
+            {
+                max_tokens: 4000,
+                temperature: 0.7
+            }
+        );
+
         const artifact = {
             id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             projectId,
             stageId,
-            type: artifactType,
-            name: getArtifactName(artifactType),
+            type: stage.artifactTypes[0],
+            name: getArtifactName(stage.artifactTypes[0]),
             content: result.content,
             agentName: getAgentName(stage.recommendedAgents[0]),
             createdAt: Date.now(),
             tokens: result.usage.total_tokens
         };
         generatedArtifacts.push(artifact);
+        totalTokens = result.usage.total_tokens;
+    } else {
+        // 如果有多个交付物类型，为每个类型生成专门的内容
+        for (const artifactType of stage.artifactTypes) {
+            // 构建针对该交付物类型的提示词
+            const artifactPrompt = ARTIFACT_PROMPTS[artifactType];
+            let finalPrompt = basePrompt;
+
+            if (artifactPrompt) {
+                // 如果有专门的交付物提示词，追加到基础提示词后
+                finalPrompt = `${basePrompt}\n\n${artifactPrompt}`;
+            }
+
+            // 调用AI生成该交付物的内容
+            const result = await callDeepSeekAPI(
+                [{ role: 'user', content: finalPrompt }],
+                null,
+                {
+                    max_tokens: 4000,
+                    temperature: 0.7
+                }
+            );
+
+            const artifact = {
+                id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                projectId,
+                stageId,
+                type: artifactType,
+                name: getArtifactName(artifactType),
+                content: result.content,
+                agentName: getAgentName(stage.recommendedAgents[0]),
+                createdAt: Date.now(),
+                tokens: result.usage.total_tokens
+            };
+            generatedArtifacts.push(artifact);
+            totalTokens += result.usage.total_tokens;
+
+            // 添加延迟，避免API调用过快
+            if (stage.artifactTypes.length > 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
     }
 
     // 保存交付物
@@ -409,7 +542,11 @@ async function executeStage(projectId, stageId, context = {}) {
 function getArtifactName(artifactType) {
     const typeMap = {
         'prd': '产品需求文档',
+        'user-story': '用户故事',
+        'feature-list': '功能清单',
         'ui-design': 'UI设计方案',
+        'design-spec': '设计规范',
+        'prototype': '交互原型',
         'architecture-doc': '系统架构设计',
         'code': '开发实现指南',
         'strategy-doc': '战略设计文档',

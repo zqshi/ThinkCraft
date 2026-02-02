@@ -21,6 +21,12 @@ export class PhoneVerificationUseCase {
    */
   async sendVerificationCode(phone, type = 'register') {
     try {
+      const cacheEnabled =
+        typeof this.cacheService.isEnabled === 'function' ? this.cacheService.isEnabled() : false;
+      if (!cacheEnabled) {
+        throw new Error('验证码服务暂不可用，请稍后再试');
+      }
+
       // 验证手机号格式
       if (!this._validatePhone(phone)) {
         throw new Error('手机号格式不正确');
@@ -83,6 +89,12 @@ export class PhoneVerificationUseCase {
    */
   async verifyCode(phone, code, type = 'register') {
     try {
+      const cacheEnabled =
+        typeof this.cacheService.isEnabled === 'function' ? this.cacheService.isEnabled() : false;
+      if (!cacheEnabled) {
+        throw new Error('验证码服务暂不可用，请稍后再试');
+      }
+
       // 验证手机号格式
       if (!this._validatePhone(phone)) {
         throw new Error('手机号格式不正确');

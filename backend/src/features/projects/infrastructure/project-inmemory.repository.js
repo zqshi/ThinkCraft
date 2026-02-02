@@ -28,10 +28,13 @@ export class ProjectInMemoryRepository extends ProjectRepository {
   /**
    * 根据创意ID查找项目
    */
-  async findByIdeaId(ideaId) {
+  async findByIdeaId(ideaId, userId) {
     const ideaIdObj = ideaId instanceof IdeaId ? ideaId : new IdeaId(ideaId);
 
     for (const project of this.projects.values()) {
+      if (userId && project.userId !== userId) {
+        continue;
+      }
       if (
         project.ideaId.equals(ideaIdObj) &&
         project.status.value !== ProjectStatus.DELETED.value
@@ -50,6 +53,9 @@ export class ProjectInMemoryRepository extends ProjectRepository {
     let projectList = Array.from(this.projects.values());
 
     // 应用过滤器
+    if (filters.userId) {
+      projectList = projectList.filter(p => p.userId === filters.userId);
+    }
     if (filters.ideaId) {
       const ideaIdObj = new IdeaId(filters.ideaId);
       projectList = projectList.filter(p => p.ideaId.equals(ideaIdObj));
@@ -132,8 +138,11 @@ export class ProjectInMemoryRepository extends ProjectRepository {
   /**
    * 检查创意是否已有项目
    */
-  async existsByIdeaId(ideaId) {
+  async existsByIdeaId(ideaId, userId) {
     for (const project of this.projects.values()) {
+      if (userId && project.userId !== userId) {
+        continue;
+      }
       if (
         project.ideaId.equals(ideaId instanceof IdeaId ? ideaId : new IdeaId(ideaId)) &&
         project.status.value !== ProjectStatus.DELETED.value
@@ -155,10 +164,13 @@ export class ProjectInMemoryRepository extends ProjectRepository {
   /**
    * 按状态统计项目数量
    */
-  async countByStatus() {
+  async countByStatus(userId) {
     const countByStatus = {};
 
     for (const project of this.projects.values()) {
+      if (userId && project.userId !== userId) {
+        continue;
+      }
       const status = project.status.value;
       countByStatus[status] = (countByStatus[status] || 0) + 1;
     }
@@ -169,10 +181,13 @@ export class ProjectInMemoryRepository extends ProjectRepository {
   /**
    * 按模式统计项目数量
    */
-  async countByMode() {
+  async countByMode(userId) {
     const countByMode = {};
 
     for (const project of this.projects.values()) {
+      if (userId && project.userId !== userId) {
+        continue;
+      }
       const mode = project.mode.value;
       countByMode[mode] = (countByMode[mode] || 0) + 1;
     }
@@ -183,10 +198,11 @@ export class ProjectInMemoryRepository extends ProjectRepository {
   /**
    * 获取最近的项目
    */
-  async findRecent(limit = 10) {
+  async findRecent(limit = 10, userId) {
     return this.findAll({
       sortBy: 'updatedAt',
-      limit: limit
+      limit: limit,
+      userId
     });
   }
 

@@ -131,9 +131,65 @@ class ReportViewer {
         const normalizeObject = (value) => (value && typeof value === 'object') ? value : {};
         const normalizeText = (value, fallback = '') => (value === undefined || value === null || value === '') ? fallback : value;
 
-        // 验证数据结构
+        // 🔧 兼容性处理：如果数据是 {report: {...}, cached: ...} 格式，提取 report 字段
+        if (reportData && reportData.report && !reportData.chapters) {
+            console.warn('[报告查看器] 检测到旧数据格式，自动提取 report 字段');
+            reportData = reportData.report;
+        }
+
+        // 数据格式兼容处理
         if (!reportData || !reportData.chapters) {
-            const errorDetails = !reportData ? '报告数据为空' : '报告缺少chapters字段';
+            console.error('[报告查看器] 数据格式错误:', reportData);
+            reportContent.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                    <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                        报告数据格式错误
+                    </div>
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                        缺少必需字段: chapters<br><br>
+                        <strong>可能的原因:</strong><br>
+                        1. 报告生成未完成<br>
+                        2. 数据存储异常<br>
+                        3. 网络传输中断<br><br>
+                        <strong>建议操作:</strong><br>
+                        1. 点击"重新生成"按钮<br>
+                        2. 如果多次失败，请刷新页面<br>
+                        3. 确保至少进行了3轮以上对话
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: center;">
+                        <button class="btn-secondary" onclick="closeReport()">关闭</button>
+                        <button class="btn-primary" onclick="generateDetailedReport(true)">重新生成</button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // 如果chapters是数组格式，转换为对象格式
+        if (Array.isArray(reportData.chapters)) {
+            console.warn('[报告查看器] chapters是数组格式，转换为对象格式');
+            const chaptersObj = {};
+            reportData.chapters.forEach((ch, idx) => {
+                chaptersObj[`chapter${idx + 1}`] = ch;
+            });
+            reportData.chapters = chaptersObj;
+        }
+
+        // 🔧 使用 ErrorHandler 验证数据结构
+        const schema = {
+            required: ['chapters'],
+            fields: {
+                chapters: 'object'
+            }
+        };
+
+        const validation = window.ErrorHandler?.validateDataStructure(reportData, schema) || { valid: false, errors: ['数据验证失败'] };
+
+        if (!validation.valid) {
+            console.error('[报告查看器] 数据验证失败:', validation.errors);
+
+            const errorDetails = validation.errors.join('<br>');
 
             reportContent.innerHTML = `
                 <div style="text-align: center; padding: 60px 20px;">
@@ -146,11 +202,13 @@ class ReportViewer {
                         <strong>可能的原因:</strong><br>
                         1. 后端AI服务响应超时<br>
                         2. 对话内容不足以生成报告<br>
-                        3. 网络连接不稳定<br><br>
+                        3. 网络连接不稳定<br>
+                        4. 数据格式不符合预期<br><br>
                         <strong>建议操作:</strong><br>
                         1. 点击下方"重试"按钮<br>
                         2. 如果多次失败，请刷新页面<br>
-                        3. 确保至少进行了3轮以上对话
+                        3. 确保至少进行了3轮以上对话<br>
+                        4. 检查浏览器控制台查看详细错误信息
                     </div>
                     <div style="display: flex; gap: 12px; justify-content: center;">
                         <button class="btn-secondary" onclick="closeReport()">关闭</button>

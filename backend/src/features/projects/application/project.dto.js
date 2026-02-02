@@ -4,10 +4,11 @@
  */
 
 export class CreateProjectRequestDTO {
-  constructor(ideaId, name, mode) {
+  constructor(ideaId, name, mode, userId) {
     this.ideaId = ideaId;
     this.name = name;
     this.mode = mode || 'development';
+    this.userId = userId;
   }
 
   validate() {
@@ -34,6 +35,10 @@ export class CreateProjectRequestDTO {
     if (/[<>'"&]/.test(this.name)) {
       throw new Error('项目名称不能包含特殊字符: <>"\'&');
     }
+
+    if (!this.userId || typeof this.userId !== 'string') {
+      throw new Error('用户ID不能为空');
+    }
   }
 }
 
@@ -41,6 +46,7 @@ export class CreateProjectResponseDTO {
   constructor(project) {
     this.project = {
       id: project.id.value,
+      userId: project.userId,
       ideaId: project.ideaId.value,
       name: project.name.value,
       mode: project.mode.value,
@@ -112,6 +118,7 @@ export class UpdateProjectRequestDTO {
 export class ProjectResponseDTO {
   constructor(project) {
     this.id = project.id.value;
+    this.userId = project.userId;
     this.ideaId = project.ideaId.value;
     this.name = project.name.value;
     this.mode = project.mode.value;

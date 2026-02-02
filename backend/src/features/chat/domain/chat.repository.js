@@ -23,7 +23,7 @@ export class IChatRepository extends IAggregateRootRepository {
   /**
    * 查找所有聊天
    */
-  async findAll() {
+  async findAll(userId) {
     throw new Error('必须实现findAll方法');
   }
 
@@ -38,7 +38,7 @@ export class IChatRepository extends IAggregateRootRepository {
   /**
    * 查找置顶的聊天
    */
-  async findPinned() {
+  async findPinned(userId) {
     throw new Error('必须实现findPinned方法');
   }
 
@@ -46,7 +46,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 根据标签查找聊天
    * @param {string[]} tags
    */
-  async findByTags(tags) {
+  async findByTags(tags, userId) {
     throw new Error('必须实现findByTags方法');
   }
 

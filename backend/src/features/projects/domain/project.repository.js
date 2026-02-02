@@ -15,7 +15,7 @@ export class ProjectRepository extends IAggregateRootRepository {
   /**
    * 根据创意ID查找项目
    */
-  async findByIdeaId(ideaId) {
+  async findByIdeaId(ideaId, userId) {
     throw new Error('子类必须实现findByIdeaId方法');
   }
 
@@ -43,7 +43,7 @@ export class ProjectRepository extends IAggregateRootRepository {
   /**
    * 检查创意是否已有项目
    */
-  async existsByIdeaId(ideaId) {
+  async existsByIdeaId(ideaId, userId) {
     throw new Error('子类必须实现existsByIdeaId方法');
   }
 
@@ -57,21 +57,21 @@ export class ProjectRepository extends IAggregateRootRepository {
   /**
    * 按状态统计项目数量
    */
-  async countByStatus() {
+  async countByStatus(userId) {
     throw new Error('子类必须实现countByStatus方法');
   }
 
   /**
    * 按模式统计项目数量
    */
-  async countByMode() {
+  async countByMode(userId) {
     throw new Error('子类必须实现countByMode方法');
   }
 
   /**
    * 获取最近的项目
    */
-  async findRecent(limit = 10) {
+  async findRecent(limit = 10, userId) {
     throw new Error('子类必须实现findRecent方法');
   }
 }

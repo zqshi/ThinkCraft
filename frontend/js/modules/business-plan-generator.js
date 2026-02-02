@@ -94,35 +94,68 @@ class BusinessPlanGenerator {
    * @param {String} type - 'business' | 'proposal'
    */
   async handleButtonClick(type) {
+    console.log('[按钮点击] ========== 开始处理 ==========');
+    console.log('[按钮点击] 类型:', type);
+    console.log('[按钮点击] 时间:', new Date().toISOString());
+
     logger.debug('[按钮点击] 处理按钮点击', { type });
+
+    // ✅ 防御性检查：确保按钮未被意外禁用
+    const btnMap = {
+      'business': 'businessPlanBtn',
+      'proposal': 'proposalBtn'
+    };
+    const btnId = btnMap[type];
+    const btn = document.getElementById(btnId);
+    if (btn && btn.disabled) {
+      console.warn('[按钮点击] 按钮被禁用，强制启用');
+      btn.disabled = false;
+    }
 
     // 获取当前会话ID
     const chatId = window.state?.currentChat;
+    console.log('[按钮点击] 会话ID:', chatId);
 
     // 添加 chatId 有效性验证
     if (!chatId) {
       console.error('[按钮点击] 当前没有活动会话');
-      alert('请先创建或选择一个会话');
+      window.ErrorHandler?.showToast('请先创建或选择一个会话', 'warning');
       return;
     }
 
     // 检查报告状态
+    console.log('[按钮点击] 开始检查报告状态...');
     const report = await this.checkReportStatus(type, chatId);
+    console.log('[按钮点击] 报告状态检查完成:', {
+      hasReport: !!report,
+      status: report?.status,
+      type: report?.type,
+      hasData: !!report?.data,
+      hasChapters: !!report?.data?.chapters
+    });
+
     logger.debug('[按钮点击] 报告状态', { type, chatId, status: report?.status });
 
     if (!report || report.status === 'idle' || report.status === 'error') {
       // 状态：空闲或错误 → 显示章节选择
+      console.log('[按钮点击] 显示章节选择弹窗');
       logger.debug('[按钮点击] 显示章节选择弹窗');
       this.showChapterSelection(type);
     } else if (report.status === 'generating') {
       // 状态：生成中 → 显示进度弹窗
+      console.log('[按钮点击] 显示进度弹窗');
       logger.debug('[按钮点击] 显示进度弹窗');
       await this.showProgress(type, report);
     } else if (report.status === 'completed') {
       // 状态：已完成 → 显示报告查看
+      console.log('[按钮点击] 显示报告查看弹窗');
       logger.debug('[按钮点击] 显示报告查看弹窗');
       this.showCompletedReport(type, report);
+    } else {
+      console.warn('[按钮点击] 未知的报告状态:', report?.status);
     }
+
+    console.log('[按钮点击] ========== 处理完成 ==========');
   }
 
   /**
@@ -848,6 +881,11 @@ class BusinessPlanGenerator {
         error: null
       });
 
+      // 清除报告状态缓存，确保UI显示最新状态
+      if (window.reportStatusManager) {
+        window.reportStatusManager.clearCache(normalizedChatId, type);
+      }
+
       logger.debug('[保存报告] 保存成功');
     } catch (error) {
       console.error('[保存报告] 保存失败:', error);
@@ -905,6 +943,12 @@ class BusinessPlanGenerator {
       logger.debug('[持久化状态] 保存payload:', { id: payload.id, type: payload.type, chatId: payload.chatId, status: payload.status });
 
       await window.storageManager.saveReport(payload);
+
+      // 清除报告状态缓存，确保UI显示最新状态
+      if (window.reportStatusManager && (updates.status === 'completed' || updates.status === 'error')) {
+        window.reportStatusManager.clearCache(chatId, type);
+      }
+
       logger.debug('[持久化状态] 保存成功');
     } catch (error) {
       console.error('[持久化状态] 保存失败:', error);
@@ -932,10 +976,41 @@ class BusinessPlanGenerator {
 
   async restoreProgress(type, reportEntry) {
     const payload = reportEntry?.data || reportEntry || {};
-    const chapterIds = payload.selectedChapters || reportEntry?.selectedChapters || [];
+    let chapterIds = payload.selectedChapters || reportEntry?.selectedChapters || [];
+
     if (!Array.isArray(chapterIds) || chapterIds.length === 0) {
       console.warn('[恢复进度] 没有章节数据');
       return;
+    }
+
+    // 🔧 验证报告类型
+    if (!window.StateValidator?.validateReportType(type)) {
+      console.error('[恢复进度] 无效的报告类型:', type);
+      return;
+    }
+
+    // 🔧 验证章节ID是否与类型匹配
+    const isValid = window.StateValidator?.validateChapterIds(type, chapterIds, this.chapterConfig);
+    if (!isValid) {
+      console.warn('[恢复进度] 章节ID与报告类型不匹配，尝试修复');
+      console.warn('[恢复进度] 原始章节ID:', chapterIds);
+      console.warn('[恢复进度] 报告类型:', type);
+
+      // 修复章节ID列表
+      chapterIds = window.StateValidator?.fixChapterIds(type, chapterIds, this.chapterConfig) || [];
+
+      if (chapterIds.length === 0) {
+        console.error('[恢复进度] 无法修复章节ID，使用默认章节列表');
+        chapterIds = window.StateValidator?.getDefaultChapterIds(type, this.chapterConfig) || [];
+      }
+
+      console.warn('[恢复进度] 修复后的章节ID:', chapterIds);
+
+      // 更新存储中的章节列表
+      await this.persistGenerationState(reportEntry.chatId, type, {
+        ...payload,
+        selectedChapters: chapterIds
+      });
     }
 
     // 获取会话ID

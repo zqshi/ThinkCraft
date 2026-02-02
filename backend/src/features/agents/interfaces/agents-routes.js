@@ -17,6 +17,96 @@ const WORKFLOW_CATEGORY_DIRS = {
     'product-development': 'product-development'
 };
 
+/**
+ * 根据推荐的Agent生成默认阶段
+ * @param {Array<string>} recommendedAgents - 推荐的Agent类型ID列表
+ * @returns {Array<Object>} 阶段列表
+ */
+function generateDefaultStages(recommendedAgents) {
+    // 阶段模板：定义每个Agent类型对应的默认阶段
+    const stageTemplates = {
+        'strategy-design': { id: 'strategy', name: '战略设计', description: '制定产品战略和关键假设', outputs: ['战略设计文档'], order: 1 },
+        'product-manager': { id: 'requirement', name: '需求', description: '需求分析和PRD编写', outputs: ['PRD文档'], order: 2 },
+        'ui-ux-designer': { id: 'design', name: '设计', description: 'UI/UX设计和交互设计', outputs: ['设计文档'], order: 3 },
+        'tech-lead': { id: 'architecture', name: '架构', description: '技术架构设计和技术选型', outputs: ['技术方案'], order: 4 },
+        'frontend-developer': { id: 'frontend-dev', name: '前端开发', description: '前端界面开发', outputs: ['前端代码'], order: 5 },
+        'backend-developer': { id: 'backend-dev', name: '后端开发', description: '后端服务开发', outputs: ['后端代码'], order: 5 },
+        'qa-engineer': { id: 'testing', name: '测试', description: '测试计划和测试执行', outputs: ['测试报告'], order: 6 },
+        'devops': { id: 'deployment', name: '部署', description: '部署准备和部署执行', outputs: ['部署文档'], order: 7 },
+        'marketing': { id: 'marketing', name: '市场推广', description: '增长策略和渠道规划', outputs: ['推广方案'], order: 8 },
+        'operations': { id: 'operations', name: '运营', description: '用户运营和活动策划', outputs: ['运营方案'], order: 8 }
+    };
+
+    // 合并前后端开发阶段
+    const hasFrontend = recommendedAgents.includes('frontend-developer');
+    const hasBackend = recommendedAgents.includes('backend-developer');
+    const hasMarketing = recommendedAgents.includes('marketing');
+    const hasOperations = recommendedAgents.includes('operations');
+
+    const stages = [];
+    const processedAgents = new Set();
+
+    // 处理前后端开发合并
+    if (hasFrontend && hasBackend) {
+        stages.push({
+            id: 'development',
+            name: '开发',
+            description: '前后端开发',
+            agents: ['frontend-developer', 'backend-developer'],
+            dependencies: [],
+            outputs: ['前端代码', '后端代码'],
+            status: 'pending',
+            order: 5
+        });
+        processedAgents.add('frontend-developer');
+        processedAgents.add('backend-developer');
+    }
+
+    // 处理市场和运营合并
+    if (hasMarketing && hasOperations) {
+        stages.push({
+            id: 'operation',
+            name: '运营推广',
+            description: '市场推广和用户运营',
+            agents: ['marketing', 'operations'],
+            dependencies: [],
+            outputs: ['运营推广方案'],
+            status: 'pending',
+            order: 8
+        });
+        processedAgents.add('marketing');
+        processedAgents.add('operations');
+    }
+
+    // 处理其他Agent
+    recommendedAgents.forEach(agentType => {
+        if (!processedAgents.has(agentType) && stageTemplates[agentType]) {
+            const template = stageTemplates[agentType];
+            stages.push({
+                ...template,
+                agents: [agentType],
+                dependencies: [],
+                status: 'pending'
+            });
+        }
+    });
+
+    // 按order排序
+    stages.sort((a, b) => a.order - b.order);
+
+    // 设置依赖关系（每个阶段依赖前一个阶段）
+    stages.forEach((stage, index) => {
+        if (index > 0) {
+            stage.dependencies = [stages[index - 1].id];
+        }
+        stage.order = index + 1; // 重新编号
+    });
+
+    console.log('[默认阶段生成] 生成了', stages.length, '个阶段');
+    return stages;
+}
+
+
 // Agent类型定义
 const AGENT_TYPES = {
     // 产品类
@@ -875,56 +965,105 @@ ${context ? `背景信息：\n${context}` : ''}
  */
 router.post('/collaboration-plan', async (req, res, next) => {
     try {
-        const { idea, agents, instruction, conversation } = req.body;
-        const workflowCategory = 'product-development';
+        const { idea, agents, instruction, conversation, workflowCategory: requestedWorkflowCategory } = req.body;
+        const workflowCategory = requestedWorkflowCategory || 'product-development';
 
         const agentList = Array.isArray(agents) ? agents : [];
         const agentDesc = agentList.map(a => `${a.name || a.type}`).join('、') || '暂无';
         const conversationText = conversation ? `\n创意对话内容：\n${conversation}\n` : '';
         const workflowNote = workflowCategory ? `当前流程类型：${workflowCategory}\n` : '';
-        const prompt = `你是一位项目协作专家，请基于创意输出协作模式与雇佣方案。
+        const prompt = `你是一位项目协作专家，请基于创意输出协作模式、雇佣方案和流程阶段。
+
+【重要】请仔细分析创意的特点、领域和需求，生成针对性的协作建议和流程阶段。
 
 创意：${idea || '未提供'}
 ${workflowNote}${conversationText}
 当前团队成员：${agentDesc}
 ${instruction ? `补充要求：${instruction}` : ''}
 
+请根据创意的具体内容和特点，输出以下内容：
+
+1. 协作模式名称（根据创意特点命名，如"敏捷开发模式"、"设计驱动模式"等）
+2. 推荐雇佣的Agent列表（从以下类型中选择最适合该创意的）：
+   - product-manager: 产品经理
+   - ui-ux-designer: UI/UX设计师
+   - frontend-developer: 前端开发
+   - backend-developer: 后端开发
+   - qa-engineer: 测试工程师
+   - devops: 运维工程师
+   - marketing: 市场营销
+   - operations: 运营专员
+   - strategy-design: 战略设计师
+   - tech-lead: 技术负责人
+3. 流程阶段列表（根据推荐的Agent动态生成，每个阶段包含对应的Agent）
+4. 详细的协作执行计划（Markdown格式）
+
+【关键】
+- 推荐的Agent必须与创意的实际需求匹配
+- 流程阶段必须与推荐的Agent对应，每个阶段至少包含一个Agent
+- 阶段之间要有合理的依赖关系
+
 请严格输出JSON：
 {
   "collaborationMode": "协作模式名称",
   "reasoning": "简短原因说明",
   "recommendedAgents": ["推荐岗位列表，使用agent类型id"],
+  "stages": [
+    {
+      "id": "阶段唯一标识（如strategy、requirement、design等）",
+      "name": "阶段名称",
+      "description": "阶段描述",
+      "agents": ["该阶段负责的agent类型id列表"],
+      "dependencies": ["依赖的阶段id列表，如果是第一个阶段则为空数组"],
+      "outputs": ["该阶段的产出物列表"]
+    }
+  ],
   "plan": "协作建议的Markdown格式说明，包含：\n## 协作模式\n简要说明协作模式的特点\n\n## 团队分工\n- **岗位名称**：职责描述\n- **岗位名称**：职责描述\n\n## 执行流程\n1. 阶段一：描述\n2. 阶段二：描述\n\n## 关键要点\n- 要点1\n- 要点2"
 }
 
 注意：
 1. 推荐岗位必须来自统一流程的岗位集合：strategy-design、product-manager、ui-ux-designer、tech-lead、frontend-developer、backend-developer、qa-engineer、devops、marketing、operations
-2. plan字段必须使用Markdown格式，结构清晰，易于阅读
-3. 团队分工要明确每个岗位的职责
-4. 执行流程要体现阶段性和逻辑性`;
+2. stages数组中的每个阶段必须包含至少一个推荐的Agent
+3. 阶段数量应该与推荐的Agent数量相匹配（可以多个Agent在同一阶段）
+4. 阶段id使用英文小写加连字符，如strategy、requirement、design、development等
+5. dependencies数组中的阶段id必须是已定义的阶段
+6. plan字段必须使用Markdown格式，结构清晰，易于阅读`;
 
 
         const result = await callDeepSeekAPI(
             [{ role: 'user', content: prompt }],
             null,
-            { max_tokens: 1000, temperature: 0.6 }
+            {
+                max_tokens: 2000,
+                temperature: 0.7,
+                timeout: 120000 // 120秒超时，协作建议生成需要更长时间
+            }
         );
+
+        console.log('[协作建议] API返回:', {
+            contentLength: result.content?.length,
+            contentPreview: result.content?.substring(0, 200)
+        });
 
         let parsed = null;
         let parseError = null;
         try {
             // 尝试直接解析整个内容
             parsed = JSON.parse(result.content);
+            console.log('[协作建议] JSON解析成功');
         } catch (e1) {
+            console.log('[协作建议] 直接解析失败，尝试提取JSON');
             try {
                 // 尝试提取JSON部分
-                const jsonMatch = result.content.match(/\\{[\\s\\S]*\\}/);
+                const jsonMatch = result.content.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     parsed = JSON.parse(jsonMatch[0]);
+                    console.log('[协作建议] 提取JSON成功');
                 }
             } catch (e2) {
                 parseError = e2;
-                console.error('JSON解析失败:', e2.message);
+                console.error('[协作建议] JSON解析失败:', e2.message);
+                console.error('[协作建议] 原始内容:', result.content);
             }
         }
 
@@ -938,26 +1077,61 @@ ${instruction ? `补充要求：${instruction}` : ''}
         if (!recommendedAgents.length) {
             const workflowAgents = await loadWorkflowAgentIds(workflowCategory);
             recommendedAgents = workflowAgents;
+            console.log('[协作建议] 使用默认推荐成员:', recommendedAgents);
+        }
+
+        // 处理stages字段
+        let stages = [];
+        if (Array.isArray(parsed?.stages) && parsed.stages.length > 0) {
+            // 验证和清理stages数据
+            stages = parsed.stages.map((stage, index) => ({
+                id: stage.id || `stage-${index + 1}`,
+                name: stage.name || `阶段${index + 1}`,
+                description: stage.description || '',
+                agents: Array.isArray(stage.agents) ? stage.agents.filter(a => recommendedAgents.includes(a)) : [],
+                dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
+                outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+                status: 'pending',
+                order: index + 1
+            })).filter(stage => stage.agents.length > 0); // 只保留有Agent的阶段
+
+            console.log('[协作建议] AI生成的阶段数量:', stages.length);
+        } else {
+            console.log('[协作建议] AI未返回stages，使用默认阶段生成逻辑');
+            // 如果AI没有返回stages，根据推荐的Agent生成默认阶段
+            stages = generateDefaultStages(recommendedAgents);
         }
 
         // 改进plan字段的fallback逻辑
         let plan = '暂无建议';
         if (parsed?.plan) {
             plan = parsed.plan;
+            console.log('[协作建议] 使用解析的plan，长度:', plan.length);
         } else if (parseError) {
+            console.log('[协作建议] 尝试从原始内容提取plan');
             // 如果JSON解析失败，尝试从原始内容中提取plan字段
-            const planMatch = result.content.match(/"plan"\\s*:\\s*"([^"]+)"/);
+            const planMatch = result.content.match(/"plan"\s*:\s*"([^"]+)"/);
             if (planMatch) {
-                plan = planMatch[1].replace(/\\\\n/g, '\n').replace(/\\\\"/g, '"');
+                plan = planMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                console.log('[协作建议] 提取plan成功，长度:', plan.length);
             } else {
+                console.log('[协作建议] 无法提取plan，使用错误提示');
                 // 如果无法提取，返回友好的错误提示
-                plan = '## 协作建议生成失败\\n\\n系统暂时无法生成协作建议，请稍后重试。\\n\\n**可能原因**：\\n- AI返回格式异常\\n- 网络连接问题\\n\\n**建议操作**：\\n1. 刷新页面重试\\n2. 检查网络连接\\n3. 联系技术支持';
+                plan = '## 协作建议生成失败\n\n系统暂时无法生成协作建议，请稍后重试。\n\n**可能原因**：\n- AI返回格式异常\n- 网络连接问题\n\n**建议操作**：\n1. 刷新页面重试\n2. 检查网络连接\n3. 联系技术支持';
             }
         }
 
+        console.log('[协作建议] 最终返回:', {
+            collaborationMode,
+            recommendedAgentsCount: recommendedAgents.length,
+            stagesCount: stages.length,
+            planLength: plan.length,
+            planPreview: plan.substring(0, 100)
+        });
+
         res.json({
             code: 0,
-            data: { plan, collaborationMode, recommendedAgents }
+            data: { plan, collaborationMode, recommendedAgents, stages }
         });
     } catch (error) {
         next(error);

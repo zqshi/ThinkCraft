@@ -5,7 +5,7 @@
   "phases": [
     {
       "phase_id": "strategy",
-      "phase_name": "战略设计阶段",
+      "phase_name": "战略设计",
       "agents": [
         {
           "agent_id": "strategy-design",
@@ -18,7 +18,7 @@
     },
     {
       "phase_id": "requirement",
-      "phase_name": "需求阶段",
+      "phase_name": "需求",
       "agents": [
         {
           "agent_id": "product-manager",
@@ -31,7 +31,7 @@
     },
     {
       "phase_id": "design",
-      "phase_name": "设计阶段",
+      "phase_name": "设计",
       "agents": [
         {
           "agent_id": "ui-ux-designer",
@@ -44,7 +44,7 @@
     },
     {
       "phase_id": "architecture",
-      "phase_name": "架构阶段",
+      "phase_name": "架构",
       "agents": [
         {
           "agent_id": "tech-lead",
@@ -57,7 +57,7 @@
     },
     {
       "phase_id": "development",
-      "phase_name": "开发阶段",
+      "phase_name": "开发",
       "agents": [
         {
           "agent_id": "frontend-developer",
@@ -75,7 +75,7 @@
     },
     {
       "phase_id": "testing",
-      "phase_name": "测试阶段",
+      "phase_name": "测试",
       "agents": [
         {
           "agent_id": "qa-engineer",
@@ -88,7 +88,7 @@
     },
     {
       "phase_id": "deployment",
-      "phase_name": "部署阶段",
+      "phase_name": "部署",
       "agents": [
         {
           "agent_id": "devops",
@@ -101,7 +101,7 @@
     },
     {
       "phase_id": "operation",
-      "phase_name": "运营阶段",
+      "phase_name": "运营",
       "agents": [
         {
           "agent_id": "marketing",

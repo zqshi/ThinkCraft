@@ -33,7 +33,8 @@ export class ProjectUseCase {
       const project = await this.projectService.createProject(
         createRequest.ideaId,
         createRequest.name,
-        createRequest.mode
+        createRequest.mode,
+        createRequest.userId
       );
 
       // 返回响应
@@ -47,12 +48,15 @@ export class ProjectUseCase {
   /**
    * 获取项目详情
    */
-  async getProject(projectId) {
+  async getProject(projectId, userId) {
     try {
       // 查找项目
       const project = await projectRepository.findById(projectId);
       if (!project) {
         throw new Error('项目不存在');
+      }
+      if (userId && project.userId !== userId) {
+        throw new Error('无权访问该项目');
       }
 
       // 返回响应
@@ -66,8 +70,11 @@ export class ProjectUseCase {
   /**
    * 获取所有项目
    */
-  async getAllProjects(filters = {}) {
+  async getAllProjects(filters = {}, userId) {
     try {
+      if (userId) {
+        filters.userId = userId;
+      }
       // 查找项目
       const projects = await projectRepository.findAll(filters);
       const total = await projectRepository.count(filters);
@@ -83,13 +90,25 @@ export class ProjectUseCase {
   /**
    * 更新项目
    */
-  async updateProject(projectId, updateRequest) {
+  async updateProject(projectId, updateRequest, userId) {
     try {
       // 验证请求数据
       updateRequest.validate();
 
+      const existing = await projectRepository.findById(projectId);
+      if (!existing) {
+        throw new Error('项目不存在');
+      }
+      if (userId && existing.userId !== userId) {
+        throw new Error('无权访问该项目');
+      }
+
       // 执行更新项目用例
-      const project = await this.projectService.updateProject(projectId, updateRequest.updates);
+      const project = await this.projectService.updateProject(
+        projectId,
+        updateRequest.updates,
+        userId
+      );
 
       // 返回响应
       return new ProjectResponseDTO(project);
@@ -102,10 +121,18 @@ export class ProjectUseCase {
   /**
    * 删除项目
    */
-  async deleteProject(projectId) {
+  async deleteProject(projectId, userId) {
     try {
+      const existing = await projectRepository.findById(projectId);
+      if (!existing) {
+        throw new Error('项目不存在');
+      }
+      if (userId && existing.userId !== userId) {
+        throw new Error('无权访问该项目');
+      }
+
       // 执行删除项目用例
-      await this.projectService.deleteProject(projectId);
+      await this.projectService.deleteProject(projectId, userId);
 
       return { success: true };
     } catch (error) {
@@ -117,7 +144,7 @@ export class ProjectUseCase {
   /**
    * 自定义工作流
    */
-  async customizeWorkflow(projectId, customizeRequest) {
+  async customizeWorkflow(projectId, customizeRequest, userId) {
     try {
       // 验证请求数据
       customizeRequest.validate();
@@ -125,7 +152,8 @@ export class ProjectUseCase {
       // 执行自定义工作流用例
       const project = await this.projectService.customizeWorkflow(
         projectId,
-        customizeRequest.stages
+        customizeRequest.stages,
+        userId
       );
 
       // 返回响应
@@ -141,10 +169,10 @@ export class ProjectUseCase {
   /**
    * 根据创意ID获取项目
    */
-  async getProjectByIdeaId(ideaId) {
+  async getProjectByIdeaId(ideaId, userId) {
     try {
       // 查找项目
-      const project = await projectRepository.findByIdeaId(ideaId);
+      const project = await projectRepository.findByIdeaId(ideaId, userId);
       if (!project) {
         throw new Error('该创意尚未创建项目');
       }
@@ -160,10 +188,10 @@ export class ProjectUseCase {
   /**
    * 获取项目统计信息
    */
-  async getProjectStatistics() {
+  async getProjectStatistics(userId) {
     try {
       // 获取统计信息
-      const statistics = await this.projectService.getProjectStatistics();
+      const statistics = await this.projectService.getProjectStatistics(userId);
 
       // 返回响应
       return new ProjectStatisticsDTO(statistics);
@@ -176,7 +204,7 @@ export class ProjectUseCase {
   /**
    * 搜索项目
    */
-  async searchProjects(searchRequest) {
+  async searchProjects(searchRequest, userId) {
     try {
       // 验证请求数据
       searchRequest.validate();
@@ -184,7 +212,8 @@ export class ProjectUseCase {
       // 执行搜索
       const projects = await this.projectService.searchProjects(
         searchRequest.query,
-        searchRequest.filters
+        searchRequest.filters,
+        userId
       );
 
       const total = projects.length;
@@ -200,10 +229,10 @@ export class ProjectUseCase {
   /**
    * 获取项目进度
    */
-  async getProjectProgress(projectId) {
+  async getProjectProgress(projectId, userId) {
     try {
       // 获取项目进度
-      const progress = await this.projectService.getProjectProgress(projectId);
+      const progress = await this.projectService.getProjectProgress(projectId, userId);
 
       // 返回响应
       return new ProjectProgressDTO(progress);
@@ -216,10 +245,14 @@ export class ProjectUseCase {
   /**
    * 获取相关项目
    */
-  async getRelatedProjects(projectId, limit = 5) {
+  async getRelatedProjects(projectId, limit = 5, userId) {
     try {
       // 获取相关项目
-      const relatedProjects = await this.projectService.findRelatedProjects(projectId, limit);
+      const relatedProjects = await this.projectService.findRelatedProjects(
+        projectId,
+        limit,
+        userId
+      );
 
       // 返回响应
       return {
@@ -235,10 +268,10 @@ export class ProjectUseCase {
   /**
    * 归档项目
    */
-  async archiveProject(projectId) {
+  async archiveProject(projectId, userId) {
     try {
       // 执行归档项目用例
-      const project = await this.projectService.archiveProject(projectId);
+      const project = await this.projectService.archiveProject(projectId, userId);
 
       // 返回响应
       return new ProjectResponseDTO(project);
@@ -251,10 +284,10 @@ export class ProjectUseCase {
   /**
    * 复制项目
    */
-  async duplicateProject(projectId, newName) {
+  async duplicateProject(projectId, newName, userId) {
     try {
       // 执行复制项目用例
-      const newProject = await this.projectService.duplicateProject(projectId, newName);
+      const newProject = await this.projectService.duplicateProject(projectId, newName, userId);
 
       // 返回响应
       return new CreateProjectResponseDTO(newProject);
@@ -267,10 +300,10 @@ export class ProjectUseCase {
   /**
    * 批量更新项目状态
    */
-  async batchUpdateStatus(projectIds, status) {
+  async batchUpdateStatus(projectIds, status, userId) {
     try {
       // 执行批量更新
-      const results = await this.projectService.batchUpdateStatus(projectIds, status);
+      const results = await this.projectService.batchUpdateStatus(projectIds, status, userId);
 
       // 返回响应
       return {

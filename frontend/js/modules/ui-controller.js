@@ -137,7 +137,14 @@ class UIController {
     closeBusinessReport() {
         const modal = document.getElementById('businessReportModal');
         if (modal) {
-            modal.style.display = 'none';
+            // 同时清理两种状态
+            modal.classList.remove('active');
+            modal.style.display = '';  // 清除内联样式
+
+            // 清理modalManager状态（如果使用）
+            if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+                window.modalManager.close('businessReportModal');
+            }
         }
     }
 

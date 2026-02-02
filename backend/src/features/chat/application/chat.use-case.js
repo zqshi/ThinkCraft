@@ -5,21 +5,26 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatService } from '../domain/chat.service.js';
 import { ChatResponseDTO, MessageResponseDTO, ChatListResponseDTO } from './chat.dto.js';
-import { InMemoryChatRepository } from '../infrastructure/chat-inmemory.repository.js';
+import { getRepository } from '../../../shared/infrastructure/repository.factory.js';
 
 export class ChatUseCase {
   constructor(repository = null) {
-    this._repository = repository || new InMemoryChatRepository();
+    this._repository = repository || getRepository('chat');
     this._chatService = new ChatService();
   }
 
   /**
    * 创建新的聊天会话
    */
-  async createChat(createChatDTO) {
+  async createChat(createChatDTO, userId) {
     try {
       // 验证DTO
       createChatDTO.validate();
+
+      const resolvedUserId = userId || createChatDTO.userId;
+      if (!resolvedUserId) {
+        throw new Error('用户ID不能为空');
+      }
 
       // 生成聊天ID
       const chatId = uuidv4();
@@ -35,7 +40,12 @@ export class ChatUseCase {
       }
 
       // 使用领域服务创建聊天
-      const chat = await this._chatService.createChat(chatId, createChatDTO.title, initialMessage);
+      const chat = await this._chatService.createChat(
+        chatId,
+        resolvedUserId,
+        createChatDTO.title,
+        initialMessage
+      );
 
       // 添加标签
       for (const tag of createChatDTO.tags) {
@@ -55,7 +65,7 @@ export class ChatUseCase {
   /**
    * 发送消息
    */
-  async sendMessage(addMessageDTO) {
+  async sendMessage(addMessageDTO, userId) {
     try {
       // 验证DTO
       addMessageDTO.validate();
@@ -64,6 +74,9 @@ export class ChatUseCase {
       const chat = await this._repository.findById(addMessageDTO.chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       // 使用领域服务添加消息
@@ -94,11 +107,14 @@ export class ChatUseCase {
   /**
    * 获取聊天详情
    */
-  async getChat(chatId) {
+  async getChat(chatId, userId) {
     try {
       const chat = await this._repository.findById(chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       return new ChatResponseDTO(chat);
@@ -110,17 +126,19 @@ export class ChatUseCase {
   /**
    * 获取聊天列表
    */
-  async getChatList(page = 1, pageSize = 20, filters = {}) {
+  async getChatList(page = 1, pageSize = 20, filters = {}, userId) {
     try {
       let chats = [];
 
       // 根据筛选条件获取聊天
       if (filters.status) {
-        chats = await this._repository.findByStatus(filters.status);
+        chats = await this._repository.findByStatus(filters.status, userId);
       } else if (filters.tags && filters.tags.length > 0) {
-        chats = await this._repository.findByTags(filters.tags);
+        chats = await this._repository.findByTags(filters.tags, userId);
       } else if (filters.isPinned) {
-        chats = await this._repository.findPinned();
+        chats = await this._repository.findPinned(userId);
+      } else if (userId) {
+        chats = await this._repository.findByUserId(userId);
       } else {
         chats = await this._repository.findAll();
       }
@@ -143,7 +161,7 @@ export class ChatUseCase {
   /**
    * 更新聊天
    */
-  async updateChat(chatId, updateChatDTO) {
+  async updateChat(chatId, updateChatDTO, userId) {
     try {
       // 验证DTO
       updateChatDTO.validate();
@@ -152,6 +170,9 @@ export class ChatUseCase {
       const chat = await this._repository.findById(chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       // 更新标题
@@ -196,11 +217,14 @@ export class ChatUseCase {
   /**
    * 删除聊天
    */
-  async deleteChat(chatId) {
+  async deleteChat(chatId, userId) {
     try {
       const chat = await this._repository.findById(chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       await this._repository.delete(chatId);
@@ -213,14 +237,16 @@ export class ChatUseCase {
   /**
    * 搜索聊天内容
    */
-  async searchChats(keyword) {
+  async searchChats(keyword, userId) {
     try {
       if (!keyword || keyword.trim().length === 0) {
         throw new Error('搜索关键词不能为空');
       }
 
       // 获取所有聊天
-      const chats = await this._repository.findAll();
+      const chats = userId
+        ? await this._repository.findByUserId(userId)
+        : await this._repository.findAll();
 
       // 使用领域服务搜索
       const results = [];
@@ -243,11 +269,14 @@ export class ChatUseCase {
   /**
    * 归档聊天
    */
-  async archiveChat(chatId) {
+  async archiveChat(chatId, userId) {
     try {
       const chat = await this._repository.findById(chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       const archivedChat = await this._chatService.archiveChat(chat);
@@ -262,11 +291,14 @@ export class ChatUseCase {
   /**
    * 恢复聊天
    */
-  async restoreChat(chatId) {
+  async restoreChat(chatId, userId) {
     try {
       const chat = await this._repository.findById(chatId);
       if (!chat) {
         throw new Error('聊天不存在');
+      }
+      if (userId && chat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       const restoredChat = await this._chatService.restoreChat(chat);
@@ -281,12 +313,15 @@ export class ChatUseCase {
   /**
    * 合并聊天
    */
-  async mergeChats(targetChatId, sourceChatIds) {
+  async mergeChats(targetChatId, sourceChatIds, userId) {
     try {
       // 查找目标聊天
       const targetChat = await this._repository.findById(targetChatId);
       if (!targetChat) {
         throw new Error('目标聊天不存在');
+      }
+      if (userId && targetChat.userId !== userId) {
+        throw new Error('无权访问该聊天');
       }
 
       // 查找源聊天
@@ -295,6 +330,9 @@ export class ChatUseCase {
         const chat = await this._repository.findById(chatId);
         if (!chat) {
           throw new Error(`源聊天 ${chatId} 不存在`);
+        }
+        if (userId && chat.userId !== userId) {
+          throw new Error('无权访问该聊天');
         }
         sourceChats.push(chat);
       }
@@ -319,10 +357,13 @@ export class ChatUseCase {
   /**
    * 获取聊天统计信息
    */
-  async getChatStats() {
+  async getChatStats(userId) {
     try {
-      const chats = await this._repository.findAll();
-      const totalCount = chats.length;
+      const chats = userId
+        ? await this._repository.findByUserId(userId)
+        : await this._repository.findAll();
+      const activeChats = chats.filter(chat => !chat.status.isDeleted);
+      const totalCount = activeChats.length;
       const activeCount = chats.filter(chat => chat.status.isActive).length;
       const archivedCount = chats.filter(chat => chat.status.isArchived).length;
       const pinnedCount = chats.filter(chat => chat.isPinned).length;

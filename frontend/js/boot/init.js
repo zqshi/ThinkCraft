@@ -98,6 +98,12 @@ function initApp() {
   );
   console.log('[Init] 导出验证器初始化完成');
 
+  // 初始化报告状态管理器
+  if (window.ReportStatusManager && !window.reportStatusManager) {
+    window.reportStatusManager = new window.ReportStatusManager();
+    console.log('[Init] ReportStatusManager 已初始化');
+  }
+
   window.storageManager
     .init()
     .then(async () => {
@@ -105,32 +111,36 @@ function initApp() {
         await window.storageManager.migrateFromLocalStorage();
       }
 
-      // 🔍 记录状态恢复开始
-      logger.debug('[初始化] 开始恢复生成状态', {
-        currentChat: window.state?.currentChat,
-        timestamp: Date.now()
-      });
-
-      await loadGenerationStates();
-
-      // 🔍 验证状态恢复结果
-      setTimeout(() => {
-        const businessBtn = document.getElementById('businessPlanBtn');
-        const proposalBtn = document.getElementById('proposalBtn');
-        logger.debug('[初始化] 状态恢复完成后按钮状态', {
-          businessBtn: businessBtn ? {
-            classList: Array.from(businessBtn.classList),
-            dataStatus: businessBtn.dataset.status,
-            dataChatId: businessBtn.dataset.chatId
-          } : 'not found',
-          proposalBtn: proposalBtn ? {
-            classList: Array.from(proposalBtn.classList),
-            dataStatus: proposalBtn.dataset.status,
-            dataChatId: proposalBtn.dataset.chatId
-          } : 'not found',
-          currentChat: window.state?.currentChat
+      // ✅ 确保DOM完全渲染后再恢复状态
+      // 使用 requestAnimationFrame 确保在下一帧渲染后执行
+      requestAnimationFrame(async () => {
+        // 🔍 记录状态恢复开始
+        logger.debug('[初始化] 开始恢复生成状态', {
+          currentChat: window.state?.currentChat,
+          timestamp: Date.now()
         });
-      }, 500);
+
+        await loadGenerationStates();
+
+        // 🔍 验证状态恢复结果
+        setTimeout(() => {
+          const businessBtn = document.getElementById('businessPlanBtn');
+          const proposalBtn = document.getElementById('proposalBtn');
+          logger.debug('[初始化] 状态恢复完成后按钮状态', {
+            businessBtn: businessBtn ? {
+              classList: Array.from(businessBtn.classList),
+              dataStatus: businessBtn.dataset.status,
+              dataChatId: businessBtn.dataset.chatId
+            } : 'not found',
+            proposalBtn: proposalBtn ? {
+              classList: Array.from(proposalBtn.classList),
+              dataStatus: proposalBtn.dataset.status,
+              dataChatId: proposalBtn.dataset.chatId
+            } : 'not found',
+            currentChat: window.state?.currentChat
+          });
+        }, 500);
+      });
     })
     .catch(error => {
       logger.error('[初始化] StorageManager初始化失败', error);
@@ -338,16 +348,6 @@ if (document.readyState === 'loading') {
 // 在页面完全加载后处理 PWA 启动参数
 window.addEventListener('load', async () => {
   handleLaunchParams();
-
-  // 🔧 确保DOM完全渲染后再恢复状态
-  requestAnimationFrame(async () => {
-    logger.debug('[Load] DOM渲染完成，开始恢复状态');
-
-    // 再次调用loadGenerationStates，确保状态正确恢复
-    if (window.reportGenerator?.loadGenerationStates) {
-      await window.reportGenerator.loadGenerationStates();
-    }
-  });
 
   // 延迟初始化新手引导，确保所有模块已加载
   setTimeout(() => {

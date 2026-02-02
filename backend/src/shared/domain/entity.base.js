@@ -3,11 +3,12 @@
  * 提供实体通用功能：唯一标识、相等性比较、领域事件等
  */
 export class Entity {
-  constructor(id) {
+  constructor(id, props = {}) {
     if (!id) {
       throw new Error('实体ID不能为空');
     }
     this._id = id;
+    this.props = props;
     this._domainEvents = [];
     this._createdAt = new Date();
     this._updatedAt = new Date();
@@ -53,6 +54,13 @@ export class Entity {
    */
   updateTimestamp() {
     this._updatedAt = new Date();
+  }
+
+  /**
+   * 统一更新时间戳方法（兼容现有实体/聚合调用）
+   */
+  touch() {
+    this.updateTimestamp();
   }
 
   /**

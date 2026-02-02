@@ -25,46 +25,17 @@ function getReportsForChat(chatId) {
 }
 
 /**
- * 更新按钮内容（图标和文本）
- * @param {string} type - 报告类型 ('business', 'proposal', 'analysis')
- * @param {HTMLElement} iconSpan - 图标元素
- * @param {HTMLElement} textSpan - 文本元素
- * @param {string} status - 状态 ('idle', 'generating', 'completed', 'error')
- * @param {Object} progress - 进度对象（可选）
+ * ❌ 已废弃：此函数已被 BusinessPlanGenerator.updateButtonUI() 替代
+ * 保留仅用于向后兼容，不应在新代码中使用
+ *
+ * @deprecated 使用 window.businessPlanGenerator.updateButtonUI(type, status) 替代
  */
 function updateButtonContent(type, iconSpan, textSpan, status, progress) {
-    if (!iconSpan || !textSpan) return;
+    console.warn('[updateButtonContent] 此函数已废弃，请使用 businessPlanGenerator.updateButtonUI()');
 
-    const typeConfig = {
-        business: {
-            idle: { icon: '📊', text: '生成商业计划书' },
-            generating: { icon: '⏳', text: '生成中...' },
-            completed: { icon: '✅', text: '查看商业计划书' },
-            error: { icon: '❌', text: '生成失败，点击重试' }
-        },
-        proposal: {
-            idle: { icon: '📝', text: '生成产品立项材料' },
-            generating: { icon: '⏳', text: '生成中...' },
-            completed: { icon: '✅', text: '查看立项材料' },
-            error: { icon: '❌', text: '生成失败，点击重试' }
-        },
-        analysis: {
-            idle: { icon: '📈', text: '生成分析报告' },
-            generating: { icon: '⏳', text: '生成中...' },
-            completed: { icon: '✅', text: '查看分析报告' },
-            error: { icon: '❌', text: '生成失败，点击重试' }
-        }
-    };
-
-    const config = typeConfig[type]?.[status];
-    if (!config) return;
-
-    iconSpan.textContent = config.icon;
-
-    if (status === 'generating' && progress?.percentage !== undefined) {
-        textSpan.textContent = `${config.text} ${Math.round(progress.percentage)}%`;
-    } else {
-        textSpan.textContent = config.text;
+    // 降级处理：调用新的统一方法
+    if (window.businessPlanGenerator) {
+        window.businessPlanGenerator.updateButtonUI(type, status);
     }
 }
 
@@ -142,7 +113,9 @@ class ReportButtonManager {
             case 'idle':
                 btn.classList.add('btn-idle');
                 btn.dataset.status = 'idle';
-                updateButtonContent(type, iconSpan, textSpan, 'idle');
+                if (window.businessPlanGenerator && window.businessPlanGenerator.updateButtonUI) {
+                    window.businessPlanGenerator.updateButtonUI(type, 'idle');
+                }
                 break;
 
             case 'selecting':
@@ -154,7 +127,9 @@ class ReportButtonManager {
                 btn.classList.add('btn-generating');
                 btn.dataset.status = 'generating';
                 btn.disabled = false; // 不禁用按钮，允许点击查看进度
-                updateButtonContent(type, iconSpan, textSpan, 'generating', generationState.progress);
+                if (window.businessPlanGenerator && window.businessPlanGenerator.updateButtonUI) {
+                    window.businessPlanGenerator.updateButtonUI(type, 'generating');
+                }
                 // 保存生成中的数据，以便恢复进度
                 reports[type] = {
                     data: generationState.results || {},
@@ -168,7 +143,9 @@ class ReportButtonManager {
             case 'completed':
                 btn.classList.add('btn-completed');
                 btn.dataset.status = 'completed';
-                updateButtonContent(type, iconSpan, textSpan, 'completed');
+                if (window.businessPlanGenerator && window.businessPlanGenerator.updateButtonUI) {
+                    window.businessPlanGenerator.updateButtonUI(type, 'completed');
+                }
                 // 保存生成的报告
                 reports[type] = {
                     data: generationState.results,
@@ -181,7 +158,9 @@ class ReportButtonManager {
             case 'error':
                 btn.classList.add('btn-error');
                 btn.dataset.status = 'error';
-                updateButtonContent(type, iconSpan, textSpan, 'error');
+                if (window.businessPlanGenerator && window.businessPlanGenerator.updateButtonUI) {
+                    window.businessPlanGenerator.updateButtonUI(type, 'error');
+                }
                 reports[type] = {
                     ...(reports[type] || {}),
                     status: 'error',
@@ -193,93 +172,18 @@ class ReportButtonManager {
     }
 
     /**
-     * 更新生成按钮状态
-     * @param {string} type - 报告类型
-     * @param {Object} state - 状态对象
-     * @param {string} chatId - 会话ID
+     * ❌ 已废弃：此方法已被 BusinessPlanGenerator.updateButtonUI() 替代
+     * 保留仅用于向后兼容，不应在新代码中使用
+     *
+     * @deprecated 使用 window.businessPlanGenerator.updateButtonUI(type, status) 替代
      */
     updateGenerationButtonState(type, state, chatId) {
-        // 🔍 诊断日志：记录调用栈
-        const callStack = new Error().stack;
-        logger.debug(`[按钮更新] 开始更新`, {
-            type,
-            status: state.status,
-            chatId,
-            timestamp: Date.now(),
-            callStack: callStack.split('\n').slice(1, 4).join('\n')
-        });
+        console.warn('[updateGenerationButtonState] 此方法已废弃，请使用 businessPlanGenerator.updateButtonUI()');
 
-        const buttonMap = {
-            business: 'businessPlanBtn',
-            proposal: 'proposalBtn'
-            // analysis 类型暂不支持，移除 analysisReportBtn
-        };
-
-        const btnId = buttonMap[type];
-
-        // 如果类型不支持，静默返回（不显示警告）
-        if (!btnId) {
-            logger.warn(`[按钮更新] 不支持的类型: ${type}`);
-            return;
-        }
-
-        const btn = document.getElementById(btnId);
-        if (!btn) {
-            logger.error(`[按钮更新] 找不到按钮元素`, { btnId, type });
-            return;
-        }
-
-        // 🔍 记录按钮当前状态
-        const beforeState = {
-            classList: Array.from(btn.classList),
-            dataStatus: btn.dataset.status,
-            dataChatId: btn.dataset.chatId,
-            disabled: btn.disabled
-        };
-        logger.debug(`[按钮更新] 更新前状态`, beforeState);
-
-        const iconSpan = btn.querySelector('.btn-icon');
-        const textSpan = btn.querySelector('.btn-text');
-        const status = state.status || (state.data ? 'completed' : 'idle');
-
-        // 移除所有状态类
-        btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
-        btn.dataset.status = status;
-        btn.dataset.chatId = chatId;
-        btn.disabled = false;
-
-        // 根据状态更新
-        if (status === 'generating') {
-            btn.classList.add('btn-generating');
-            updateButtonContent(type, iconSpan, textSpan, 'generating', state.progress || { percentage: 0 });
-        } else if (status === 'completed') {
-            btn.classList.add('btn-completed');
-            updateButtonContent(type, iconSpan, textSpan, 'completed');
-        } else if (status === 'error') {
-            btn.classList.add('btn-error');
-            updateButtonContent(type, iconSpan, textSpan, 'error');
-        } else {
-            btn.classList.add('btn-idle');
-            updateButtonContent(type, iconSpan, textSpan, 'idle');
-        }
-
-        // 🔍 记录按钮更新后状态
-        const afterState = {
-            classList: Array.from(btn.classList),
-            dataStatus: btn.dataset.status,
-            dataChatId: btn.dataset.chatId,
-            disabled: btn.disabled,
-            iconText: iconSpan?.textContent,
-            buttonText: textSpan?.textContent
-        };
-        logger.debug(`[按钮更新] 更新后状态`, afterState);
-
-        // 🔍 验证更新是否成功
-        if (!btn.classList.contains(`btn-${status}`)) {
-            logger.error(`[按钮更新] 状态类未正确应用`, {
-                expected: `btn-${status}`,
-                actual: Array.from(btn.classList)
-            });
+        // 降级处理：调用新的统一方法
+        if (window.businessPlanGenerator) {
+            const status = state.status || (state.data ? 'completed' : 'idle');
+            window.businessPlanGenerator.updateButtonUI(type, status);
         }
     }
 
@@ -336,9 +240,6 @@ function resetGenerationButtons() {
             return;
         }
 
-        const iconSpan = btn.querySelector('.btn-icon');
-        const textSpan = btn.querySelector('.btn-text');
-
         // 移除所有状态类
         btn.classList.remove('btn-idle', 'btn-generating', 'btn-completed', 'btn-error');
         btn.classList.add('btn-idle');
@@ -348,9 +249,9 @@ function resetGenerationButtons() {
         btn.removeAttribute('data-chat-id');
         btn.disabled = false;
 
-        // 重置按钮内容
-        if (iconSpan && textSpan) {
-            updateButtonContent(type, iconSpan, textSpan, 'idle');
+        // 使用新的统一方法更新按钮UI
+        if (window.businessPlanGenerator && window.businessPlanGenerator.updateButtonUI) {
+            window.businessPlanGenerator.updateButtonUI(type, 'idle');
         }
 
         logger.debug(`[按钮管理] 已重置按钮: ${id}`);

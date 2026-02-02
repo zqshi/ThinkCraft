@@ -27,6 +27,7 @@ import performanceMonitor from './middleware/performance-monitor.js';
 import { generalLimiter, aiApiLimiter, uploadLimiter } from './middleware/rate-limiter.js';
 import { securityHeaders, validateInput } from './middleware/security.js';
 import { noCache, shortCache } from './middleware/cache-control.js';
+import { authMiddleware } from './src/features/auth/interfaces/auth.middleware.js';
 import { initDatabases, closeDatabases } from './config/database.js';
 import { cacheService } from './src/infrastructure/cache/redis-cache.service.js';
 import promptLoader from './src/utils/prompt-loader.js';
@@ -124,7 +125,25 @@ app.get('/ready', noCache, (req, res) => {
     res.json({ status: 'ready' });
 });
 
-// 指标端点（短时间缓存）
+// 认证接口（公开）
+app.use('/api/auth', authRouter);
+
+// 验证码接口（公开）
+app.use('/api/verification', verificationRouter);
+
+// 提示词管理接口（公开）
+app.use('/api/prompts', promptRouter);
+
+// API 认证保护（除公开接口外）
+app.use('/api', (req, res, next) => {
+    const publicPrefixes = ['/auth', '/verification', '/prompts', '/health'];
+    if (publicPrefixes.some(prefix => req.path.startsWith(prefix))) {
+        return next();
+    }
+    return authMiddleware(req, res, next);
+});
+
+// 指标端点（短时间缓存，需认证）
 app.get('/api/metrics', shortCache, (req, res) => {
     res.json({
         uptime: process.uptime(),
@@ -152,7 +171,6 @@ app.use('/api/pdf-export', pdfExportRouter);
 // 分享链接接口
 app.use('/api/share', shareRouter);
 
-
 // 数字员工Agent接口
 app.use('/api/agents', agentsRouter);
 
@@ -164,17 +182,8 @@ app.use('/api/workflow', workflowRouter);
 
 // 工作流推荐接口
 
-// 认证接口
-app.use('/api/auth', authRouter);
-
-// 验证码接口
-app.use('/api/verification', verificationRouter);
-
 // 账号管理接口
 app.use('/api/account', accountRouter);
-
-// 提示词管理接口
-app.use('/api/prompts', promptRouter);
 
 
 // 404 处理

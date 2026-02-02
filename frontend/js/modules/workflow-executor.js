@@ -565,22 +565,45 @@ class WorkflowExecutor {
         return;
       }
 
+      // 【新增】检查依赖阶段是否完成
+      const project = await this.storageManager.getProject(projectId);
+      const stages = project.workflow?.stages || [];
+      const currentStage = stages.find(s => s.id === stageId);
+
+      if (currentStage && currentStage.dependencies?.length > 0) {
+        const unmetDependencies = [];
+        for (const depId of currentStage.dependencies) {
+          const depStage = stages.find(s => s.id === depId);
+          if (depStage && depStage.status !== 'completed') {
+            unmetDependencies.push(depStage.name);
+          }
+        }
+
+        if (unmetDependencies.length > 0) {
+          if (window.modalManager) {
+            window.modalManager.alert(
+              `无法执行该阶段，依赖阶段未完成：${unmetDependencies.join('、')}`,
+              'warning'
+            );
+          } else {
+            alert(`无法执行该阶段，依赖阶段未完成：${unmetDependencies.join('、')}`);
+          }
+          return;
+        }
+      }
+
       // 显示执行提示
       if (window.modalManager) {
         window.modalManager.alert('正在执行阶段任务，请稍候...', 'info');
       }
 
       // 获取创意对话内容作为上下文
-      const project = await this.storageManager.getProject(projectId);
       const chat = await this.storageManager.getChat(project.ideaId);
       const conversation = chat
         ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
         : '';
 
-      // 更新阶段状态为进行中
-      await this.updateProjectStageStatus(projectId, stageId, 'active');
-
-      // 执行阶段
+      // 执行阶段（executeStage内部会自动更新状态为active，然后completed）
       const result = await this.executeStage(projectId, stageId, { CONVERSATION: conversation });
       if (result?.aborted) {
         if (window.modalManager) {
@@ -600,9 +623,17 @@ class WorkflowExecutor {
         alert('阶段执行完成！');
       }
 
-      // 刷新UI（如果有渲染函数）
+      // 刷新UI
       if (this.onStageCompleted) {
         this.onStageCompleted(projectId, stageId);
+      }
+
+      // 强制刷新项目面板
+      if (this.projectManager?.currentProjectId === projectId) {
+        const updatedProject = await this.storageManager.getProject(projectId);
+        if (updatedProject) {
+          this.projectManager.refreshProjectPanel(updatedProject);
+        }
       }
     } catch (error) {
       if (window.modalManager) {

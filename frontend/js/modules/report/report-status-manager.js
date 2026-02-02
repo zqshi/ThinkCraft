@@ -238,14 +238,17 @@ class ReportStatusManager {
             return data.chapters && typeof data.chapters === 'object';
         }
 
-        if (type === 'business') {
-            // 商业计划书需要有 sections
-            return data.sections && Array.isArray(data.sections);
-        }
-
-        if (type === 'proposal') {
-            // 提案需要有 content
-            return data.content && typeof data.content === 'string';
+        if (type === 'business' || type === 'proposal') {
+            // 商业计划书和产品立项材料都使用 chapters 结构
+            // 可以是数组或对象格式
+            if (data.chapters) {
+                return Array.isArray(data.chapters) || typeof data.chapters === 'object';
+            }
+            // 兼容旧的 document 格式
+            if (data.document && typeof data.document === 'string') {
+                return true;
+            }
+            return false;
         }
 
         // 未知类型，默认通过

@@ -53,19 +53,10 @@ class PromptLoader {
    * 加载所有Agent Prompts
    */
   async _loadAgentPrompts() {
-    const agentsDir = path.join(this.promptDir, 'agents');
-
     try {
-      const files = await fs.readdir(agentsDir);
-
-      for (const file of files) {
-        if (!file.endsWith('.md')) {
-          continue;
-        }
-
-        const agentType = path.basename(file, '.md');
-        const filePath = path.join(agentsDir, file);
-
+      const agentFiles = await this._listMarkdownFilesByDirName('agents');
+      for (const filePath of agentFiles) {
+        const agentType = path.basename(filePath, '.md');
         try {
           const content = await fs.readFile(filePath, 'utf-8');
           const prompt = this._extractSystemPrompt(content);
@@ -75,7 +66,7 @@ class PromptLoader {
             console.log(`[PromptLoader] 加载Agent Prompt: ${agentType}`);
           }
         } catch (error) {
-          console.warn(`[PromptLoader] 加载Agent Prompt失败: ${file}`, error.message);
+          console.warn(`[PromptLoader] 加载Agent Prompt失败: ${filePath}`, error.message);
         }
       }
     } catch (error) {
@@ -87,19 +78,10 @@ class PromptLoader {
    * 加载所有Task Prompts
    */
   async _loadTaskPrompts() {
-    const tasksDir = path.join(this.promptDir, 'tasks');
-
     try {
-      const files = await fs.readdir(tasksDir);
-
-      for (const file of files) {
-        if (!file.endsWith('.md')) {
-          continue;
-        }
-
-        const taskType = path.basename(file, '.md');
-        const filePath = path.join(tasksDir, file);
-
+      const taskFiles = await this._listMarkdownFilesByDirName('tasks');
+      for (const filePath of taskFiles) {
+        const taskType = path.basename(filePath, '.md');
         try {
           const content = await fs.readFile(filePath, 'utf-8');
           const prompt = this._extractPromptTemplate(content);
@@ -109,7 +91,7 @@ class PromptLoader {
             console.log(`[PromptLoader] 加载Task Prompt: ${taskType}`);
           }
         } catch (error) {
-          console.warn(`[PromptLoader] 加载Task Prompt失败: ${file}`, error.message);
+          console.warn(`[PromptLoader] 加载Task Prompt失败: ${filePath}`, error.message);
         }
       }
     } catch (error) {
@@ -490,14 +472,58 @@ class PromptLoader {
    * @returns {Promise<Object>} workflow配置对象
    */
   async loadWorkflowConfig(workflowId) {
-    const filePath = path.join(this.promptDir, `workflows/${workflowId}-workflow.json`);
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(content);
+      let filePath = path.join(
+        this.promptDir,
+        `scene-2-agent-orchestration/${workflowId}/workflow.json`
+      );
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+      } catch (error) {
+        filePath = path.join(this.promptDir, `workflows/${workflowId}-workflow.json`);
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+      }
     } catch (error) {
       console.warn(`[PromptLoader] Workflow配置不存在: ${workflowId}`);
       return null;
     }
+  }
+
+  /**
+   * 递归列出指定目录名下的Markdown文件
+   */
+  async _listMarkdownFilesByDirName(dirName) {
+    const entries = await this._walkDirectory(this.promptDir);
+    return entries
+      .filter(
+        entry =>
+          entry.type === 'file' &&
+          entry.path.endsWith('.md') &&
+          entry.path.split(path.sep).includes(dirName)
+      )
+      .map(entry => entry.path);
+  }
+
+  /**
+   * 递归遍历目录
+   */
+  async _walkDirectory(dirPath) {
+    const results = [];
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        const nested = await this._walkDirectory(entryPath);
+        results.push(...nested);
+      } else if (entry.isFile()) {
+        results.push({ type: 'file', path: entryPath });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -704,10 +730,11 @@ ${conversationHistory}
    */
   async list() {
     try {
-      const files = await fs.readdir(this.promptDir);
-      return files
-        .filter(file => file.endsWith('.md') && file !== 'README.md')
-        .map(file => file.replace('.md', ''));
+      const entries = await this._walkDirectory(this.promptDir);
+      return entries
+        .filter(entry => entry.type === 'file' && entry.path.endsWith('.md'))
+        .map(entry => path.relative(this.promptDir, entry.path).replace(/\.md$/, ''))
+        .filter(name => !name.endsWith('README'));
     } catch (error) {
       throw new Error(`Failed to list prompts: ${error.message}`);
     }

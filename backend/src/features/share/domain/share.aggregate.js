@@ -68,6 +68,50 @@ export class Share extends AggregateRoot {
     return this.props.createdAt;
   }
 
+  toJSON() {
+    return {
+      ...super.toJSON(),
+      resourceId: this.props.resourceId,
+      resourceType: this.props.resourceType?.value || this.props.resourceType,
+      title: this.props.title,
+      description: this.props.description,
+      shareLink: this.props.shareLink,
+      permission: this.props.permission?.value || this.props.permission,
+      status: this.props.status?.value || this.props.status,
+      expiresAt: this.props.expiresAt,
+      password: this.props.password,
+      accessCount: this.props.accessCount,
+      lastAccessedAt: this.props.lastAccessedAt,
+      createdBy: this.props.createdBy,
+      createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt
+    };
+  }
+
+  static fromJSON(data) {
+    const share = new Share(new ShareId(data.id), {
+      resourceId: data.resourceId,
+      resourceType: new ShareType(data.resourceType),
+      title: data.title,
+      description: data.description,
+      shareLink: data.shareLink,
+      permission: new SharePermission(data.permission),
+      status: new ShareStatus(data.status),
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      password: data.password,
+      accessCount: data.accessCount || 0,
+      lastAccessedAt: data.lastAccessedAt ? new Date(data.lastAccessedAt) : null,
+      createdBy: data.createdBy,
+      createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
+    });
+
+    share.createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+    share.updatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
+    share._version = data.version || 0;
+
+    return share;
+  }
+
   static create(props) {
     const share = new Share(new ShareId(`share_${Date.now()}`), {
       ...props,

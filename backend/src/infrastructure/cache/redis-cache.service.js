@@ -64,6 +64,13 @@ class RedisCacheService {
   }
 
   /**
+   * 是否启用缓存
+   */
+  isEnabled() {
+    return this.enabled;
+  }
+
+  /**
    * 设置缓存
    */
   async set(key, value, ttl = 3600) {

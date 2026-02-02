@@ -237,6 +237,7 @@ class AgentProgressManager {
    */
   updateProgress(chapterId, status, result = null) {
     console.log('[AgentProgress] 更新进度:', { chapterId, status, result });
+    console.log('[AgentProgress] 当前agents列表:', this.agents.map(a => ({ id: a.id, status: a.status })));
 
     // 查找Agent
     const agent = this.agents.find(a => a.id === chapterId);
@@ -254,11 +255,9 @@ class AgentProgressManager {
         return this.updateProgress(fuzzyMatch.id, status, result);
       }
 
-      // 匹配失败 - 显示错误而不是静默失败
-      console.error('[AgentProgress] 章节ID不匹配，无法更新进度');
-      if (window.showToast) {
-        window.showToast(`章节 ${chapterId} 不存在，进度更新失败`, 'error');
-      }
+      // 匹配失败 - 显示警告但不中断流程
+      console.warn('[AgentProgress] 章节ID不匹配，跳过进度更新:', chapterId);
+      // 不再显示toast，避免干扰用户
       return;
     }
 

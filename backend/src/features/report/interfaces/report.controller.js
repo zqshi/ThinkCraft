@@ -2,7 +2,7 @@
  * Report 控制器
  */
 import { ReportUseCase } from '../application/report.use-case.js';
-import { ReportInMemoryRepository } from '../infrastructure/report-inmemory.repository.js';
+import { getRepository } from '../../../shared/infrastructure/repository.factory.js';
 import { ReportGenerationService } from '../application/report-generation.service.js';
 import {
   CreateReportRequestDto,
@@ -16,10 +16,7 @@ import promptLoader from '../../../utils/prompt-loader.js';
 
 export class ReportController {
   constructor() {
-    this.reportUseCase = new ReportUseCase(
-      new ReportInMemoryRepository(),
-      new ReportGenerationService()
-    );
+    this.reportUseCase = new ReportUseCase(getRepository('report'), new ReportGenerationService());
   }
 
   /**

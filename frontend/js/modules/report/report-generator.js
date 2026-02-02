@@ -291,7 +291,11 @@ class ReportGenerator {
                 throw new Error(data.error || '生成报告失败');
             }
 
-            const report = data.data;
+            // 🔧 修复：提取实际的报告对象
+            // 后端返回 {code: 0, data: {report: {...}, cached: false}}
+            // 需要提取 data.data.report 作为实际报告数据
+            const responseData = data.data;
+            const report = responseData.report || responseData; // 兼容旧格式
             window.lastGeneratedReport = report;
 
             // 保存到数据库
@@ -299,7 +303,7 @@ class ReportGenerator {
                 await window.storageManager.saveReport({
                     type: 'analysis',
                     chatId: chatId,
-                    data: report,
+                    data: report, // 保存实际的报告对象，而不是包装对象
                     status: 'completed',
                     progress: { current: 1, total: 1, percentage: 100 },
                     startTime: Date.now(),
@@ -833,8 +837,9 @@ class ReportGenerator {
                 // 优先使用内存中的generating状态
                 if (memoryStates[type]?.status === 'generating') {
                     currentReports[type] = memoryStates[type];
-                    if (typeof updateGenerationButtonState === 'function') {
-                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                    // ✅ 使用统一的按钮更新方法
+                    if (window.businessPlanGenerator) {
+                        window.businessPlanGenerator.updateButtonUI(type, 'generating');
                     }
                 } else {
                     currentReports[type] = {
@@ -845,8 +850,9 @@ class ReportGenerator {
                         selectedChapters: report.selectedChapters,
                         error: report.error
                     };
-                    if (typeof updateGenerationButtonState === 'function') {
-                        updateGenerationButtonState(type, currentReports[type], normalizedChatId);
+                    // ✅ 使用统一的按钮更新方法
+                    if (window.businessPlanGenerator) {
+                        window.businessPlanGenerator.updateButtonUI(type, report.status || 'idle');
                     }
                 }
 
@@ -857,8 +863,9 @@ class ReportGenerator {
             Object.keys(memoryStates).forEach(type => {
                 if (!processedTypes.has(type)) {
                     currentReports[type] = memoryStates[type];
-                    if (typeof updateGenerationButtonState === 'function') {
-                        updateGenerationButtonState(type, memoryStates[type], normalizedChatId);
+                    // ✅ 使用统一的按钮更新方法
+                    if (window.businessPlanGenerator) {
+                        window.businessPlanGenerator.updateButtonUI(type, memoryStates[type].status || 'idle');
                     }
                     processedTypes.add(type);
                 }
@@ -868,8 +875,9 @@ class ReportGenerator {
             ['business', 'proposal'].forEach(type => {
                 if (!processedTypes.has(type)) {
                     logger.debug(`[加载状态] ${type} 没有报告，重置按钮`);
-                    if (typeof updateGenerationButtonState === 'function') {
-                        updateGenerationButtonState(type, { status: 'idle' }, normalizedChatId);
+                    // ✅ 使用统一的按钮更新方法
+                    if (window.businessPlanGenerator) {
+                        window.businessPlanGenerator.updateButtonUI(type, 'idle');
                     }
                 }
             });
@@ -892,9 +900,9 @@ class ReportGenerator {
                             actual: actualStatus
                         });
 
-                        // 强制重新更新按钮
-                        if (typeof updateGenerationButtonState === 'function') {
-                            updateGenerationButtonState(type, currentReports[type] || { status: 'idle' }, normalizedChatId);
+                        // ✅ 使用统一的按钮更新方法
+                        if (window.businessPlanGenerator) {
+                            window.businessPlanGenerator.updateButtonUI(type, expectedStatus);
                         }
                     }
                 });

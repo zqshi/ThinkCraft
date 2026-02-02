@@ -5,8 +5,8 @@
 import { Entity } from './entity.base.js';
 
 export class AggregateRoot extends Entity {
-  constructor(id) {
-    super(id);
+  constructor(id, props) {
+    super(id, props);
     this._version = 0; // 用于乐观锁
   }
 

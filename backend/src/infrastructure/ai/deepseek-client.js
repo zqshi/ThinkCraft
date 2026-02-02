@@ -31,7 +31,7 @@ export async function callDeepSeekAPI(messages, systemPrompt = null, options = {
         temperature = 0.7,
         retry = 3,
         retryDelay = 1000,
-        timeout = 30000,
+        timeout = 120000, // 增加到120秒（2分钟）
         response_format,
         model = 'deepseek-chat'
     } = options;

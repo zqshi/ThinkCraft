@@ -155,8 +155,8 @@ frontend/js/
 ### 前端（DDD架构）
 
 - **入口页面**：`OS.html`、`login.html`、`index.html`
-- **DDD模块**：`frontend/src/features/`（chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
-- **共享基础设施**：`frontend/src/shared/`（领域模型基类、工具类）
+- **DDD模块（实验）**：`frontend/experimental-src/features/`（chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
+- **共享基础设施（实验）**：`frontend/experimental-src/shared/`（领域模型基类、工具类）
 - **样式**：`css/` + `frontend/css/`
 
 ### 后端（DDD架构）

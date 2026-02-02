@@ -2,6 +2,8 @@
  * 项目领域服务
  * 处理跨聚合根的业务逻辑
  */
+import { Project } from './project.aggregate.js';
+
 export class ProjectService {
   constructor(projectRepository) {
     this.projectRepository = projectRepository;
@@ -10,15 +12,15 @@ export class ProjectService {
   /**
    * 创建项目
    */
-  async createProject(ideaId, name, mode) {
+  async createProject(ideaId, name, mode, userId) {
     // 检查创意是否已有有效项目
-    const hasActiveProject = await this.projectRepository.existsByIdeaId(ideaId);
+    const hasActiveProject = await this.projectRepository.existsByIdeaId(ideaId, userId);
     if (hasActiveProject) {
       throw new Error('该创意已创建项目');
     }
 
     // 创建项目
-    const project = Project.create(ideaId, name, mode);
+    const project = Project.create(ideaId, name, mode, userId);
 
     // 保存项目
     await this.projectRepository.save(project);
@@ -29,11 +31,14 @@ export class ProjectService {
   /**
    * 更新项目
    */
-  async updateProject(projectId, updates) {
+  async updateProject(projectId, updates, userId) {
     // 查找项目
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
       throw new Error('项目不存在');
+    }
+    if (userId && project.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     // 更新项目
@@ -48,11 +53,14 @@ export class ProjectService {
   /**
    * 删除项目
    */
-  async deleteProject(projectId) {
+  async deleteProject(projectId, userId) {
     // 查找项目
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
       throw new Error('项目不存在');
+    }
+    if (userId && project.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     // 删除项目（软删除）
@@ -67,11 +75,14 @@ export class ProjectService {
   /**
    * 自定义工作流
    */
-  async customizeWorkflow(projectId, stages) {
+  async customizeWorkflow(projectId, stages, userId) {
     // 查找项目
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
       throw new Error('项目不存在');
+    }
+    if (userId && project.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     // 自定义工作流
@@ -86,12 +97,12 @@ export class ProjectService {
   /**
    * 获取项目统计信息
    */
-  async getProjectStatistics() {
+  async getProjectStatistics(userId) {
     const [totalCount, countByStatus, countByMode, recentProjects] = await Promise.all([
-      this.projectRepository.count(),
-      this.projectRepository.countByStatus(),
-      this.projectRepository.countByMode(),
-      this.projectRepository.findRecent(5)
+      this.projectRepository.count({ userId }),
+      this.projectRepository.countByStatus(userId),
+      this.projectRepository.countByMode(userId),
+      this.projectRepository.findRecent(5, userId)
     ]);
 
     return {
@@ -105,12 +116,12 @@ export class ProjectService {
   /**
    * 批量更新项目状态
    */
-  async batchUpdateStatus(projectIds, status) {
+  async batchUpdateStatus(projectIds, status, userId) {
     const results = [];
 
     for (const projectId of projectIds) {
       try {
-        const project = await this.updateProject(projectId, { status });
+        const project = await this.updateProject(projectId, { status }, userId);
         results.push({
           projectId,
           success: true,
@@ -131,17 +142,21 @@ export class ProjectService {
   /**
    * 查找相关项目
    */
-  async findRelatedProjects(projectId, limit = 5) {
+  async findRelatedProjects(projectId, limit = 5, userId) {
     // 查找当前项目
     const currentProject = await this.projectRepository.findById(projectId);
     if (!currentProject) {
       throw new Error('项目不存在');
     }
+    if (userId && currentProject.userId !== userId) {
+      throw new Error('无权访问该项目');
+    }
 
     // 查找同一创意的其他项目
     const sameIdeaProjects = await this.projectRepository.findAll({
       ideaId: currentProject.ideaId.value,
-      excludeIds: [projectId]
+      excludeIds: [projectId],
+      userId
     });
 
     if (sameIdeaProjects.length >= limit) {
@@ -151,7 +166,8 @@ export class ProjectService {
     // 如果同一创意的项目不够，查找同模式的项目
     const sameModeProjects = await this.projectRepository.findAll({
       mode: currentProject.mode.value,
-      excludeIds: [projectId, ...sameIdeaProjects.map(p => p.id.value)]
+      excludeIds: [projectId, ...sameIdeaProjects.map(p => p.id.value)],
+      userId
     });
 
     // 合并结果
@@ -162,11 +178,14 @@ export class ProjectService {
   /**
    * 归档项目
    */
-  async archiveProject(projectId) {
+  async archiveProject(projectId, userId) {
     // 查找项目
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
       throw new Error('项目不存在');
+    }
+    if (userId && project.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     // 更新状态为已完成
@@ -181,18 +200,22 @@ export class ProjectService {
   /**
    * 复制项目
    */
-  async duplicateProject(projectId, newName) {
+  async duplicateProject(projectId, newName, userId) {
     // 查找原项目
     const originalProject = await this.projectRepository.findById(projectId);
     if (!originalProject) {
       throw new Error('项目不存在');
+    }
+    if (userId && originalProject.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     // 创建新项目（使用新的创意ID）
     const newProject = Project.create(
       `duplicate-${originalProject.ideaId.value}-${Date.now()}`,
       newName || `${originalProject.name.value} (副本)`,
-      originalProject.mode.value
+      originalProject.mode.value,
+      originalProject.userId
     );
 
     // 复制工作流（如果存在）
@@ -210,12 +233,15 @@ export class ProjectService {
   /**
    * 搜索项目
    */
-  async searchProjects(query, filters = {}) {
+  async searchProjects(query, filters = {}, userId) {
     // 构建搜索条件
     const searchFilters = {
       ...filters,
       search: query
     };
+    if (userId) {
+      searchFilters.userId = userId;
+    }
 
     // 执行搜索
     const projects = await this.projectRepository.findAll(searchFilters);
@@ -226,11 +252,14 @@ export class ProjectService {
   /**
    * 获取项目进度
    */
-  async getProjectProgress(projectId) {
+  async getProjectProgress(projectId, userId) {
     // 查找项目
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
       throw new Error('项目不存在');
+    }
+    if (userId && project.userId !== userId) {
+      throw new Error('无权访问该项目');
     }
 
     if (!project.workflow) {
@@ -262,6 +291,3 @@ export class ProjectService {
     };
   }
 }
-
-// 导入依赖
-import { Project } from './project.aggregate.js';

@@ -31,34 +31,40 @@ export class InMemoryChatRepository extends IChatRepository {
     /**
      * 查找所有聊天
      */
-    async findAll() {
-        return Array.from(this._chats.values());
+    async findAll(userId) {
+        return userId
+            ? Array.from(this._chats.values()).filter(chat => chat.userId === userId)
+            : Array.from(this._chats.values());
     }
 
     /**
      * 根据用户ID查找聊天（模拟）
      */
     async findByUserId(userId) {
-        // 模拟：返回所有聊天（实际应用中需要根据用户ID筛选）
-        return Array.from(this._chats.values());
+        return Array.from(this._chats.values()).filter(chat => chat.userId === userId);
     }
 
     /**
      * 查找置顶的聊天
      */
-    async findPinned() {
-        return Array.from(this._chats.values()).filter(chat => chat.isPinned);
+    async findPinned(userId) {
+        return Array.from(this._chats.values()).filter(
+            chat => chat.isPinned && (!userId || chat.userId === userId)
+        );
     }
 
     /**
      * 根据标签查找聊天
      */
-    async findByTags(tags) {
+    async findByTags(tags, userId) {
         if (!Array.isArray(tags) || tags.length === 0) {
             return [];
         }
 
         return Array.from(this._chats.values()).filter(chat => {
+            if (userId && chat.userId !== userId) {
+                return false;
+            }
             return tags.some(tag => chat.tags.includes(tag));
         });
     }
@@ -66,8 +72,13 @@ export class InMemoryChatRepository extends IChatRepository {
     /**
      * 根据状态查找聊天
      */
-    async findByStatus(status) {
-        return Array.from(this._chats.values()).filter(chat => chat.status.value === status);
+    async findByStatus(status, userId) {
+        return Array.from(this._chats.values()).filter(chat => {
+            if (userId && chat.userId !== userId) {
+                return false;
+            }
+            return chat.status.value === status;
+        });
     }
 
     /**

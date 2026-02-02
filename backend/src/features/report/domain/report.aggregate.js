@@ -59,6 +59,60 @@ export class Report extends AggregateRoot {
     return this.props.completedAt;
   }
 
+  toJSON() {
+    return {
+      ...super.toJSON(),
+      projectId: this.props.projectId,
+      type: this.props.type?.value || this.props.type,
+      status: this.props.status?.value || this.props.status,
+      title: this.props.title,
+      description: this.props.description,
+      sections: this.sections.map(section => ({
+        id: section.id,
+        title: section.title,
+        content: section.content,
+        order: section.order,
+        type: section.type,
+        metadata: section.metadata
+      })),
+      metadata: this.props.metadata || {},
+      completedAt: this.props.completedAt
+    };
+  }
+
+  static fromJSON(data) {
+    const report = new Report(new ReportId(data.id), {
+      projectId: data.projectId,
+      type: new ReportType(data.type),
+      status: new ReportStatus(data.status),
+      title: data.title,
+      description: data.description,
+      metadata: data.metadata || {},
+      createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+      updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+      completedAt: data.completedAt ? new Date(data.completedAt) : null
+    });
+
+    report._version = data.version || 0;
+    report._sections = new Map();
+
+    for (const section of data.sections || []) {
+      const reportSection = new ReportSection(section.id, {
+        title: section.title,
+        content: section.content,
+        order: section.order,
+        type: section.type,
+        metadata: section.metadata || {}
+      });
+      report._sections.set(reportSection.id, reportSection);
+    }
+
+    report.createdAt = report.props.createdAt;
+    report.updatedAt = report.props.updatedAt;
+
+    return report;
+  }
+
   static create(props) {
     const report = new Report(new ReportId(`report_${Date.now()}`), {
       ...props,
