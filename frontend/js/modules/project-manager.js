@@ -372,18 +372,20 @@ class ProjectManager {
     if (project.workflow && Array.isArray(project.workflow.stages)) {
       return project;
     }
-    const workflowCategory = project.workflowCategory || 'product-development';
-    const stages = await this.buildWorkflowStages(workflowCategory);
-    if (!stages || stages.length === 0) {
-      return project;
-    }
-    return {
-      ...project,
-      workflow: {
-        stages,
-        currentStage: stages[0]?.id || null
+    const suggestedStages = project.collaborationSuggestion?.stages;
+    if (Array.isArray(suggestedStages) && suggestedStages.length > 0) {
+      const stages = this.normalizeSuggestedStages(suggestedStages);
+      if (stages.length > 0) {
+        return {
+          ...project,
+          workflow: {
+            stages,
+            currentStage: stages[0]?.id || null
+          }
+        };
       }
-    };
+    }
+    return project;
   }
 
   /**
@@ -881,29 +883,32 @@ class ProjectManager {
     const workflowReady = Boolean(window.workflowExecutor);
     const updatedAt = project.updatedAt ? this.formatTimeAgo(project.updatedAt) : '刚刚';
 
-    const progress = this.calculateWorkflowProgress(project.workflow);
     const memberCount = (project.assignedAgents || []).length;
     const ideaCount = project.ideaId ? 1 : 0;
-    const stageCount = project.workflow?.stages?.length || 0;
-    const completedStages = (project.workflow?.stages || []).filter(
-      stage => stage.status === 'completed'
-    ).length;
-    const pendingStages = Math.max(stageCount - completedStages, 0);
     const statusClass = `status-${project.status || 'planning'}`;
-    const hasStages = stageCount > 0;
 
     const workflowCategory = project.workflowCategory || 'product-development';
     const workflowLabel = this.getWorkflowCategoryLabel(workflowCategory);
-    const stages = project.workflow?.stages || [];
-    const selectedStageId = this.currentStageId || stages[0]?.id || null;
-    this.currentStageId = selectedStageId;
+
+    const suggestedStages = project.collaborationSuggestion?.stages;
+    const hasSuggestedStages = Array.isArray(suggestedStages) && suggestedStages.length > 0;
+    const stages = hasSuggestedStages ? this.normalizeSuggestedStages(suggestedStages) : (project.workflow?.stages || []);
 
     // 检查是否已执行协同模式
     const collaborationExecuted = project.collaborationExecuted || false;
 
+    const shouldRenderWorkflow = hasSuggestedStages || (collaborationExecuted && stages.length > 0);
+    const effectiveStages = shouldRenderWorkflow ? stages : [];
+    const stageCount = effectiveStages.length;
+    const completedStages = effectiveStages.filter(stage => stage.status === 'completed').length;
+    const pendingStages = Math.max(stageCount - completedStages, 0);
+    const progress = this.calculateWorkflowProgress({ stages: effectiveStages });
+
+    const selectedStageId = this.currentStageId || effectiveStages[0]?.id || null;
+    this.currentStageId = selectedStageId;
+
     // 根据依赖关系对阶段进行拓扑排序
-    const sortedStages = collaborationExecuted ? this.sortStagesByDependencies(stages) : stages;
-    const shouldRenderWorkflow = hasStages;
+    const sortedStages = collaborationExecuted ? this.sortStagesByDependencies(effectiveStages) : effectiveStages;
 
     title.textContent = project.name;
 
@@ -922,7 +927,7 @@ class ProjectManager {
                     </div>
                     <div class="project-panel-hero-actions">
                         <button class="btn-secondary" onclick="projectManager.showReplaceIdeaDialog('${project.id}')">更换创意</button>
-                        ${hasStages ? `<button class="btn-secondary" onclick="projectManager.openPreviewPanel('${project.id}')">预览入口</button>` : ''}
+                        ${shouldRenderWorkflow ? `<button class="btn-secondary" onclick="projectManager.openPreviewPanel('${project.id}')">预览入口</button>` : ''}
                     </div>
                 </div>
             <div class="project-panel-layout">
@@ -1332,7 +1337,7 @@ class ProjectManager {
    */
   renderWorkflowSteps(stages, selectedStageId) {
     return stages.map((stage, index) => {
-      const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+      const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
       const isSelected = stage.id === selectedStageId;
       const statusClass = `status-${stage.status || 'pending'}`;
       const selectedClass = isSelected ? 'selected' : '';
@@ -1366,7 +1371,7 @@ class ProjectManager {
    * @returns {String} HTML字符串
    */
   renderStageDetailSection(project, stage) {
-    const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+    const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
     const statusText = this.getStageStatusLabel(stage.status || 'pending');
     const statusColor = {
       pending: '#9ca3af',
@@ -3021,6 +3026,9 @@ class ProjectManager {
     if (!project || !project.workflow) {
       return;
     }
+    if (project.collaborationSuggestion?.stages?.length) {
+      return;
+    }
     const stages = await this.buildWorkflowStages(workflowCategory);
     if (!stages || stages.length === 0) {
       return;
@@ -3262,6 +3270,23 @@ class ProjectManager {
     }));
   }
 
+  normalizeSuggestedStages(suggestedStages = []) {
+    const list = Array.isArray(suggestedStages) ? suggestedStages : [];
+    return list.map((stage, index) => ({
+      id: stage.id || `stage-${index + 1}`,
+      name: stage.name || `阶段${index + 1}`,
+      description: stage.description || '',
+      status: stage.status || 'pending',
+      order: Number.isFinite(stage.order) ? stage.order : index + 1,
+      artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
+      agents: Array.isArray(stage.agents) ? stage.agents : [],
+      agentRoles: Array.isArray(stage.agentRoles) ? stage.agentRoles : [],
+      dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
+      outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+      recommended: true
+    }));
+  }
+
   /**
    * 确认创建项目
    */
@@ -3409,7 +3434,9 @@ class ProjectManager {
       const workflowCategory = project.workflowCategory || 'product-development';
 
       await this.updateProject(project.id, { workflowCategory });
-      await this.applyWorkflowCategory(project.id, workflowCategory);
+      if (!project.collaborationSuggestion?.stages?.length) {
+        await this.applyWorkflowCategory(project.id, workflowCategory);
+      }
       await this.saveIdeaKnowledge(project.id, ideaId);
 
       // 刷新项目列表
@@ -3483,7 +3510,7 @@ class ProjectManager {
     // 渲染阶段卡片 - 优化版
     const stagesHTML = project.workflow.stages
       .map((stage, index) => {
-        const definition = window.workflowExecutor?.getStageDefinition(stage.id);
+        const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
         const statusText =
           {
             pending: '待执行',

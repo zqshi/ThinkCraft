@@ -7,6 +7,7 @@ import { AccountManagementUseCase } from '../src/features/auth/application/accou
 import { getRepository } from '../src/shared/infrastructure/repository.factory.js';
 import { authMiddleware } from '../src/features/auth/interfaces/auth.middleware.js';
 import { logger } from '../middleware/logger.js';
+import { ok, fail } from '../middleware/response.js';
 
 const router = express.Router();
 
@@ -25,13 +26,10 @@ router.get('/info', async (req, res) => {
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.getUserInfo(userId);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('获取用户信息失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -45,30 +43,21 @@ router.post('/bind-phone', async (req, res) => {
     const { phone, code } = req.body;
 
     if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: '手机号不能为空'
-      });
+      return fail(res, '手机号不能为空', 400);
     }
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: '验证码不能为空'
-      });
+      return fail(res, '验证码不能为空', 400);
     }
 
     const userRepository = getRepository('user');
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.bindPhone(userId, phone, code);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('绑定手机号失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -82,30 +71,21 @@ router.put('/phone', async (req, res) => {
     const { phone, code } = req.body;
 
     if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: '手机号不能为空'
-      });
+      return fail(res, '手机号不能为空', 400);
     }
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: '验证码不能为空'
-      });
+      return fail(res, '验证码不能为空', 400);
     }
 
     const userRepository = getRepository('user');
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.changePhone(userId, phone, code);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('更换手机号失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -122,13 +102,10 @@ router.get('/login-history', async (req, res) => {
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.getLoginHistory(userId, limit);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('获取登录历史失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -145,13 +122,10 @@ router.put('/preferences', async (req, res) => {
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.updatePreferences(userId, preferences);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('更新偏好设置失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -165,23 +139,17 @@ router.delete('/', async (req, res) => {
     const { code } = req.body;
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: '请输入验证码确认'
-      });
+      return fail(res, '请输入验证码确认', 400);
     }
 
     const userRepository = getRepository('user');
     const useCase = new AccountManagementUseCase(userRepository);
     const result = await useCase.deleteAccount(userId, code);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('注销账号失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 

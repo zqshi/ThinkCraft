@@ -386,6 +386,80 @@
             animation: slideDown 0.3s ease;
         }
 
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            backdrop-filter: blur(6px);
+        }
+
+        .modal-mask.show {
+            display: flex;
+        }
+
+        .modal-card {
+            width: 100%;
+            max-width: 360px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            text-align: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .modal-desc {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+        }
+
+        .modal-phone {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text);
+            margin-bottom: 12px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+        }
+
+        .modal-code {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .modal-btn {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 14px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--text);
+        }
+
         @keyframes slideDown {
             from {
                 opacity: 0;
@@ -498,6 +572,16 @@
         </div>
     </div>
 
+    <div id="codeModal" class="modal-mask">
+        <div class="modal-card">
+            <div class="modal-title">开发环境验证码</div>
+            <div class="modal-desc">当前为开发环境，验证码请手动输入</div>
+            <div id="codeModalPhone" class="modal-phone">手机号：-</div>
+            <div id="codeModalValue" class="modal-code">000000</div>
+            <button class="modal-btn" onclick="hideCodeModal()">我已记录</button>
+        </div>
+    </div>
+
     <script>
         // 表单校验规则
         const validators = {
@@ -562,6 +646,28 @@
 
         function generateLocalCode() {
             return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        function showCodeModal(code, phone) {
+            const modal = document.getElementById('codeModal');
+            const valueEl = document.getElementById('codeModalValue');
+            const phoneEl = document.getElementById('codeModalPhone');
+            if (valueEl) {
+                valueEl.textContent = code;
+            }
+            if (phoneEl) {
+                phoneEl.textContent = `手机号：${phone || '-'}`;
+            }
+            if (modal) {
+                modal.classList.add('show');
+            }
+        }
+
+        function hideCodeModal() {
+            const modal = document.getElementById('codeModal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
         }
 
         function saveLocalLoginCode(phone, code) {
@@ -756,8 +862,9 @@
                 .then((data) => {
                     startCodeCountdown(sendBtn);
                     // 开发环境下，如果返回了验证码，显示在弹窗中
-                    if (data.code) {
-                        alert(`【开发环境】验证码已生成\n\n验证码：${data.code}\n有效期：10分钟\n\n请在验证码输入框中填写此验证码`);
+                    const devCode = data?.data?.code;
+                    if (isLocalhostEnv() && devCode) {
+                        showCodeModal(devCode, phone);
                     } else {
                         alert('验证码已发送，请注意查收');
                     }
@@ -766,7 +873,7 @@
                     if (isLocalhostEnv() && isDevLoginEnabled()) {
                         const code = generateLocalCode();
                         saveLocalLoginCode(phone, code);
-                        alert(`【本地开发】验证码已生成\n\n验证码：${code}\n有效期：10分钟\n\n请在验证码输入框中填写此验证码`);
+                        showCodeModal(code, phone);
                         return;
                     }
                     alert('发送验证码失败：' + error.message);

@@ -6,6 +6,8 @@ import express from 'express';
 import { PhoneVerificationUseCase } from '../src/features/auth/application/phone-verification.use-case.js';
 import { getRepository } from '../src/shared/infrastructure/repository.factory.js';
 import { logger } from '../middleware/logger.js';
+import { ok, fail } from '../middleware/response.js';
+import { smsLimiter } from '../middleware/rate-limiter.js';
 
 const router = express.Router();
 
@@ -13,25 +15,19 @@ const router = express.Router();
  * POST /api/verification/send
  * 发送验证码
  */
-router.post('/send', async (req, res) => {
+router.post('/send', smsLimiter, async (req, res) => {
   try {
     const { phone, type = 'register' } = req.body;
 
     // 参数验证
     if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: '手机号不能为空'
-      });
+      return fail(res, '手机号不能为空', 400);
     }
 
     // 验证类型检查
     const validTypes = ['register', 'login', 'reset', 'bind'];
     if (!validTypes.includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: '无效的验证类型'
-      });
+      return fail(res, '无效的验证类型', 400);
     }
 
     // 获取用户仓库
@@ -50,13 +46,10 @@ router.post('/send', async (req, res) => {
       }
     }
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('发送验证码失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 
@@ -70,17 +63,11 @@ router.post('/verify', async (req, res) => {
 
     // 参数验证
     if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: '手机号不能为空'
-      });
+      return fail(res, '手机号不能为空', 400);
     }
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: '验证码不能为空'
-      });
+      return fail(res, '验证码不能为空', 400);
     }
 
     // 获取用户仓库
@@ -90,13 +77,10 @@ router.post('/verify', async (req, res) => {
     const useCase = new PhoneVerificationUseCase(userRepository);
     const result = await useCase.verifyCode(phone, code, type);
 
-    res.json(result);
+    ok(res, result);
   } catch (error) {
     logger.error('验证验证码失败', { error: error.message });
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    fail(res, error.message, 400);
   }
 });
 

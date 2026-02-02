@@ -4,7 +4,9 @@
  */
 
 function getDefaultApiUrl() {
-  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+  if (isLocalhost && window.location.port !== '3000') {
     return 'http://localhost:3000';
   }
   return window.location.origin;
@@ -350,7 +352,7 @@ class WorkflowExecutor {
    * @param {String} stageId - 阶段ID
    * @returns {Object|null} 阶段配置
    */
-  getStageDefinition(stageId) {
+  getStageDefinition(stageId, fallback = {}) {
     const stageDefinitions = {
       strategy: {
         id: 'strategy',
@@ -372,13 +374,6 @@ class WorkflowExecutor {
         description: 'UI/UX设计、交互原型、视觉规范',
         icon: '🎨',
         color: '#764ba2'
-      },
-      strategy: {
-        id: 'strategy',
-        name: '战略设计',
-        description: '战略设计、挑战回应',
-        icon: '🎯',
-        color: '#6366f1'
       },
       architecture: {
         id: 'architecture',
@@ -417,7 +412,15 @@ class WorkflowExecutor {
       }
     };
 
-    return stageDefinitions[stageId] || null;
+    const def = stageDefinitions[stageId] || {};
+    const isFallback = !stageDefinitions[stageId];
+    return {
+      ...def,
+      ...fallback,
+      icon: fallback.icon || def.icon || '📋',
+      color: fallback.color || def.color || '#667eea',
+      _isFallback: isFallback
+    };
   }
 
   /**
@@ -461,7 +464,7 @@ class WorkflowExecutor {
    * @returns {String} HTML字符串
    */
   renderStageCard(projectId, stage) {
-    const definition = this.getStageDefinition(stage.id);
+    const definition = this.getStageDefinition(stage.id, stage);
     const statusText =
       {
         pending: '未开始',

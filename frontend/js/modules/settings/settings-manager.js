@@ -102,7 +102,9 @@ class SettingsManager {
         updateTeamTabVisibility();
 
         if (window.apiClient && window.apiClient.setBaseURL) {
-            const apiUrl = state.settings.apiUrl || ((window.location.hostname === 'localhost' && window.location.port === '8000') ? 'http://localhost:3000' : window.location.origin);
+            const host = window.location.hostname;
+            const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+            const apiUrl = state.settings.apiUrl || ((isLocalhost && window.location.port !== '3000') ? 'http://localhost:3000' : window.location.origin);
             window.apiClient.setBaseURL(apiUrl);
         }
     }

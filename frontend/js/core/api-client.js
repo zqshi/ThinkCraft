@@ -5,7 +5,7 @@
 
 class APIClient {
   constructor(baseURL = getDefaultBaseURL()) {
-    this.baseURL = baseURL;
+    this.baseURL = resolveBaseURL(baseURL);
     this.requestQueue = [];
     this.processing = false;
     this.refreshingPromise = null;
@@ -152,6 +152,7 @@ class APIClient {
     localStorage.removeItem('accessToken');
 
     if (typeof window !== 'undefined') {
+      alert('登录已过期，请重新登录');
       window.location.href = 'login.html';
     }
   }
@@ -311,7 +312,7 @@ class APIClient {
    * @param {String} url - 新的基础URL
    */
   setBaseURL(url) {
-    this.baseURL = url;
+    this.baseURL = resolveBaseURL(url);
     }
 
   /**
@@ -357,10 +358,22 @@ class APIClient {
 }
 
 function getDefaultBaseURL() {
-  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+  if (isLocalhost && window.location.port !== '3000') {
     return 'http://localhost:3000';
   }
-  return '';
+  return window.location.origin;
+}
+
+function resolveBaseURL(url) {
+  if (url && typeof url === 'string') {
+    return url;
+  }
+  if (typeof window === 'undefined') {
+    return url || '';
+  }
+  return getDefaultBaseURL();
 }
 
 // 导出单例实例
@@ -370,6 +383,6 @@ if (typeof window !== 'undefined') {
   // 创建默认实例
   const settings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
   const apiUrl = settings.apiUrl || getDefaultBaseURL();
-  window.apiClient = new APIClient(apiUrl);
+  window.apiClient = new APIClient(resolveBaseURL(apiUrl));
 
   }

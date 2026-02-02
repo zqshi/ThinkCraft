@@ -61,6 +61,9 @@ class MessageHandler {
         this.addMessage('user', message, null, false, false, true);
         input.value = '';
         input.style.height = 'auto';
+        if (window.stateManager?.clearInputDraft) {
+            window.stateManager.clearInputDraft(chatId);
+        }
 
         // 移动端：不自动切换输入模式，保持用户选择的模式
         // 用户可以通过点击按钮手动切换
@@ -75,7 +78,7 @@ class MessageHandler {
         state.conversationStep++;
 
         if (state.settings.saveHistory && chatId !== null) {
-            const index = state.chats.findIndex(c => c.id == chatId);
+            const index = state.chats.findIndex(c => String(c.id) === String(chatId));
             if (index !== -1) {
                 state.chats[index] = {
                     ...state.chats[index],
@@ -99,25 +102,46 @@ class MessageHandler {
         state.isLoading = state.pendingChatIds.size > 0;
 
         try {
-            // 调用后端API
-            const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messages: state.messages.map(m => ({
-                        role: m.role,
-                        content: m.content
-                    }))
-                })
-            });
+            // 调用后端API（带鉴权）
+            const payload = {
+                messages: state.messages.map(m => ({
+                    role: m.role,
+                    content: m.content
+                }))
+            };
+            let data;
+            if (window.apiClient?.post) {
+                data = await window.apiClient.post('/api/chat', payload);
+            } else {
+                const authToken =
+                    sessionStorage.getItem('thinkcraft_access_token') ||
+                    localStorage.getItem('thinkcraft_access_token') ||
+                    localStorage.getItem('accessToken');
+                if (!authToken) {
+                    alert('请先登录后再发送消息');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-            if (!response.ok) {
-                throw new Error(`API错误: ${response.status}`);
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        alert('登录已过期，请重新登录');
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    throw new Error(`API错误: ${response.status}`);
+                }
+
+                data = await response.json();
             }
-
-            const data = await response.json();
 
             if (data.code !== 0) {
                 throw new Error(data.error || '未知错误');
@@ -130,7 +154,7 @@ class MessageHandler {
             }
 
             if (state.settings.saveHistory && chatId !== null) {
-                const index = state.chats.findIndex(c => c.id == chatId);
+                const index = state.chats.findIndex(c => String(c.id) === String(chatId));
                 if (index !== -1) {
                     const chatMessages = Array.isArray(state.chats[index].messages)
                         ? [...state.chats[index].messages]
@@ -148,7 +172,7 @@ class MessageHandler {
                 }
             }
 
-            if (state.currentChat == chatId) {
+            if (String(state.currentChat) === String(chatId)) {
                 // 将AI回复添加到当前对话
                 state.messages.push({
                     role: 'assistant',
@@ -163,14 +187,14 @@ class MessageHandler {
             }
 
             // AI回复后更新对话
-            if (state.settings.saveHistory && state.currentChat == chatId && typeof saveCurrentChat === 'function') {
+            if (state.settings.saveHistory && String(state.currentChat) === String(chatId) && typeof saveCurrentChat === 'function') {
                 await saveCurrentChat();
             }
 
         } catch (error) {
             const errorMsg = `抱歉，出现了错误：${error.message}\n\n请检查：\n1. 后端服务是否已启动（npm start）\n2. .env文件中的DEEPSEEK_API_KEY是否配置正确\n3. 网络连接是否正常`;
             if (state.settings.saveHistory && chatId !== null) {
-                const index = state.chats.findIndex(c => c.id == chatId);
+                const index = state.chats.findIndex(c => String(c.id) === String(chatId));
                 if (index !== -1) {
                     const chatMessages = Array.isArray(state.chats[index].messages)
                         ? [...state.chats[index].messages]
@@ -188,7 +212,7 @@ class MessageHandler {
                     }
                 }
             }
-            if (state.currentChat == chatId) {
+            if (String(state.currentChat) === String(chatId)) {
                 this.addMessage('assistant', errorMsg, null, false, false, true);  // skipStatePush=true，避免重复
                 // 手动添加错误消息到state
                 state.messages.push({
@@ -201,7 +225,7 @@ class MessageHandler {
             }
 
             // 即使出错也保存对话
-            if (state.settings.saveHistory && state.currentChat == chatId && typeof saveCurrentChat === 'function') {
+            if (state.settings.saveHistory && String(state.currentChat) === String(chatId) && typeof saveCurrentChat === 'function') {
                 await saveCurrentChat();
             }
         } finally {
@@ -399,6 +423,9 @@ class MessageHandler {
      */
     quickReply(text) {
         document.getElementById('mainInput').value = text;
+        if (window.stateManager?.setInputDraft) {
+            window.stateManager.setInputDraft(window.state?.currentChat, text);
+        }
         this.sendMessage();
     }
 

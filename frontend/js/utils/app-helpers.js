@@ -336,6 +336,9 @@ async function processImageFile(file) {
         const input = document.getElementById('mainInput');
         const description = data.data.description;
         input.value = `[图片内容]: ${description}`;
+        if (window.stateManager?.setInputDraft) {
+            window.stateManager.setInputDraft(window.state?.currentChat, input.value);
+        }
         autoResize(input);
 
         // 移除加载消息
@@ -354,6 +357,9 @@ async function processImageFile(file) {
         reader.onload = (e) => {
             const input = document.getElementById('mainInput');
             input.value = `[已上传图片: ${file.name}]\n\n请描述你想探讨的内容：`;
+            if (window.stateManager?.setInputDraft) {
+                window.stateManager.setInputDraft(window.state?.currentChat, input.value);
+            }
             autoResize(input);
 
             // 显示图片预览（可选）

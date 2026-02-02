@@ -86,8 +86,9 @@ export const validateApiKey = (req, res, next) => {
 export const requestSizeLimit = (maxSize = '10mb') => {
   return (req, res, next) => {
     const contentLength = req.get('Content-Length');
+    const maxBytes = parseSizeToBytes(maxSize);
 
-    if (contentLength && parseInt(contentLength) > maxSize) {
+    if (contentLength && maxBytes !== null && parseInt(contentLength, 10) > maxBytes) {
       return res.status(413).json({
         code: -1,
         error: '请求体过大'
@@ -96,4 +97,30 @@ export const requestSizeLimit = (maxSize = '10mb') => {
 
     next();
   };
+};
+
+const parseSizeToBytes = (value) => {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim().toLowerCase();
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)(b|kb|mb|gb)?$/);
+  if (!match) {
+    return null;
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2] || 'b';
+  const multipliers = {
+    b: 1,
+    kb: 1024,
+    mb: 1024 * 1024,
+    gb: 1024 * 1024 * 1024
+  };
+
+  return Math.floor(amount * (multipliers[unit] || 1));
 };

@@ -24,6 +24,31 @@ class PromptLoader {
   }
 
   /**
+   * 安全解析提示词路径，防止目录穿越
+   */
+  _resolvePromptPath(promptName) {
+    if (!promptName || typeof promptName !== 'string') {
+      throw new Error('Invalid prompt path');
+    }
+
+    const normalized = promptName.replace(/\\/g, '/').trim();
+    if (
+      normalized.startsWith('/') ||
+      normalized.includes('..') ||
+      normalized.includes('\0')
+    ) {
+      throw new Error('Invalid prompt path');
+    }
+
+    const filePath = path.resolve(this.promptDir, `${normalized}.md`);
+    if (!filePath.startsWith(this.promptDir + path.sep)) {
+      throw new Error('Invalid prompt path');
+    }
+
+    return filePath;
+  }
+
+  /**
    * 初始化加载所有Agent和Task Prompts
    */
   async initialize() {
@@ -264,7 +289,7 @@ class PromptLoader {
     }
 
     try {
-      const filePath = path.join(this.promptDir, `${promptName}.md`);
+      const filePath = this._resolvePromptPath(promptName);
       const content = await fs.readFile(filePath, 'utf-8');
 
       // 移除 YAML front matter（--- ... ---）
@@ -747,7 +772,7 @@ ${conversationHistory}
    */
   async exists(promptName) {
     try {
-      const filePath = path.join(this.promptDir, `${promptName}.md`);
+      const filePath = this._resolvePromptPath(promptName);
       await fs.access(filePath);
       return true;
     } catch {

@@ -9,6 +9,7 @@ import {
   AccessShareRequestDto,
   BatchShareOperationDto
 } from '../application/share.dto.js';
+import { ok, fail } from '../../../../middleware/response.js';
 
 export class ShareController {
   constructor() {
@@ -31,15 +32,9 @@ export class ShareController {
       });
 
       const result = await this.shareUseCase.createShare(requestDto, req.user.userId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -56,22 +51,12 @@ export class ShareController {
       const result = await this.shareUseCase.accessShare(shareLink, requestDto);
 
       if (result.hasAccess) {
-        res.json({
-          success: true,
-          data: result.share
-        });
+        ok(res, result.share);
       } else {
-        res.status(403).json({
-          success: false,
-          error: result.error,
-          data: result.share
-        });
+        fail(res, result.error || 'Forbidden', 403, { share: result.share });
       }
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 404);
     }
   }
 
@@ -81,15 +66,9 @@ export class ShareController {
   async getShare(req, res) {
     try {
       const result = await this.shareUseCase.getShare(req.params.shareId, req.user.userId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 404);
     }
   }
 
@@ -111,15 +90,9 @@ export class ShareController {
         requestDto,
         req.user.userId
       );
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -129,15 +102,9 @@ export class ShareController {
   async revokeShare(req, res) {
     try {
       const result = await this.shareUseCase.revokeShare(req.params.shareId, req.user.userId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -160,15 +127,9 @@ export class ShareController {
       });
 
       const result = await this.shareUseCase.getUserShares(req.user.userId, filters);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -181,15 +142,9 @@ export class ShareController {
         req.params.resourceId,
         req.params.resourceType
       );
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -199,15 +154,9 @@ export class ShareController {
   async getShareStats(req, res) {
     try {
       const result = await this.shareUseCase.getShareStats(req.user.userId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -222,15 +171,9 @@ export class ShareController {
       });
 
       const result = await this.shareUseCase.batchOperation(requestDto, req.user.userId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -243,15 +186,9 @@ export class ShareController {
         req.params.shareLink,
         req.body.password
       );
-      res.json({
-        success: true,
-        data: { isValid }
-      });
+      ok(res, { isValid });
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 404);
     }
   }
 
@@ -262,15 +199,9 @@ export class ShareController {
     try {
       // 这里应该有权限检查，确保是系统任务调用
       const results = await this.shareUseCase.cleanupExpiredShares();
-      res.json({
-        success: true,
-        data: results
-      });
+      ok(res, results);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 500);
     }
   }
 
@@ -282,23 +213,14 @@ export class ShareController {
       const { messages } = req.body;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
-        return res.status(400).json({
-          code: 1,
-          error: '对话历史不能为空'
-        });
+        return fail(res, '对话历史不能为空', 400);
       }
 
       const result = await this.shareUseCase.generateShareCard(messages);
-      res.json({
-        code: 0,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
       console.error('Generate share card error:', error);
-      res.status(500).json({
-        code: 1,
-        error: error.message || '生成分享卡片失败'
-      });
+      fail(res, error.message || '生成分享卡片失败', 500);
     }
   }
 }

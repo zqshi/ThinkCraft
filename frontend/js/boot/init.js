@@ -44,6 +44,9 @@ function handleLaunchParams() {
       if (sharedText) content += sharedText + '\n';
       if (sharedUrl) content += sharedUrl;
       input.value = content.trim();
+      if (window.stateManager?.setInputDraft) {
+        window.stateManager.setInputDraft(window.state?.currentChat, input.value);
+      }
       focusInput();
     }
   }
@@ -153,6 +156,9 @@ function initApp() {
     mainInput.addEventListener('keyup', handleKeyUp);
     mainInput.addEventListener('input', function() {
       autoResize(this);
+      if (window.stateManager?.setInputDraft) {
+        window.stateManager.setInputDraft(window.state?.currentChat, this.value);
+      }
     });
     // 添加输入法组合事件监听
     mainInput.addEventListener('compositionstart', handleCompositionStart);
@@ -164,6 +170,11 @@ function initApp() {
   if (mobileTextInput) {
     // 移动端输入框已经在 HTML 中通过 onkeydown 绑定了 handleKeyDown
     // 这里添加输入法组合事件监听
+    mobileTextInput.addEventListener('input', function() {
+      if (window.stateManager?.setInputDraft) {
+        window.stateManager.setInputDraft(window.state?.currentChat, this.value);
+      }
+    });
     mobileTextInput.addEventListener('compositionstart', handleCompositionStart);
     mobileTextInput.addEventListener('compositionend', handleCompositionEnd);
   }
@@ -333,7 +344,9 @@ function initMobileVoiceButton() {
 }
 
 function getDefaultApiUrl() {
-  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+  if (isLocalhost && window.location.port !== '3000') {
     return 'http://localhost:3000';
   }
   return window.location.origin;

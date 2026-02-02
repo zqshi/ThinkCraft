@@ -26,7 +26,11 @@ async function initializePrompts() {
 }
 
 // 启动时加载提示词
-initializePrompts();
+try {
+    await initializePrompts();
+} catch (error) {
+    console.error('❌ Failed to initialize business plan prompts:', error.message);
+}
 
 // Agent信息（用于前端显示）
 const CHAPTER_AGENTS = {
@@ -73,10 +77,10 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
 
     // 打印对话历史的前2条和后2条，用于调试
     if (conversationHistory.length > 0) {
-        console.log('[生成章节] 对话历史示例（前2条）:', conversationHistory.slice(0, 2));
-        if (conversationHistory.length > 2) {
-            console.log('[生成章节] 对话历史示例（后2条）:', conversationHistory.slice(-2));
-        }
+    console.log('[生成章节] 对话历史示例（前2条）:', conversationHistory.slice(0, 2).map(msg => ({ role: msg.role, length: String(msg.content || '').length })));
+    if (conversationHistory.length > 2) {
+        console.log('[生成章节] 对话历史示例（后2条）:', conversationHistory.slice(-2).map(msg => ({ role: msg.role, length: String(msg.content || '').length })));
+    }
     }
 
     // 根据类型选择提示词

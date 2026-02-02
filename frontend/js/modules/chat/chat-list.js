@@ -21,6 +21,14 @@ class ChatList {
             }
         }
 
+        // 保存当前输入草稿（切换前）
+        if (window.stateManager?.setInputDraft) {
+            const desktopInput = document.getElementById('mainInput');
+            const mobileInput = document.getElementById('mobileTextInput');
+            const activeInput = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
+            window.stateManager.setInputDraft(state.currentChat, activeInput ? activeInput.value : '');
+        }
+
         // 重置所有state
         state.currentChat = null;  // 重置为null表示新对话
         state.messages = [];
@@ -65,6 +73,22 @@ class ChatList {
 
         // 刷新对话列表（移除active状态）
         this.loadChats();
+
+        // 恢复新对话输入草稿
+        if (window.stateManager?.getInputDraft) {
+            const draft = window.stateManager.getInputDraft(null);
+            const desktopInput = document.getElementById('mainInput');
+            const mobileInput = document.getElementById('mobileTextInput');
+            if (desktopInput) {
+                desktopInput.value = draft;
+                if (typeof autoResize === 'function') {
+                    autoResize(desktopInput);
+                }
+            }
+            if (mobileInput) {
+                mobileInput.value = draft;
+            }
+        }
 
         // 聚焦输入框
         if (typeof focusInput === 'function') {
@@ -117,7 +141,8 @@ class ChatList {
 
         state.chats.forEach(chat => {
             const item = document.createElement('div');
-            item.className = 'chat-item' + (chat.isPinned ? ' pinned' : '') + (state.currentChat == chat.id ? ' active' : '');
+            const isActive = String(state.currentChat) === String(chat.id);
+            item.className = 'chat-item' + (chat.isPinned ? ' pinned' : '') + (isActive ? ' active' : '');
             item.dataset.chatId = chat.id;
 
             const tagsHTML = ''; // 标签功能已禁用
@@ -189,7 +214,7 @@ class ChatList {
      */
     async renameChat(e, chatId) {
         e.stopPropagation();
-        const chat = state.chats.find(c => c.id == chatId);
+        const chat = state.chats.find(c => String(c.id) === String(chatId));
         if (!chat) return;
 
         const newTitle = prompt('修改对话标题', chat.title);
@@ -213,7 +238,7 @@ class ChatList {
      */
     async togglePinChat(e, chatId) {
         e.stopPropagation();
-        const chat = state.chats.find(c => c.id == chatId);
+        const chat = state.chats.find(c => String(c.id) === String(chatId));
         if (!chat) return;
 
         chat.isPinned = !chat.isPinned;
@@ -249,7 +274,7 @@ class ChatList {
             item.classList.remove('menu-open');
         });
 
-        state.chats = state.chats.filter(c => c.id != chatId);
+        state.chats = state.chats.filter(c => String(c.id) !== String(chatId));
 
         // 从 IndexedDB 删除
         if (window.storageManager) {
@@ -257,7 +282,7 @@ class ChatList {
         }
 
         // 如果删除的是当前对话，重置状态
-        if (state.currentChat == chatId) {
+        if (String(state.currentChat) === String(chatId)) {
             state.currentChat = null;
             state.messages = [];
             state.conversationStep = 0;

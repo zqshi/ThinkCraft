@@ -3,8 +3,10 @@
  */
 class AgentCollaboration {
   constructor() {
+    const host = window.location.hostname;
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1';
     const defaultApiUrl =
-      window.location.hostname === 'localhost' && window.location.port === '8000'
+      isLocalhost && window.location.port !== '3000'
         ? 'http://localhost:3000'
         : window.location.origin;
     this.apiUrl = window.appState?.settings?.apiUrl || defaultApiUrl;
@@ -213,32 +215,7 @@ class AgentCollaboration {
   }
 
   getWorkflowCatalog() {
-    return window.projectManager?.getWorkflowCatalog?.() || {
-      'product-development': {
-        id: 'product-development',
-        name: '统一产品开发流程',
-        stages: [
-          { id: 'strategy', name: '战略设计' },
-          { id: 'requirement', name: '需求' },
-          { id: 'design', name: '设计' },
-          { id: 'architecture', name: '架构' },
-          { id: 'development', name: '开发' },
-          { id: 'testing', name: '测试' },
-          { id: 'deployment', name: '部署' },
-          { id: 'operation', name: '运营' }
-        ],
-        agents: {
-          strategy: ['strategy-design'],
-          requirement: ['product-manager'],
-          design: ['ui-ux-designer'],
-          architecture: ['tech-lead'],
-          development: ['frontend-developer', 'backend-developer'],
-          testing: ['qa-engineer'],
-          deployment: ['devops'],
-          operation: ['marketing', 'operations']
-        }
-      }
-    };
+    return window.projectManager?.getWorkflowCatalog?.() || {};
   }
 
   getDefaultRecommendedAgentIds(workflowCategory) {
@@ -441,13 +418,15 @@ class AgentCollaboration {
         : [];
       const collaborationMode = result.data?.collaborationMode || '';
       const updatedAt = Date.now();
+      const stages = Array.isArray(result.data?.stages) ? result.data.stages : [];
       const payload = {
         plan,
         updatedAt,
         idea,
         instruction,
         recommendedAgents,
-        collaborationMode
+        collaborationMode,
+        stages
       };
 
       if (projectId && window.storageManager?.saveProject) {
@@ -703,6 +682,14 @@ class AgentCollaboration {
    */
   async initAgentSystem() {
     try {
+      const token = this.getAuthToken();
+      if (!token) {
+        this.myAgents = [];
+        this.availableAgentTypes = [];
+        this.updateAgentTeamSummary();
+        return;
+      }
+
       // 获取可用的Agent类型
       const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/types`);
       if (response.ok) {

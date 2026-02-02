@@ -17,6 +17,30 @@ class ChatManager {
         this.state = window.state;
     }
 
+    getActiveInputValue() {
+        const desktopInput = document.getElementById('mainInput');
+        const mobileInput = document.getElementById('mobileTextInput');
+        const activeInput = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
+        return activeInput ? activeInput.value : '';
+    }
+
+    applyInputDraft(chatId) {
+        const draft = window.stateManager?.getInputDraft
+            ? window.stateManager.getInputDraft(chatId)
+            : '';
+        const desktopInput = document.getElementById('mainInput');
+        const mobileInput = document.getElementById('mobileTextInput');
+        if (desktopInput) {
+            desktopInput.value = draft;
+            if (typeof autoResize === 'function') {
+                autoResize(desktopInput);
+            }
+        }
+        if (mobileInput) {
+            mobileInput.value = draft;
+        }
+    }
+
     /**
      * 保存当前对话
      *
@@ -32,7 +56,7 @@ class ChatManager {
         // 从第一条用户消息提取标题
         let title = '新对话';
         const existingChat = this.state.currentChat !== null
-            ? this.state.chats.find(c => c.id == this.state.currentChat)
+            ? this.state.chats.find(c => String(c.id) === String(this.state.currentChat))
             : null;
         const titleEdited = Boolean(existingChat?.titleEdited);
         if (titleEdited && existingChat?.title) {
@@ -70,7 +94,7 @@ class ChatManager {
             this.state.chats.unshift(chat);
         } else {
             // 场景2：更新现有对话
-            const index = this.state.chats.findIndex(c => c.id == this.state.currentChat);
+            const index = this.state.chats.findIndex(c => String(c.id) === String(this.state.currentChat));
             if (index !== -1) {
                 chat = {
                     ...this.state.chats[index],
@@ -123,8 +147,13 @@ class ChatManager {
      * 更新UI显示。
      */
     async loadChat(chatId) {
-        const chat = this.state.chats.find(c => c.id == chatId);
+        const chat = this.state.chats.find(c => String(c.id) === String(chatId));
         if (!chat) return;
+
+        // 🔧 保存当前输入草稿（切换前）
+        if (window.stateManager?.setInputDraft) {
+            window.stateManager.setInputDraft(this.state.currentChat, this.getActiveInputValue());
+        }
 
         // 🔧 保存当前会话的报告生成状态到 IndexedDB
         if (this.state.currentChat && this.state.currentChat !== chatId) {
@@ -185,6 +214,9 @@ class ChatManager {
         if (typeof loadChats === 'function') {
             loadChats();
         }
+
+        // 🔧 恢复该会话的输入草稿
+        this.applyInputDraft(chatId);
 
         // 🔧 加载新会话的报告生成状态
         if (typeof window.reportGenerator?.loadGenerationStatesForChat === 'function') {
@@ -278,7 +310,7 @@ class ChatManager {
      * 根据对话的置顶状态，更新菜单中"置顶/取消置顶"项的文本。
      */
     syncPinMenuLabel(menu, chatId) {
-        const chat = this.state.chats.find(c => c.id == chatId);
+        const chat = this.state.chats.find(c => String(c.id) === String(chatId));
         if (!chat) return;
         const label = menu.querySelector('[data-action="pin"]');
         if (label) {

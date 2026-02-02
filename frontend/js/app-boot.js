@@ -271,26 +271,46 @@ if (window.deviceDetector?.initialized) {
 
 // ==================== Service Worker注册 ====================
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // 新版本已安装，可以在这里显示更新提示UI
-                        }
-                    });
-                });
-            })
-            .catch((error) => {
-                console.error('Service Worker注册失败:', error);
-            });
+    const isLocalDev =
+        window.location.hostname === 'localhost' &&
+        (window.location.port === '8000' || window.location.port === '8001');
 
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'SYNC_START') {
-                // 触发同步逻辑
+    if (isLocalDev) {
+        window.addEventListener('load', async () => {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+                const cacheKeys = await caches.keys();
+                await Promise.all(cacheKeys.map(key => caches.delete(key)));
+                console.info('[Service Worker] 已禁用并清理缓存（本地开发环境）');
+            } catch (error) {
+                console.warn('[Service Worker] 清理失败:', error);
             }
         });
-    });
+    } else {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then((registration) => {
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // 新版本已安装，可以在这里显示更新提示UI
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.error('Service Worker注册失败:', error);
+                });
+
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'SYNC_START') {
+                    // 触发同步逻辑
+                }
+            });
+        });
+    }
 }

@@ -49,3 +49,20 @@ export const uploadLimiter = rateLimit({
     error: '上传过于频繁，请稍后再试'
   }
 });
+
+// 短信验证码限流（IP + 手机号维度）
+export const smsLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10分钟
+  max: 5, // 每10分钟最多5次
+  message: {
+    code: -1,
+    error: '验证码请求过于频繁，请稍后再试'
+  },
+  keyGenerator: (req) => {
+    const phone = req.body?.phone || req.query?.phone || '';
+    return `${req.ip}:${phone}`;
+  },
+  skip: () => process.env.NODE_ENV === 'development',
+  standardHeaders: true,
+  legacyHeaders: false
+});

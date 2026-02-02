@@ -9,6 +9,7 @@ import { ExportInMemoryRepository } from '../infrastructure/export-inmemory.repo
 import { PdfGenerationService } from '../application/pdf-generation.service.js';
 import { CreateExportRequestDto } from '../application/pdf-export.dto.js';
 import { logger } from '../../../../middleware/logger.js';
+import { ok, fail } from '../../../../middleware/response.js';
 
 export class PdfExportController {
   resolveCjkFontPath() {
@@ -47,15 +48,9 @@ export class PdfExportController {
       });
 
       const result = await this.pdfExportUseCase.createExport(requestDto);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -65,15 +60,9 @@ export class PdfExportController {
   async processExport(req, res) {
     try {
       const result = await this.pdfExportUseCase.processExport(req.params.exportId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -83,15 +72,9 @@ export class PdfExportController {
   async getExport(req, res) {
     try {
       const result = await this.pdfExportUseCase.getExport(req.params.exportId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 404);
     }
   }
 
@@ -101,15 +84,9 @@ export class PdfExportController {
   async getExportsByProject(req, res) {
     try {
       const result = await this.pdfExportUseCase.getExportsByProject(req.params.projectId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -119,15 +96,9 @@ export class PdfExportController {
   async getExportsByStatus(req, res) {
     try {
       const result = await this.pdfExportUseCase.getExportsByStatus(req.params.status);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -137,15 +108,9 @@ export class PdfExportController {
   async deleteExport(req, res) {
     try {
       await this.pdfExportUseCase.deleteExport(req.params.exportId);
-      res.json({
-        success: true,
-        message: 'Export deleted successfully'
-      });
+      ok(res, null, 'Export deleted successfully');
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -166,10 +131,7 @@ export class PdfExportController {
       // 检查文件是否存在
       if (!fs.existsSync(filePath)) {
         logger.error('[PDF Export] 文件不存在:', filePath);
-        return res.status(404).json({
-          success: false,
-          error: 'PDF文件不存在'
-        });
+        return fail(res, 'PDF文件不存在', 404);
       }
 
       // 创建文件流并发送
@@ -179,18 +141,12 @@ export class PdfExportController {
       fileStream.on('error', (error) => {
         logger.error('[PDF Export] 文件流错误:', error);
         if (!res.headersSent) {
-          res.status(500).json({
-            success: false,
-            error: '文件下载失败'
-          });
+          fail(res, '文件下载失败', 500);
         }
       });
     } catch (error) {
       logger.error('[PDF Export] 下载失败:', error);
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -203,10 +159,7 @@ export class PdfExportController {
       const { reportData, ideaTitle } = req.body;
 
       if (!reportData) {
-        return res.status(400).json({
-          success: false,
-          error: '缺少报告数据'
-        });
+        return fail(res, '缺少报告数据', 400);
       }
 
       try {
@@ -252,10 +205,7 @@ export class PdfExportController {
       }
     } catch (error) {
       logger.error('[PDF Export] 报告导出失败:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 500);
     }
   }
 
@@ -267,10 +217,7 @@ export class PdfExportController {
     try {
       const { chapters, title, type } = req.body;
       if (!Array.isArray(chapters) || chapters.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: '缺少报告章节数据'
-        });
+        return fail(res, '缺少报告章节数据', 400);
       }
 
       try {
@@ -311,10 +258,7 @@ export class PdfExportController {
       }
     } catch (error) {
       logger.error('[PDF Export] 商业报告导出失败:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 500);
     }
   }
 }

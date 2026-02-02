@@ -136,7 +136,7 @@ app.use('/api/prompts', promptRouter);
 
 // API 认证保护（除公开接口外）
 app.use('/api', (req, res, next) => {
-    const publicPrefixes = ['/auth', '/verification', '/prompts', '/health'];
+    const publicPrefixes = ['/auth', '/verification', '/health'];
     if (publicPrefixes.some(prefix => req.path.startsWith(prefix))) {
         return next();
     }

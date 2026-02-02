@@ -13,6 +13,7 @@ import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import { AnalysisReportModel } from '../infrastructure/analysis-report.model.js';
 import { mongoManager } from '../../../../config/database.js';
 import promptLoader from '../../../utils/prompt-loader.js';
+import { ok, fail } from '../../../../middleware/response.js';
 
 export class ReportController {
   constructor() {
@@ -33,15 +34,9 @@ export class ReportController {
       });
 
       const result = await this.reportUseCase.createReport(requestDto);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -59,15 +54,9 @@ export class ReportController {
       });
 
       const result = await this.reportUseCase.addSection(req.params.reportId, requestDto);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -95,15 +84,9 @@ export class ReportController {
         req.params.sectionId,
         updates
       );
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -116,15 +99,9 @@ export class ReportController {
         req.params.reportId,
         req.params.sectionId
       );
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -152,25 +129,16 @@ export class ReportController {
         if (reportKey && !force && canUseMongo) {
           const existing = await AnalysisReportModel.findOne({ reportKey }).lean();
           if (existing?.report) {
-            return res.json({
-              code: 0,
-              data: {
-                report: existing.report,
-                cached: true
-              }
+            return ok(res, {
+              report: existing.report,
+              cached: true
             });
           }
           if (cacheOnly) {
-            return res.status(404).json({
-              code: -1,
-              error: '缓存未命中'
-            });
+            return fail(res, '缓存未命中', 404);
           }
         } else if (cacheOnly) {
-          return res.status(400).json({
-            code: -1,
-            error: '缓存不可用'
-          });
+          return fail(res, '缓存不可用', 400);
         }
 
         // 调用AI生成创意分析报告
@@ -184,12 +152,9 @@ export class ReportController {
           );
         }
 
-        return res.json({
-          code: 0,
-          data: {
-            report: report,
-            cached: false
-          }
+        return ok(res, {
+          report: report,
+          cached: false
         });
       }
 
@@ -202,19 +167,13 @@ export class ReportController {
       });
 
       const result = await this.reportUseCase.generateReport(requestDto);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
       console.error('[ReportController] generateReport failed:', error?.message || error);
       if (error?.stack) {
         console.error(error.stack);
       }
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -235,15 +194,9 @@ export class ReportController {
       }
 
       const result = await this.reportUseCase.updateReport(req.params.reportId, updates);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -253,15 +206,9 @@ export class ReportController {
   async archiveReport(req, res) {
     try {
       const result = await this.reportUseCase.archiveReport(req.params.reportId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -271,15 +218,9 @@ export class ReportController {
   async getReport(req, res) {
     try {
       const result = await this.reportUseCase.getReport(req.params.reportId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 404);
     }
   }
 
@@ -300,15 +241,9 @@ export class ReportController {
       }
 
       const result = await this.reportUseCase.getReports(filters);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -318,15 +253,9 @@ export class ReportController {
   async deleteReport(req, res) {
     try {
       await this.reportUseCase.deleteReport(req.params.reportId);
-      res.json({
-        success: true,
-        message: 'Report deleted successfully'
-      });
+      ok(res, null, 'Report deleted successfully');
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -336,15 +265,9 @@ export class ReportController {
   async getReportExportFormats(req, res) {
     try {
       const result = await this.reportUseCase.getReportExportFormats(req.params.reportId);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 
@@ -355,15 +278,9 @@ export class ReportController {
     try {
       const reportType = req.params.reportType;
       const result = await this.reportUseCase.getReportTemplates(reportType);
-      res.json({
-        success: true,
-        data: result
-      });
+      ok(res, result);
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      fail(res, error.message, 400);
     }
   }
 

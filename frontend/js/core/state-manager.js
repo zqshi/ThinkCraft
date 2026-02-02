@@ -51,6 +51,9 @@ class StateManager {
           }
         };
       }
+      if (!this.state.inputDrafts) {
+        this.state.inputDrafts = {};
+      }
     } else {
       // 否则创建新的状态对象
       this.state = {
@@ -67,6 +70,8 @@ class StateManager {
         // 生成流程状态机（核心新增）- 按会话ID隔离
         // 结构：generation[chatId] = { business: {...}, proposal: {...} }
         generation: {},
+        // 输入草稿（按会话ID隔离）
+        inputDrafts: {},
 
         // 灵感收件箱状态（Phase 3新增）
         inspiration: {
@@ -123,7 +128,9 @@ class StateManager {
   }
 
   getDefaultApiUrl() {
-    if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+    const host = window.location.hostname;
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+    if (isLocalhost && window.location.port !== '3000') {
       return 'http://localhost:3000';
     }
     return window.location.origin;
@@ -196,6 +203,34 @@ class StateManager {
   setAnalysisCompleted(completed) {
     this.state.analysisCompleted = completed;
     this.notify();
+  }
+
+  // ========== 输入草稿 ==========
+
+  normalizeDraftChatId(chatId) {
+    if (chatId === null || chatId === undefined || chatId === '') {
+      return '__new__';
+    }
+    return String(chatId);
+  }
+
+  getInputDraft(chatId) {
+    const key = this.normalizeDraftChatId(chatId);
+    return this.state.inputDrafts[key] || '';
+  }
+
+  setInputDraft(chatId, text) {
+    const key = this.normalizeDraftChatId(chatId);
+    this.state.inputDrafts[key] = String(text || '');
+    this.notify();
+  }
+
+  clearInputDraft(chatId) {
+    const key = this.normalizeDraftChatId(chatId);
+    if (this.state.inputDrafts[key]) {
+      delete this.state.inputDrafts[key];
+      this.notify();
+    }
   }
 
   // ========== 生成流程状态机方法 ==========

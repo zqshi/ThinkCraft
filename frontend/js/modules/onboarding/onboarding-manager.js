@@ -277,19 +277,19 @@ class OnboardingManager {
       <div style="padding: 16px;">
         <div style="border-radius: 12px; padding: 16px; background: #f8fafc; border: 1px solid var(--border); margin-bottom: 16px;">
           <div style="font-weight: 600; margin-bottom: 8px;">示例：用户洞察平台</div>
-          <div style="font-size: 13px; color: var(--text-secondary);">这里会展示项目概览、进度与成员情况。</div>
+          <div style="font-size: 13px; color: var(--text-secondary);">这里会展示项目概览、进度与成员情况，流程阶段由协同模式推荐动态生成。</div>
         </div>
         <div style="display: grid; gap: 12px;">
           <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段 1｜需求澄清</div>
+            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
             <div style="font-size: 13px; color: var(--text-secondary);">已完成 · 交付物 2</div>
           </div>
           <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段 2｜方案设计</div>
+            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
             <div style="font-size: 13px; color: var(--text-secondary);">进行中 · 交付物 1</div>
           </div>
           <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段 3｜原型输出</div>
+            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
             <div style="font-size: 13px; color: var(--text-secondary);">待开始 · 交付物 0</div>
           </div>
         </div>

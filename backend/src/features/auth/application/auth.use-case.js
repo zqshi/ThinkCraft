@@ -138,7 +138,7 @@ export class AuthUseCase {
   async validateAccessToken(accessToken) {
     try {
       // 验证令牌
-      const payload = tokenService.verifyAccessToken(accessToken);
+      const payload = this.tokenService.verifyAccessToken(accessToken);
 
       // 查找用户
       const user = await this.userRepository.findById(payload.userId);

@@ -31,6 +31,12 @@ class InputHandler {
     this.microphonePermissionGranted = false;
   }
 
+  syncInputDraft(value) {
+    if (window.stateManager?.setInputDraft) {
+      window.stateManager.setInputDraft(window.state?.currentChat, value);
+    }
+  }
+
   /**
    * 处理键盘按下事件
    * @param {KeyboardEvent} e - 键盘事件
@@ -170,6 +176,7 @@ class InputHandler {
         // 移动端语音模式：直接发送
         const input = document.getElementById('mainInput');
         input.value = transcript;
+        this.syncInputDraft(input.value);
         if (typeof sendMessage === 'function') {
           sendMessage();
         }
@@ -177,6 +184,7 @@ class InputHandler {
         // 桌面端：填充到输入框
         const input = document.getElementById('mainInput');
         input.value = (input.value + ' ' + transcript).trim();
+        this.syncInputDraft(input.value);
         if (typeof autoResize === 'function') {
           autoResize(input);
         }
@@ -372,6 +380,7 @@ class InputHandler {
       const input = document.getElementById('mainInput');
       const description = data.data.description;
       input.value = `[图片内容]: ${description}`;
+      this.syncInputDraft(input.value);
       if (typeof autoResize === 'function') {
         autoResize(input);
       }
@@ -391,6 +400,7 @@ class InputHandler {
       reader.onload = e => {
         const input = document.getElementById('mainInput');
         input.value = `[已上传图片: ${file.name}]\n\n请描述你想探讨的内容：`;
+        this.syncInputDraft(input.value);
         if (typeof autoResize === 'function') {
           autoResize(input);
         }
@@ -536,6 +546,7 @@ class InputHandler {
     const input = document.getElementById('mainInput');
     if (input) {
       input.value = prompts[type] || '';
+      this.syncInputDraft(input.value);
       if (typeof sendMessage === 'function') {
         sendMessage();
       }
