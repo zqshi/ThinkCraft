@@ -4,7 +4,9 @@
  */
 
 function getDefaultApiUrl() {
-  if (window.location.hostname === 'localhost' && window.location.port === '8000') {
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+  if (isLocalhost && window.location.port !== '3000') {
     return 'http://localhost:3000';
   }
   return window.location.origin;
@@ -188,7 +190,7 @@ class ProjectManager {
     }
 
     try {
-      const response = await fetch(
+      const response = await this.fetchWithAuth(
         `${this.apiUrl}/api/projects/workflow-config/${category}`
       );
       const result = await response.json();
@@ -294,9 +296,9 @@ class ProjectManager {
       }
 
       // 调用后端API创建项目（使用字符串ID）
-      const response = await fetch(`${this.apiUrl}/api/projects`, {
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ideaId: ideaIdString, name })
       });
 
@@ -346,7 +348,7 @@ class ProjectManager {
       }
 
       // 如果本地没有，从后端获取
-      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`);
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}`);
       if (!response.ok) {
         throw new Error('项目不存在');
       }
@@ -407,15 +409,20 @@ class ProjectManager {
         }
       }
 
+      const normalizedIdeaUpdate =
+        updates && Object.prototype.hasOwnProperty.call(updates, 'ideaId')
+          ? { ...updates, ideaId: String(this.normalizeIdeaId(updates.ideaId)).trim() }
+          : updates;
+
       const normalizedUpdates =
-        updates && Object.prototype.hasOwnProperty.call(updates, 'assignedAgents')
+        normalizedIdeaUpdate && Object.prototype.hasOwnProperty.call(normalizedIdeaUpdate, 'assignedAgents')
           ? {
-              ...updates,
-              assignedAgents: Array.isArray(updates.assignedAgents)
-                ? updates.assignedAgents.filter(Boolean).map(String)
+              ...normalizedIdeaUpdate,
+              assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
+                ? normalizedIdeaUpdate.assignedAgents.filter(Boolean).map(String)
                 : []
             }
-          : updates;
+          : normalizedIdeaUpdate;
 
       if (options.localOnly) {
         const existing = await this.storageManager.getProject(projectId);
@@ -437,9 +444,9 @@ class ProjectManager {
       }
 
       // 调用后端API
-      const response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
+      const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(normalizedUpdates)
       });
 
@@ -476,14 +483,14 @@ class ProjectManager {
       if (options.allowFallback) {
         const existing = await this.storageManager.getProject(projectId);
         if (existing) {
-          const project = { ...existing, ...(updates || {}), updatedAt: Date.now() };
+          const project = { ...existing, ...(normalizedUpdates || {}), updatedAt: Date.now() };
           await this.storageManager.saveProject(project);
           const index = this.projects.findIndex(p => p.id === projectId);
           if (index !== -1) {
             this.projects[index] = project;
           }
           if (window.updateProject) {
-            window.updateProject(projectId, updates);
+            window.updateProject(projectId, normalizedUpdates);
           }
           this.refreshProjectPanel(project);
           return project;
@@ -493,7 +500,7 @@ class ProjectManager {
       if (!existing) {
         throw error;
       }
-      const project = { ...existing, ...(updates || {}), updatedAt: Date.now() };
+      const project = { ...existing, ...(normalizedUpdates || {}), updatedAt: Date.now() };
       await this.storageManager.saveProject(project);
 
       const index = this.projects.findIndex(p => p.id === projectId);
@@ -501,7 +508,7 @@ class ProjectManager {
         this.projects[index] = project;
       }
       if (window.updateProject) {
-        window.updateProject(projectId, updates);
+        window.updateProject(projectId, normalizedUpdates);
       }
       this.refreshProjectPanel(project);
       return project;
@@ -523,8 +530,9 @@ class ProjectManager {
         let response;
         try {
           logger.debug('[DEBUG] deleteProject - calling DELETE API');
-          response = await fetch(`${this.apiUrl}/api/projects/${projectId}`, {
-            method: 'DELETE'
+          response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}`, {
+            method: 'DELETE',
+            headers: this.buildAuthHeaders()
           });
           logger.debug('[DEBUG] deleteProject - response.ok:', response.ok);
           logger.debug('[DEBUG] deleteProject - response.status:', response.status);
@@ -2919,7 +2927,7 @@ class ProjectManager {
         .map(chat => {
           const chatIdKey = this.normalizeIdeaIdForCompare(chat.id);
           const hasProject = chatIdsWithProjects.has(chatIdKey);
-          const analysisReady = chat.analysisCompleted && analysisMap.has(chatIdKey);
+          const analysisReady = analysisMap.has(chatIdKey);
           const disabled = hasProject || !analysisReady;
           const disabledClass = disabled ? 'disabled' : '';
           const disabledAttr = disabled ? 'disabled' : '';
@@ -2927,9 +2935,7 @@ class ProjectManager {
           if (hasProject) {
             const projectName = chatIdToProjectName.get(chatIdKey);
             hint = `· 已被项目"${this.escapeHtml(projectName || '未命名项目')}"引用`;
-          } else if (!chat.analysisCompleted) {
-            hint = '· 未完成对话分析';
-          } else if (!analysisMap.has(chatIdKey)) {
+          } else if (!analysisReady) {
             hint = '· 未生成分析报告';
           }
 
@@ -2978,7 +2984,7 @@ class ProjectManager {
         // 降级处理：使用简单的prompt
         const eligibleChats = chats.filter(chat => {
           const chatIdKey = this.normalizeIdeaIdForCompare(chat.id);
-          return chat.analysisCompleted && analysisMap.has(chatIdKey) && !chatIdsWithProjects.has(chatIdKey);
+          return analysisMap.has(chatIdKey) && !chatIdsWithProjects.has(chatIdKey);
         });
         const chatTitles = eligibleChats.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
         const choice = prompt(`选择创意（输入序号）：\n\n${chatTitles}`);
@@ -3003,7 +3009,7 @@ class ProjectManager {
         reportMap.set(this.normalizeIdeaIdForCompare(report.chatId), report);
       }
     });
-    return chats.filter(chat => chat.analysisCompleted && reportMap.has(this.normalizeIdeaIdForCompare(chat.id)));
+    return chats.filter(chat => reportMap.has(this.normalizeIdeaIdForCompare(chat.id)));
   }
 
   async promptWorkflowRecommendation(project) {

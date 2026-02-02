@@ -25,6 +25,32 @@ class ReportGenerator {
         this.isGenerating = false; // 防止重复请求
     }
 
+    async persistAnalysisReport(reportData, status = 'completed') {
+        if (!window.storageManager || !reportData) {
+            return;
+        }
+        const chatId = normalizeChatId(this.state.currentChat);
+        if (!chatId) {
+            return;
+        }
+        const progress = status === 'completed'
+            ? { current: 1, total: 1, percentage: 100 }
+            : { current: 0, total: 1, percentage: 0 };
+        await window.storageManager.saveReport({
+            type: 'analysis',
+            chatId,
+            data: reportData,
+            status,
+            progress,
+            startTime: Date.now(),
+            endTime: status === 'completed' ? Date.now() : null,
+            error: null
+        });
+        if (window.reportStatusManager) {
+            window.reportStatusManager.onReportStatusChange(chatId, 'analysis', status);
+        }
+    }
+
     /**
      * 预取分析报告（后台静默获取）
      *
@@ -79,6 +105,7 @@ class ReportGenerator {
 
             window.lastGeneratedReport = reportData;
             window.lastGeneratedReportKey = this.getAnalysisReportKey();
+            await this.persistAnalysisReport(reportData, 'completed');
             if (typeof updateShareLinkButtonVisibility === 'function') {
                 updateShareLinkButtonVisibility();
             }
@@ -145,6 +172,7 @@ class ReportGenerator {
 
             window.lastGeneratedReport = reportData;
             window.lastGeneratedReportKey = this.getAnalysisReportKey();
+            await this.persistAnalysisReport(reportData, 'completed');
             if (typeof updateShareLinkButtonVisibility === 'function') {
                 updateShareLinkButtonVisibility();
             }
@@ -223,7 +251,7 @@ class ReportGenerator {
         const reportContent = document.getElementById('reportContent');
         reportContent.innerHTML = '<div style="text-align: center; padding: 60px 20px;"><div class="loading-spinner"></div><div style="margin-top: 20px;">正在生成报告...</div></div>';
 
-        const chatId = String(this.state.currentChat).trim();
+        const chatId = normalizeChatId(this.state.currentChat);
 
         // 验证对话消息
         if (!this.state.messages || this.state.messages.length === 0) {
@@ -299,18 +327,7 @@ class ReportGenerator {
             window.lastGeneratedReport = report;
 
             // 保存到数据库
-            if (window.storageManager) {
-                await window.storageManager.saveReport({
-                    type: 'analysis',
-                    chatId: chatId,
-                    data: report, // 保存实际的报告对象，而不是包装对象
-                    status: 'completed',
-                    progress: { current: 1, total: 1, percentage: 100 },
-                    startTime: Date.now(),
-                    endTime: Date.now(),
-                    error: null
-                });
-            }
+            await this.persistAnalysisReport(report, 'completed');
 
             // 完成生成流程 - 更新StateManager状态
             if (window.stateManager) {
@@ -399,7 +416,7 @@ class ReportGenerator {
             return;
         }
 
-        const chatId = String(this.state.currentChat).trim();
+        const chatId = normalizeChatId(this.state.currentChat);
 
         window.lastGeneratedReport = null;
         window.lastGeneratedReportKey = null;
@@ -444,7 +461,7 @@ class ReportGenerator {
      */
     async exportFullReport() {
         try {
-            const chatId = String(this.state.currentChat).trim();
+            const chatId = normalizeChatId(this.state.currentChat);
 
             // 使用ExportValidator验证
             const validation = await window.exportValidator.validateExport('analysis', chatId);

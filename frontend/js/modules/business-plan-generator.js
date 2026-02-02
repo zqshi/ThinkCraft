@@ -863,6 +863,8 @@ class BusinessPlanGenerator {
 
       logger.debug('[保存报告] 报告ID:', reportId, existing ? '(更新现有)' : '(创建新)');
 
+      const genState = this.state.getGenerationState(normalizedChatId);
+      const startTime = genState?.[type]?.startTime || Date.now();
       await window.storageManager.saveReport({
         id: reportId,
         type,
@@ -876,7 +878,7 @@ class BusinessPlanGenerator {
           percentage: 100
         },
         selectedChapters: data.selectedChapters || [],
-        startTime: this.state.state.generation.startTime,
+        startTime,
         endTime: Date.now(),
         error: null
       });

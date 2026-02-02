@@ -27,7 +27,7 @@ class MessageHandler {
         if (state.settings.saveHistory && chatId === null) {
             chatId = generateChatId();
             state.currentChat = chatId;
-            state.chats.unshift({
+            const newChat = {
                 id: chatId,
                 title: '新对话',
                 messages: [],
@@ -36,8 +36,12 @@ class MessageHandler {
                 analysisCompleted: false,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-            });
+            };
+            state.chats.unshift(newChat);
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+            if (window.storageManager) {
+                await window.storageManager.saveChat(newChat);
+            }
             if (typeof loadChats === 'function') {
                 loadChats();
             }
@@ -82,6 +86,9 @@ class MessageHandler {
                     updatedAt: new Date().toISOString()
                 };
                 localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                if (window.storageManager) {
+                    await window.storageManager.saveChat(state.chats[index]);
+                }
             }
         }
 
@@ -135,6 +142,9 @@ class MessageHandler {
                         updatedAt: new Date().toISOString()
                     };
                     localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+                    if (window.storageManager) {
+                        await window.storageManager.saveChat(state.chats[index]);
+                    }
                 }
             }
 

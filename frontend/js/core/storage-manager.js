@@ -1112,6 +1112,9 @@ class StorageManager {
     if (!project.id) {
       project.id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
+    if (Object.prototype.hasOwnProperty.call(project, 'ideaId') && project.ideaId !== null && project.ideaId !== undefined) {
+      project.ideaId = String(project.ideaId).trim();
+    }
     project.updatedAt = Date.now();
     if (!project.createdAt) {
       project.createdAt = Date.now();
@@ -1146,6 +1149,9 @@ class StorageManager {
   async getProjectByIdeaId(ideaId) {
     await this.ensureReady();
 
+    if (ideaId === null || ideaId === undefined || ideaId === '') {
+      return null;
+    }
     // 统一转换为字符串，避免类型混淆
     const normalizedIdeaId = String(ideaId).trim();
 

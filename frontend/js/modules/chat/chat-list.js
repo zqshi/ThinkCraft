@@ -176,70 +176,9 @@ class ChatList {
      * @param {number} chatId - 对话ID
      */
     async loadChatById(chatId) {
-        const chat = state.chats.find(c => c.id == chatId);
-        if (!chat) return;
-
-        // 保存当前对话
-        if (state.currentChat && state.currentChat !== chatId && state.messages.length > 0 && state.settings.saveHistory) {
-            if (typeof saveCurrentChat === 'function') {
-                await saveCurrentChat();
-            }
-        }
-
-        // 加载选中的对话
-        state.currentChat = chat.id;
-        state.messages = Array.isArray(chat.messages) ? [...chat.messages] : [];
-        state.userData = chat.userData || {};
-        state.conversationStep = chat.conversationStep || 0;
-        state.analysisCompleted = chat.analysisCompleted || false;
-
-        // 清空并重新渲染消息列表
-        const messageList = document.getElementById('messageList');
-        messageList.innerHTML = '';
-        document.getElementById('emptyState').style.display = 'none';
-        messageList.style.display = 'block';
-
-        // 渲染所有消息
-        state.messages.forEach(msg => {
-            if (window.messageHandler) {
-                window.messageHandler.addMessage(msg.role, msg.content, null, false, true, true);
-            }
-        });
-
-        // 智能检测：如果侧边栏处于覆盖模式（移动端），自动关闭并显示对话窗口
-        const sidebar = document.getElementById('sidebar');
-        const isOverlayMode = window.getComputedStyle(sidebar).position === 'fixed';
-        if (isOverlayMode && sidebar.classList.contains('active')) {
-            sidebar.classList.remove('active');
-        }
-
-        // 关闭项目面板，显示对话容器
-        const projectPanel = document.getElementById('projectPanel');
-        const chatContainer = document.getElementById('chatContainer');
-        const mainContent = document.querySelector('.main-content');
-
-        if (projectPanel) {
-            projectPanel.style.display = 'none';
-            projectPanel.classList.remove('active');
-        }
-        if (chatContainer) {
-            chatContainer.style.display = 'flex';
-        }
-        if (mainContent) {
-            mainContent.classList.remove('project-panel-open');
-        }
-
-        // 刷新对话列表（更新active状态）
-        this.loadChats();
-
-        // 滚动到底部
-        if (typeof scrollToBottom === 'function') {
-            scrollToBottom(true);
-        }
-
-        // 聚焦输入框
-        if (typeof focusInput === 'function') {
-            focusInput();
+        if (window.chatManager && typeof window.chatManager.loadChat === 'function') {
+            await window.chatManager.loadChat(chatId);
+            return;
         }
     }
 

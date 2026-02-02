@@ -1,3 +1,5 @@
+/* global normalizeChatId */
+
 /**
  * 报告状态管理器
  *
@@ -35,21 +37,22 @@ class ReportStatusManager {
      * @returns {Promise<Object>} { shouldShow, buttonText, buttonState, reason }
      */
     async shouldShowReportButton(chatId, type = 'analysis') {
-        if (!chatId) {
+        const normalizedChatId = normalizeChatId(chatId);
+        if (!normalizedChatId) {
             return { shouldShow: false, reason: 'no_chat_id' };
         }
 
         // 1. 检查缓存
-        const cached = this.getFromCache(chatId, type);
+        const cached = this.getFromCache(normalizedChatId, type);
         if (cached) {
             return this.determineButtonState(cached);
         }
 
         // 2. 从 IndexedDB 查询报告
-        const report = await this.queryReport(chatId, type);
+        const report = await this.queryReport(normalizedChatId, type);
 
         // 3. 更新缓存
-        this.updateCache(chatId, type, report);
+        this.updateCache(normalizedChatId, type, report);
 
         // 4. 返回按钮状态
         return this.determineButtonState(report);
@@ -234,8 +237,14 @@ class ReportStatusManager {
 
         // 根据报告类型验证
         if (type === 'analysis') {
-            // 分析报告需要有 chapters
-            return data.chapters && typeof data.chapters === 'object';
+            if (!data) {
+                return false;
+            }
+            if (data.chapters === undefined) {
+                console.warn('[ReportStatusManager] 分析报告缺少 chapters 字段，仍允许显示');
+                return true;
+            }
+            return Array.isArray(data.chapters) || typeof data.chapters === 'object';
         }
 
         if (type === 'business' || type === 'proposal') {

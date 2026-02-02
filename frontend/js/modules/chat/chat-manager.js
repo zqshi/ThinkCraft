@@ -165,6 +165,22 @@ class ChatManager {
             sidebar.classList.remove('active');
         }
 
+        // 关闭项目面板，显示对话容器
+        const projectPanel = document.getElementById('projectPanel');
+        const chatContainer = document.getElementById('chatContainer');
+        const mainContent = document.querySelector('.main-content');
+
+        if (projectPanel) {
+            projectPanel.style.display = 'none';
+            projectPanel.classList.remove('active');
+        }
+        if (chatContainer) {
+            chatContainer.style.display = 'flex';
+        }
+        if (mainContent) {
+            mainContent.classList.remove('project-panel-open');
+        }
+
         // 刷新对话列表（更新active状态）
         if (typeof loadChats === 'function') {
             loadChats();

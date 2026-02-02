@@ -11,6 +11,7 @@
  */
 
 /* eslint-disable no-unused-vars, no-undef */
+/* global normalizeChatId */
 
 class ReportViewer {
     constructor() {
@@ -42,7 +43,7 @@ class ReportViewer {
         // 尝试从缓存或数据库加载报告
         if (window.storageManager && this.state.currentChat) {
             try {
-                const chatId = String(this.state.currentChat).trim();
+                const chatId = normalizeChatId(this.state.currentChat);
                 // 使用 getReportByChatIdAndType 而不是 getReport
                 const reportEntry = await window.storageManager.getReportByChatIdAndType(
                     chatId,
