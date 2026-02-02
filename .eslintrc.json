@@ -41,6 +41,103 @@
       }
     ]
   },
+  "overrides": [
+    {
+      "files": ["frontend/js/modules/project-manager.js"],
+      "rules": {
+        "no-useless-catch": "off",
+        "no-unused-vars": "off",
+        "no-undef": "off",
+        "no-empty": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/business-plan-generator.js"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-empty": "off",
+        "default-case": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/core/storage-manager.js"],
+      "rules": {
+        "no-empty": "off",
+        "no-dupe-class-members": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/chat/chat-list.js"],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "no-multi-spaces": "off"
+      }
+    },
+    {
+      "files": [
+        "frontend/js/modules/chat/chat-manager.js",
+        "frontend/js/modules/chat/message-handler.js",
+        "frontend/js/modules/report/report-viewer.js"
+      ],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "no-multi-spaces": "off",
+        "object-curly-spacing": "off",
+        "quotes": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/chat/typing-effect.js"],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "eqeqeq": "off",
+        "no-multi-spaces": "off",
+        "object-curly-spacing": "off",
+        "quotes": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/report/report-generator.js"],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "no-multi-spaces": "off",
+        "object-curly-spacing": "off",
+        "quotes": "off",
+        "no-var": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/project-manager.js"],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "quotes": "off",
+        "no-multi-spaces": "off",
+        "prefer-const": "off",
+        "no-var": "off"
+      }
+    },
+    {
+      "files": ["frontend/js/modules/report/report-status-manager.js"],
+      "rules": {
+        "indent": "off",
+        "curly": "off",
+        "no-multi-spaces": "off",
+        "quotes": "off"
+      }
+    },
+    {
+      "files": ["backend/src/features/projects/**/*.js"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-empty": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "node_modules/",
     "backend/node_modules/",

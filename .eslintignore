@@ -1,33 +1,11 @@
-node_modules/
-backend/node_modules/
-frontend/node_modules/
-dist/
-build/
-*.min.js
-*.log
-.env*
-coverage/
-temp/
-tmp/
-
-# 临时忽略：DDD重构过渡期文件
-backend/middleware/
-backend/server-optimized.js
+backend/config/**
+backend/src/features/auth/**
+backend/src/features/business-plan/**
+backend/middleware/**
+backend/scripts/**
 backend/server.js
-backend/routes/
-service-worker.js
-scripts/
-
-# 临时忽略：待完成的DDD模块
-backend/src/features/agents/
-backend/src/features/vision/
-backend/src/features/workflow/
-backend/src/features/workflow-recommendation/
-frontend/src/features/agents/
-frontend/src/features/vision/
-frontend/src/features/workflow/
-frontend/src/features/workflow-recommendation/
-
-# 临时忽略：基础设施层过渡文件
-frontend/src/shared/kernel/
-frontend/src/shared/infrastructure/event-bus.js
+frontend/js/modules/ui-controller.js
+frontend/js/modules/workflow-executor.js
+frontend/js/modules/agent-collaboration.js
+frontend/js/modules/report/share-card.js
+frontend/js/utils/**

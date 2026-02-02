@@ -60,6 +60,10 @@ const ProjectSchema = new mongoose.Schema(
 // 索引
 ProjectSchema.index({ userId: 1, createdAt: -1 });
 ProjectSchema.index({ ideaId: 1 });
+ProjectSchema.index(
+  { ideaId: 1, userId: 1 },
+  { unique: true, partialFilterExpression: { status: { $ne: 'deleted' } } }
+);
 ProjectSchema.index({ status: 1 });
 ProjectSchema.index({ mode: 1 });
 

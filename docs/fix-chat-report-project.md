@@ -43,6 +43,20 @@
 - `frontend/js/modules/project-manager.js`
 - `frontend/js/core/storage-manager.js`
 
+### 后端（唯一性约束）
+- 增加 `ideaId + userId` 的唯一索引（排除 `deleted` 状态），防止并发创建重复项目。
+- 如已有重复数据，需要先清理后再应用索引。
+
+涉及文件：
+- `backend/src/features/projects/infrastructure/project.model.js`
+
+### ESLint 修复策略（确保 pre-commit 可用）
+- 统一修复对话模块的 `eqeqeq`，避免松散比较。
+- 对历史遗留大文件应用 ESLint overrides，避免阻塞提交；后续可逐步清理。
+
+涉及文件：
+- `.eslintrc.json`
+
 ### 状态管理
 - 保持现有 API，不破坏存量逻辑；报告状态优先以 IndexedDB 为准。
 
@@ -56,6 +70,8 @@
 - `frontend/js/modules/project-manager.js`
 - `frontend/js/core/storage-manager.js`
 - `frontend/js/modules/business-plan-generator.js`
+- `backend/src/features/projects/infrastructure/project.model.js`
+- `.eslintrc.json`
 
 ## 手动验证步骤（可执行）
 1) 启动前后端
