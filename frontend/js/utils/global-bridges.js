@@ -19,18 +19,18 @@
  * HTML调用位置: index.html:571
  */
 function startGeneration() {
-    if (!window.businessPlanGenerator) {
-        console.error('[startGeneration] businessPlanGenerator 未初始化');
-        alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
-        return;
-    }
+  if (!window.businessPlanGenerator) {
+    console.error('[startGeneration] businessPlanGenerator 未初始化');
+    alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        window.businessPlanGenerator.startGeneration();
-    } catch (error) {
-        console.error('[startGeneration] 执行失败:', error);
-        alert(`启动生成失败：${error.message}`);
-    }
+  try {
+    window.businessPlanGenerator.startGeneration();
+  } catch (error) {
+    console.error('[startGeneration] 执行失败:', error);
+    alert(`启动生成失败：${error.message}`);
+  }
 }
 
 /**
@@ -38,18 +38,18 @@ function startGeneration() {
  * HTML调用位置: index.html:602
  */
 function cancelGeneration() {
-    if (!window.agentProgressManager) {
-        console.error('[cancelGeneration] agentProgressManager 未初始化');
-        alert('系统错误：进度管理器未初始化，请刷新页面重试');
-        return;
-    }
+  if (!window.agentProgressManager) {
+    console.error('[cancelGeneration] agentProgressManager 未初始化');
+    alert('系统错误：进度管理器未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        window.agentProgressManager.cancel();
-    } catch (error) {
-        console.error('[cancelGeneration] 执行失败:', error);
-        alert(`取消生成失败：${error.message}`);
-    }
+  try {
+    window.agentProgressManager.cancel();
+  } catch (error) {
+    console.error('[cancelGeneration] 执行失败:', error);
+    alert(`取消生成失败：${error.message}`);
+  }
 }
 
 /**
@@ -57,35 +57,35 @@ function cancelGeneration() {
  * HTML调用位置: index.html:627
  */
 function adjustBusinessReportChapters() {
-    try {
-        // 1. 获取当前报告类型
-        const reportModal = document.getElementById('businessReportModal');
-        const reportType = reportModal?.dataset?.reportType || 'business';
+  try {
+    // 1. 获取当前报告类型
+    const reportModal = document.getElementById('businessReportModal');
+    const reportType = reportModal?.dataset?.reportType || 'business';
 
-        console.log('[adjustBusinessReportChapters] 当前报告类型:', reportType);
+    console.log('[adjustBusinessReportChapters] 当前报告类型:', reportType);
 
-        // 2. 关闭报告模态框
-        if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
-            window.modalManager.close('businessReportModal');
-        } else if (reportModal) {
-            reportModal.classList.remove('active');
-            reportModal.style.display = '';
-        }
-
-        // 3. 调用 showChapterSelection 渲染章节列表
-        requestAnimationFrame(() => {
-            if (window.businessPlanGenerator) {
-                window.businessPlanGenerator.showChapterSelection(reportType);
-                console.log('[adjustBusinessReportChapters] 已调用 showChapterSelection');
-            } else {
-                console.error('[adjustBusinessReportChapters] BusinessPlanGenerator 未初始化');
-                alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
-            }
-        });
-    } catch (error) {
-        console.error('[adjustBusinessReportChapters] 执行失败:', error);
-        alert(`调整章节失败：${error.message}`);
+    // 2. 关闭报告模态框
+    if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+      window.modalManager.close('businessReportModal');
+    } else if (reportModal) {
+      reportModal.classList.remove('active');
+      reportModal.style.display = '';
     }
+
+    // 3. 调用 showChapterSelection 渲染章节列表
+    requestAnimationFrame(() => {
+      if (window.businessPlanGenerator) {
+        window.businessPlanGenerator.showChapterSelection(reportType);
+        console.log('[adjustBusinessReportChapters] 已调用 showChapterSelection');
+      } else {
+        console.error('[adjustBusinessReportChapters] BusinessPlanGenerator 未初始化');
+        alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
+      }
+    });
+  } catch (error) {
+    console.error('[adjustBusinessReportChapters] 执行失败:', error);
+    alert(`调整章节失败：${error.message}`);
+  }
 }
 
 /**
@@ -93,41 +93,41 @@ function adjustBusinessReportChapters() {
  * HTML调用位置: index.html:628
  */
 function regenerateBusinessReport() {
-    if (!window.businessPlanGenerator) {
-        console.error('[regenerateBusinessReport] businessPlanGenerator 未初始化');
-        alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
-        return;
+  if (!window.businessPlanGenerator) {
+    console.error('[regenerateBusinessReport] businessPlanGenerator 未初始化');
+    alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
+    return;
+  }
+
+  try {
+    // 确认对话框
+    if (!confirm('确定要重新生成商业计划书吗？\n\n当前报告内容将被覆盖。')) {
+      return;
     }
 
-    try {
-        // 确认对话框
-        if (!confirm('确定要重新生成商业计划书吗？\n\n当前报告内容将被覆盖。')) {
-            return;
-        }
+    // 获取当前报告类型
+    const reportModal = document.getElementById('businessReportModal');
+    const reportType = reportModal?.dataset?.reportType || 'business';
 
-        // 获取当前报告类型
-        const reportModal = document.getElementById('businessReportModal');
-        const reportType = reportModal?.dataset?.reportType || 'business';
+    // 关闭报告模态框
+    if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+      window.modalManager.close('businessReportModal');
+    } else if (reportModal) {
+      reportModal.classList.remove('active');
+      reportModal.style.display = '';
+    }
 
-        // 关闭报告模态框
-        if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
-            window.modalManager.close('businessReportModal');
-        } else if (reportModal) {
-            reportModal.classList.remove('active');
-            reportModal.style.display = '';
-        }
-
-        // 调用生成器的重新生成方法（使用已选章节）
-        requestAnimationFrame(() => {
-            window.businessPlanGenerator.regenerateWithSelectedChapters(reportType).catch(error => {
-                console.error('[regenerateBusinessReport] 重新生成失败:', error);
-                alert(`重新生成失败：${error.message}`);
-            });
-        });
-    } catch (error) {
-        console.error('[regenerateBusinessReport] 执行失败:', error);
+    // 调用生成器的重新生成方法（使用已选章节）
+    requestAnimationFrame(() => {
+      window.businessPlanGenerator.regenerateWithSelectedChapters(reportType).catch(error => {
+        console.error('[regenerateBusinessReport] 重新生成失败:', error);
         alert(`重新生成失败：${error.message}`);
-    }
+      });
+    });
+  } catch (error) {
+    console.error('[regenerateBusinessReport] 执行失败:', error);
+    alert(`重新生成失败：${error.message}`);
+  }
 }
 
 /**
@@ -135,18 +135,18 @@ function regenerateBusinessReport() {
  * HTML调用位置: index.html:630
  */
 function shareBusinessReport() {
-    if (!window.businessPlanGenerator) {
-        console.error('[shareBusinessReport] businessPlanGenerator 未初始化');
-        alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
-        return;
-    }
+  if (!window.businessPlanGenerator) {
+    console.error('[shareBusinessReport] businessPlanGenerator 未初始化');
+    alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        window.businessPlanGenerator.shareReport();
-    } catch (error) {
-        console.error('[shareBusinessReport] 执行失败:', error);
-        alert(`分享失败：${error.message}`);
-    }
+  try {
+    window.businessPlanGenerator.shareReport();
+  } catch (error) {
+    console.error('[shareBusinessReport] 执行失败:', error);
+    alert(`分享失败：${error.message}`);
+  }
 }
 
 // ============================================================================
@@ -158,18 +158,18 @@ function shareBusinessReport() {
  * HTML调用位置: index.html:920
  */
 function showAddMember() {
-    if (!window.teamCollaboration) {
-        console.error('[showAddMember] teamCollaboration 未初始化');
-        alert('系统错误：团队协作模块未初始化，请刷新页面重试');
-        return;
-    }
+  if (!window.teamCollaboration) {
+    console.error('[showAddMember] teamCollaboration 未初始化');
+    alert('系统错误：团队协作模块未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        window.teamCollaboration.showAddMember();
-    } catch (error) {
-        console.error('[showAddMember] 执行失败:', error);
-        alert(`显示添加成员界面失败：${error.message}`);
-    }
+  try {
+    window.teamCollaboration.showAddMember();
+  } catch (error) {
+    console.error('[showAddMember] 执行失败:', error);
+    alert(`显示添加成员界面失败：${error.message}`);
+  }
 }
 
 /**
@@ -178,18 +178,18 @@ function showAddMember() {
  * @param {string} tab - 标签页名称 ('market' 或 'hired')
  */
 function switchAddMemberTab(tab) {
-    if (!window.teamCollaboration) {
-        console.error('[switchAddMemberTab] teamCollaboration 未初始化');
-        alert('系统错误：团队协作模块未初始化，请刷新页面重试');
-        return;
-    }
+  if (!window.teamCollaboration) {
+    console.error('[switchAddMemberTab] teamCollaboration 未初始化');
+    alert('系统错误：团队协作模块未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        window.teamCollaboration.switchAddMemberTab(tab);
-    } catch (error) {
-        console.error('[switchAddMemberTab] 执行失败:', error);
-        alert(`切换标签页失败：${error.message}`);
-    }
+  try {
+    window.teamCollaboration.switchAddMemberTab(tab);
+  } catch (error) {
+    console.error('[switchAddMemberTab] 执行失败:', error);
+    alert(`切换标签页失败：${error.message}`);
+  }
 }
 
 /**
@@ -198,31 +198,31 @@ function switchAddMemberTab(tab) {
  * @param {string} tab - 标签页名称
  */
 function switchMarketTab(tab) {
-    try {
-        // 获取所有市场标签按钮和内容
-        const tabButtons = document.querySelectorAll('.market-tabs .tab-btn');
-        const tabContents = document.querySelectorAll('.market-tab-content');
+  try {
+    // 获取所有市场标签按钮和内容
+    const tabButtons = document.querySelectorAll('.market-tabs .tab-btn');
+    const tabContents = document.querySelectorAll('.market-tab-content');
 
-        // 移除所有active状态
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
+    // 移除所有active状态
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
 
-        // 添加active状态到当前标签
-        const activeButton = document.querySelector(`.market-tabs .tab-btn[onclick*="${tab}"]`);
-        if (activeButton) {
-            activeButton.classList.add('active');
-        }
-
-        const activeContent = document.getElementById(`${tab}Tab`);
-        if (activeContent) {
-            activeContent.classList.add('active');
-        } else {
-            console.warn('[switchMarketTab] 未找到标签内容:', tab);
-        }
-    } catch (error) {
-        console.error('[switchMarketTab] 执行失败:', error);
-        alert(`切换市场标签失败：${error.message}`);
+    // 添加active状态到当前标签
+    const activeButton = document.querySelector(`.market-tabs .tab-btn[onclick*="${tab}"]`);
+    if (activeButton) {
+      activeButton.classList.add('active');
     }
+
+    const activeContent = document.getElementById(`${tab}Tab`);
+    if (activeContent) {
+      activeContent.classList.add('active');
+    } else {
+      console.warn('[switchMarketTab] 未找到标签内容:', tab);
+    }
+  } catch (error) {
+    console.error('[switchMarketTab] 执行失败:', error);
+    alert(`切换市场标签失败：${error.message}`);
+  }
 }
 
 // ============================================================================
@@ -237,18 +237,18 @@ function switchMarketTab(tab) {
  * 注意: 这是一个别名函数，实际调用 switchKnowledgeOrg()
  */
 function switchKnowledgeOrganization(orgType) {
-    if (typeof switchKnowledgeOrg !== 'function') {
-        console.error('[switchKnowledgeOrganization] switchKnowledgeOrg 函数未定义');
-        alert('系统错误：知识库切换功能未初始化，请刷新页面重试');
-        return;
-    }
+  if (typeof switchKnowledgeOrg !== 'function') {
+    console.error('[switchKnowledgeOrganization] switchKnowledgeOrg 函数未定义');
+    alert('系统错误：知识库切换功能未初始化，请刷新页面重试');
+    return;
+  }
 
-    try {
-        switchKnowledgeOrg(orgType);
-    } catch (error) {
-        console.error('[switchKnowledgeOrganization] 执行失败:', error);
-        alert(`切换知识库组织方式失败：${error.message}`);
-    }
+  try {
+    switchKnowledgeOrg(orgType);
+  } catch (error) {
+    console.error('[switchKnowledgeOrganization] 执行失败:', error);
+    alert(`切换知识库组织方式失败：${error.message}`);
+  }
 }
 
 // ============================================================================
@@ -269,6 +269,32 @@ window.switchMarketTab = switchMarketTab;
 
 // 知识库相关
 window.switchKnowledgeOrganization = switchKnowledgeOrganization;
+
+// 报告一致性自检（调试用）
+window.checkReportConsistency = async function (chatId = null) {
+  const targetChatId = chatId || window.state?.currentChat;
+  if (!targetChatId) {
+    console.warn('[checkReportConsistency] 缺少 chatId');
+    return { ok: false, reason: 'no_chat_id' };
+  }
+  if (!window.storageManager) {
+    console.warn('[checkReportConsistency] storageManager 未初始化');
+    return { ok: false, reason: 'no_storage' };
+  }
+
+  const reports = await window.storageManager.getReportsByChatId(String(targetChatId).trim());
+  const summary = reports.map(r => ({
+    id: r.id,
+    type: r.type,
+    status: r.status,
+    hasDocument: typeof r.data?.document === 'string' && r.data.document.trim().length > 0,
+    hasChapters: Array.isArray(r.data?.chapters) && r.data.chapters.length > 0,
+    startTime: r.startTime,
+    endTime: r.endTime
+  }));
+  console.table(summary);
+  return { ok: true, chatId: String(targetChatId).trim(), reports: summary };
+};
 
 // ✅ 确保关闭函数正确暴露
 if (!window.closeBusinessReport) {

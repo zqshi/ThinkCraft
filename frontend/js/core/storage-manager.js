@@ -338,7 +338,9 @@ class StorageManager {
     if (!reportId && report.type && normalizedChatId) {
       try {
         const reports = await this.getAllReports();
-        const existing = reports.find(r => r.type === report.type && String(r.chatId).trim() === normalizedChatId);
+        const existing = reports.find(
+          r => r.type === report.type && String(r.chatId).trim() === normalizedChatId
+        );
         if (existing?.id) {
           reportId = existing.id;
         }
@@ -424,7 +426,55 @@ class StorageManager {
       return null;
     }
     const reports = await this.getReportsByChatId(chatId);
-    return reports.find(r => r.type === type) || null;
+    const candidates = reports.filter(r => r.type === type);
+    if (candidates.length === 0) {
+      return null;
+    }
+    if (candidates.length === 1) {
+      return candidates[0];
+    }
+
+    const rankStatus = status => {
+      if (status === 'completed') {
+        return 4;
+      }
+      if (status === 'generating') {
+        return 3;
+      }
+      if (status === 'error') {
+        return 2;
+      }
+      if (status === 'idle') {
+        return 1;
+      }
+      return 0;
+    };
+    const hasData = report => {
+      if (!report?.data) {
+        return false;
+      }
+      if (typeof report.data.document === 'string' && report.data.document.trim().length > 0) {
+        return true;
+      }
+      if (Array.isArray(report.data.chapters) && report.data.chapters.length > 0) {
+        return true;
+      }
+      return false;
+    };
+
+    return candidates.slice().sort((a, b) => {
+      const rankDiff = rankStatus(b.status) - rankStatus(a.status);
+      if (rankDiff !== 0) {
+        return rankDiff;
+      }
+      const dataDiff = Number(hasData(b)) - Number(hasData(a));
+      if (dataDiff !== 0) {
+        return dataDiff;
+      }
+      const aTime = Number(a.endTime || a.startTime || 0);
+      const bTime = Number(b.endTime || b.startTime || 0);
+      return bTime - aTime;
+    })[0];
   }
 
   /**
@@ -585,7 +635,6 @@ class StorageManager {
         await this.saveReport(report);
       }
     }
-
   }
 
   // ========== 灵感收件箱业务方法（Phase 3新增） ==========
@@ -1118,7 +1167,11 @@ class StorageManager {
     if (!project.id) {
       project.id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
-    if (Object.prototype.hasOwnProperty.call(project, 'ideaId') && project.ideaId !== null && project.ideaId !== undefined) {
+    if (
+      Object.prototype.hasOwnProperty.call(project, 'ideaId') &&
+      project.ideaId !== null &&
+      project.ideaId !== undefined
+    ) {
       project.ideaId = String(project.ideaId).trim();
     }
     project.updatedAt = Date.now();

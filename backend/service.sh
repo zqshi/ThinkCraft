@@ -19,6 +19,7 @@ check_status() {
 
 stop_service() {
     echo "正在停止后端服务..."
+    RUN_DIR="../run"
     if lsof -ti:$PORT > /dev/null 2>&1; then
         PID=$(lsof -ti:$PORT)
         kill -15 $PID 2>/dev/null
@@ -32,6 +33,9 @@ stop_service() {
     else
         echo "后端服务未运行"
     fi
+    if [ -f "$RUN_DIR/backend.pid" ]; then
+        rm "$RUN_DIR/backend.pid"
+    fi
 }
 
 start_service() {
@@ -40,7 +44,11 @@ start_service() {
         echo "⚠ 后端服务已在运行"
         return 1
     fi
-    cd backend && nohup npm start > ../backend.log 2>&1 &
+    LOG_DIR="../logs"
+    RUN_DIR="../run"
+    mkdir -p "$LOG_DIR" "$RUN_DIR"
+    cd backend && nohup npm start > "$LOG_DIR/backend.log" 2>&1 &
+    echo $! > "$RUN_DIR/backend.pid"
     sleep 3
     cd ..
     if lsof -ti:$PORT > /dev/null 2>&1; then
@@ -48,7 +56,7 @@ start_service() {
         check_status
     else
         echo "✗ 后端服务启动失败"
-        echo "查看日志: tail -f backend.log"
+        echo "查看日志: tail -f logs/backend.log"
     fi
 }
 

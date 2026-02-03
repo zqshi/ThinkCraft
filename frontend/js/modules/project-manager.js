@@ -15,7 +15,6 @@ function getDefaultApiUrl() {
 // 创建日志实例
 var logger = window.createLogger ? window.createLogger('ProjectManager') : console;
 
-
 class ProjectManager {
   constructor() {
     this.projects = [];
@@ -496,7 +495,12 @@ class ProjectManager {
    */
   async updateProject(projectId, updates, options = {}) {
     try {
-      if (!options.forceRemote && options.allowFallback && !options.localOnly && this.storageManager?.getProject) {
+      if (
+        !options.forceRemote &&
+        options.allowFallback &&
+        !options.localOnly &&
+        this.storageManager?.getProject
+      ) {
         const localProject = await this.storageManager.getProject(projectId).catch(() => null);
         if (localProject) {
           return await this.updateProject(projectId, updates, { ...options, localOnly: true });
@@ -509,7 +513,8 @@ class ProjectManager {
           : updates;
 
       const normalizedUpdates =
-        normalizedIdeaUpdate && Object.prototype.hasOwnProperty.call(normalizedIdeaUpdate, 'assignedAgents')
+        normalizedIdeaUpdate &&
+        Object.prototype.hasOwnProperty.call(normalizedIdeaUpdate, 'assignedAgents')
           ? {
               ...normalizedIdeaUpdate,
               assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
@@ -616,7 +621,8 @@ class ProjectManager {
   async deleteProject(projectId) {
     try {
       const projectIdText = String(projectId || '');
-      const isServerId = projectIdText.startsWith('project_') || /^[a-f0-9]{24}$/i.test(projectIdText);
+      const isServerId =
+        projectIdText.startsWith('project_') || /^[a-f0-9]{24}$/i.test(projectIdText);
       logger.debug('[DEBUG] deleteProject - projectId:', projectId);
       logger.debug('[DEBUG] deleteProject - isServerId:', isServerId);
 
@@ -649,7 +655,9 @@ class ProjectManager {
             window.modalManager?.alert(`删除项目失败: ${message}`, 'error');
             return;
           }
-          logger.debug('[DEBUG] deleteProject - continuing despite API error, local project exists');
+          logger.debug(
+            '[DEBUG] deleteProject - continuing despite API error, local project exists'
+          );
         }
       }
 
@@ -659,7 +667,9 @@ class ProjectManager {
 
       // 更新内存（保留项目，标记为deleted）
       this.projects = this.projects.map(project =>
-        project.id === projectId ? { ...project, status: 'deleted', updatedAt: Date.now() } : project
+        project.id === projectId
+          ? { ...project, status: 'deleted', updatedAt: Date.now() }
+          : project
       );
 
       // 更新全局状态
@@ -778,7 +788,9 @@ class ProjectManager {
       return;
     }
 
-    const projectCardsHTML = visibleProjects.map(project => this.renderProjectCard(project)).join('');
+    const projectCardsHTML = visibleProjects
+      .map(project => this.renderProjectCard(project))
+      .join('');
 
     container.innerHTML = `
             <div class="project-list">
@@ -841,13 +853,13 @@ class ProjectManager {
                     </div>
                     <div class="project-card-meta">
                         ${metaItems
-    .map(
-      (item, index) => `
+                          .map(
+                            (item, index) => `
                             ${index ? '<span class="project-card-meta-dot"></span>' : ''}
                             <span>${item}</span>
                         `
-    )
-    .join('')}
+                          )
+                          .join('')}
                     </div>
                 </div>
                 <div class="project-card-kpis">
@@ -984,7 +996,9 @@ class ProjectManager {
 
     const suggestedStages = project.collaborationSuggestion?.stages;
     const hasSuggestedStages = Array.isArray(suggestedStages) && suggestedStages.length > 0;
-    const stages = hasSuggestedStages ? this.normalizeSuggestedStages(suggestedStages) : (project.workflow?.stages || []);
+    const stages = hasSuggestedStages
+      ? this.normalizeSuggestedStages(suggestedStages)
+      : project.workflow?.stages || [];
 
     // 检查是否已执行协同模式
     const collaborationExecuted = project.collaborationExecuted || false;
@@ -1000,7 +1014,9 @@ class ProjectManager {
     this.currentStageId = selectedStageId;
 
     // 根据依赖关系对阶段进行拓扑排序
-    const sortedStages = collaborationExecuted ? this.sortStagesByDependencies(effectiveStages) : effectiveStages;
+    const sortedStages = collaborationExecuted
+      ? this.sortStagesByDependencies(effectiveStages)
+      : effectiveStages;
 
     title.textContent = project.name;
 
@@ -1060,7 +1076,11 @@ class ProjectManager {
                           <!-- 阶段详情展开区域 -->
                           ${sortedStages.map(stage => this.renderStageDetailSection(project, stage)).join('')}
                         `
-                        : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' + (typeof window.getDefaultIconSvg === 'function' ? window.getDefaultIconSvg(64, 'empty-icon') : '🤝') + '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
+                        : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' +
+                          (typeof window.getDefaultIconSvg === 'function'
+                            ? window.getDefaultIconSvg(64, 'empty-icon')
+                            : '🤝') +
+                          '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
                     }
                 </div>
                 <div class="project-panel-section project-panel-card project-panel-span-2">
@@ -1172,7 +1192,8 @@ class ProjectManager {
     const artifacts = this.getDisplayArtifacts(stage);
     const tab = this.stageTabState[stageId] || 'document';
     const selectedArtifactId = this.stageArtifactState[stageId] || artifacts[0]?.id || null;
-    const selectedArtifact = artifacts.find(a => a.id === selectedArtifactId) || artifacts[0] || null;
+    const selectedArtifact =
+      artifacts.find(a => a.id === selectedArtifactId) || artifacts[0] || null;
     if (selectedArtifact?.id) {
       this.stageArtifactState[stageId] = selectedArtifact.id;
     }
@@ -1195,8 +1216,9 @@ class ProjectManager {
 
     // 新增：显示阶段依赖
     const dependencies = stage.dependencies || [];
-    const dependencyHTML = dependencies.length > 0
-      ? `<div class="stage-dependencies">
+    const dependencyHTML =
+      dependencies.length > 0
+        ? `<div class="stage-dependencies">
            <div class="stage-info-label">
              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
@@ -1204,79 +1226,95 @@ class ProjectManager {
              依赖阶段
            </div>
            <div class="stage-dependency-list">
-             ${dependencies.map(d => {
-               const depStage = project.workflow.stages.find(s => s.id === d);
-               if (!depStage) return '';
-               const depStatus = depStage.status || 'pending';
-               const depStatusIcon = depStatus === 'completed' ? '✓' : depStatus === 'active' ? '⚡' : '○';
-               const depStatusClass = `status-${depStatus}`;
-               return `
+             ${dependencies
+               .map(d => {
+                 const depStage = project.workflow.stages.find(s => s.id === d);
+                 if (!depStage) return '';
+                 const depStatus = depStage.status || 'pending';
+                 const depStatusIcon =
+                   depStatus === 'completed' ? '✓' : depStatus === 'active' ? '⚡' : '○';
+                 const depStatusClass = `status-${depStatus}`;
+                 return `
                  <span class="stage-dependency-tag ${depStatusClass}">
                    <span class="dependency-icon">${depStatusIcon}</span>
                    ${this.escapeHtml(depStage.name)}
                  </span>
                `;
-             }).join('')}
+               })
+               .join('')}
            </div>
          </div>`
-      : '';
+        : '';
 
     // 新增：显示负责Agent
     const stageAgents = stage.agentRoles || stage.agents || [];
-    const agentsHTML = stageAgents.length > 0
-      ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
-           负责成员：${stageAgents.map(a => {
-             if (typeof a === 'object') {
-               return this.escapeHtml(a.role || a.id);
-             }
-             return this.escapeHtml(a);
-           }).join('、')}
+    const agentsHTML =
+      stageAgents.length > 0
+        ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
+           负责成员：${stageAgents
+             .map(a => {
+               if (typeof a === 'object') {
+                 return this.escapeHtml(a.role || a.id);
+               }
+               return this.escapeHtml(a);
+             })
+             .join('、')}
          </div>`
-      : '';
+        : '';
 
     // 新增：显示预期交付物
     const outputsDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
     const outputs = stage.outputs || [];
-    const outputsHTML = (outputsDetailed.length > 0 || outputs.length > 0)
-      ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
-           预期交付物：${(outputsDetailed.length > 0 ? outputsDetailed : outputs).map(o => {
-             if (typeof o === 'string') return this.escapeHtml(o);
-             const name = this.escapeHtml(o.name || o.id || '未命名交付物');
-             const templates = Array.isArray(o.promptTemplates) && o.promptTemplates.length > 0
-               ? `（模板：${o.promptTemplates.map(p => this.escapeHtml(p)).join('，')}）`
-               : '';
-             return `${name}${templates}`;
-           }).join('、')}
+    const outputsHTML =
+      outputsDetailed.length > 0 || outputs.length > 0
+        ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
+           预期交付物：${(outputsDetailed.length > 0 ? outputsDetailed : outputs)
+             .map(o => {
+               if (typeof o === 'string') return this.escapeHtml(o);
+               const name = this.escapeHtml(o.name || o.id || '未命名交付物');
+               const templates =
+                 Array.isArray(o.promptTemplates) && o.promptTemplates.length > 0
+                   ? `（模板：${o.promptTemplates.map(p => this.escapeHtml(p)).join('，')}）`
+                   : '';
+               return `${name}${templates}`;
+             })
+             .join('、')}
          </div>`
-      : '';
+        : '';
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const deliverableChecklistHTML = expectedDeliverables.length > 0 ? `
+    const deliverableChecklistHTML =
+      expectedDeliverables.length > 0
+        ? `
       <div class="project-deliverable-checklist">
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
-          ${expectedDeliverables.map((item, index) => {
-            const id = item.id || item.key || `deliverable-${index}`;
-            const encodedId = encodeURIComponent(id);
-            const label = this.escapeHtml(item.label || item.id || id);
-            const checked = selectedSet.has(id) ? 'checked' : '';
-            return `
+          ${expectedDeliverables
+            .map((item, index) => {
+              const id = item.id || item.key || `deliverable-${index}`;
+              const encodedId = encodeURIComponent(id);
+              const label = this.escapeHtml(item.label || item.id || id);
+              const checked = selectedSet.has(id) ? 'checked' : '';
+              return `
               <label class="project-deliverable-checklist-item">
                 <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
-          }).join('')}
+            })
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
     const missingDeliverables = this.getMissingDeliverables(stage, definition);
-    const missingHTML = missingDeliverables.length > 0
-      ? `<div style="margin-top: 8px; font-size: 12px; color: #b45309;">
+    const missingHTML =
+      missingDeliverables.length > 0
+        ? `<div style="margin-top: 8px; font-size: 12px; color: #b45309;">
            缺失交付物（${missingDeliverables.length}）：${missingDeliverables.map(name => this.escapeHtml(name)).join('、')}
          </div>`
-      : '';
+        : '';
 
     container.innerHTML = `
         <div class="project-stage-split">
@@ -1356,11 +1394,11 @@ class ProjectManager {
 
   getStageStatusLabel(status) {
     const labels = {
-      'pending': '待执行',
-      'active': '执行中',
-      'in_progress': '执行中',
-      'completed': '已完成',
-      'blocked': '阻塞中'
+      pending: '待执行',
+      active: '执行中',
+      in_progress: '执行中',
+      completed: '已完成',
+      blocked: '阻塞中'
     };
     return labels[status] || status;
   }
@@ -1408,9 +1446,9 @@ class ProjectManager {
       'frontend-developer': { name: '前端开发', emoji: '💻', icon: '💻' },
       'backend-developer': { name: '后端开发', emoji: '⚙️', icon: '⚙️' },
       'qa-engineer': { name: '测试工程师', emoji: '🔍', icon: '🔍' },
-      'devops': { name: '运维工程师', emoji: '🚀', icon: '🚀' },
-      'marketing': { name: '市场营销', emoji: '📢', icon: '📢' },
-      'operations': { name: '运营专员', emoji: '📊', icon: '📊' },
+      devops: { name: '运维工程师', emoji: '🚀', icon: '🚀' },
+      marketing: { name: '市场营销', emoji: '📢', icon: '📢' },
+      operations: { name: '运营专员', emoji: '📊', icon: '📊' },
       'strategy-design': { name: '战略设计师', emoji: '🎯', icon: '🎯' },
       'tech-lead': { name: '技术负责人', emoji: '👨‍💻', icon: '👨‍💻' }
     };
@@ -1424,20 +1462,20 @@ class ProjectManager {
    */
   getArtifactTypeDefinition(artifactType) {
     const artifactDefs = {
-      'prd': { name: '产品需求文档', icon: '📋' },
+      prd: { name: '产品需求文档', icon: '📋' },
       'user-story': { name: '用户故事', icon: '👤' },
       'feature-list': { name: '功能清单', icon: '📝' },
-      'design': { name: '设计稿', icon: '🎨' },
+      design: { name: '设计稿', icon: '🎨' },
       'design-spec': { name: '设计规范', icon: '📐' },
-      'prototype': { name: '交互原型', icon: '🖼️' },
-      'code': { name: '代码', icon: '💻' },
+      prototype: { name: '交互原型', icon: '🖼️' },
+      code: { name: '代码', icon: '💻' },
       'component-lib': { name: '组件库', icon: '🧩' },
       'api-doc': { name: 'API文档', icon: '📡' },
       'test-report': { name: '测试报告', icon: '📊' },
       'deployment-guide': { name: '部署指南', icon: '🚀' },
-      'document': { name: '文档', icon: '📄' },
-      'report': { name: '报告', icon: '📈' },
-      'plan': { name: '计划', icon: '📝' },
+      document: { name: '文档', icon: '📄' },
+      report: { name: '报告', icon: '📈' },
+      plan: { name: '计划', icon: '📝' },
       'strategy-doc': { name: '战略设计文档', icon: '🎯' },
       'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
       'acceptance-criteria-quality': { name: '验收标准质量检查清单', icon: '✅' },
@@ -1445,9 +1483,9 @@ class ProjectManager {
       'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
       'marketing-plan': { name: '运营推广方案', icon: '📈' },
       'deploy-doc': { name: '部署文档', icon: '🚀' },
-      'preview': { name: '可交互预览', icon: '🖥️' },
+      preview: { name: '可交互预览', icon: '🖥️' },
       'ui-preview': { name: 'UI预览', icon: '🖼️' },
-      'image': { name: '图片', icon: '🖼️' }
+      image: { name: '图片', icon: '🖼️' }
     };
     return artifactDefs[artifactType] || { name: artifactType, icon: '📄' };
   }
@@ -1499,9 +1537,10 @@ class ProjectManager {
     const expected = this.getExpectedDeliverables(stage, definition);
     if (expected.length === 0) return [];
     const selectedSet = new Set(selectedIds.filter(Boolean));
-    const filteredExpected = selectedSet.size > 0
-      ? expected.filter(item => selectedSet.has(item.id || item.key))
-      : expected;
+    const filteredExpected =
+      selectedSet.size > 0
+        ? expected.filter(item => selectedSet.has(item.id || item.key))
+        : expected;
     return this.getMissingDeliverablesFromExpected(stage, filteredExpected);
   }
 
@@ -1512,13 +1551,7 @@ class ProjectManager {
     artifacts.forEach(artifact => {
       const type = artifact?.type || 'document';
       const typeDef = this.getArtifactTypeDefinition(type);
-      [
-        type,
-        artifact?.name,
-        artifact?.fileName,
-        artifact?.id,
-        typeDef?.name
-      ].forEach(val => {
+      [type, artifact?.name, artifact?.fileName, artifact?.id, typeDef?.name].forEach(val => {
         const key = this.normalizeDeliverableKey(val);
         if (key) actualKeys.add(key);
       });
@@ -1548,13 +1581,7 @@ class ProjectManager {
     artifacts.forEach(artifact => {
       const type = artifact?.type || 'document';
       const typeDef = this.getArtifactTypeDefinition(type);
-      [
-        type,
-        artifact?.name,
-        artifact?.fileName,
-        artifact?.id,
-        typeDef?.name
-      ].forEach(val => {
+      [type, artifact?.name, artifact?.fileName, artifact?.id, typeDef?.name].forEach(val => {
         const key = this.normalizeDeliverableKey(val);
         if (key) actualKeys.add(key);
       });
@@ -1656,20 +1683,22 @@ class ProjectManager {
    * @returns {String} HTML字符串
    */
   renderWorkflowSteps(stages, selectedStageId) {
-    return stages.map((stage, index) => {
-      const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
-      const isSelected = stage.id === selectedStageId;
-      const statusClass = `status-${stage.status || 'pending'}`;
-      const selectedClass = isSelected ? 'selected' : '';
+    return stages
+      .map((stage, index) => {
+        const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
+        const isSelected = stage.id === selectedStageId;
+        const statusClass = `status-${stage.status || 'pending'}`;
+        const selectedClass = isSelected ? 'selected' : '';
 
-      // 状态图标
-      const statusIcon = {
-        pending: '⏸️',
-        active: '⚡',
-        completed: '✅'
-      }[stage.status] || '📋';
+        // 状态图标
+        const statusIcon =
+          {
+            pending: '⏸️',
+            active: '⚡',
+            completed: '✅'
+          }[stage.status] || '📋';
 
-      return `
+        return `
         <div class="workflow-step ${statusClass} ${selectedClass}"
              data-stage-id="${stage.id}"
              onclick="projectManager.selectStage('${stage.id}')">
@@ -1681,7 +1710,8 @@ class ProjectManager {
           <div class="workflow-step-connector"></div>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
   }
 
   /**
@@ -1693,67 +1723,81 @@ class ProjectManager {
   renderStageDetailSection(project, stage) {
     const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
     const statusText = this.getStageStatusLabel(stage.status || 'pending');
-    const statusColor = {
-      pending: '#9ca3af',
-      active: '#3b82f6',
-      completed: '#10b981'
-    }[stage.status] || '#9ca3af';
+    const statusColor =
+      {
+        pending: '#9ca3af',
+        active: '#3b82f6',
+        completed: '#10b981'
+      }[stage.status] || '#9ca3af';
 
     // 渲染Agent列表
-    const agentsHTML = (stage.agents || []).length > 0 ? `
+    const agentsHTML =
+      (stage.agents || []).length > 0
+        ? `
       <div class="workflow-stage-agents">
         <div class="workflow-stage-agents-title">
           <span>🤖</span>
           <span>负责数字员工</span>
         </div>
         <div class="workflow-stage-agents-list">
-          ${(stage.agents || []).map(agentType => {
-            const agentDef = this.getAgentDefinition(agentType);
-            return `
+          ${(stage.agents || [])
+            .map(agentType => {
+              const agentDef = this.getAgentDefinition(agentType);
+              return `
               <div class="workflow-stage-agent-tag">
                 <span>${agentDef?.icon || '👤'}</span>
                 <span>${agentDef?.name || agentType}</span>
               </div>
             `;
-          }).join('')}
+            })
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
 
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const deliverableChecklistHTML = expectedDeliverables.length > 0 ? `
+    const deliverableChecklistHTML =
+      expectedDeliverables.length > 0
+        ? `
       <div class="project-deliverable-checklist">
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
-          ${expectedDeliverables.map((item, index) => {
-            const id = item.id || item.key || `deliverable-${index}`;
-            const encodedId = encodeURIComponent(id);
-            const label = this.escapeHtml(item.label || item.id || id);
-            const checked = selectedSet.has(id) ? 'checked' : '';
-            return `
+          ${expectedDeliverables
+            .map((item, index) => {
+              const id = item.id || item.key || `deliverable-${index}`;
+              const encodedId = encodeURIComponent(id);
+              const label = this.escapeHtml(item.label || item.id || id);
+              const checked = selectedSet.has(id) ? 'checked' : '';
+              return `
               <label class="project-deliverable-checklist-item">
                 <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
-          }).join('')}
+            })
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
 
     // 渲染预期交付物
-    const expectedArtifactsHTML = definition?.expectedArtifacts?.length > 0 ? `
+    const expectedArtifactsHTML =
+      definition?.expectedArtifacts?.length > 0
+        ? `
       <div class="workflow-stage-artifacts">
         <div class="workflow-stage-artifacts-title">
           <span>📋</span>
           <span>预期交付物</span>
         </div>
         <div class="workflow-stage-artifacts-grid">
-          ${definition.expectedArtifacts.map(artifactType => {
-            const artifactDef = this.getArtifactTypeDefinition(artifactType);
-            return `
+          ${definition.expectedArtifacts
+            .map(artifactType => {
+              const artifactDef = this.getArtifactTypeDefinition(artifactType);
+              return `
               <div class="workflow-stage-artifact-card" style="opacity: 0.6; cursor: default;">
                 <span class="workflow-stage-artifact-icon">${artifactDef?.icon || '📄'}</span>
                 <div class="workflow-stage-artifact-info">
@@ -1762,23 +1806,28 @@ class ProjectManager {
                 </div>
               </div>
             `;
-          }).join('')}
+            })
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
 
     // 渲染实际交付物（已生成交付物）
-    const actualArtifactsHTML = (stage.artifacts || []).length > 0 ? `
+    const actualArtifactsHTML =
+      (stage.artifacts || []).length > 0
+        ? `
       <div class="workflow-stage-artifacts">
         <div class="workflow-stage-artifacts-title">
           <span>📦</span>
           <span>最终交付物 (${stage.artifacts.length})</span>
         </div>
         <div class="workflow-stage-artifacts-grid">
-          ${(stage.artifacts || []).map(artifact => {
-            const icon = this.getArtifactIcon(artifact.type);
-            const typeLabel = this.getArtifactTypeLabel(artifact);
-            return `
+          ${(stage.artifacts || [])
+            .map(artifact => {
+              const icon = this.getArtifactIcon(artifact.type);
+              const typeLabel = this.getArtifactTypeLabel(artifact);
+              return `
               <div class="workflow-stage-artifact-card"
                    onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifact.id}')">
                 <span class="workflow-stage-artifact-icon">${icon}</span>
@@ -1788,23 +1837,29 @@ class ProjectManager {
                 </div>
               </div>
             `;
-          }).join('')}
+            })
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
     const missingWithReason = this.getMissingDeliverablesWithReason(
       stage,
       expectedDeliverables,
       selectedDeliverables
     );
-    const missingArtifactsHTML = missingWithReason.length > 0 ? `
+    const missingArtifactsHTML =
+      missingWithReason.length > 0
+        ? `
       <div class="workflow-stage-artifacts">
         <div class="workflow-stage-artifacts-title">
           <span>⚠️</span>
           <span>本次未生成的交付物 (${missingWithReason.length})</span>
         </div>
         <div class="workflow-stage-artifacts-grid">
-          ${missingWithReason.map(item => `
+          ${missingWithReason
+            .map(
+              item => `
             <div class="workflow-stage-artifact-card" style="opacity: 0.7; cursor: default;">
               <span class="workflow-stage-artifact-icon">📄</span>
               <div class="workflow-stage-artifact-info">
@@ -1812,10 +1867,13 @@ class ProjectManager {
                 <div class="workflow-stage-artifact-type">${this.escapeHtml(item.reason)}</div>
               </div>
             </div>
-          `).join('')}
+          `
+            )
+            .join('')}
         </div>
       </div>
-    ` : '';
+    `
+        : '';
 
     // 操作按钮
     let actionsHTML = '';
@@ -1925,7 +1983,8 @@ class ProjectManager {
     this.stageTabState[stageId] = tab;
     const artifactId = this.stageArtifactState[stageId];
     const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
-    const artifact = (stage?.artifacts || []).find(a => a.id === artifactId) || stage?.artifacts?.[0];
+    const artifact =
+      (stage?.artifacts || []).find(a => a.id === artifactId) || stage?.artifacts?.[0];
     this.renderDeliverableContent(stageId, artifact, tab);
     const tabs = document.querySelectorAll('.project-deliverable-tab');
     tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -2007,8 +2066,8 @@ class ProjectManager {
     return `
             <div class="project-panel-list" style="margin-top: 10px;">
                 ${displayArtifacts
-    .map(
-      artifact => `
+                  .map(
+                    artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -2019,8 +2078,8 @@ class ProjectManager {
                         </button>
                     </div>
                 `
-    )
-    .join('')}
+                  )
+                  .join('')}
             </div>
         `;
   }
@@ -2148,8 +2207,8 @@ class ProjectManager {
     const listHTML = `
             <div style="display: grid; gap: 10px;">
                 ${artifacts
-    .map(
-      artifact => `
+                  .map(
+                    artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -2160,8 +2219,8 @@ class ProjectManager {
                         </button>
                     </div>
                 `
-    )
-    .join('')}
+                  )
+                  .join('')}
             </div>
         `;
 
@@ -2359,10 +2418,48 @@ class ProjectManager {
     try {
       const reports = await this.storageManager.getAllReports();
       const result = {};
+      const rankStatus = status => {
+        if (status === 'completed') return 4;
+        if (status === 'generating') return 3;
+        if (status === 'error') return 2;
+        if (status === 'idle') return 1;
+        return 0;
+      };
+      const hasData = report => {
+        if (!report?.data) return false;
+        if (typeof report.data.document === 'string' && report.data.document.trim().length > 0)
+          return true;
+        if (Array.isArray(report.data.chapters) && report.data.chapters.length > 0) return true;
+        return false;
+      };
       reports
-        .filter(r => this.normalizeIdeaIdForCompare(r.chatId) === this.normalizeIdeaIdForCompare(chatId))
+        .filter(
+          r => this.normalizeIdeaIdForCompare(r.chatId) === this.normalizeIdeaIdForCompare(chatId)
+        )
         .forEach(r => {
-          result[r.type] = r;
+          const existing = result[r.type];
+          if (!existing) {
+            result[r.type] = r;
+            return;
+          }
+          const rankDiff = rankStatus(r.status) - rankStatus(existing.status);
+          if (rankDiff > 0) {
+            result[r.type] = r;
+            return;
+          }
+          if (rankDiff < 0) {
+            return;
+          }
+          const dataDiff = Number(hasData(r)) - Number(hasData(existing));
+          if (dataDiff > 0) {
+            result[r.type] = r;
+            return;
+          }
+          const rTime = Number(r.endTime || r.startTime || 0);
+          const eTime = Number(existing.endTime || existing.startTime || 0);
+          if (rTime > eTime) {
+            result[r.type] = r;
+          }
         });
       return result;
     } catch (error) {
@@ -2379,7 +2476,9 @@ class ProjectManager {
       chat = await this.storageManager.getChat(chatId);
       if (!chat) {
         const allChats = await this.storageManager.getAllChats().catch(() => []);
-        chat = allChats.find(item => this.normalizeIdeaIdForCompare(item.id) === this.normalizeIdeaIdForCompare(chatId));
+        chat = allChats.find(
+          item => this.normalizeIdeaIdForCompare(item.id) === this.normalizeIdeaIdForCompare(chatId)
+        );
       }
     } catch (error) {}
 
@@ -2392,7 +2491,9 @@ class ProjectManager {
 
     const reports = await this.storageManager.getAllReports();
     const report = reports.find(
-      r => this.normalizeIdeaIdForCompare(r.chatId) === this.normalizeIdeaIdForCompare(chatId) && r.type === type
+      r =>
+        this.normalizeIdeaIdForCompare(r.chatId) === this.normalizeIdeaIdForCompare(chatId) &&
+        r.type === type
     );
     if (!report) {
       window.modalManager.alert('暂无报告内容', 'info');
@@ -2662,12 +2763,15 @@ class ProjectManager {
       `;
     };
 
-    const metaHTML = type === 'analysis' ? `<div class="report-meta">项目面板 · 只读预览</div>` : '';
+    const metaHTML =
+      type === 'analysis' ? `<div class="report-meta">项目面板 · 只读预览</div>` : '';
     let contentHTML = '';
     if (type === 'analysis') {
       // 检查数据是否有效
       if (!data || !data.chapters) {
-        contentHTML = metaHTML + `
+        contentHTML =
+          metaHTML +
+          `
           <div style="text-align: center; padding: 60px 20px;">
             <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
             <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
@@ -2781,8 +2885,7 @@ class ProjectManager {
     } else {
       const summary = data.coreDefinition || data.problem || data.solution || '';
       contentHTML =
-        metaHTML +
-        `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
+        metaHTML + `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
     }
 
     if (!contentHTML) {
@@ -2872,7 +2975,9 @@ class ProjectManager {
       return;
     }
 
-    const agentMarket = await this.getAgentMarketList(project.workflowCategory || 'product-development');
+    const agentMarket = await this.getAgentMarketList(
+      project.workflowCategory || 'product-development'
+    );
     const hiredAgents = await this.getUserHiredAgents();
     const hiredIds = project.assignedAgents || [];
     const assignedAgents = hiredAgents.filter(agent => hiredIds.includes(agent.id));
@@ -2880,7 +2985,9 @@ class ProjectManager {
 
     container.innerHTML = agentMarket
       .map(agent => {
-        const isAssigned = assignedAgents.some(item => item.type === agent.id || item.id === agent.id);
+        const isAssigned = assignedAgents.some(
+          item => item.type === agent.id || item.id === agent.id
+        );
         const isRecommended = recommended.includes(agent.id);
         return `
                 <div class="agent-card ${isAssigned ? 'hired' : ''}">
@@ -2898,10 +3005,10 @@ class ProjectManager {
                     ${isRecommended ? '<div class="agent-card-badge">推荐</div>' : ''}
                     <div class="agent-card-actions">
                         ${
-  isAssigned
-    ? '<button class="hire-btn hired" disabled>✓ 已加入</button>'
-    : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入</button>`
-}
+                          isAssigned
+                            ? '<button class="hire-btn hired" disabled>✓ 已加入</button>'
+                            : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入</button>`
+                        }
                     </div>
                 </div>
             `;
@@ -2980,7 +3087,11 @@ class ProjectManager {
     }
 
     const assignedAgents = Array.from(new Set([...(project.assignedAgents || []), hiredAgent.id]));
-    const updatedProject = await this.updateProject(projectId, { assignedAgents }, { allowFallback: true });
+    const updatedProject = await this.updateProject(
+      projectId,
+      { assignedAgents },
+      { allowFallback: true }
+    );
     const viewProject = updatedProject || { ...project, assignedAgents };
     this.renderProjectMembersPanel(viewProject);
     this.renderMemberMarket();
@@ -3021,7 +3132,11 @@ class ProjectManager {
       headers: this.buildAuthHeaders()
     }).catch(() => null);
     const assignedAgents = (project.assignedAgents || []).filter(id => id !== agentId);
-    const updatedProject = await this.updateProject(project.id, { assignedAgents }, { allowFallback: true });
+    const updatedProject = await this.updateProject(
+      project.id,
+      { assignedAgents },
+      { allowFallback: true }
+    );
     const viewProject = updatedProject || { ...project, assignedAgents };
     this.renderProjectMembersPanel(viewProject);
     this.renderMemberMarket();
@@ -3039,7 +3154,9 @@ class ProjectManager {
     }
     const assignedIds = (project.assignedAgents || []).filter(id => id !== agent.id);
     const hiredAgents = this.cachedHiredAgents || [];
-    const remainingSameType = hiredAgents.some(item => assignedIds.includes(item.id) && item.type === agent.type);
+    const remainingSameType = hiredAgents.some(
+      item => assignedIds.includes(item.id) && item.type === agent.type
+    );
     return remainingSameType ? [] : [agent.name];
   }
 
@@ -3422,7 +3539,7 @@ class ProjectManager {
     console.log('[应用协作建议] 开始应用', { projectId, suggestion });
 
     const recommendedAgents = suggestion.recommendedAgents || [];
-    const suggestedStages = suggestion.stages || [];  // AI返回的阶段
+    const suggestedStages = suggestion.stages || []; // AI返回的阶段
     console.log('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
     console.log('[应用协作建议] AI建议的阶段:', suggestedStages);
 
@@ -3452,9 +3569,7 @@ class ProjectManager {
       adjustedStages = stages
         .map(stage => {
           const stageAgents = stage.agents || [];
-          const recommendedForStage = stageAgents.filter(a =>
-            recommendedAgents.includes(a)
-          );
+          const recommendedForStage = stageAgents.filter(a => recommendedAgents.includes(a));
           const hasRecommendedAgent = recommendedForStage.length > 0;
 
           return {
@@ -3484,7 +3599,10 @@ class ProjectManager {
     });
 
     console.log('[应用协作建议] 最终阶段数量:', adjustedStages.length);
-    console.log('[应用协作建议] 阶段列表:', adjustedStages.map(s => ({ id: s.id, name: s.name, agents: s.agents })));
+    console.log(
+      '[应用协作建议] 阶段列表:',
+      adjustedStages.map(s => ({ id: s.id, name: s.name, agents: s.agents }))
+    );
 
     // 【修复点】将推荐的Agent类型ID转换为实际的Agent实例ID
     // 直接调用API获取最新数据，完全绕过缓存
@@ -3495,7 +3613,10 @@ class ProjectManager {
     }
     const result = await response.json();
     const hiredAgents = result.data?.agents || [];
-    console.log('[应用协作建议] 已雇佣的Agent (直接从API):', hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name })));
+    console.log(
+      '[应用协作建议] 已雇佣的Agent (直接从API):',
+      hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name }))
+    );
 
     const currentAssignedAgents = project.assignedAgents || [];
     console.log('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
@@ -3508,7 +3629,11 @@ class ProjectManager {
       // 通过agent.type字段匹配（而不是agent.id）
       const hiredAgent = hiredAgents.find(agent => agent.type === agentType);
       if (hiredAgent) {
-        console.log('[应用协作建议] 找到匹配的Agent:', { type: agentType, id: hiredAgent.id, name: hiredAgent.name });
+        console.log('[应用协作建议] 找到匹配的Agent:', {
+          type: agentType,
+          id: hiredAgent.id,
+          name: hiredAgent.name
+        });
         recommendedAgentInstances.push(hiredAgent.id);
       } else {
         console.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
@@ -3520,7 +3645,9 @@ class ProjectManager {
     console.log('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
 
     // 合并现有成员和推荐成员的实例ID
-    const mergedAgents = Array.from(new Set([...currentAssignedAgents, ...recommendedAgentInstances]));
+    const mergedAgents = Array.from(
+      new Set([...currentAssignedAgents, ...recommendedAgentInstances])
+    );
     console.log('[应用协作建议] 合并后的Agent ID:', mergedAgents);
 
     // 如果有未雇佣的推荐Agent，记录到项目中以便后续提示
@@ -3848,8 +3975,7 @@ class ProjectManager {
 
       this.currentProjectId = projectId;
       this.currentProject = project;
-      this.stageDeliverableSelection =
-        this.stageDeliverableSelectionByProject[projectId] || {};
+      this.stageDeliverableSelection = this.stageDeliverableSelectionByProject[projectId] || {};
 
       // 更新全局状态
       if (window.setCurrentProject) {
@@ -3921,7 +4047,8 @@ class ProjectManager {
         }
 
         // 判断是否可执行
-        const isExecutable = stage.status === 'pending' && unmetDependencies.length === 0 && workflowReady;
+        const isExecutable =
+          stage.status === 'pending' && unmetDependencies.length === 0 && workflowReady;
         const isBlocked = stage.status === 'pending' && unmetDependencies.length > 0;
 
         // 卡片样式 - 根据状态动态调整
@@ -3964,19 +4091,22 @@ class ProjectManager {
         }
 
         // 状态图标
-        const statusIcon = {
-          pending: isBlocked ? '🔒' : '⏸️',
-          active: '⚡',
-          completed: '✅'
-        }[stage.status] || '📋';
+        const statusIcon =
+          {
+            pending: isBlocked ? '🔒' : '⏸️',
+            active: '⚡',
+            completed: '✅'
+          }[stage.status] || '📋';
 
         // 交付物展示
         let artifactsHTML = '';
         if (artifactCount > 0) {
-          const artifactsList = (stage.artifacts || []).slice(0, 3).map(artifact => {
-            const fileName = artifact.fileName || artifact.title || '未命名文件';
-            const fileType = artifact.type || '文档';
-            return `
+          const artifactsList = (stage.artifacts || [])
+            .slice(0, 3)
+            .map(artifact => {
+              const fileName = artifact.fileName || artifact.title || '未命名文件';
+              const fileType = artifact.type || '文档';
+              return `
               <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
                 <span style="font-size: 16px;">📄</span>
                 <div style="flex: 1; min-width: 0;">
@@ -3985,7 +4115,8 @@ class ProjectManager {
                 </div>
               </div>
             `;
-          }).join('');
+            })
+            .join('');
 
           const moreCount = artifactCount > 3 ? artifactCount - 3 : 0;
           artifactsHTML = `
@@ -4056,11 +4187,13 @@ class ProjectManager {
         }
 
         // 连接线（除了最后一个阶段）
-        const connectorHTML = !isLastStage ? `
+        const connectorHTML = !isLastStage
+          ? `
           <div style="display: flex; justify-content: center; margin: -8px 0;">
             <div style="width: 2px; height: 24px; background: linear-gradient(to bottom, ${statusColor}, #e5e7eb); opacity: 0.5;"></div>
           </div>
-        ` : '';
+        `
+          : '';
 
         return `
           <div class="${cardClass}" style="${cardStyle} border-radius: 12px; padding: 20px; margin-bottom: 8px; transition: all 0.3s ease;">
@@ -4215,7 +4348,9 @@ class ProjectManager {
       );
 
       const refreshedProject = await this.getProject(projectId);
-      const allCompleted = refreshedProject?.workflow?.stages?.every(stage => stage.status === 'completed');
+      const allCompleted = refreshedProject?.workflow?.stages?.every(
+        stage => stage.status === 'completed'
+      );
       if (allCompleted) {
         await this.updateProject(projectId, { status: 'completed' }, { allowFallback: true });
       }
@@ -4318,13 +4453,19 @@ class ProjectManager {
     if (memberCount === 0) {
       membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
     } else {
-      membersHTML = (project.assignedAgents || []).map(agentId => {
-        const agent = agentMarket.find(a => a.id === agentId);
-        if (!agent) return '';
-        const iconSvg = typeof window.getAgentIconSvg === 'function'
-          ? window.getAgentIconSvg(agent.avatar || agent.role || agent.name, 28, 'member-avatar-icon')
-          : '👤';
-        return `
+      membersHTML = (project.assignedAgents || [])
+        .map(agentId => {
+          const agent = agentMarket.find(a => a.id === agentId);
+          if (!agent) return '';
+          const iconSvg =
+            typeof window.getAgentIconSvg === 'function'
+              ? window.getAgentIconSvg(
+                  agent.avatar || agent.role || agent.name,
+                  28,
+                  'member-avatar-icon'
+                )
+              : '👤';
+          return `
           <div class="project-member-card">
             <div class="member-avatar">${iconSvg}</div>
             <div class="member-info">
@@ -4338,7 +4479,8 @@ class ProjectManager {
             </button>
           </div>
         `;
-      }).join('');
+        })
+        .join('');
     }
 
     // 构建创意列表HTML
@@ -4346,10 +4488,11 @@ class ProjectManager {
     if (ideaCount === 0) {
       ideasHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未引入创意</div>';
     } else {
-      ideasHTML = (project.linkedIdeas || []).map(ideaId => {
-        const chat = window.state?.chats?.find(c => c.id === ideaId);
-        if (!chat) return '';
-        return `
+      ideasHTML = (project.linkedIdeas || [])
+        .map(ideaId => {
+          const chat = window.state?.chats?.find(c => c.id === ideaId);
+          if (!chat) return '';
+          return `
           <div class="project-idea-card" onclick="window.projectManager.loadChatFromProject('${chat.id}')">
             <div class="idea-icon">💡</div>
             <div class="idea-info">
@@ -4358,7 +4501,8 @@ class ProjectManager {
             </div>
           </div>
         `;
-      }).join('');
+        })
+        .join('');
     }
 
     // 更新header
@@ -4553,7 +4697,8 @@ class ProjectManager {
       // 清空主内容区
       const chatContainer = document.getElementById('chatContainer');
       if (chatContainer) {
-        chatContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-tertiary);">请选择一个项目</div>';
+        chatContainer.innerHTML =
+          '<div style="padding: 40px; text-align: center; color: var(--text-tertiary);">请选择一个项目</div>';
       }
     }
   }
@@ -4585,7 +4730,8 @@ class ProjectManager {
       console.log('[开始执行] 项目信息:', {
         name: project.name,
         status: project.status,
-        stageCount: project.workflow && project.workflow.stages ? project.workflow.stages.length : 0,
+        stageCount:
+          project.workflow && project.workflow.stages ? project.workflow.stages.length : 0,
         memberCount: project.assignedAgents ? project.assignedAgents.length : 0
       });
 
@@ -4606,10 +4752,16 @@ class ProjectManager {
       const memberCount = project.assignedAgents ? project.assignedAgents.length : 0;
       const confirmed = confirm(
         '确定要开始执行工作流吗？\n\n' +
-        '项目：' + project.name + '\n' +
-        '阶段数：' + project.workflow.stages.length + '\n' +
-        '成员数：' + memberCount + '\n\n' +
-        '执行过程可能需要较长时间，请耐心等待。'
+          '项目：' +
+          project.name +
+          '\n' +
+          '阶段数：' +
+          project.workflow.stages.length +
+          '\n' +
+          '成员数：' +
+          memberCount +
+          '\n\n' +
+          '执行过程可能需要较长时间，请耐心等待。'
       );
 
       if (!confirmed) {
@@ -4726,12 +4878,20 @@ class ProjectManager {
     // 根据交付物类型渲染不同的预览内容
     // 文档类型：包括各种文档、报告、计划等
     const documentTypes = [
-      'document', 'report', 'plan',
-      'strategy-doc', 'prd', 'ui-design',
-      'architecture-doc', 'test-report',
-      'deployment-guide', 'deploy-doc',
-      'marketing-plan', 'user-story', 'feature-list',
-      'design-spec'  // 设计规范也是文档类型
+      'document',
+      'report',
+      'plan',
+      'strategy-doc',
+      'prd',
+      'ui-design',
+      'architecture-doc',
+      'test-report',
+      'deployment-guide',
+      'deploy-doc',
+      'marketing-plan',
+      'user-story',
+      'feature-list',
+      'design-spec' // 设计规范也是文档类型
     ];
 
     if (documentTypes.includes(artifact.type)) {
@@ -4763,7 +4923,11 @@ class ProjectManager {
           </div>
         `;
       }
-    } else if (artifact.type === 'code' || artifact.type === 'component-lib' || artifact.type === 'api-doc') {
+    } else if (
+      artifact.type === 'code' ||
+      artifact.type === 'component-lib' ||
+      artifact.type === 'api-doc'
+    ) {
       // 代码类型：显示代码内容
       const code = artifact.content || artifact.code || '';
       const language = artifact.language || 'javascript';
@@ -4787,7 +4951,11 @@ class ProjectManager {
           </div>
         `;
       }
-    } else if (artifact.type === 'preview' || artifact.type === 'ui-preview' || artifact.type === 'prototype') {
+    } else if (
+      artifact.type === 'preview' ||
+      artifact.type === 'ui-preview' ||
+      artifact.type === 'prototype'
+    ) {
       // 前端可交互系统：使用iframe显示
       const previewUrl = artifact.previewUrl || artifact.url || '';
       const htmlContent = artifact.htmlContent || artifact.content || '';
@@ -4898,18 +5066,26 @@ class ProjectManager {
                 <span class="label">类型:</span>
                 <span class="value">${typeLabel}</span>
               </div>
-              ${artifact.size ? `
+              ${
+                artifact.size
+                  ? `
                 <div class="artifact-preview-info-item">
                   <span class="label">大小:</span>
                   <span class="value">${this.formatFileSize(artifact.size)}</span>
                 </div>
-              ` : ''}
-              ${artifact.createdAt ? `
+              `
+                  : ''
+              }
+              ${
+                artifact.createdAt
+                  ? `
                 <div class="artifact-preview-info-item">
                   <span class="label">创建时间:</span>
                   <span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span>
                 </div>
-              ` : ''}
+              `
+                  : ''
+              }
             </div>
           </div>
         `;
@@ -4919,21 +5095,33 @@ class ProjectManager {
     // 操作按钮
     const actionsHTML = `
       <div class="artifact-preview-actions">
-        ${artifact.previewUrl || artifact.url ? `
+        ${
+          artifact.previewUrl || artifact.url
+            ? `
           <button class="btn-primary" onclick="window.open('${artifact.previewUrl || artifact.url}', '_blank')">
             🔗 新窗口打开
           </button>
-        ` : ''}
-        ${artifact.downloadUrl ? `
+        `
+            : ''
+        }
+        ${
+          artifact.downloadUrl
+            ? `
           <button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">
             📥 下载
           </button>
-        ` : ''}
-        ${(artifact.content || artifact.text || artifact.code) ? `
+        `
+            : ''
+        }
+        ${
+          artifact.content || artifact.text || artifact.code
+            ? `
           <button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">
             📋 复制内容
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
 
@@ -5073,9 +5261,8 @@ class ProjectManager {
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
-
 
   // 协同升级评估逻辑已移除（统一产品流程）
 }

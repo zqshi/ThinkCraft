@@ -6,7 +6,7 @@
 /* global normalizeChatId */
 
 // 创建日志实例
-var logger = window.createLogger ? window.createLogger('BusinessPlan') : console;
+const logger = window.createLogger ? window.createLogger('BusinessPlan') : console;
 
 class BusinessPlanGenerator {
   constructor(apiClient, stateManager, agentProgressManager) {
@@ -102,8 +102,8 @@ class BusinessPlanGenerator {
 
     // ✅ 防御性检查：确保按钮未被意外禁用
     const btnMap = {
-      'business': 'businessPlanBtn',
-      'proposal': 'proposalBtn'
+      business: 'businessPlanBtn',
+      proposal: 'proposalBtn'
     };
     const btnId = btnMap[type];
     const btn = document.getElementById(btnId);
@@ -127,11 +127,11 @@ class BusinessPlanGenerator {
     console.log('[按钮点击] 开始检查报告状态...');
     const report = await this.checkReportStatus(type, chatId);
     console.log('[按钮点击] 报告状态检查完成:', {
-      hasReport: !!report,
+      hasReport: Boolean(report),
       status: report?.status,
       type: report?.type,
-      hasData: !!report?.data,
-      hasChapters: !!report?.data?.chapters
+      hasData: Boolean(report?.data),
+      hasChapters: Boolean(report?.data?.chapters)
     });
 
     logger.debug('[按钮点击] 报告状态', { type, chatId, status: report?.status });
@@ -167,12 +167,76 @@ class BusinessPlanGenerator {
   async checkReportStatus(type, chatId) {
     try {
       // 🔧 1. 优先从IndexedDB加载（更可靠，硬刷新后仍然存在）
-      if (window.storageManager?.getReportsByChatId) {
+      if (window.storageManager?.getReportByChatIdAndType) {
         const normalizedChatId = normalizeChatId(chatId);
-        const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
-        const report = reports?.find(r => r.type === type && normalizeChatId(r.chatId) === normalizedChatId);
+        const report = await window.storageManager.getReportByChatIdAndType(normalizedChatId, type);
 
         if (report) {
+          // 🔧 修复历史数据：已有内容但状态为空/idle，自动标记为 completed
+          if ((!report.status || report.status === 'idle') && report.data) {
+            const hasDocument =
+              typeof report.data.document === 'string' && report.data.document.trim().length > 0;
+            const hasChapters =
+              Array.isArray(report.data.chapters) && report.data.chapters.length > 0;
+            if (hasDocument || hasChapters) {
+              report.status = 'completed';
+              report.endTime = Date.now();
+              const totalCount = Array.isArray(report.selectedChapters)
+                ? report.selectedChapters.length
+                : hasChapters
+                  ? report.data.chapters.length
+                  : 0;
+              report.progress = {
+                current: totalCount,
+                total: totalCount,
+                percentage: totalCount > 0 ? 100 : 0
+              };
+              await window.storageManager.saveReport({
+                id: report.id,
+                type: report.type,
+                chatId: report.chatId,
+                data: report.data ?? null,
+                status: report.status,
+                progress: report.progress,
+                selectedChapters: report.selectedChapters,
+                startTime: report.startTime,
+                endTime: report.endTime,
+                error: report.error ?? null
+              });
+            }
+          }
+
+          // 🔧 所有章节已完成但状态还是 generating，自动切换为 completed
+          if (
+            report.status === 'generating' &&
+            Array.isArray(report.data?.chapters) &&
+            report.selectedChapters
+          ) {
+            const completedCount = report.data.chapters.length;
+            const totalCount = report.selectedChapters.length;
+            if (completedCount === totalCount && completedCount > 0) {
+              report.status = 'completed';
+              report.endTime = Date.now();
+              report.progress = {
+                current: totalCount,
+                total: totalCount,
+                percentage: 100
+              };
+              await window.storageManager.saveReport({
+                id: report.id,
+                type: report.type,
+                chatId: report.chatId,
+                data: report.data ?? null,
+                status: report.status,
+                progress: report.progress,
+                selectedChapters: report.selectedChapters,
+                startTime: report.startTime,
+                endTime: report.endTime,
+                error: null
+              });
+            }
+          }
+
           // 🔧 生成中超时/异常检测，避免永久卡住
           if (report.status === 'generating') {
             const timeoutMs = 30 * 60 * 1000;
@@ -209,8 +273,8 @@ class BusinessPlanGenerator {
           logger.debug('[状态检查] 从IndexedDB获取状态', {
             type: report.type,
             status: report.status,
-            hasData: !!report.data,
-            hasChapters: !!report.data?.chapters,
+            hasData: Boolean(report.data),
+            hasChapters: Boolean(report.data?.chapters),
             chaptersCount: report.data?.chapters?.length || 0
           });
           return report;
@@ -240,13 +304,21 @@ class BusinessPlanGenerator {
    * @param {Object} report - 报告对象
    */
   async showProgress(type, report) {
-    logger.debug('[显示进度] 恢复生成进度', { type, progress: report.progress, hasData: !!report.data });
+    logger.debug('[显示进度] 恢复生成进度', {
+      type,
+      progress: report.progress,
+      hasData: Boolean(report.data)
+    });
 
     // 获取章节配置
     const config = this.chapterConfig[type];
     let selectedChapters = report.selectedChapters || config.core.map(ch => ch.id);
     if (window.StateValidator?.validateChapterIds) {
-      const valid = window.StateValidator.validateChapterIds(type, selectedChapters, this.chapterConfig);
+      const valid = window.StateValidator.validateChapterIds(
+        type,
+        selectedChapters,
+        this.chapterConfig
+      );
       if (!valid) {
         selectedChapters = window.StateValidator.fixChapterIds
           ? window.StateValidator.fixChapterIds(type, selectedChapters, this.chapterConfig) || []
@@ -261,7 +333,11 @@ class BusinessPlanGenerator {
     // 打开进度弹窗 - 使用 show() 方法并传递章节ID数组
     if (this.progressManager) {
       try {
-        await this.progressManager.show(selectedChapters, type, report.chatId || window.state?.currentChat || null);
+        await this.progressManager.show(
+          selectedChapters,
+          type,
+          report.chatId || window.state?.currentChat || null
+        );
 
         // 🔧 恢复进度显示 - 根据已完成的章节数据
         const completedChapters = report.data?.chapters || [];
@@ -309,14 +385,14 @@ class BusinessPlanGenerator {
    * @param {Object} report - 报告对象
    */
   showCompletedReport(type, report) {
-    logger.debug('[显示报告] 显示已完成报告', { type, hasData: !!report.data });
+    logger.debug('[显示报告] 显示已完成报告', { type, hasData: Boolean(report.data) });
 
     // 检查数据完整性：支持 chapters（新格式）或 document（旧格式）
     if (!report.data || (!report.data.chapters && !report.data.document)) {
       console.error('[显示报告] 报告数据不完整', {
-        hasData: !!report.data,
-        hasChapters: !!report.data?.chapters,
-        hasDocument: !!report.data?.document
+        hasData: Boolean(report.data),
+        hasChapters: Boolean(report.data?.chapters),
+        hasDocument: Boolean(report.data?.document)
       });
       alert('报告数据不完整，请重新生成');
       return;
@@ -591,9 +667,9 @@ class BusinessPlanGenerator {
         const progress = existingState[type].progress;
         const shouldResume = confirm(
           '检测到有未完成的生成任务。\n\n' +
-          `进度: ${progress.current}/${progress.total}\n\n` +
-          '是否继续之前的任务？\n\n' +
-          '点击"确定"继续，点击"取消"重新开始'
+            `进度: ${progress.current}/${progress.total}\n\n` +
+            '是否继续之前的任务？\n\n' +
+            '点击"确定"继续，点击"取消"重新开始'
         );
 
         if (shouldResume && progress.current > 0) {
@@ -659,7 +735,11 @@ class BusinessPlanGenerator {
       let conversation = null;
 
       // 1. 尝试从 window.state (legacy) 获取
-      if (window.state && Array.isArray(window.state.messages) && window.state.messages.length > 0) {
+      if (
+        window.state &&
+        Array.isArray(window.state.messages) &&
+        window.state.messages.length > 0
+      ) {
         conversation = window.state.messages.map(msg => ({ role: msg.role, content: msg.content }));
         logger.debug('[生成] 从 window.state 获取对话历史', { count: conversation.length });
       }
@@ -678,7 +758,11 @@ class BusinessPlanGenerator {
         throw new Error('缺少对话历史，请先完成至少一轮对话');
       }
 
-      logger.debug('[生成] 开始生成章节', { type, chapterCount: chapterIds.length, conversationLength: conversation.length });
+      logger.debug('[生成] 开始生成章节', {
+        type,
+        chapterCount: chapterIds.length,
+        conversationLength: conversation.length
+      });
 
       // 打印对话历史的前3条和后3条，用于调试
       if (conversation.length > 0) {
@@ -769,8 +853,9 @@ class BusinessPlanGenerator {
             }
           });
 
-          console.log(`[生成] 进度: ${i + 1}/${chapterIds.length} (${Math.round((i + 1) / chapterIds.length * 100)}%)`);
-
+          console.log(
+            `[生成] 进度: ${i + 1}/${chapterIds.length} (${Math.round(((i + 1) / chapterIds.length) * 100)}%)`
+          );
         } catch (error) {
           console.error(`[生成] 章节 ${chapterId} 生成失败:`, error);
           failedChapters.push({
@@ -811,8 +896,8 @@ class BusinessPlanGenerator {
           // 询问用户是否继续
           const shouldContinue = confirm(
             `章节"${chapterTitle}"生成失败。\n\n` +
-            `错误: ${errorMessage}\n\n` +
-            `是否继续生成剩余章节？`
+              `错误: ${errorMessage}\n\n` +
+              '是否继续生成剩余章节？'
           );
 
           if (!shouldContinue) {
@@ -827,14 +912,18 @@ class BusinessPlanGenerator {
       }
 
       if (failedChapters.length > 0) {
-        const failure = new Error(`有 ${failedChapters.length}/${chapterIds.length} 个章节生成失败`);
+        const failure = new Error(
+          `有 ${failedChapters.length}/${chapterIds.length} 个章节生成失败`
+        );
         failure.failedChapters = failedChapters;
         throw failure;
       }
 
       let costStats = null;
       try {
-        const costResponse = await this.api.request('/api/business-plan/cost-stats', { method: 'GET' });
+        const costResponse = await this.api.request('/api/business-plan/cost-stats', {
+          method: 'GET'
+        });
         if (costResponse && costResponse.code === 0) {
           costStats = costResponse.data;
         }
@@ -917,12 +1006,16 @@ class BusinessPlanGenerator {
       this.progressManager.close();
 
       // 显示错误提示
-      const details = Array.isArray(error?.failedChapters) && error.failedChapters.length > 0
-        ? '<br><br>失败章节：<br>' +
-          error.failedChapters
-            .map(item => `- ${this.escapeHtml(item.title || item.id)}：${this.escapeHtml(item.message || '')}`)
-            .join('<br>')
-        : '';
+      const details =
+        Array.isArray(error?.failedChapters) && error.failedChapters.length > 0
+          ? '<br><br>失败章节：<br>' +
+            error.failedChapters
+              .map(
+                item =>
+                  `- ${this.escapeHtml(item.title || item.id)}：${this.escapeHtml(item.message || '')}`
+              )
+              .join('<br>')
+          : '';
       if (window.modalManager) {
         window.modalManager.alert(`生成失败: ${this.escapeHtml(error.message)}${details}`, 'error');
       } else {
@@ -939,7 +1032,9 @@ class BusinessPlanGenerator {
    */
   getChapterTitle(type, chapterId) {
     const config = this.chapterConfig[type];
-    if (!config) return chapterId;
+    if (!config) {
+      return chapterId;
+    }
     const allChapters = [...config.core, ...config.optional];
     const match = allChapters.find(ch => ch.id === chapterId);
     return match?.title || chapterId;
@@ -956,7 +1051,11 @@ class BusinessPlanGenerator {
       // 统一转换为字符串，确保数据隔离
       const normalizedChatId = normalizeChatId(chatId);
 
-      logger.debug('[保存报告] 开始保存:', { type, chatId: normalizedChatId, hasData: !!data });
+      logger.debug('[保存报告] 开始保存:', {
+        type,
+        chatId: normalizedChatId,
+        hasData: Boolean(data)
+      });
 
       // 查找现有报告，使用相同的ID（避免创建重复记录）
       const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
@@ -1045,12 +1144,20 @@ class BusinessPlanGenerator {
         endTime: updates.endTime ?? existing?.endTime,
         error: updates.error ?? existing?.error
       };
-      logger.debug('[持久化状态] 保存payload:', { id: payload.id, type: payload.type, chatId: payload.chatId, status: payload.status });
+      logger.debug('[持久化状态] 保存payload:', {
+        id: payload.id,
+        type: payload.type,
+        chatId: payload.chatId,
+        status: payload.status
+      });
 
       await window.storageManager.saveReport(payload);
 
       // 清除报告状态缓存，确保UI显示最新状态
-      if (window.reportStatusManager && (updates.status === 'completed' || updates.status === 'error')) {
+      if (
+        window.reportStatusManager &&
+        (updates.status === 'completed' || updates.status === 'error')
+      ) {
         window.reportStatusManager.clearCache(normalizedChatId, type);
       }
 
@@ -1140,7 +1247,9 @@ class BusinessPlanGenerator {
     logger.debug('[恢复进度] 显示进度弹窗', { type, chapterIds, chatId, reportEntry });
 
     // 检查是否所有章节都已完成
-    const completed = Array.isArray(payload.chapters) ? payload.chapters.map(ch => ch.chapterId) : [];
+    const completed = Array.isArray(payload.chapters)
+      ? payload.chapters.map(ch => ch.chapterId)
+      : [];
     const allCompleted = completed.length === chapterIds.length;
 
     if (allCompleted) {
@@ -1170,10 +1279,7 @@ class BusinessPlanGenerator {
       });
 
       // 不显示进度弹窗，直接显示完成提示
-      window.modalManager.alert(
-        `生成已完成！共生成 ${chapterIds.length} 个章节`,
-        'success'
-      );
+      window.modalManager.alert(`生成已完成！共生成 ${chapterIds.length} 个章节`, 'success');
       return;
     }
 
@@ -1331,11 +1437,20 @@ class BusinessPlanGenerator {
     if (window.storageManager && chatId) {
       try {
         const reportEntry = await window.storageManager.getReport(type, chatId);
-        if (Array.isArray(reportEntry?.data?.selectedChapters) && reportEntry.data.selectedChapters.length > 0) {
+        if (
+          Array.isArray(reportEntry?.data?.selectedChapters) &&
+          reportEntry.data.selectedChapters.length > 0
+        ) {
           selected = reportEntry.data.selectedChapters;
-        } else if (Array.isArray(reportEntry?.selectedChapters) && reportEntry.selectedChapters.length > 0) {
+        } else if (
+          Array.isArray(reportEntry?.selectedChapters) &&
+          reportEntry.selectedChapters.length > 0
+        ) {
           selected = reportEntry.selectedChapters;
-        } else if (Array.isArray(reportEntry?.data?.chapters) && reportEntry.data.chapters.length > 0) {
+        } else if (
+          Array.isArray(reportEntry?.data?.chapters) &&
+          reportEntry.data.chapters.length > 0
+        ) {
           selected = reportEntry.data.chapters.map(ch => ch.chapterId).filter(Boolean);
         }
       } catch (error) {
@@ -1345,16 +1460,26 @@ class BusinessPlanGenerator {
 
     if (selected.length === 0 && chatId) {
       const genState = this.state.getGenerationState(chatId);
-      if (Array.isArray(genState?.[type]?.selectedChapters) && genState[type].selectedChapters.length > 0) {
+      if (
+        Array.isArray(genState?.[type]?.selectedChapters) &&
+        genState[type].selectedChapters.length > 0
+      ) {
         selected = genState[type].selectedChapters;
       }
     }
 
-    if (selected.length === 0 && Array.isArray(window.currentGeneratedChapters) && window.currentGeneratedChapters.length > 0) {
+    if (
+      selected.length === 0 &&
+      Array.isArray(window.currentGeneratedChapters) &&
+      window.currentGeneratedChapters.length > 0
+    ) {
       selected = window.currentGeneratedChapters;
     }
 
-    if (window.StateValidator?.validateChapterIds && !window.StateValidator.validateChapterIds(type, selected, this.chapterConfig)) {
+    if (
+      window.StateValidator?.validateChapterIds &&
+      !window.StateValidator.validateChapterIds(type, selected, this.chapterConfig)
+    ) {
       selected = window.StateValidator.fixChapterIds
         ? window.StateValidator.fixChapterIds(type, selected, this.chapterConfig) || []
         : [];
@@ -1378,12 +1503,14 @@ class BusinessPlanGenerator {
    */
   updateButtonUI(type, status) {
     const btnMap = {
-      'business': 'businessPlanBtn',
-      'proposal': 'proposalBtn'
+      business: 'businessPlanBtn',
+      proposal: 'proposalBtn'
     };
 
     const btnId = btnMap[type];
-    if (!btnId) return;
+    if (!btnId) {
+      return;
+    }
 
     const btn = document.getElementById(btnId);
     if (!btn) {
@@ -1403,30 +1530,47 @@ class BusinessPlanGenerator {
       case 'idle':
         btn.classList.add('btn-idle');
         btn.dataset.status = 'idle';
-        if (iconSpan) iconSpan.textContent = type === 'business' ? '📊' : '📋';
-        if (textSpan) textSpan.textContent = type === 'business' ? '商业计划书' : '产品立项材料';
+        if (iconSpan) {
+          iconSpan.textContent = type === 'business' ? '📊' : '📋';
+        }
+        if (textSpan) {
+          textSpan.textContent = type === 'business' ? '商业计划书' : '产品立项材料';
+        }
         break;
 
       case 'generating':
         btn.classList.add('btn-generating');
         btn.dataset.status = 'generating';
         btn.disabled = false; // 不禁用按钮，允许点击查看进度
-        if (iconSpan) iconSpan.textContent = '⏳';
-        if (textSpan) textSpan.textContent = '生成中...';
+        if (iconSpan) {
+          iconSpan.textContent = '⏳';
+        }
+        if (textSpan) {
+          textSpan.textContent = '生成中...';
+        }
         break;
 
       case 'completed':
         btn.classList.add('btn-completed');
         btn.dataset.status = 'completed';
-        if (iconSpan) iconSpan.textContent = '✅';
-        if (textSpan) textSpan.textContent = type === 'business' ? '商业计划书（查看）' : '产品立项材料（查看）';
+        if (iconSpan) {
+          iconSpan.textContent = '✅';
+        }
+        if (textSpan) {
+          textSpan.textContent =
+            type === 'business' ? '商业计划书（查看）' : '产品立项材料（查看）';
+        }
         break;
 
       case 'error':
         btn.classList.add('btn-error');
         btn.dataset.status = 'error';
-        if (iconSpan) iconSpan.textContent = '❌';
-        if (textSpan) textSpan.textContent = '生成失败（重试）';
+        if (iconSpan) {
+          iconSpan.textContent = '❌';
+        }
+        if (textSpan) {
+          textSpan.textContent = '生成失败（重试）';
+        }
         break;
     }
 
