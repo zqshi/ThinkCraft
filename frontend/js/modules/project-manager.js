@@ -25,6 +25,8 @@ class ProjectManager {
     this.currentStageId = null;
     this.stageTabState = {};
     this.stageArtifactState = {};
+    this.stageDeliverableSelection = {};
+    this.stageDeliverableSelectionByProject = this.loadStageDeliverableSelectionStore();
     this.agentMarket = [];
     this.agentMarketCategory = null;
     this.cachedHiredAgents = [];
@@ -37,11 +39,7 @@ class ProjectManager {
   }
 
   getAuthToken() {
-    return (
-      sessionStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('accessToken')
-    );
+    return window.getAuthToken ? window.getAuthToken() : null;
   }
 
   buildAuthHeaders(extra = {}) {
@@ -53,6 +51,12 @@ class ProjectManager {
   }
 
   async fetchWithAuth(url, options = {}, retry = true) {
+    if (window.requireAuth) {
+      const ok = await window.requireAuth({ redirect: false, prompt: false });
+      if (!ok) {
+        throw new Error('未提供访问令牌');
+      }
+    }
     if (window.apiClient?.ensureFreshToken) {
       await window.apiClient.ensureFreshToken();
     }
@@ -65,6 +69,28 @@ class ProjectManager {
       }
     }
     return response;
+  }
+
+  loadStageDeliverableSelectionStore() {
+    try {
+      const raw = localStorage.getItem('tc_stage_deliverables_v1');
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  persistStageDeliverableSelectionStore() {
+    try {
+      localStorage.setItem(
+        'tc_stage_deliverables_v1',
+        JSON.stringify(this.stageDeliverableSelectionByProject || {})
+      );
+    } catch (error) {
+      // ignore storage errors
+    }
   }
 
   /**
@@ -284,6 +310,22 @@ class ProjectManager {
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
       console.log('[createProject] 规范化后:', { normalizedIdeaId, type: typeof normalizedIdeaId });
 
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          throw new Error('未提供访问令牌');
+        }
+      } else if (!this.getAuthToken()) {
+        const message = '请先登录后再创建项目';
+        if (window.modalManager) {
+          window.modalManager.alert(message, 'warning');
+        } else {
+          alert(message);
+        }
+        window.location.href = 'login.html';
+        throw new Error('未提供访问令牌');
+      }
+
       // 验证 ideaId 有效性
       if (!normalizedIdeaId && normalizedIdeaId !== 0) {
         throw new Error('创意ID无效');
@@ -299,6 +341,30 @@ class ProjectManager {
         throw new Error('该创意已创建项目');
       }
 
+      // 后端去重：如果已存在项目，直接返回
+      try {
+        const byIdeaResp = await this.fetchWithAuth(
+          `${this.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
+        );
+        if (byIdeaResp.ok) {
+          const byIdeaResult = await byIdeaResp.json();
+          const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
+          if (existingProject?.id) {
+            existingProject.ideaId = String(existingProject.ideaId).trim();
+            await this.storageManager.saveProject(existingProject);
+            if (!this.projects.find(p => p.id === existingProject.id)) {
+              this.projects.unshift(existingProject);
+            }
+            if (window.addProject) {
+              window.addProject(existingProject);
+            }
+            return existingProject;
+          }
+        }
+      } catch (error) {
+        // 忽略查询失败，继续创建
+      }
+
       // 调用后端API创建项目（使用字符串ID）
       const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects`, {
         method: 'POST',
@@ -307,7 +373,29 @@ class ProjectManager {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
+        if (error?.error === '该创意已创建项目') {
+          try {
+            const byIdeaResp = await this.fetchWithAuth(
+              `${this.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
+            );
+            if (byIdeaResp.ok) {
+              const byIdeaResult = await byIdeaResp.json();
+              const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
+              if (existingProject?.id) {
+                existingProject.ideaId = String(existingProject.ideaId).trim();
+                await this.storageManager.saveProject(existingProject);
+                if (!this.projects.find(p => p.id === existingProject.id)) {
+                  this.projects.unshift(existingProject);
+                }
+                if (window.addProject) {
+                  window.addProject(existingProject);
+                }
+                return existingProject;
+              }
+            }
+          } catch (fetchError) {}
+        }
         throw new Error(error.error || '创建项目失败');
       }
 
@@ -1080,6 +1168,7 @@ class ProjectManager {
       return;
     }
 
+    const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
     const artifacts = this.getDisplayArtifacts(stage);
     const tab = this.stageTabState[stageId] || 'document';
     const selectedArtifactId = this.stageArtifactState[stageId] || artifacts[0]?.id || null;
@@ -1160,6 +1249,34 @@ class ProjectManager {
            }).join('、')}
          </div>`
       : '';
+    const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
+    const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
+    const selectedSet = new Set(selectedDeliverables);
+    const deliverableChecklistHTML = expectedDeliverables.length > 0 ? `
+      <div class="project-deliverable-checklist">
+        <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
+        <div class="project-deliverable-checklist-list">
+          ${expectedDeliverables.map((item, index) => {
+            const id = item.id || item.key || `deliverable-${index}`;
+            const encodedId = encodeURIComponent(id);
+            const label = this.escapeHtml(item.label || item.id || id);
+            const checked = selectedSet.has(id) ? 'checked' : '';
+            return `
+              <label class="project-deliverable-checklist-item">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
+                <span class="project-deliverable-checklist-label">${label}</span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+    const missingDeliverables = this.getMissingDeliverables(stage, definition);
+    const missingHTML = missingDeliverables.length > 0
+      ? `<div style="margin-top: 8px; font-size: 12px; color: #b45309;">
+           缺失交付物（${missingDeliverables.length}）：${missingDeliverables.map(name => this.escapeHtml(name)).join('、')}
+         </div>`
+      : '';
 
     container.innerHTML = `
         <div class="project-stage-split">
@@ -1171,6 +1288,8 @@ class ProjectManager {
                         ${dependencyHTML}
                         ${agentsHTML}
                         ${outputsHTML}
+                        ${missingHTML}
+                        ${deliverableChecklistHTML}
                     </div>
                     ${actionHTML}
                 </div>
@@ -1222,7 +1341,7 @@ class ProjectManager {
       }
 
       return workflowReady
-        ? `<button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}')">开始执行</button>`
+        ? `<button class="btn-primary" onclick="projectManager.startStageWithSelection('${project.id}', '${stage.id}')">开始执行</button>`
         : `<button class="btn-secondary" disabled title="工作流执行器未就绪">开始执行</button>`;
     }
     if (stage.status === 'active') {
@@ -1333,6 +1452,193 @@ class ProjectManager {
     return artifactDefs[artifactType] || { name: artifactType, icon: '📄' };
   }
 
+  getExpectedDeliverables(stage, definition) {
+    if (!stage) return [];
+    const outputsDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
+    const outputs = Array.isArray(stage.outputs) ? stage.outputs : [];
+    let expected = [];
+    if (outputsDetailed.length > 0) {
+      expected = outputsDetailed;
+    } else if (outputs.length > 0) {
+      expected = outputs;
+    } else if (definition?.expectedArtifacts?.length > 0) {
+      expected = definition.expectedArtifacts;
+    }
+    return expected.map(item => {
+      if (typeof item === 'string') {
+        const def = this.getArtifactTypeDefinition(item);
+        return {
+          id: item,
+          key: this.normalizeDeliverableKey(item),
+          label: def?.name || item
+        };
+      }
+      const id = item?.id || item?.type || item?.name || '';
+      const label = item?.name || item?.id || item?.type || '未命名交付物';
+      return {
+        id,
+        key: this.normalizeDeliverableKey(id),
+        label
+      };
+    });
+  }
+
+  normalizeDeliverableKey(value) {
+    if (!value || typeof value !== 'string') {
+      return '';
+    }
+    return value.trim().toLowerCase();
+  }
+
+  getMissingDeliverables(stage, definition) {
+    const expected = this.getExpectedDeliverables(stage, definition);
+    return this.getMissingDeliverablesFromExpected(stage, expected);
+  }
+
+  getMissingSelectedDeliverables(stage, definition, selectedIds = []) {
+    const expected = this.getExpectedDeliverables(stage, definition);
+    if (expected.length === 0) return [];
+    const selectedSet = new Set(selectedIds.filter(Boolean));
+    const filteredExpected = selectedSet.size > 0
+      ? expected.filter(item => selectedSet.has(item.id || item.key))
+      : expected;
+    return this.getMissingDeliverablesFromExpected(stage, filteredExpected);
+  }
+
+  getMissingDeliverablesFromExpected(stage, expected = []) {
+    if (!expected || expected.length === 0) return [];
+    const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
+    const actualKeys = new Set();
+    artifacts.forEach(artifact => {
+      const type = artifact?.type || 'document';
+      const typeDef = this.getArtifactTypeDefinition(type);
+      [
+        type,
+        artifact?.name,
+        artifact?.fileName,
+        artifact?.id,
+        typeDef?.name
+      ].forEach(val => {
+        const key = this.normalizeDeliverableKey(val);
+        if (key) actualKeys.add(key);
+      });
+    });
+    const missing = [];
+    const seen = new Set();
+    expected.forEach(item => {
+      const key = this.normalizeDeliverableKey(item.key);
+      const labelKey = this.normalizeDeliverableKey(item.label);
+      const matched = (key && actualKeys.has(key)) || (labelKey && actualKeys.has(labelKey));
+      if (!matched) {
+        const label = item.label || item.key || '未命名交付物';
+        const labelKeyFinal = this.normalizeDeliverableKey(label);
+        if (!seen.has(labelKeyFinal)) {
+          missing.push(label);
+          seen.add(labelKeyFinal);
+        }
+      }
+    });
+    return missing;
+  }
+
+  getMissingDeliverablesWithReason(stage, expected = [], selectedIds = []) {
+    if (!expected || expected.length === 0) return [];
+    const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
+    const actualKeys = new Set();
+    artifacts.forEach(artifact => {
+      const type = artifact?.type || 'document';
+      const typeDef = this.getArtifactTypeDefinition(type);
+      [
+        type,
+        artifact?.name,
+        artifact?.fileName,
+        artifact?.id,
+        typeDef?.name
+      ].forEach(val => {
+        const key = this.normalizeDeliverableKey(val);
+        if (key) actualKeys.add(key);
+      });
+    });
+    const selectedSet = new Set((selectedIds || []).filter(Boolean));
+    const missing = [];
+    const seen = new Set();
+    expected.forEach(item => {
+      const key = this.normalizeDeliverableKey(item.key);
+      const labelKey = this.normalizeDeliverableKey(item.label);
+      const matched = (key && actualKeys.has(key)) || (labelKey && actualKeys.has(labelKey));
+      if (!matched) {
+        const label = item.label || item.key || '未命名交付物';
+        const id = item.id || item.key || label;
+        const labelKeyFinal = this.normalizeDeliverableKey(label);
+        if (!seen.has(labelKeyFinal)) {
+          const isSelected = selectedSet.size === 0 ? true : selectedSet.has(id);
+          const reason = isSelected ? '生成失败' : '未勾选';
+          missing.push({ label, reason });
+          seen.add(labelKeyFinal);
+        }
+      }
+    });
+    return missing;
+  }
+
+  getStageSelectedDeliverables(stageId, expectedDeliverables) {
+    const existing = this.stageDeliverableSelection[stageId];
+    if (Array.isArray(existing) && existing.length > 0) {
+      return existing;
+    }
+    const defaults = expectedDeliverables.map(item => item.id || item.key).filter(Boolean);
+    this.stageDeliverableSelection[stageId] = defaults;
+    if (this.currentProjectId) {
+      this.stageDeliverableSelectionByProject[this.currentProjectId] =
+        this.stageDeliverableSelection;
+      this.persistStageDeliverableSelectionStore();
+    }
+    return defaults;
+  }
+
+  toggleStageDeliverable(stageId, encodedId, checked) {
+    const id = decodeURIComponent(encodedId || '');
+    if (!id) return;
+    const current = new Set(this.stageDeliverableSelection[stageId] || []);
+    if (checked) {
+      current.add(id);
+    } else {
+      current.delete(id);
+    }
+    this.stageDeliverableSelection[stageId] = Array.from(current);
+    if (this.currentProjectId) {
+      this.stageDeliverableSelectionByProject[this.currentProjectId] =
+        this.stageDeliverableSelection;
+      this.persistStageDeliverableSelectionStore();
+    }
+  }
+
+  async startStageWithSelection(projectId, stageId, reopen = false) {
+    if (!window.workflowExecutor) {
+      window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      return;
+    }
+    const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
+    const definition = window.workflowExecutor?.getStageDefinition(stageId, stage);
+    const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
+    const selected = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
+    if (expectedDeliverables.length > 0 && selected.length === 0) {
+      const msg = '请先勾选需要输出的交付物';
+      if (window.modalManager) {
+        window.modalManager.alert(msg, 'warning');
+      } else {
+        alert(msg);
+      }
+      return;
+    }
+    await window.workflowExecutor.startStage(projectId, stageId, {
+      selectedArtifactTypes: selected
+    });
+    if (reopen) {
+      setTimeout(() => this.openProject(projectId), 2000);
+    }
+  }
+
   /**
    * 获取交付物图标
    * @param {String} artifactType - 交付物类型
@@ -1414,6 +1720,29 @@ class ProjectManager {
       </div>
     ` : '';
 
+    const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
+    const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
+    const selectedSet = new Set(selectedDeliverables);
+    const deliverableChecklistHTML = expectedDeliverables.length > 0 ? `
+      <div class="project-deliverable-checklist">
+        <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
+        <div class="project-deliverable-checklist-list">
+          ${expectedDeliverables.map((item, index) => {
+            const id = item.id || item.key || `deliverable-${index}`;
+            const encodedId = encodeURIComponent(id);
+            const label = this.escapeHtml(item.label || item.id || id);
+            const checked = selectedSet.has(id) ? 'checked' : '';
+            return `
+              <label class="project-deliverable-checklist-item">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
+                <span class="project-deliverable-checklist-label">${label}</span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
     // 渲染预期交付物
     const expectedArtifactsHTML = definition?.expectedArtifacts?.length > 0 ? `
       <div class="workflow-stage-artifacts">
@@ -1463,6 +1792,30 @@ class ProjectManager {
         </div>
       </div>
     ` : '';
+    const missingWithReason = this.getMissingDeliverablesWithReason(
+      stage,
+      expectedDeliverables,
+      selectedDeliverables
+    );
+    const missingArtifactsHTML = missingWithReason.length > 0 ? `
+      <div class="workflow-stage-artifacts">
+        <div class="workflow-stage-artifacts-title">
+          <span>⚠️</span>
+          <span>本次未生成的交付物 (${missingWithReason.length})</span>
+        </div>
+        <div class="workflow-stage-artifacts-grid">
+          ${missingWithReason.map(item => `
+            <div class="workflow-stage-artifact-card" style="opacity: 0.7; cursor: default;">
+              <span class="workflow-stage-artifact-icon">📄</span>
+              <div class="workflow-stage-artifact-info">
+                <div class="workflow-stage-artifact-name">${this.escapeHtml(item.label)}</div>
+                <div class="workflow-stage-artifact-type">${this.escapeHtml(item.reason)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '';
 
     // 操作按钮
     let actionsHTML = '';
@@ -1490,7 +1843,7 @@ class ProjectManager {
         `;
       } else if (workflowReady) {
         actionsHTML = `
-          <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);">
+          <button class="btn-primary" onclick="projectManager.startStageWithSelection('${project.id}', '${stage.id}', true)">
             ▶️ 开始执行
           </button>
         `;
@@ -1524,7 +1877,8 @@ class ProjectManager {
         </div>
         <div class="workflow-stage-detail-content">
           ${agentsHTML}
-          ${stage.status === 'completed' ? actualArtifactsHTML : expectedArtifactsHTML}
+          ${deliverableChecklistHTML}
+          ${stage.status === 'completed' ? `${actualArtifactsHTML}${missingArtifactsHTML}` : expectedArtifactsHTML}
         </div>
         ${actionsHTML ? `<div class="workflow-stage-detail-actions">${actionsHTML}</div>` : ''}
       </div>
@@ -3494,6 +3848,8 @@ class ProjectManager {
 
       this.currentProjectId = projectId;
       this.currentProject = project;
+      this.stageDeliverableSelection =
+        this.stageDeliverableSelectionByProject[projectId] || {};
 
       // 更新全局状态
       if (window.setCurrentProject) {
@@ -3667,7 +4023,7 @@ class ProjectManager {
             `;
           } else if (workflowReady) {
             actionHTML = `
-              <button class="btn-primary" onclick="workflowExecutor.startStage('${project.id}', '${stage.id}'); setTimeout(() => projectManager.openProject('${project.id}'), 2000);" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+              <button class="btn-primary" onclick="projectManager.startStageWithSelection('${project.id}', '${stage.id}', true)" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                 ▶️ 开始执行
               </button>
             `;

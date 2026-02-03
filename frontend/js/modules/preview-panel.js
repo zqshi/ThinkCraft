@@ -154,9 +154,19 @@ class PreviewPanel {
       const base64 = String(reader.result || '').split(',')[1] || '';
       if (!base64) return;
       try {
+        if (window.requireAuth) {
+          const ok = await window.requireAuth({ redirect: true, prompt: true });
+          if (!ok) {
+            return;
+          }
+        }
+        const authToken = window.getAuthToken ? window.getAuthToken() : null;
         const response = await fetch(`${this.apiUrl}/api/vision/analyze`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
           body: JSON.stringify({ image: base64, prompt: '请识别参考图的关键界面元素', enableOCR: true })
         });
         if (!response.ok) {

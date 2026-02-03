@@ -336,6 +336,19 @@ const STAGE_PROMPTS = {
 ## 8. 风险应对
 （潜在风险和应对措施）
 
+请输出完整的Markdown格式文档。`,
+
+    'hypothesis-validation': `你是一位产品验证负责人，负责基于创意与现有资料完成价值假设验证与MVP可行性评估。
+
+创意对话内容：
+{CONVERSATION}
+
+请围绕以下交付物给出可执行的验证输出（可包含方法、样本、证据与结论）：
+1. 价值假设验证报告
+2. 核心引导逻辑Prompt设计
+3. 3-5位用户测试反馈记录
+4. MVP可行性结论
+
 请输出完整的Markdown格式文档。`
 };
 
@@ -541,12 +554,24 @@ async function executeStage(projectId, stageId, context = {}) {
         basePrompt = basePrompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
     }
 
+    const selectedArtifactTypes = Array.isArray(context?.selectedArtifactTypes)
+        ? context.selectedArtifactTypes
+        : [];
+    const effectiveArtifactTypes = selectedArtifactTypes.length > 0
+        ? stage.artifactTypes.filter(type => selectedArtifactTypes.includes(type))
+        : stage.artifactTypes;
+    if (selectedArtifactTypes.length > 0 && effectiveArtifactTypes.length === 0) {
+        const err = new Error('未选择有效的交付物类型');
+        err.status = 400;
+        throw err;
+    }
+
     // 创建交付物
     const generatedArtifacts = [];
     let totalTokens = 0;
 
     // 如果只有一个交付物类型，使用原有逻辑
-    if (stage.artifactTypes.length === 1) {
+    if (effectiveArtifactTypes.length === 1) {
         const result = await callDeepSeekAPI(
             [{ role: 'user', content: basePrompt }],
             null,
@@ -561,8 +586,8 @@ async function executeStage(projectId, stageId, context = {}) {
             id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             projectId,
             stageId: normalizedStageId,
-            type: stage.artifactTypes[0],
-            name: getArtifactName(stage.artifactTypes[0]),
+            type: effectiveArtifactTypes[0],
+            name: getArtifactName(effectiveArtifactTypes[0]),
             content: result.content,
             agentName: getAgentName(stage.recommendedAgents[0]),
             createdAt: Date.now(),
@@ -572,14 +597,19 @@ async function executeStage(projectId, stageId, context = {}) {
         totalTokens = usage.total_tokens || 0;
     } else {
         // 如果有多个交付物类型，为每个类型生成专门的内容
-        for (const artifactType of stage.artifactTypes) {
+        for (const artifactType of effectiveArtifactTypes) {
             // 构建针对该交付物类型的提示词
             const artifactPrompt = ARTIFACT_PROMPTS[artifactType];
             let finalPrompt = basePrompt;
+            const artifactName = getArtifactName(artifactType);
 
             if (artifactPrompt) {
                 // 如果有专门的交付物提示词，追加到基础提示词后
                 finalPrompt = `${basePrompt}\n\n${artifactPrompt}`;
+            } else if (artifactName && artifactName !== artifactType) {
+                finalPrompt = `${basePrompt}\n\n请仅输出《${artifactName}》对应内容，输出为完整的Markdown格式文档。`;
+            } else {
+                finalPrompt = `${basePrompt}\n\n请仅输出该交付物对应内容，输出为完整的Markdown格式文档。`;
             }
 
             // 调用AI生成该交付物的内容
@@ -608,7 +638,7 @@ async function executeStage(projectId, stageId, context = {}) {
             totalTokens += usage.total_tokens || 0;
 
             // 添加延迟，避免API调用过快
-            if (stage.artifactTypes.length > 1) {
+            if (effectiveArtifactTypes.length > 1) {
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
@@ -641,6 +671,10 @@ function getArtifactName(artifactType) {
         'architecture-doc': '系统架构设计',
         'code': '开发实现指南',
         'strategy-doc': '战略设计文档',
+        'value-hypothesis-report': '价值假设验证报告',
+        'core-prompt-design': '核心引导逻辑Prompt设计',
+        'user-test-feedback': '3-5位用户测试反馈记录',
+        'mvp-feasibility-conclusion': 'MVP可行性结论',
         'test-report': '测试报告',
         'deploy-doc': '部署文档',
         'marketing-plan': '运营推广方案'
@@ -674,7 +708,7 @@ function getAgentName(agentType) {
 router.post('/:projectId/execute-stage', async (req, res, next) => {
     try {
         const { projectId } = req.params;
-        const { stageId, context } = req.body;
+        const { stageId, context = {}, selectedArtifactTypes } = req.body;
 
         if (!stageId) {
             return res.status(400).json({
@@ -683,6 +717,9 @@ router.post('/:projectId/execute-stage', async (req, res, next) => {
             });
         }
 
+        if (Array.isArray(selectedArtifactTypes) && selectedArtifactTypes.length > 0) {
+            context.selectedArtifactTypes = selectedArtifactTypes;
+        }
         const generatedArtifacts = await executeStage(projectId, stageId, context);
 
         res.json({

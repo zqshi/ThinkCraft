@@ -384,48 +384,6 @@ export class ReportController {
       "successMetrics": ["成功指标1", "成功指标2", "成功指标3"]
     }
   }
-
-  /**
-   * 生成对话标题（仅输出标题文本）
-   */
-  async _generateChatTitle(messages) {
-    const conversationContext = messages
-      .map(msg => `${msg.role === 'user' ? '用户' : 'AI助手'}: ${msg.content}`)
-      .join('\n\n');
-
-    const systemPrompt = `你是产品命名助手。请根据以下对话的主要内容生成一个简洁中文标题：
-- 不超过20个汉字
-- 不要加引号、编号或解释
-- 只输出标题文本
-
-对话内容：
-${conversationContext}`;
-
-    try {
-      const response = await callDeepSeekAPI(
-        [{ role: 'user', content: systemPrompt }],
-        null,
-        {
-          temperature: 0.4,
-          max_tokens: 80,
-          timeout: 60000
-        }
-      );
-
-      let title = String(response.content || '').trim();
-      title = title.replace(/^["“]|["”]$/g, '').trim();
-      if (!title) {
-        return null;
-      }
-      if (title.length > 200) {
-        title = title.slice(0, 200);
-      }
-      return title;
-    } catch (error) {
-      console.warn('[ReportController] 生成标题失败:', error.message);
-      return null;
-    }
-  }
 }
 \`\`\`
 

@@ -214,5 +214,5 @@ Note over U,T: 能力ID：能力名称
 
 ## 输出文档模板（拆分）
 
-- `prompts/agents/strategy-designer.analysis-doc.md`
-- `prompts/agents/strategy-designer.strategy-doc.md`
+- `prompts/agents/strategy/strategy-designer/strategy-designer.analysis-doc.md`
+- `prompts/agents/strategy/strategy-designer/strategy-designer.strategy-doc.md`

@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react()],
   // 开发服务器配置
   server: {
-    port: 8000,
-    host: '::',
+    port: 5173,
+    host: '127.0.0.1',
     open: false,
     // 代理后端API请求
     proxy: {

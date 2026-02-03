@@ -51,6 +51,10 @@ class ReportViewer {
                 );
 
                 if (reportEntry && reportEntry.status === 'completed' && reportEntry.data) {
+                    window.lastGeneratedReport = reportEntry.data;
+                    if (window.reportGenerator?.getAnalysisReportKey) {
+                        window.lastGeneratedReportKey = window.reportGenerator.getAnalysisReportKey();
+                    }
                     this.renderAIReport(reportEntry.data);
                     if (typeof setAnalysisActionsEnabled === 'function') {
                         setAnalysisActionsEnabled(true);
@@ -58,6 +62,21 @@ class ReportViewer {
                     if (typeof updateShareLinkButtonVisibility === 'function') {
                         updateShareLinkButtonVisibility();
                     }
+                    return;
+                }
+                if (reportEntry && reportEntry.status === 'completed' && !reportEntry.data) {
+                    reportContent.innerHTML = `
+                        <div style="text-align: center; padding: 60px 20px;">
+                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                报告数据缺失
+                            </div>
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                检测到报告已完成但内容为空，建议重新生成。
+                            </div>
+                            <button class="btn-primary" onclick="regenerateInsightsReport()">重新生成</button>
+                        </div>
+                    `;
                     return;
                 }
 
@@ -165,6 +184,15 @@ class ReportViewer {
                 </div>
             `;
             return;
+        }
+
+        // 🔧 同步到全局，确保分享按钮可用
+        window.lastGeneratedReport = reportData;
+        if (window.reportGenerator?.getAnalysisReportKey) {
+            window.lastGeneratedReportKey = window.reportGenerator.getAnalysisReportKey();
+        }
+        if (typeof updateShareLinkButtonVisibility === 'function') {
+            updateShareLinkButtonVisibility();
         }
 
         // 如果chapters是数组格式，转换为对象格式
@@ -487,6 +515,46 @@ class ReportViewer {
                     </div>
                 `;
             };
+            const renderBusinessReportStyle = () => `
+                <style>
+                    #businessReportContent .markdown-content h1,
+                    #businessReportContent .markdown-content h2 {
+                        font-size: 18px;
+                        margin: 16px 0 10px;
+                        line-height: 1.4;
+                    }
+                    #businessReportContent .markdown-content h3 {
+                        font-size: 16px;
+                        margin: 14px 0 8px;
+                        line-height: 1.4;
+                    }
+                    #businessReportContent .markdown-content p,
+                    #businessReportContent .markdown-content li {
+                        font-size: 14px;
+                        line-height: 1.7;
+                        color: var(--text-primary);
+                    }
+                    #businessReportContent .report-outline {
+                        background: rgba(0,0,0,0.03);
+                        border: 1px solid rgba(0,0,0,0.06);
+                        border-radius: 10px;
+                        padding: 16px 18px;
+                        margin-bottom: 24px;
+                    }
+                    #businessReportContent .report-outline ul {
+                        margin: 8px 0 0;
+                        padding-left: 18px;
+                    }
+                    #businessReportContent .report-section-title {
+                        font-size: 16px;
+                        font-weight: 600;
+                        letter-spacing: 0.2px;
+                    }
+                    #businessReportContent .report-section {
+                        margin-bottom: 24px;
+                    }
+                </style>
+            `;
             const openBusinessReportModal = () => {
                 const modalEl = document.getElementById('businessReportModal');
                 if (!modalEl) return;
@@ -515,10 +583,39 @@ class ReportViewer {
             const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
             document.getElementById('businessReportTitle').textContent = typeTitle;
 
+            if (!report || (!report.document && !report.chapters)) {
+                const container = document.getElementById('businessReportContent');
+                if (container) {
+                    container.innerHTML = `
+                        ${renderReportMeta()}
+                        <div class="report-section">
+                            <div class="report-section-title">报告内容缺失</div>
+                            <div class="document-chapter">
+                                <div class="chapter-content" style="padding-left: 0;">
+                                    <p style="color: var(--text-secondary);">检测到报告已完成但内容为空，建议重新生成。</p>
+                                    <button class="btn-primary" style="margin-top: 12px;" onclick="window.businessPlanGenerator?.regenerate('${type}')">重新生成</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    openBusinessReportModal();
+                }
+                return;
+            }
+
             if (report && report.document) {
                 window.currentGeneratedChapters = Array.isArray(report.selectedChapters) ? report.selectedChapters : [];
+                const outlineItems = window.currentGeneratedChapters.length
+                    ? window.currentGeneratedChapters.map((id, idx) => `<li>${idx + 1}. ${safeText(this.getChapterTitle?.(type, id) || id, id)}</li>`).join('')
+                    : '';
                 const reportContent = `
+                    ${renderBusinessReportStyle()}
                     ${renderReportMeta()}
+                    ${outlineItems ? `
+                        <div class="report-outline">
+                            <div style="font-weight:600; margin-bottom: 4px;">结构化目录</div>
+                            <ul>${outlineItems}</ul>
+                        </div>` : ''}
                     <div class="report-section">
                         <div class="report-section-title">报告正文</div>
                         <div class="document-chapter">
@@ -540,10 +637,16 @@ class ReportViewer {
             if (report && report.chapters) {
                 const chapters = report.chapters;
                 window.currentGeneratedChapters = chapters.map(ch => ch.chapterId);
+                const outlineItems = chapters.map((ch, index) => `<li>${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</li>`).join('');
 
                 // 生成报告内容（使用真实的AI生成内容）
                 const reportContent = `
+                    ${renderBusinessReportStyle()}
                     ${renderReportMeta()}
+                    <div class="report-outline">
+                        <div style="font-weight:600; margin-bottom: 4px;">结构化目录</div>
+                        <ul>${outlineItems}</ul>
+                    </div>
                     ${chapters.map((ch, index) => `
                         <div class="report-section">
                             <div class="report-section-title">${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</div>
@@ -626,8 +729,13 @@ class ReportViewer {
             window.toast.info('📄 正在生成PDF，请稍候...', 2000);
 
             // 调用后端API
-            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('thinkcraft_access_token');
+            if (window.requireAuth) {
+                const ok = await window.requireAuth({ redirect: true, prompt: true });
+                if (!ok) {
+                    return;
+                }
+            }
+            const authToken = window.getAuthToken ? window.getAuthToken() : null;
             const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/business`, {
                 method: 'POST',
                 headers: {

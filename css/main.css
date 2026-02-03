@@ -6166,6 +6166,60 @@ body {
   color: var(--text-tertiary);
 }
 
+.project-deliverable-checklist {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.project-deliverable-checklist-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.project-deliverable-checklist-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-deliverable-checklist-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #374151;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.project-deliverable-checklist-input {
+  accent-color: #10b981;
+}
+
+.project-deliverable-checklist-label {
+  line-height: 1.2;
+}
+
+.project-deliverable-checklist-item:hover {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.project-deliverable-checklist-input:checked + .project-deliverable-checklist-label {
+  color: #065f46;
+  font-weight: 600;
+}
+
 .project-stage-deliverables {
   display: grid;
   gap: 8px;

@@ -36,7 +36,7 @@ if [ -f css-sync.pid ]; then
 fi
 
 # 强制清理端口
-lsof -ti:3000,8000 | xargs kill -9 2>/dev/null
+lsof -ti:3000,5173 | xargs kill -9 2>/dev/null
 pkill -f "sync-css.js" 2>/dev/null
 
 echo ""

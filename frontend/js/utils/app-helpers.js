@@ -18,6 +18,66 @@ function normalizeChatId(chatId) {
 }
 
 /**
+ * 获取访问令牌（统一入口）
+ * @returns {string|null}
+ */
+function getAuthToken() {
+    return (
+        (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+            ? window.apiClient.getAccessToken()
+            : null) ||
+        sessionStorage.getItem('thinkcraft_access_token') ||
+        localStorage.getItem('thinkcraft_access_token') ||
+        localStorage.getItem('accessToken')
+    );
+}
+
+/**
+ * 认证校验（统一入口）
+ * @param {Object} options - 配置项
+ * @param {boolean} options.redirect - 是否跳转到登录页
+ * @param {boolean} options.prompt - 是否提示用户
+ * @returns {Promise<boolean>} 是否已认证
+ */
+async function requireAuth({ redirect = true, prompt = true } = {}) {
+    let token = getAuthToken();
+    if (token) {
+        return true;
+    }
+
+    if (window.apiClient?.ensureFreshToken) {
+        await window.apiClient.ensureFreshToken();
+        token = getAuthToken();
+        if (token) {
+            return true;
+        }
+    }
+
+    if (window.apiClient?.refreshAccessToken) {
+        const refreshed = await window.apiClient.refreshAccessToken();
+        if (refreshed) {
+            token = getAuthToken();
+            if (token) {
+                return true;
+            }
+        }
+    }
+
+    if (prompt) {
+        const message = '请先登录后再操作';
+        if (window.modalManager) {
+            window.modalManager.alert(message, 'warning');
+        } else {
+            alert(message);
+        }
+    }
+    if (redirect) {
+        window.location.href = 'login.html';
+    }
+    return false;
+}
+
+/**
  * 复制到剪贴板辅助函数
  * @param {string} text - 要复制的文本
  */
@@ -311,10 +371,18 @@ async function processImageFile(file) {
         const base64Image = await fileToBase64(file);
 
         // 调用后端API进行图片识别
+        if (window.requireAuth) {
+            const ok = await window.requireAuth({ redirect: true, prompt: true });
+            if (!ok) {
+                return;
+            }
+        }
+        const authToken = window.getAuthToken ? window.getAuthToken() : null;
         const response = await fetch(`${state.settings.apiUrl}/api/vision/analyze`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
             },
             body: JSON.stringify({
                 image: base64Image,
@@ -393,3 +461,5 @@ window.getSmartInputMode = getSmartInputMode;
 window.fileToBase64 = fileToBase64;
 window.applySmartInputHint = applySmartInputHint;
 window.normalizeChatId = normalizeChatId;
+window.getAuthToken = getAuthToken;
+window.requireAuth = requireAuth;

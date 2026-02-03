@@ -4,7 +4,8 @@
  */
 import express from 'express';
 import { projectController } from './project.controller.js';
-import fs from 'fs/promises';
+import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DEFAULT_WORKFLOW_STAGES, ARTIFACT_TYPES } from '../../../../config/workflow-stages.js';
@@ -163,7 +164,7 @@ router.get('/workflow-config/:category', async (req, res) => {
         category,
         'workflow.json'
       );
-      const content = await fs.readFile(workflowPath, 'utf-8');
+      const content = await fsPromises.readFile(workflowPath, 'utf-8');
       config = JSON.parse(content);
     } catch (error) {
       // 配置缺失时回退到默认工作流

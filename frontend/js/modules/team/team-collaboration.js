@@ -303,11 +303,19 @@ class TeamCollaboration {
     
                 try {
                     alert('🤝 团队开始协同工作，请稍候...');
-    
+
+                    if (window.requireAuth) {
+                        const ok = await window.requireAuth({ redirect: true, prompt: true });
+                        if (!ok) {
+                            return;
+                        }
+                    }
+                    const authToken = window.getAuthToken ? window.getAuthToken() : null;
                     const response = await fetch(`${state.settings.apiUrl}/api/agents/team-collaboration`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
                         },
                         body: JSON.stringify({
                             userId: USER_ID,
@@ -444,10 +452,18 @@ class TeamCollaboration {
                     document.body.appendChild(loadingModal);
     
                     // 调用AI评估API
+                    if (window.requireAuth) {
+                        const ok = await window.requireAuth({ redirect: true, prompt: true });
+                        if (!ok) {
+                            return;
+                        }
+                    }
+                    const authToken = window.getAuthToken ? window.getAuthToken() : null;
                     const response = await fetch(`${state.settings.apiUrl}/api/chat`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
                         },
                         body: JSON.stringify({
                             messages: [

@@ -173,6 +173,39 @@ class BusinessPlanGenerator {
         const report = reports?.find(r => r.type === type && normalizeChatId(r.chatId) === normalizedChatId);
 
         if (report) {
+          // 🔧 生成中超时/异常检测，避免永久卡住
+          if (report.status === 'generating') {
+            const timeoutMs = 30 * 60 * 1000;
+            const startTime = Number(report.startTime);
+            const elapsed = Number.isFinite(startTime) ? Date.now() - startTime : NaN;
+            const invalidStart = !Number.isFinite(startTime) || startTime <= 0;
+            const isTimeout = Number.isFinite(elapsed) && elapsed > timeoutMs;
+
+            if (invalidStart || isTimeout) {
+              report.status = 'error';
+              report.endTime = Date.now();
+              report.error = {
+                message: invalidStart ? '生成状态异常，请重试' : '生成超时，请重试',
+                timestamp: Date.now()
+              };
+              await window.storageManager.saveReport({
+                id: report.id,
+                type: report.type,
+                chatId: report.chatId,
+                data: report.data ?? null,
+                status: report.status,
+                progress: report.progress,
+                selectedChapters: report.selectedChapters,
+                startTime: report.startTime,
+                endTime: report.endTime,
+                error: report.error
+              });
+              if (window.businessPlanGenerator?.updateButtonUI) {
+                window.businessPlanGenerator.updateButtonUI(type, 'error');
+              }
+            }
+          }
+
           logger.debug('[状态检查] 从IndexedDB获取状态', {
             type: report.type,
             status: report.status,
@@ -211,7 +244,19 @@ class BusinessPlanGenerator {
 
     // 获取章节配置
     const config = this.chapterConfig[type];
-    const selectedChapters = report.selectedChapters || config.core.map(ch => ch.id);
+    let selectedChapters = report.selectedChapters || config.core.map(ch => ch.id);
+    if (window.StateValidator?.validateChapterIds) {
+      const valid = window.StateValidator.validateChapterIds(type, selectedChapters, this.chapterConfig);
+      if (!valid) {
+        selectedChapters = window.StateValidator.fixChapterIds
+          ? window.StateValidator.fixChapterIds(type, selectedChapters, this.chapterConfig) || []
+          : [];
+        if (!selectedChapters.length) {
+          selectedChapters = config.core.map(ch => ch.id);
+        }
+        logger.warn('[显示进度] 章节ID与类型不匹配，已修正', { type, selectedChapters });
+      }
+    }
 
     // 打开进度弹窗 - 使用 show() 方法并传递章节ID数组
     if (this.progressManager) {
@@ -441,13 +486,32 @@ class BusinessPlanGenerator {
     return chapters.length * 40; // 每个章节平均40秒
   }
 
+  normalizeChapterIdsByType(type, chapterIds) {
+    if (!Array.isArray(chapterIds)) {
+      return [];
+    }
+    if (window.StateValidator?.validateChapterIds) {
+      const valid = window.StateValidator.validateChapterIds(type, chapterIds, this.chapterConfig);
+      if (valid) {
+        return chapterIds;
+      }
+      const fixed = window.StateValidator.fixChapterIds
+        ? window.StateValidator.fixChapterIds(type, chapterIds, this.chapterConfig) || []
+        : [];
+      if (fixed.length) {
+        return fixed;
+      }
+    }
+    return this.chapterConfig[type]?.core?.map(ch => ch.id) || [];
+  }
+
   /**
    * 开始生成
    */
   async startGeneration() {
     // 获取选中的章节
     const checkboxes = document.querySelectorAll('#chapterList input[type="checkbox"]:checked');
-    const selectedChapters = Array.from(checkboxes).map(cb => cb.dataset.chapter);
+    let selectedChapters = Array.from(checkboxes).map(cb => cb.dataset.chapter);
 
     if (selectedChapters.length === 0) {
       window.modalManager.alert('请至少选择一个章节', 'warning');
@@ -468,6 +532,7 @@ class BusinessPlanGenerator {
       return;
     }
 
+    selectedChapters = this.normalizeChapterIdsByType(type, selectedChapters);
     logger.debug('[开始生成] 报告类型:', type, '选中章节:', selectedChapters);
 
     // 开始生成流程
@@ -487,23 +552,38 @@ class BusinessPlanGenerator {
       // 验证参数
       if (!type) {
         console.error('[生成] 缺少报告类型');
-        alert('生成失败：缺少报告类型');
+        if (window.modalManager) {
+          window.modalManager.alert('生成失败：缺少报告类型', 'error');
+        } else {
+          alert('生成失败：缺少报告类型');
+        }
         return;
       }
 
       if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
         console.error('[生成] 缺少章节ID');
-        alert('生成失败：请至少选择一个章节');
+        if (window.modalManager) {
+          window.modalManager.alert('生成失败：请至少选择一个章节', 'error');
+        } else {
+          alert('生成失败：请至少选择一个章节');
+        }
         return;
       }
 
       if (!chatId) {
         console.error('[生成] 缺少会话ID');
-        alert('生成失败：无法确定当前会话');
+        if (window.modalManager) {
+          window.modalManager.alert('生成失败：无法确定当前会话', 'error');
+        } else {
+          alert('生成失败：无法确定当前会话');
+        }
         return;
       }
 
       logger.debug('[生成] 开始生成:', { type, chapterIds, chatId });
+
+      // 🔧 校验章节ID与报告类型一致，避免错用章节列表导致进度卡住
+      chapterIds = this.normalizeChapterIdsByType(type, chapterIds);
 
       // 检查是否有未完成的生成任务
       const existingState = this.state.getGenerationState(chatId);
@@ -609,6 +689,7 @@ class BusinessPlanGenerator {
       }
 
       const chapters = [];
+      const failedChapters = [];
       let totalTokens = 0;
 
       // 循环生成每个章节
@@ -692,6 +773,11 @@ class BusinessPlanGenerator {
 
         } catch (error) {
           console.error(`[生成] 章节 ${chapterId} 生成失败:`, error);
+          failedChapters.push({
+            id: chapterId,
+            title: chapterTitle,
+            message: error.message || '生成失败'
+          });
 
           // 标记章节为错误状态
           this.progressManager.updateProgress(chapterId, 'error');
@@ -738,6 +824,12 @@ class BusinessPlanGenerator {
           console.log(`[生成] 跳过失败的章节 ${chapterId}，继续生成`);
           continue;
         }
+      }
+
+      if (failedChapters.length > 0) {
+        const failure = new Error(`有 ${failedChapters.length}/${chapterIds.length} 个章节生成失败`);
+        failure.failedChapters = failedChapters;
+        throw failure;
       }
 
       let costStats = null;
@@ -825,7 +917,17 @@ class BusinessPlanGenerator {
       this.progressManager.close();
 
       // 显示错误提示
-      window.modalManager.alert(`生成失败: ${error.message}`, 'error');
+      const details = Array.isArray(error?.failedChapters) && error.failedChapters.length > 0
+        ? '<br><br>失败章节：<br>' +
+          error.failedChapters
+            .map(item => `- ${this.escapeHtml(item.title || item.id)}：${this.escapeHtml(item.message || '')}`)
+            .join('<br>')
+        : '';
+      if (window.modalManager) {
+        window.modalManager.alert(`生成失败: ${this.escapeHtml(error.message)}${details}`, 'error');
+      } else {
+        alert(`生成失败: ${error.message}`);
+      }
     }
   }
 
@@ -980,6 +1082,18 @@ class BusinessPlanGenerator {
   async restoreProgress(type, reportEntry) {
     const payload = reportEntry?.data || reportEntry || {};
     let chapterIds = payload.selectedChapters || reportEntry?.selectedChapters || [];
+    if (window.StateValidator?.validateChapterIds) {
+      const valid = window.StateValidator.validateChapterIds(type, chapterIds, this.chapterConfig);
+      if (!valid) {
+        chapterIds = window.StateValidator.fixChapterIds
+          ? window.StateValidator.fixChapterIds(type, chapterIds, this.chapterConfig) || []
+          : [];
+        if (!chapterIds.length) {
+          chapterIds = this.chapterConfig[type]?.core?.map(ch => ch.id) || [];
+        }
+        logger.warn('[恢复进度] 章节ID与类型不匹配，已修正', { type, chapterIds });
+      }
+    }
 
     if (!Array.isArray(chapterIds) || chapterIds.length === 0) {
       console.warn('[恢复进度] 没有章节数据');
@@ -1328,6 +1442,18 @@ class BusinessPlanGenerator {
   }
 
   /**
+   * 简单的HTML转义，避免弹窗内容注入
+   */
+  escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
    * 分享商业计划书
    */
   async shareReport() {
@@ -1444,10 +1570,16 @@ class BusinessPlanGenerator {
 
       logger.debug('[PDF导出] 章节数据', { count: chapters.length, chapters });
 
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return;
+        }
+      }
+
       // 调用后端API生成PDF
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
-      const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-        localStorage.getItem('thinkcraft_access_token');
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
       const response = await fetch(`${window.state.settings.apiUrl}/api/pdf-export/business-plan`, {
         method: 'POST',
         headers: {

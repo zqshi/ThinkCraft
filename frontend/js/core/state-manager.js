@@ -169,14 +169,7 @@ class StateManager {
   }
 
   getAuthToken() {
-    return (
-      (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
-        ? window.apiClient.getAccessToken()
-        : null) ||
-      sessionStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('accessToken')
-    );
+    return window.getAuthToken ? window.getAuthToken() : null;
   }
 
   buildReportState(chatId) {
@@ -233,7 +226,133 @@ class StateManager {
       analysisCompleted: !!this.state.analysisCompleted,
       conversationStep: Number.isFinite(this.state.conversationStep) ? this.state.conversationStep : 0
     };
-    await window.apiClient.put(`/api/chat/${chatId}`, payload);
+    try {
+      await window.apiClient.put(`/api/chat/${chatId}`, payload);
+    } catch (error) {
+      const message = error?.message || '';
+      const notFound = message.includes('聊天不存在') || message.includes('HTTP 404');
+      if (!notFound) {
+        throw error;
+      }
+
+      const newChatId = await this.ensureServerChat(chatId);
+      if (newChatId && String(newChatId) !== String(chatId)) {
+        await window.apiClient.put(`/api/chat/${newChatId}`, payload);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  async ensureServerChat(chatId) {
+    if (!chatId || !window.apiClient?.post) return null;
+    if (!this.getAuthToken()) return null;
+
+    const normalizedId = String(chatId);
+    const localChat =
+      this.state.chats.find(c => String(c.id) === normalizedId) ||
+      (window.storageManager && await window.storageManager.getChat(chatId));
+
+    const title = localChat?.title || '新对话';
+    const titleEdited = !!localChat?.titleEdited;
+    const tags = Array.isArray(localChat?.tags) ? localChat.tags : [];
+    const initialMessage = Array.isArray(localChat?.messages)
+      ? (localChat.messages.find(m => m?.role === 'user' && typeof m.content === 'string')?.content || null)
+      : null;
+
+    const response = await window.apiClient.post('/api/chat/create', {
+      title,
+      titleEdited,
+      initialMessage,
+      tags
+    });
+
+    const serverChat = response?.data || null;
+    const newChatId = serverChat?.id;
+    if (!newChatId) return null;
+
+    await this.migrateLocalChatId(chatId, newChatId, serverChat);
+    return newChatId;
+  }
+
+  async migrateLocalChatId(oldId, newId, serverChat = null) {
+    const oldKey = String(oldId);
+    const newKey = String(newId);
+    if (oldKey === newKey) return;
+
+    if (String(this.state.currentChat) === oldKey) {
+      this.state.currentChat = newKey;
+    }
+
+    const chatIndex = this.state.chats.findIndex(c => String(c.id) === oldKey);
+    if (chatIndex !== -1) {
+      const existing = this.state.chats[chatIndex];
+      this.state.chats[chatIndex] = {
+        ...existing,
+        id: newKey,
+        title: existing.title || serverChat?.title || '新对话',
+        titleEdited: existing.titleEdited ?? serverChat?.titleEdited ?? false,
+        tags: Array.isArray(existing.tags) && existing.tags.length ? existing.tags : (serverChat?.tags || []),
+        status: serverChat?.status || existing.status,
+        createdAt: existing.createdAt || serverChat?.createdAt,
+        updatedAt: serverChat?.updatedAt || existing.updatedAt
+      };
+    }
+
+    if (this.state.generation?.[oldKey]) {
+      this.state.generation[newKey] = this.state.generation[oldKey];
+      delete this.state.generation[oldKey];
+    }
+
+    if (this.state.inputDrafts?.[oldKey] !== undefined) {
+      this.state.inputDrafts[newKey] = this.state.inputDrafts[oldKey];
+      delete this.state.inputDrafts[oldKey];
+    }
+
+    if (this._chatSyncTimers?.has(oldKey)) {
+      const timer = this._chatSyncTimers.get(oldKey);
+      this._chatSyncTimers.delete(oldKey);
+      this._chatSyncTimers.set(newKey, timer);
+    }
+
+    try {
+      const savedChats = JSON.parse(localStorage.getItem('thinkcraft_chats') || '[]');
+      if (Array.isArray(savedChats)) {
+        let updated = false;
+        const next = savedChats.map(chat => {
+          if (String(chat?.id) !== oldKey) return chat;
+          updated = true;
+          return { ...chat, id: newKey };
+        });
+        if (updated) {
+          localStorage.setItem('thinkcraft_chats', JSON.stringify(next));
+        }
+      }
+    } catch (error) {}
+
+    if (window.storageManager) {
+      try {
+        const storedChat = await window.storageManager.getChat(oldId);
+        if (storedChat) {
+          await window.storageManager.saveChat({ ...storedChat, id: newKey });
+          await window.storageManager.deleteChat(oldId);
+        }
+      } catch (error) {}
+
+      try {
+        const reports = await window.storageManager.getReportsByChatId(oldId);
+        for (const report of reports) {
+          report.chatId = newKey;
+          await window.storageManager.saveReport(report);
+        }
+      } catch (error) {}
+    }
+
+    if (typeof loadChats === 'function') {
+      loadChats();
+    }
+
+    this.notify();
   }
 
   applyReportState(chatId, reportState) {

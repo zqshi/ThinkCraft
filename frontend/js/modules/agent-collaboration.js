@@ -14,11 +14,7 @@ class AgentCollaboration {
   }
 
   getAuthToken() {
-    return (
-      sessionStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('accessToken')
-    );
+    return window.getAuthToken ? window.getAuthToken() : null;
   }
 
   buildAuthHeaders(extra = {}) {
@@ -30,6 +26,12 @@ class AgentCollaboration {
   }
 
   async fetchWithAuth(url, options = {}, retry = true) {
+    if (window.requireAuth) {
+      const ok = await window.requireAuth({ redirect: false, prompt: false });
+      if (!ok) {
+        throw new Error('未提供访问令牌');
+      }
+    }
     if (window.apiClient?.ensureFreshToken) {
       await window.apiClient.ensureFreshToken();
     }

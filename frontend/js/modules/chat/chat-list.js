@@ -107,13 +107,7 @@ class ChatList {
             }
         });
 
-        const authToken =
-            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
-                ? window.apiClient.getAccessToken()
-                : null) ||
-            sessionStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('accessToken');
+        const authToken = window.getAuthToken ? window.getAuthToken() : null;
 
         // 优先从后端加载对话列表
         if (authToken && window.apiClient?.get) {
@@ -369,13 +363,7 @@ class ChatList {
         });
 
         // 同步删除后端会话（已登录时）
-        const authToken =
-            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
-                ? window.apiClient.getAccessToken()
-                : null) ||
-            sessionStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('accessToken');
+        const authToken = window.getAuthToken ? window.getAuthToken() : null;
         if (authToken && window.apiClient?.delete) {
             try {
                 await window.apiClient.delete(`/api/chat/${chatId}`);

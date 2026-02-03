@@ -60,9 +60,15 @@ class AgentProgressManager {
     this.currentChatId = chatId;
 
     // 初始化Agent列表
-    this.agents = chapterIds.map((chapterId, index) => ({
+    const normalizedIds = chapterIds
+      .map(chapterId => this.normalizeChapterId(chapterId))
+      .filter(Boolean);
+
+    this.agents = normalizedIds.map((chapterId, index) => ({
       id: chapterId,
       ...this.agentConfig[chapterId],
+      name: this.agentConfig[chapterId]?.name || this.getChapterTitle(chapterId),
+      emoji: this.agentConfig[chapterId]?.emoji,
       status: 'pending', // pending | working | completed
       statusText: '⏸️ 等待中',
       index
@@ -233,6 +239,29 @@ class AgentProgressManager {
     return titles[chapterId] || chapterId;
   }
 
+  normalizeChapterId(rawId) {
+    if (rawId === null || rawId === undefined) {
+      return '';
+    }
+    if (typeof rawId === 'object') {
+      const candidate = rawId.id || rawId.chapterId || rawId.chapter_id || rawId.key;
+      if (candidate !== undefined && candidate !== null) {
+        rawId = candidate;
+      }
+    }
+    let id = String(rawId).trim();
+    if (!id) {
+      return '';
+    }
+    if (id.includes('_')) {
+      id = id.replace(/_/g, '-');
+    }
+    if (!id.includes('-') && /[A-Z]/.test(id)) {
+      id = id.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    }
+    return id.toLowerCase();
+  }
+
   /**
    * 更新进度
    * @param {String} chapterId - 章节ID
@@ -240,18 +269,19 @@ class AgentProgressManager {
    * @param {Object} result - 结果数据（可选）
    */
   updateProgress(chapterId, status, result = null) {
-    console.log('[AgentProgress] 更新进度:', { chapterId, status, result });
+    const normalizedChapterId = this.normalizeChapterId(chapterId);
+    console.log('[AgentProgress] 更新进度:', { chapterId: normalizedChapterId, status, result });
     console.log('[AgentProgress] 当前agents列表:', this.agents.map(a => ({ id: a.id, status: a.status })));
 
     // 查找Agent
-    let agent = this.agents.find(a => a.id === chapterId);
+    let agent = this.agents.find(a => a.id === normalizedChapterId);
     if (!agent) {
-      console.warn('[AgentProgress] 找不到章节:', chapterId);
+      console.warn('[AgentProgress] 找不到章节:', normalizedChapterId);
       console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
 
       // 尝试模糊匹配（处理命名不一致）
       const fuzzyMatch = this.agents.find(a =>
-        a.id.includes(chapterId) || chapterId.includes(a.id)
+        a.id.includes(normalizedChapterId) || normalizedChapterId.includes(a.id)
       );
 
       if (fuzzyMatch) {
@@ -261,8 +291,10 @@ class AgentProgressManager {
 
       // 兜底：动态补充缺失的章节，避免进度被卡住
       agent = {
-        id: chapterId,
-        ...this.agentConfig[chapterId],
+        id: normalizedChapterId,
+        ...this.agentConfig[normalizedChapterId],
+        name: this.agentConfig[normalizedChapterId]?.name || this.getChapterTitle(normalizedChapterId),
+        emoji: this.agentConfig[normalizedChapterId]?.emoji,
         status: 'pending',
         statusText: this.getStatusText('pending'),
         index: this.agents.length

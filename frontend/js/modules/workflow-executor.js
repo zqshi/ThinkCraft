@@ -75,8 +75,13 @@ class WorkflowExecutor {
       await this.updateProjectStageStatus(projectId, stageId, 'active');
 
       // 调用后端API
-      const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-        localStorage.getItem('thinkcraft_access_token');
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return { aborted: true };
+        }
+      }
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
       const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
         method: 'POST',
         headers: {
@@ -221,8 +226,20 @@ class WorkflowExecutor {
   async getStageArtifacts(projectId, stageId) {
     try {
       const normalizedStageId = this.normalizeStageId(stageId);
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return [];
+        }
+      }
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
       const response = await fetch(
-        `${this.apiUrl}/api/workflow/${projectId}/stages/${normalizedStageId}/artifacts`
+        `${this.apiUrl}/api/workflow/${projectId}/stages/${normalizedStageId}/artifacts`,
+        {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          }
+        }
       );
 
       if (!response.ok) {
@@ -243,7 +260,18 @@ class WorkflowExecutor {
    */
   async getAllArtifacts(projectId) {
     try {
-      const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`);
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return [];
+        }
+      }
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
+      const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`, {
+        headers: {
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        }
+      });
 
       if (!response.ok) {
         throw new Error('获取交付物失败');
@@ -263,9 +291,21 @@ class WorkflowExecutor {
    */
   async deleteArtifact(projectId, artifactId) {
     try {
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          throw new Error('未提供访问令牌');
+        }
+      }
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
       const response = await fetch(
         `${this.apiUrl}/api/workflow/${projectId}/artifacts/${artifactId}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          }
+        }
       );
 
       if (!response.ok) {
@@ -409,8 +449,13 @@ class WorkflowExecutor {
   }
 
   async executeStageRequest(projectId, stageId, context) {
-    const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('thinkcraft_access_token');
+    if (window.requireAuth) {
+      const ok = await window.requireAuth({ redirect: true, prompt: true });
+      if (!ok) {
+        throw new Error('未提供访问令牌');
+      }
+    }
+    const authToken = window.getAuthToken ? window.getAuthToken() : null;
     const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
       method: 'POST',
       headers: {
@@ -454,6 +499,13 @@ class WorkflowExecutor {
         description: '战略设计、关键假设与里程碑',
         icon: '🎯',
         color: '#6366f1'
+      },
+      'hypothesis-validation': {
+        id: 'hypothesis-validation',
+        name: '假设验证',
+        description: '价值假设验证与MVP可行性评估',
+        icon: '🧪',
+        color: '#22c55e'
       },
       requirement: {
         id: 'requirement',
@@ -651,7 +703,7 @@ class WorkflowExecutor {
    * @param {String} projectId - 项目ID
    * @param {String} stageId - 阶段ID
    */
-  async startStage(projectId, stageId) {
+  async startStage(projectId, stageId, options = {}) {
     try {
       if (this.isExecuting) {
         if (window.modalManager) {
@@ -700,8 +752,14 @@ class WorkflowExecutor {
         ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
         : '';
 
+      const selectedArtifactTypes = Array.isArray(options.selectedArtifactTypes)
+        ? options.selectedArtifactTypes
+        : [];
       // 执行阶段（executeStage内部会自动更新状态为active，然后completed）
-      const result = await this.executeStage(projectId, stageId, { CONVERSATION: conversation });
+      const result = await this.executeStage(projectId, stageId, {
+        CONVERSATION: conversation,
+        selectedArtifactTypes
+      });
       if (result?.aborted) {
         if (window.modalManager) {
           window.modalManager.close();

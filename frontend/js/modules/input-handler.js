@@ -355,10 +355,18 @@ class InputHandler {
       const base64Image = await this.fileToBase64(file);
 
       // 调用后端API进行图片识别
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return;
+        }
+      }
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
       const response = await fetch(`${this.state.settings.apiUrl}/api/vision/analyze`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
           image: base64Image,

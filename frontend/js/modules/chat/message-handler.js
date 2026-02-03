@@ -56,13 +56,11 @@ class MessageHandler {
         let chatId = state.currentChat;
         if (state.settings.saveHistory && chatId === null) {
             let createdChat = null;
-            const authToken =
-                (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
-                    ? window.apiClient.getAccessToken()
-                    : null) ||
-                sessionStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('accessToken');
+            let authToken = window.getAuthToken ? window.getAuthToken() : null;
+            if (!authToken && window.requireAuth) {
+                await window.requireAuth({ redirect: false, prompt: false });
+                authToken = window.getAuthToken ? window.getAuthToken() : authToken;
+            }
 
             if (authToken && window.apiClient?.post) {
                 try {
@@ -185,10 +183,13 @@ class MessageHandler {
             if (window.apiClient?.post) {
                 data = await window.apiClient.post('/api/chat', payload);
             } else {
-                const authToken =
-                    sessionStorage.getItem('thinkcraft_access_token') ||
-                    localStorage.getItem('thinkcraft_access_token') ||
-                    localStorage.getItem('accessToken');
+                if (window.requireAuth) {
+                    const ok = await window.requireAuth({ redirect: true, prompt: true });
+                    if (!ok) {
+                        return;
+                    }
+                }
+                const authToken = window.getAuthToken ? window.getAuthToken() : null;
                 if (!authToken) {
                     alert('请先登录后再发送消息');
                     window.location.href = 'login.html';

@@ -69,9 +69,19 @@ class ShareCard {
         }
 
         try {
+            if (window.requireAuth) {
+                const ok = await window.requireAuth({ redirect: true, prompt: true });
+                if (!ok) {
+                    return;
+                }
+            }
+            const authToken = window.getAuthToken ? window.getAuthToken() : null;
             const response = await fetch(`${state.settings.apiUrl}/api/share/create`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                },
                 body: JSON.stringify({
                     report: window.lastGeneratedReport,
                     chatId: state.currentChat

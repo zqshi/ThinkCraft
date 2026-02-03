@@ -8,7 +8,7 @@ echo ""
 
 # 停止旧进程
 echo "🧹 清理旧进程..."
-lsof -ti:3000,8000 | xargs kill -9 2>/dev/null
+lsof -ti:3000,5173 | xargs kill -9 2>/dev/null
 pkill -f "sync-css.js" 2>/dev/null
 sleep 1
 
@@ -48,8 +48,8 @@ else
   echo "   ❌ 后端启动失败，查看 backend.log"
 fi
 
-if lsof -ti:8000 > /dev/null 2>&1; then
-  echo "   ✅ 前端: http://localhost:8000"
+if lsof -ti:5173 > /dev/null 2>&1; then
+  echo "   ✅ 前端: http://localhost:5173"
 else
   echo "   ❌ 前端启动失败，查看 frontend.log"
 fi
@@ -74,4 +74,4 @@ echo ""
 
 # 打开浏览器
 sleep 1
-open http://localhost:8000
+open http://localhost:5173

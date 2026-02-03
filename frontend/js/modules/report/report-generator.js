@@ -294,9 +294,13 @@ class ReportGenerator {
                 }
             }, 180000);
 
-            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('accessToken');
+            if (window.requireAuth) {
+                const ok = await window.requireAuth({ redirect: true, prompt: true });
+                if (!ok) {
+                    throw new Error('未提供访问令牌');
+                }
+            }
+            const authToken = window.getAuthToken ? window.getAuthToken() : null;
             const response = await fetch(`${this.state.settings.apiUrl}/api/report/generate`, {
                 method: 'POST',
                 headers: {
@@ -505,8 +509,13 @@ class ReportGenerator {
             window.toast.info('📄 正在生成PDF，请稍候...', 2000);
 
             // 调用后端API
-            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
-                localStorage.getItem('thinkcraft_access_token');
+            if (window.requireAuth) {
+                const ok = await window.requireAuth({ redirect: true, prompt: true });
+                if (!ok) {
+                    return;
+                }
+            }
+            const authToken = window.getAuthToken ? window.getAuthToken() : null;
             let exportData = validation.data;
             if (exportData && exportData.report && !exportData.chapters) {
                 exportData = exportData.report;
@@ -609,8 +618,26 @@ class ReportGenerator {
             // 商业计划书/立项材料必须有 document 或 chapters
             if (type === 'business' || type === 'proposal') {
                 if (!report.data || (!report.data.document && !report.data.chapters)) {
-                    console.error('[数据验证] 已完成的报告缺少 document 或 chapters 字段', report);
-                    return false;
+                    console.warn('[数据验证] 已完成的报告缺少 document 或 chapters 字段，标记为 error', report);
+                    report.status = 'error';
+                    report.endTime = Date.now();
+                    report.error = {
+                        message: '报告数据缺失，请重新生成',
+                        timestamp: Date.now()
+                    };
+                    window.storageManager?.saveReport({
+                        id: report.id,
+                        type: report.type,
+                        chatId: report.chatId,
+                        data: report.data ?? null,
+                        status: report.status,
+                        progress: report.progress,
+                        selectedChapters: report.selectedChapters,
+                        startTime: report.startTime,
+                        endTime: report.endTime,
+                        error: report.error
+                    }).catch(() => {});
+                    return true;
                 }
             }
         }

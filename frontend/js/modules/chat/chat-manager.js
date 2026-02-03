@@ -171,13 +171,7 @@ class ChatManager {
         let chat = this.state.chats.find(c => String(c.id) === String(chatId));
 
         // 如果已登录，优先从后端拉取最新状态
-        const authToken =
-            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
-                ? window.apiClient.getAccessToken()
-                : null) ||
-            sessionStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('thinkcraft_access_token') ||
-            localStorage.getItem('accessToken');
+        const authToken = window.getAuthToken ? window.getAuthToken() : null;
         if (authToken && window.apiClient?.get) {
             try {
                 const response = await window.apiClient.get(`/api/chat/${chatId}`);
@@ -255,15 +249,18 @@ class ChatManager {
             for (const type of reportTypes) {
                 const stateEntry = chat.reportState?.[type];
                 if (!stateEntry) continue;
+                const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
                 await window.storageManager.saveReport({
+                    id: existing?.id,
                     type,
                     chatId: chat.id,
-                    data: null,
-                    status: stateEntry.status,
-                    progress: stateEntry.progress,
-                    startTime: stateEntry.startTime,
-                    endTime: stateEntry.endTime,
-                    error: stateEntry.error || null
+                    data: stateEntry.data ?? existing?.data ?? null,
+                    status: stateEntry.status ?? existing?.status,
+                    progress: stateEntry.progress ?? existing?.progress,
+                    startTime: stateEntry.startTime ?? existing?.startTime,
+                    endTime: stateEntry.endTime ?? existing?.endTime,
+                    error: stateEntry.error ?? existing?.error ?? null,
+                    selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
                 });
             }
         }
