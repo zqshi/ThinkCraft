@@ -22,7 +22,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     name: '需求分析',
     description: '产品定位、用户分析、功能规划',
     recommendedAgents: ['product-manager'],
-    artifactTypes: ['prd', 'user-story', 'feature-list'],
+    artifactTypes: ['research-analysis-doc', 'prd', 'acceptance-criteria-quality', 'user-story', 'feature-list'],
     estimatedDuration: 2, // 天数（仅供参考）
     icon: '📋',
     color: '#667eea'
@@ -89,6 +89,37 @@ export const DEFAULT_WORKFLOW_STAGES = [
   }
 ];
 
+const STAGE_ID_ALIASES = {
+  'strategy-validation': 'strategy',
+  'strategy-review': 'strategy',
+  'strategy-plan': 'strategy',
+  'product-definition': 'requirement',
+  'product-requirement': 'requirement',
+  'requirements': 'requirement',
+  'ux-design': 'design',
+  'ui-design': 'design',
+  'product-design': 'design',
+  'architecture-design': 'architecture',
+  'tech-architecture': 'architecture',
+  'system-architecture': 'architecture',
+  'implementation': 'development',
+  'dev': 'development',
+  'qa': 'testing',
+  'test': 'testing',
+  'launch': 'deployment',
+  'release': 'deployment',
+  'operation': 'operation',
+  'ops': 'operation'
+};
+
+export function normalizeStageId(stageId) {
+  if (!stageId) {
+    return stageId;
+  }
+  const normalized = String(stageId).trim();
+  return STAGE_ID_ALIASES[normalized] || normalized;
+}
+
 /**
  * 交付物类型定义
  */
@@ -97,24 +128,44 @@ export const ARTIFACT_TYPES = {
   prd: {
     name: '产品需求文档',
     description: '完整的产品需求文档，包含功能、流程、原型等',
-    extension: 'md'
+    extension: 'md',
+    promptTemplates: ['prompts/agents/product-manager-agent.requirement-design-doc.md']
+  },
+  'research-analysis-doc': {
+    name: '产品研究分析报告',
+    description: '市场分析与竞品调研报告（含数据来源）',
+    extension: 'md',
+    promptTemplates: ['prompts/agents/product-manager-agent.research-analysis-doc.md']
+  },
+  'acceptance-criteria-quality': {
+    name: '验收标准质量检查清单',
+    description: '验收标准质量检查与改进建议',
+    extension: 'md',
+    promptTemplates: ['prompts/agents/product-manager-agent.acceptance-criteria-quality.md']
   },
   'user-story': {
     name: '用户故事',
     description: '以用户视角描述的功能需求',
-    extension: 'md'
+    extension: 'md',
+    promptTemplates: ['prompts/agents/product-manager-agent.user-story.md']
   },
   'feature-list': {
     name: '功能清单',
     description: '产品功能列表和优先级',
-    extension: 'md'
+    extension: 'md',
+    promptTemplates: ['prompts/agents/product-manager-agent.feature-list.md']
   },
 
   // 战略设计阶段
   'strategy-doc': {
     name: '战略设计文档',
     description: '战略设计与关键假设文档',
-    extension: 'md'
+    extension: 'md',
+    promptTemplates: [
+      'prompts/agents/strategy-designer.md',
+      'prompts/agents/strategy-designer.analysis-doc.md',
+      'prompts/agents/strategy-designer.strategy-doc.md'
+    ]
   },
 
   // 产品设计阶段
@@ -226,7 +277,8 @@ export const ARTIFACT_TYPES = {
  * @returns {Object|null} 阶段配置
  */
 export function getStageById(stageId) {
-  return DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === stageId) || null;
+  const normalized = normalizeStageId(stageId);
+  return DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === normalized) || null;
 }
 
 /**

@@ -41,7 +41,9 @@ export class InMemoryChatRepository extends IChatRepository {
      * 根据用户ID查找聊天（模拟）
      */
     async findByUserId(userId) {
-        return Array.from(this._chats.values()).filter(chat => chat.userId === userId);
+        return Array.from(this._chats.values()).filter(
+            chat => chat.userId === userId && chat.status.value !== 'deleted'
+        );
     }
 
     /**
@@ -49,7 +51,7 @@ export class InMemoryChatRepository extends IChatRepository {
      */
     async findPinned(userId) {
         return Array.from(this._chats.values()).filter(
-            chat => chat.isPinned && (!userId || chat.userId === userId)
+            chat => chat.isPinned && (!userId || chat.userId === userId) && chat.status.value !== 'deleted'
         );
     }
 

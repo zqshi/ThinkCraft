@@ -41,9 +41,15 @@ export class PhoneVerificationUseCase {
         throw new Error(`请${remaining}秒后再试`);
       }
 
+      const dailyLimitDisabled = ['1', 'true', 'TRUE'].includes(
+        String(process.env.SMS_DAILY_LIMIT_DISABLED || '')
+      );
+
       // 检查每日发送次数限制（每天最多10次）
-      const dailyLimitKey = `sms:daily:${phone}`;
-      const dailyCount = await this.cacheService.get(dailyLimitKey);
+      const today = new Date();
+      const dailySuffix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      const dailyLimitKey = `sms:daily:${phone}:${dailySuffix}`;
+      const dailyCount = dailyLimitDisabled ? null : await this.cacheService.get(dailyLimitKey);
       if (dailyCount && parseInt(dailyCount) >= 10) {
         throw new Error('今日发送次数已达上限');
       }
@@ -65,8 +71,10 @@ export class PhoneVerificationUseCase {
       await this.cacheService.set(rateLimitKey, Date.now().toString(), 60);
 
       // 增加每日发送计数（24小时过期）
-      const newCount = dailyCount ? parseInt(dailyCount) + 1 : 1;
-      await this.cacheService.set(dailyLimitKey, newCount.toString(), 86400);
+      if (!dailyLimitDisabled) {
+        const newCount = dailyCount ? parseInt(dailyCount) + 1 : 1;
+        await this.cacheService.set(dailyLimitKey, newCount.toString(), 86400);
+      }
 
       logger.info(`验证码发送成功: ${this._maskPhone(phone)}, 类型: ${type}`);
 

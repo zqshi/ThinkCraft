@@ -38,7 +38,9 @@ export class SmsService {
       this._initTencent();
       break;
     case 'mock':
-      logger.warn('SMS服务运行在模拟模式，仅用于开发/测试环境');
+      if (process.env.NODE_ENV !== 'test') {
+        logger.warn('SMS服务运行在模拟模式，仅用于开发/测试环境');
+      }
       break;
     default:
       throw new Error(`不支持的短信服务商: ${this.provider}`);

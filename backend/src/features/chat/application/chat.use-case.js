@@ -180,6 +180,11 @@ export class ChatUseCase {
         chat.updateTitle(updateChatDTO.title);
       }
 
+      // 更新标题手动修改状态
+      if (updateChatDTO.titleEdited !== null) {
+        chat.setTitleEdited(updateChatDTO.titleEdited);
+      }
+
       // 更新状态
       if (updateChatDTO.status !== null) {
         const { ChatStatus } = await import('../domain/chat-status.vo.js');
@@ -203,6 +208,21 @@ export class ChatUseCase {
         if (updateChatDTO.isPinned !== chat.isPinned) {
           chat.togglePin();
         }
+      }
+
+      // 更新报告状态
+      if (updateChatDTO.reportState !== null) {
+        chat.setReportState(updateChatDTO.reportState);
+      }
+
+      // 更新分析报告完成标记
+      if (updateChatDTO.analysisCompleted !== null) {
+        chat.setAnalysisCompleted(updateChatDTO.analysisCompleted);
+      }
+
+      // 更新对话步骤
+      if (updateChatDTO.conversationStep !== null) {
+        chat.setConversationStep(updateChatDTO.conversationStep);
       }
 
       // 保存更新

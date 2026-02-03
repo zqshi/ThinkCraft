@@ -7,6 +7,7 @@ import { projectController } from './project.controller.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DEFAULT_WORKFLOW_STAGES, ARTIFACT_TYPES } from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -154,29 +155,65 @@ router.get('/health', (req, res) => {
 router.get('/workflow-config/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    const workflowPath = path.join(
-      __dirname,
-      '../../../../../prompts/scene-2-agent-orchestration',
-      category,
-      'workflow.json'
-    );
+    let config = null;
+    try {
+      const workflowPath = path.join(
+        __dirname,
+        '../../../../../prompts/scene-2-agent-orchestration',
+        category,
+        'workflow.json'
+      );
+      const content = await fs.readFile(workflowPath, 'utf-8');
+      config = JSON.parse(content);
+    } catch (error) {
+      // 配置缺失时回退到默认工作流
+      console.warn('加载workflow.json失败，使用默认工作流配置:', error.message);
+    }
 
-    const content = await fs.readFile(workflowPath, 'utf-8');
-    const config = JSON.parse(content);
+    if (config?.phases?.length) {
+      // 转换为前端需要的格式
+      const stages = config.phases.map((phase, index) => ({
+        id: phase.phase_id,
+        name: phase.phase_name,
+        description: phase.description || '',
+        agents: phase.agents.map(a => a.agent_id),
+        agentRoles: phase.agents.map(a => ({
+          id: a.agent_id,
+          role: a.role,
+          tasks: a.tasks
+        })),
+        dependencies: phase.dependencies || [],
+        outputs: phase.outputs || [],
+        outputsDetailed: buildOutputsDetailed(phase.outputs || []),
+        order: index + 1
+      }));
 
-    // 转换为前端需要的格式
-    const stages = config.phases.map((phase, index) => ({
-      id: phase.phase_id,
-      name: phase.phase_name,
-      description: phase.description || '',
-      agents: phase.agents.map(a => a.agent_id),
-      agentRoles: phase.agents.map(a => ({
-        id: a.agent_id,
-        role: a.role,
-        tasks: a.tasks
+      res.json({
+        code: 0,
+        message: 'success',
+        data: {
+          workflowId: config.workflow_id,
+          workflowName: config.workflow_name,
+          description: config.description,
+          stages
+        }
+      });
+      return;
+    }
+
+    const stages = DEFAULT_WORKFLOW_STAGES.map((stage, index) => ({
+      id: stage.id,
+      name: stage.name,
+      description: stage.description || '',
+      agents: stage.recommendedAgents || [],
+      agentRoles: (stage.recommendedAgents || []).map(agentId => ({
+        id: agentId,
+        role: stage.name,
+        tasks: []
       })),
-      dependencies: phase.dependencies || [],
-      outputs: phase.outputs || [],
+      dependencies: index > 0 ? [DEFAULT_WORKFLOW_STAGES[index - 1].id] : [],
+      outputs: stage.artifactTypes || [],
+      outputsDetailed: buildOutputsDetailed(stage.artifactTypes || []),
       order: index + 1
     }));
 
@@ -184,9 +221,9 @@ router.get('/workflow-config/:category', async (req, res) => {
       code: 0,
       message: 'success',
       data: {
-        workflowId: config.workflow_id,
-        workflowName: config.workflow_name,
-        description: config.description,
+        workflowId: category,
+        workflowName: '默认产品开发流程',
+        description: '使用内置默认工作流配置',
         stages
       }
     });
@@ -199,5 +236,29 @@ router.get('/workflow-config/:category', async (req, res) => {
     });
   }
 });
+
+function buildOutputsDetailed(outputs = []) {
+  const projectRoot = process.cwd();
+  return outputs.map(outputId => {
+    const def = ARTIFACT_TYPES[outputId];
+    if (!def) {
+      return { id: outputId, name: outputId, promptTemplates: [], missingPromptTemplates: [] };
+    }
+    const promptTemplates = Array.isArray(def.promptTemplates) ? def.promptTemplates : [];
+    const missing = [];
+    const existing = promptTemplates.filter(tpl => {
+      const abs = path.resolve(projectRoot, tpl);
+      const ok = fs.existsSync(abs);
+      if (!ok) missing.push(tpl);
+      return ok;
+    });
+    return {
+      id: outputId,
+      name: def.name,
+      promptTemplates: existing,
+      missingPromptTemplates: missing
+    };
+  });
+}
 
 export default router;

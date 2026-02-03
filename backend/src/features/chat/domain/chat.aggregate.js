@@ -14,10 +14,14 @@ export class Chat extends AggregateRoot {
    * @param {string} id - 聊天ID
    * @param {string} userId - 用户ID
    * @param {string} title - 聊天标题
+   * @param {boolean} titleEdited - 标题是否被手动修改
    * @param {ChatStatus} status - 聊天状态
    * @param {Message[]} messages - 消息列表
    * @param {string[]} tags - 标签列表
    * @param {boolean} isPinned - 是否置顶
+   * @param {Object|null} reportState - 报告状态
+   * @param {boolean} analysisCompleted - 是否生成分析报告
+   * @param {number} conversationStep - 对话步骤
    * @param {Date} createdAt - 创建时间
    * @param {Date} updatedAt - 更新时间
    */
@@ -25,20 +29,28 @@ export class Chat extends AggregateRoot {
     id,
     userId,
     title,
+    titleEdited = false,
     status = ChatStatus.ACTIVE,
     messages = [],
     tags = [],
     isPinned = false,
+    reportState = null,
+    analysisCompleted = false,
+    conversationStep = 0,
     createdAt = new Date(),
     updatedAt = new Date()
   ) {
     super(id);
     this._userId = userId;
     this._title = title;
+    this._titleEdited = Boolean(titleEdited);
     this._status = status;
     this._messages = messages;
     this._tags = tags;
     this._isPinned = isPinned;
+    this._reportState = reportState;
+    this._analysisCompleted = analysisCompleted;
+    this._conversationStep = conversationStep;
     this._createdAt = createdAt;
     this._updatedAt = updatedAt;
 
@@ -133,6 +145,15 @@ export class Chat extends AggregateRoot {
   }
 
   /**
+   * 设置标题是否手动修改
+   */
+  setTitleEdited(isEdited) {
+    this._titleEdited = Boolean(isEdited);
+    this.updateTimestamp();
+    return this;
+  }
+
+  /**
    * 更新状态
    */
   updateStatus(newStatus) {
@@ -196,6 +217,36 @@ export class Chat extends AggregateRoot {
   }
 
   /**
+   * 更新报告状态
+   */
+  setReportState(reportState) {
+    this._reportState = reportState || null;
+    this.updateTimestamp();
+    return this;
+  }
+
+  /**
+   * 更新分析报告完成标记
+   */
+  setAnalysisCompleted(isCompleted) {
+    this._analysisCompleted = Boolean(isCompleted);
+    this.updateTimestamp();
+    return this;
+  }
+
+  /**
+   * 更新对话步骤
+   */
+  setConversationStep(step) {
+    if (typeof step !== 'number' || Number.isNaN(step) || step < 0) {
+      throw new Error('对话步骤必须是非负数字');
+    }
+    this._conversationStep = step;
+    this.updateTimestamp();
+    return this;
+  }
+
+  /**
    * 获取最后一条消息
    */
   getLastMessage() {
@@ -225,6 +276,10 @@ export class Chat extends AggregateRoot {
       throw new Error('聊天标题必须是字符串');
     }
 
+    if (typeof this._titleEdited !== 'boolean') {
+      throw new Error('titleEdited必须是布尔值');
+    }
+
     if (!(this._status instanceof ChatStatus)) {
       throw new Error('聊天状态必须是ChatStatus类型');
     }
@@ -235,6 +290,18 @@ export class Chat extends AggregateRoot {
 
     if (!Array.isArray(this._tags)) {
       throw new Error('标签列表必须是数组');
+    }
+
+    if (this._reportState !== null && (typeof this._reportState !== 'object' || Array.isArray(this._reportState))) {
+      throw new Error('报告状态必须是对象');
+    }
+
+    if (typeof this._analysisCompleted !== 'boolean') {
+      throw new Error('analysisCompleted必须是布尔值');
+    }
+
+    if (typeof this._conversationStep !== 'number' || Number.isNaN(this._conversationStep) || this._conversationStep < 0) {
+      throw new Error('conversationStep必须是非负数字');
     }
 
     // 验证所有消息
@@ -250,6 +317,9 @@ export class Chat extends AggregateRoot {
   get title() {
     return this._title;
   }
+  get titleEdited() {
+    return this._titleEdited;
+  }
   get userId() {
     return this._userId;
   }
@@ -264,6 +334,15 @@ export class Chat extends AggregateRoot {
   }
   get isPinned() {
     return this._isPinned;
+  }
+  get reportState() {
+    return this._reportState;
+  }
+  get analysisCompleted() {
+    return this._analysisCompleted;
+  }
+  get conversationStep() {
+    return this._conversationStep;
   }
   get createdAt() {
     return this._createdAt;
@@ -284,10 +363,14 @@ export class Chat extends AggregateRoot {
       json.id,
       resolvedUserId,
       json.title,
+      json.titleEdited || false,
       status,
       messages,
       json.tags || [],
       json.isPinned || false,
+      json.reportState || null,
+      json.analysisCompleted || false,
+      json.conversationStep || 0,
       new Date(json.createdAt),
       new Date(json.updatedAt)
     );
@@ -302,10 +385,14 @@ export class Chat extends AggregateRoot {
       ...base,
       userId: this._userId,
       title: this._title,
+      titleEdited: this._titleEdited,
       status: this._status.value,
       messages: this._messages.map(msg => msg.toJSON()),
       tags: this._tags,
       isPinned: this._isPinned,
+      reportState: this._reportState,
+      analysisCompleted: this._analysisCompleted,
+      conversationStep: this._conversationStep,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt
     };

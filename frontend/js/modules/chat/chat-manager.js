@@ -17,6 +17,27 @@ class ChatManager {
         this.state = window.state;
     }
 
+    isReportLikeContent(content) {
+        if (!content || typeof content !== 'string') return false;
+        if (content.includes('[ANALYSIS_COMPLETE]')) return false;
+
+        const trimmed = content.trim();
+        if (trimmed.length < 1200) return false;
+
+        const head = trimmed.slice(0, 300);
+        const hasReportTitle = /分析报告|创意分析报告|完整报告|报告摘要/.test(head);
+        const headingCount = (trimmed.match(/^#{1,3}\s+/gm) || []).length;
+        const sectionCount = (trimmed.match(/^\s*[一二三四五六七八九十]\s*、/gm) || []).length;
+        const hasKeywords = /(核心定义|核心洞察|边界条件|可行性分析|关键挑战|结构化行动|思维盲点)/.test(trimmed);
+
+        return (hasReportTitle || hasKeywords) && (headingCount + sectionCount >= 3);
+    }
+
+    isReportCompletionHint(content) {
+        if (!content || typeof content !== 'string') return false;
+        return /报告生成完毕|生成报告已完成|分析报告已生成|可点击.*查看完整报告/.test(content);
+    }
+
     getActiveInputValue() {
         const desktopInput = document.getElementById('mainInput');
         const mobileInput = document.getElementById('mobileTextInput');
@@ -147,7 +168,58 @@ class ChatManager {
      * 更新UI显示。
      */
     async loadChat(chatId) {
-        const chat = this.state.chats.find(c => String(c.id) === String(chatId));
+        let chat = this.state.chats.find(c => String(c.id) === String(chatId));
+
+        // 如果已登录，优先从后端拉取最新状态
+        const authToken =
+            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+                ? window.apiClient.getAccessToken()
+                : null) ||
+            sessionStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('accessToken');
+        if (authToken && window.apiClient?.get) {
+            try {
+                const response = await window.apiClient.get(`/api/chat/${chatId}`);
+                if (response?.code === 0 && response?.data?.id) {
+                    const serverChat = response.data;
+                    const normalizedChat = {
+                        id: serverChat.id,
+                        title: serverChat.title,
+                        titleEdited: !!serverChat.titleEdited,
+                        messages: Array.isArray(serverChat.messages)
+                            ? serverChat.messages.map(msg => ({
+                                role: msg.sender === 'user' ? 'user' : 'assistant',
+                                content: msg.content
+                            }))
+                            : [],
+                        userData: serverChat.userData || {},
+                        conversationStep: serverChat.conversationStep || 0,
+                        analysisCompleted: serverChat.analysisCompleted || false,
+                        reportState: serverChat.reportState || null,
+                        createdAt: serverChat.createdAt,
+                        updatedAt: serverChat.updatedAt,
+                        status: serverChat.status,
+                        tags: serverChat.tags || [],
+                        isPinned: serverChat.isPinned || false
+                    };
+
+                    chat = normalizedChat;
+                    const existingIndex = this.state.chats.findIndex(c => String(c.id) === String(chatId));
+                    if (existingIndex !== -1) {
+                        this.state.chats[existingIndex] = normalizedChat;
+                    } else {
+                        this.state.chats.unshift(normalizedChat);
+                    }
+                    if (window.storageManager) {
+                        await window.storageManager.saveChat(normalizedChat);
+                    }
+                }
+            } catch (error) {
+                console.warn('[ChatManager] 拉取后端会话失败，使用本地缓存', error);
+            }
+        }
+
         if (!chat) return;
 
         // 🔧 保存当前输入草稿（切换前）
@@ -173,6 +245,56 @@ class ChatManager {
         this.state.userData = chat.userData || {};
         this.state.conversationStep = chat.conversationStep || 0;
         this.state.analysisCompleted = chat.analysisCompleted || false;
+        if (window.stateManager?.applyReportState && chat.reportState) {
+            window.stateManager.applyReportState(chat.id, chat.reportState);
+        }
+
+        // 将报告状态写入 IndexedDB，便于按钮恢复
+        if (window.storageManager && chat.reportState) {
+            const reportTypes = ['analysis', 'business', 'proposal'];
+            for (const type of reportTypes) {
+                const stateEntry = chat.reportState?.[type];
+                if (!stateEntry) continue;
+                await window.storageManager.saveReport({
+                    type,
+                    chatId: chat.id,
+                    data: null,
+                    status: stateEntry.status,
+                    progress: stateEntry.progress,
+                    startTime: stateEntry.startTime,
+                    endTime: stateEntry.endTime,
+                    error: stateEntry.error || null
+                });
+            }
+        }
+
+        // 兼容旧数据：为历史报告类消息补充完成标记并持久化
+        let didNormalizeReportMarker = false;
+        const normalizedMessages = this.state.messages.map(msg => {
+            if (!msg || msg.role !== 'assistant' || typeof msg.content !== 'string') {
+                return msg;
+            }
+            if (msg.content.includes('[ANALYSIS_COMPLETE]')) {
+                return msg;
+            }
+            if (this.isReportLikeContent(msg.content)) {
+                didNormalizeReportMarker = true;
+                return {
+                    ...msg,
+                    content: `${msg.content}\n\n[ANALYSIS_COMPLETE]`
+                };
+            }
+            return msg;
+        });
+
+        if (didNormalizeReportMarker) {
+            this.state.messages = normalizedMessages;
+            chat.messages = normalizedMessages;
+            chat.analysisCompleted = true;
+            if (window.storageManager) {
+                await window.storageManager.saveChat(chat);
+            }
+        }
 
         // 清空并重新渲染消息列表
         const messageList = document.getElementById('messageList');
@@ -186,6 +308,9 @@ class ChatManager {
                 window.messageHandler.addMessage(msg.role, msg.content, null, false, true, true);
             }
         });
+
+        // 兼容：历史消息缺少按钮时，按会话状态补齐
+        await this.ensureReportActionForChat(chatId);
 
         // 智能检测：如果侧边栏处于覆盖模式（移动端），自动关闭并显示对话窗口
         const sidebar = document.getElementById('sidebar');
@@ -231,6 +356,94 @@ class ChatManager {
         // 聚焦输入框
         if (typeof focusInput === 'function') {
             focusInput();
+        }
+    }
+
+    async ensureReportActionForChat(chatId) {
+        const messageList = document.getElementById('messageList');
+        if (!messageList) return;
+
+        const assistantMessages = messageList.querySelectorAll('.message.assistant');
+        if (!assistantMessages.length) return;
+
+        const lastAssistant = assistantMessages[assistantMessages.length - 1];
+        if (!lastAssistant) return;
+
+        const existingAction = lastAssistant.querySelector('.message-actions .view-report-btn');
+        if (existingAction) return;
+
+        const renderButton = (buttonState) => {
+            const state = buttonState?.buttonState || 'completed';
+            const text = buttonState?.buttonText || '查看完整报告';
+            const actionElement = document.createElement('div');
+            actionElement.className = 'message-actions';
+            actionElement.style.display = 'flex';
+            actionElement.innerHTML = `
+                <button class="view-report-btn ${state}"
+                        onclick="viewReport()"
+                        data-state="${state}">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    ${text}
+                </button>
+            `;
+            const targetContent = resolveTargetMessageContent() || lastAssistant.querySelector('.message-content');
+            if (!targetContent) return;
+            if (targetContent.querySelector('.message-actions .view-report-btn')) return;
+            targetContent.appendChild(actionElement);
+        };
+
+        const resolveTargetMessageContent = () => {
+            // 优先找到带报告完成标记/提示的最后一条assistant消息
+            const assistantStates = (this.state.messages || []).filter(msg => msg && msg.role === 'assistant');
+            let targetIndex = -1;
+            for (let i = assistantStates.length - 1; i >= 0; i -= 1) {
+                const content = assistantStates[i]?.content;
+                if (!content || typeof content !== 'string') continue;
+                if (
+                    content.includes('[ANALYSIS_COMPLETE]') ||
+                    this.isReportLikeContent(content) ||
+                    this.isReportCompletionHint(content)
+                ) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+            if (targetIndex === -1) {
+                return lastAssistant.querySelector('.message-content');
+            }
+            const targetMessageEl = assistantMessages[targetIndex];
+            if (!targetMessageEl) {
+                return lastAssistant.querySelector('.message-content');
+            }
+            return targetMessageEl.querySelector('.message-content');
+        };
+
+        if (window.reportStatusManager) {
+            try {
+                const buttonState = await window.reportStatusManager.shouldShowReportButton(chatId, 'analysis');
+                if (buttonState.shouldShow) {
+                    renderButton(buttonState);
+                    return;
+                }
+            } catch (error) {
+                console.error('[ChatManager] 补齐报告按钮失败:', error);
+            }
+        }
+
+        const hasMarker = this.state.messages?.some(msg =>
+            msg && msg.role === 'assistant' && typeof msg.content === 'string' &&
+            (msg.content.includes('[ANALYSIS_COMPLETE]') || msg.content.includes('SIS_COMPLETE]'))
+        );
+        const hasReportLike = this.state.messages?.some(msg =>
+            msg && msg.role === 'assistant' && typeof msg.content === 'string' && this.isReportLikeContent(msg.content)
+        );
+        const hasCompletionHint = this.state.messages?.some(msg =>
+            msg && msg.role === 'assistant' && typeof msg.content === 'string' && this.isReportCompletionHint(msg.content)
+        );
+        if (this.state.analysisCompleted || hasMarker || hasReportLike || hasCompletionHint) {
+            renderButton();
         }
     }
 

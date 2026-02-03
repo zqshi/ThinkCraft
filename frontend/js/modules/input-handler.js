@@ -570,6 +570,9 @@ class InputHandler {
         setTimeout(() => mobileTextInput.focus(), 100);
       }
     }
+    if (typeof updateMobileChatOffset === 'function') {
+      updateMobileChatOffset();
+    }
   }
 
   /**
@@ -583,6 +586,9 @@ class InputHandler {
     }
     if (textMode) {
       textMode.style.display = 'none';
+    }
+    if (typeof updateMobileChatOffset === 'function') {
+      updateMobileChatOffset();
     }
   }
 

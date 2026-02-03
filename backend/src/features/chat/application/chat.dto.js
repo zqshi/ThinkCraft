@@ -84,9 +84,13 @@ export class AddMessageDTO {
 export class UpdateChatDTO {
   constructor(data) {
     this.title = data.title || null;
+    this.titleEdited = data.titleEdited !== undefined ? data.titleEdited : null;
     this.status = data.status || null;
     this.tags = data.tags || null;
     this.isPinned = data.isPinned !== undefined ? data.isPinned : null;
+    this.reportState = data.reportState !== undefined ? data.reportState : null;
+    this.analysisCompleted = data.analysisCompleted !== undefined ? data.analysisCompleted : null;
+    this.conversationStep = data.conversationStep !== undefined ? data.conversationStep : null;
   }
 
   validate() {
@@ -97,6 +101,10 @@ export class UpdateChatDTO {
       if (this.title.length > 200) {
         throw new Error('聊天标题不能超过200个字符');
       }
+    }
+
+    if (this.titleEdited !== null && typeof this.titleEdited !== 'boolean') {
+      throw new Error('titleEdited必须是布尔值');
     }
 
     if (this.status !== null) {
@@ -113,6 +121,18 @@ export class UpdateChatDTO {
     if (this.isPinned !== null && typeof this.isPinned !== 'boolean') {
       throw new Error('置顶状态必须是布尔值');
     }
+
+    if (this.reportState !== null && (typeof this.reportState !== 'object' || Array.isArray(this.reportState))) {
+      throw new Error('报告状态必须是对象');
+    }
+
+    if (this.analysisCompleted !== null && typeof this.analysisCompleted !== 'boolean') {
+      throw new Error('analysisCompleted必须是布尔值');
+    }
+
+    if (this.conversationStep !== null && (typeof this.conversationStep !== 'number' || Number.isNaN(this.conversationStep) || this.conversationStep < 0)) {
+      throw new Error('conversationStep必须是非负数字');
+    }
   }
 }
 
@@ -123,6 +143,7 @@ export class ChatResponseDTO {
   constructor(chat) {
     this.id = chat.id;
     this.title = chat.title;
+    this.titleEdited = !!chat.titleEdited;
     this.status = chat.status.value;
     this.messages = chat.messages.map(msg => ({
       id: msg.id,
@@ -136,6 +157,9 @@ export class ChatResponseDTO {
     }));
     this.tags = chat.tags;
     this.isPinned = chat.isPinned;
+    this.reportState = chat.reportState || null;
+    this.analysisCompleted = !!chat.analysisCompleted;
+    this.conversationStep = Number.isFinite(chat.conversationStep) ? chat.conversationStep : 0;
     this.messageCount = chat.getMessageCount();
     this.lastMessage = chat.getLastMessage()
       ? {

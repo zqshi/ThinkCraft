@@ -57,6 +57,27 @@ function handleLaunchParams() {
   }
 }
 
+function initSessionKeepAlive() {
+  const activityEvents = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'];
+  let lastActivityAt = 0;
+  const throttleMs = 15000;
+
+  const onActivity = () => {
+    const now = Date.now();
+    if (now - lastActivityAt < throttleMs) {
+      return;
+    }
+    lastActivityAt = now;
+    if (window.apiClient?.ensureFreshToken) {
+      window.apiClient.ensureFreshToken();
+    }
+  };
+
+  activityEvents.forEach(eventName => {
+    window.addEventListener(eventName, onActivity, { passive: true });
+  });
+}
+
 /**
  * App initialization (extracted from inline boot)
  */
@@ -82,6 +103,13 @@ function initApp() {
   const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || getDefaultApiUrl();
   window.apiClient = window.apiClient || new APIClient(apiUrl);
   window.apiClient.setBaseURL && window.apiClient.setBaseURL(apiUrl);
+  if (window.apiClient?.setKeepAliveConfig) {
+    window.apiClient.setKeepAliveConfig({
+      thresholdMs: savedSettings.keepAliveRefreshThresholdMs,
+      cooldownMs: savedSettings.keepAliveRefreshCooldownMs
+    });
+  }
+  initSessionKeepAlive();
   // StateManager已在core/state-manager.js中创建，不需要重复创建
   window.agentProgressManager = new AgentProgressManager(window.modalManager);
   window.businessPlanGenerator = new BusinessPlanGenerator(

@@ -7,10 +7,23 @@ import mongoose from 'mongoose';
 const MessageSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
-    type: { type: String, required: true, enum: ['user', 'assistant', 'system'] },
+    type: { type: String, required: true, enum: ['text', 'image', 'code', 'file', 'system'] },
     content: { type: String, required: true },
+    status: {
+      type: String,
+      required: true,
+      enum: ['pending', 'sent', 'delivered', 'read', 'failed'],
+      default: 'sent'
+    },
+    sender: {
+      type: String,
+      required: true,
+      enum: ['user', 'assistant', 'system'],
+      default: 'user'
+    },
     metadata: mongoose.Schema.Types.Mixed,
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
   },
   { _id: false }
 );
@@ -20,6 +33,7 @@ const ChatSchema = new mongoose.Schema(
     _id: { type: String, required: true },
     userId: { type: String, required: true, index: true },
     title: { type: String, required: true },
+    titleEdited: { type: Boolean, default: false },
     status: {
       type: String,
       required: true,
@@ -29,6 +43,12 @@ const ChatSchema = new mongoose.Schema(
     messages: [MessageSchema],
     tags: [{ type: String }],
     isPinned: { type: Boolean, default: false },
+    analysisCompleted: { type: Boolean, default: false },
+    conversationStep: { type: Number, default: 0 },
+    reportState: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   },

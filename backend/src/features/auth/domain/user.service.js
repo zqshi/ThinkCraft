@@ -113,8 +113,14 @@ export class UserService {
       phone: user.phone?.value || null
     });
 
+    // 生成新的刷新令牌（用于延长会话活跃期）
+    const newRefreshToken = this.tokenService.generateRefreshToken({
+      userId: user.id.value
+    });
+
     return {
       accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
       user
     };
   }

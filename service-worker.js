@@ -18,7 +18,6 @@ const CRITICAL_SCRIPTS = new Set([
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/OS.html',
   '/login.html',
   '/offline.html',
   '/favicon.ico',

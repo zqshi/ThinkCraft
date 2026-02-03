@@ -37,6 +37,9 @@ export default {
   // 转换配置（支持ES模块）
   transform: {},
 
+  // 测试前置配置
+  setupFiles: ['<rootDir>/test/jest.setup.js'],
+
   // 测试超时
   testTimeout: 10000,
 

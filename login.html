@@ -507,7 +507,7 @@
             ✓ 登录成功！正在跳转...
         </div>
 
-        <form id="loginForm" onsubmit="handleLogin(event)">
+        <form id="loginForm">
             <div class="form-group">
                 <label class="form-label" for="phone">手机号</label>
                 <div class="form-input-wrapper">
@@ -544,7 +544,7 @@
                         inputmode="numeric"
                     >
                     <div class="input-action">
-                        <button type="button" id="sendCodeBtn" class="code-btn" onclick="handleSendCode()">发送验证码</button>
+                        <button type="button" id="sendCodeBtn" class="code-btn">发送验证码</button>
                     </div>
                 </div>
                 <div id="codeError" class="error-message">请输入有效的验证码</div>
@@ -555,7 +555,7 @@
                     <input type="checkbox" id="remember" checked>
                     <span>记住手机号</span>
                 </label>
-                <a href="javascript:void(0)" class="link" onclick="handleHelp()">收不到验证码？</a>
+                <a href="javascript:void(0)" class="link" id="helpLink">收不到验证码？</a>
             </div>
 
             <button type="submit" id="loginBtn" class="login-btn">
@@ -578,7 +578,7 @@
             <div class="modal-desc">当前为开发环境，验证码请手动输入</div>
             <div id="codeModalPhone" class="modal-phone">手机号：-</div>
             <div id="codeModalValue" class="modal-code">000000</div>
-            <button class="modal-btn" onclick="hideCodeModal()">我已记录</button>
+            <button class="modal-btn" id="codeModalConfirm">我已记录</button>
         </div>
     </div>
 
@@ -807,6 +807,10 @@
                     userId: user.id,
                     loginTime: new Date().toISOString()
                 }));
+                // 登录后标记引导已完成，避免进入项目引导页
+                const onboardingKey = user?.id ? `thinkcraft_onboarding_done_${user.id}` : 'thinkcraft_onboarding_done';
+                localStorage.setItem(onboardingKey, 'true');
+                localStorage.setItem('thinkcraft_onboarding_done', 'true');
 
                 // 显示成功消息
                 const successMessage = document.getElementById('successMessage');
@@ -829,6 +833,8 @@
                             phone,
                             loginTime: new Date().toISOString()
                         }));
+                        localStorage.setItem(`thinkcraft_onboarding_done_${phone}`, 'true');
+                        localStorage.setItem('thinkcraft_onboarding_done', 'true');
                         sessionStorage.removeItem('thinkcraft_login_codes');
 
                         const successMessage = document.getElementById('successMessage');
@@ -926,6 +932,26 @@
             if (remember === 'true' && savedPhone) {
                 phoneInput.value = savedPhone;
                 document.getElementById('remember').checked = true;
+            }
+        });
+
+        // 绑定按钮事件，避免被CSP禁止内联事件
+        document.addEventListener('DOMContentLoaded', () => {
+            const sendBtn = document.getElementById('sendCodeBtn');
+            if (sendBtn) {
+                sendBtn.addEventListener('click', handleSendCode);
+            }
+            const helpLink = document.getElementById('helpLink');
+            if (helpLink) {
+                helpLink.addEventListener('click', handleHelp);
+            }
+            const codeModalConfirm = document.getElementById('codeModalConfirm');
+            if (codeModalConfirm) {
+                codeModalConfirm.addEventListener('click', hideCodeModal);
+            }
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
             }
         });
     </script>

@@ -5,6 +5,35 @@
 
 /* eslint-disable no-unused-vars, no-undef */
 
+function detectAnalysisReportLikeContent(content) {
+    if (!content || typeof content !== 'string') return false;
+    if (content.includes('[ANALYSIS_COMPLETE]')) return false;
+
+    const trimmed = content.trim();
+    if (trimmed.length < 1200) return false;
+
+    const head = trimmed.slice(0, 300);
+    const hasReportTitle = /分析报告|创意分析报告|完整报告|报告摘要/.test(head);
+    const headingCount = (trimmed.match(/^#{1,3}\s+/gm) || []).length;
+    const sectionCount = (trimmed.match(/^\s*[一二三四五六七八九十]\s*、/gm) || []).length;
+    const hasKeywords = /(核心定义|核心洞察|边界条件|可行性分析|关键挑战|结构化行动|思维盲点)/.test(trimmed);
+
+    return (hasReportTitle || hasKeywords) && (headingCount + sectionCount >= 3);
+}
+
+function isReportCompletionHint(content) {
+    if (!content || typeof content !== 'string') return false;
+    return /报告生成完毕|生成报告已完成|分析报告已生成|查看完整分析报告/.test(content);
+}
+
+function normalizeAIContentForDisplay(content) {
+    if (!content || typeof content !== 'string') return content;
+    if (detectAnalysisReportLikeContent(content)) {
+        return '分析报告已生成，可点击下方按钮查看完整报告。\n\n[ANALYSIS_COMPLETE]';
+    }
+    return content;
+}
+
 class MessageHandler {
     constructor() {
         // 依赖注入
@@ -23,19 +52,46 @@ class MessageHandler {
 
         if (!message || this.isCurrentChatBusy()) return;
 
+        const wasNewChat = state.currentChat === null;
         let chatId = state.currentChat;
         if (state.settings.saveHistory && chatId === null) {
-            chatId = generateChatId();
+            let createdChat = null;
+            const authToken =
+                (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+                    ? window.apiClient.getAccessToken()
+                    : null) ||
+                sessionStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('accessToken');
+
+            if (authToken && window.apiClient?.post) {
+                try {
+                    const response = await window.apiClient.post('/api/chat/create', { title: '新对话' });
+                    if (response?.code === 0 && response?.data?.id) {
+                        createdChat = response.data;
+                        chatId = createdChat.id;
+                    }
+                } catch (error) {
+                    console.warn('[发送消息] 后端创建聊天失败，回退本地:', error);
+                }
+            }
+
+            if (!chatId) {
+                chatId = generateChatId();
+            }
+
             state.currentChat = chatId;
             const newChat = {
                 id: chatId,
-                title: '新对话',
-                messages: [],
+                title: createdChat?.title || '新对话',
+                titleEdited: createdChat?.titleEdited || false,
+                messages: createdChat?.messages || [],
                 userData: {...state.userData},
-                conversationStep: 0,
-                analysisCompleted: false,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                conversationStep: createdChat?.conversationStep || 0,
+                analysisCompleted: createdChat?.analysisCompleted || false,
+                reportState: createdChat?.reportState || null,
+                createdAt: createdChat?.createdAt || new Date().toISOString(),
+                updatedAt: createdChat?.updatedAt || new Date().toISOString()
             };
             state.chats.unshift(newChat);
             localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
@@ -63,6 +119,9 @@ class MessageHandler {
         input.style.height = 'auto';
         if (window.stateManager?.clearInputDraft) {
             window.stateManager.clearInputDraft(chatId);
+            if (wasNewChat) {
+                window.stateManager.clearInputDraft(null);
+            }
         }
 
         // 移动端：不自动切换输入模式，保持用户选择的模式
@@ -76,6 +135,19 @@ class MessageHandler {
 
         // ⭐ 递增对话步骤
         state.conversationStep++;
+        if (window.stateManager?.setConversationStep) {
+            window.stateManager.setConversationStep(chatId, state.conversationStep);
+        }
+
+        // 同步用户消息到后端
+        if (chatId && window.apiClient?.post) {
+            window.apiClient.post('/api/chat/send-message', {
+                chatId: String(chatId),
+                content: message,
+                type: 'text',
+                sender: 'user'
+            }).catch(() => {});
+        }
 
         if (state.settings.saveHistory && chatId !== null) {
             const index = state.chats.findIndex(c => String(c.id) === String(chatId));
@@ -147,11 +219,13 @@ class MessageHandler {
                 throw new Error(data.error || '未知错误');
             }
 
-            const aiContent = data.data.content || data.data.message;
+            const rawContent = data.data.content || data.data.message;
 
-            if (!aiContent) {
+            if (!rawContent) {
                 throw new Error('AI返回的内容为空');
             }
+
+            const aiContent = normalizeAIContentForDisplay(rawContent);
 
             if (state.settings.saveHistory && chatId !== null) {
                 const index = state.chats.findIndex(c => String(c.id) === String(chatId));
@@ -181,14 +255,27 @@ class MessageHandler {
 
                 // ⭐ AI回复后再次递增
                 state.conversationStep++;
+                if (window.stateManager?.setConversationStep) {
+                    window.stateManager.setConversationStep(chatId, state.conversationStep);
+                }
 
                 // 显示AI回复（带打字机效果）
-                this.handleAPIResponse(aiContent);
+                this.handleAPIResponse(aiContent, chatId);
             }
 
             // AI回复后更新对话
             if (state.settings.saveHistory && String(state.currentChat) === String(chatId) && typeof saveCurrentChat === 'function') {
                 await saveCurrentChat();
+            }
+
+            // 同步AI消息到后端
+            if (chatId && window.apiClient?.post) {
+                window.apiClient.post('/api/chat/send-message', {
+                    chatId: String(chatId),
+                    content: aiContent,
+                    type: 'text',
+                    sender: 'assistant'
+                }).catch(() => {});
             }
 
         } catch (error) {
@@ -240,7 +327,7 @@ class MessageHandler {
      * 处理API响应（显示AI回复）
      * @param {string} content - AI回复内容
      */
-    handleAPIResponse(content) {
+    handleAPIResponse(content, chatId = null) {
         const messageList = document.getElementById('messageList');
         const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
@@ -263,7 +350,8 @@ class MessageHandler {
         const actionElement = messageDiv.querySelector('.message-actions');
 
         // 使用打字机效果
-        typeWriterWithCompletion(textElement, actionElement, content, 30, state.currentChat);
+        const targetChatId = chatId ?? state.currentChat;
+        typeWriterWithCompletion(textElement, actionElement, content, 30, targetChatId);
 
         scrollToBottom();
     }
@@ -335,6 +423,12 @@ class MessageHandler {
             if (content.includes('[ANALYSIS_COMPLETE]')) {
                 hasAnalysisMarker = true;
                 displayContent = content.replace(/\n?\[ANALYSIS_COMPLETE\]\n?/g, '').trim();
+            } else if (role === 'assistant' && detectAnalysisReportLikeContent(content)) {
+                // 兼容旧数据：历史消息可能没有标记，但内容像完整报告
+                hasAnalysisMarker = true;
+            } else if (role === 'assistant' && isReportCompletionHint(content)) {
+                // 兼容：仅有“报告生成完毕/查看完整报告”提示语
+                hasAnalysisMarker = true;
             }
 
             textElement.textContent = displayContent;
@@ -364,6 +458,20 @@ class MessageHandler {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                     </svg>
                                     ${buttonState.buttonText}
+                                </button>
+                            `;
+                            messageDiv.querySelector('.message-content').appendChild(actionElement);
+                        } else if (hasAnalysisMarker) {
+                            // 兼容：报告数据缺失但有完成标记，仍显示按钮
+                            const actionElement = document.createElement('div');
+                            actionElement.className = 'message-actions';
+                            actionElement.style.display = 'flex';
+                            actionElement.innerHTML = `
+                                <button class="view-report-btn" onclick="viewReport()">
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                    查看完整报告
                                 </button>
                             `;
                             messageDiv.querySelector('.message-content').appendChild(actionElement);
@@ -403,6 +511,9 @@ class MessageHandler {
 
                 // 设置状态标志
                 state.analysisCompleted = true;
+                if (window.stateManager?.setAnalysisCompleted) {
+                    window.stateManager.setAnalysisCompleted(state.currentChat, true);
+                }
             }
         }
 

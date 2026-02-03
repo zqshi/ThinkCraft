@@ -3,6 +3,7 @@
  * 管理项目的工作流阶段和状态
  */
 import { Entity } from '../../../../shared/domain/entity.base.js';
+import { ARTIFACT_TYPES, DEFAULT_WORKFLOW_STAGES } from '../../../../../config/workflow-stages.js';
 
 export class Workflow extends Entity {
   constructor(id, stages = [], currentStageId = null, isCustom = false) {
@@ -19,15 +20,19 @@ export class Workflow extends Entity {
    */
   static createDefault() {
     const workflowId = `workflow_${Date.now()}`;
-    const stages = [
-      WorkflowStage.create('requirement', '需求分析', 1),
-      WorkflowStage.create('design', '系统设计', 2),
-      WorkflowStage.create('development', '开发实现', 3),
-      WorkflowStage.create('testing', '测试验证', 4),
-      WorkflowStage.create('deployment', '部署上线', 5),
-      WorkflowStage.create('monitoring', '监控运维', 6),
-      WorkflowStage.create('optimization', '优化迭代', 7)
-    ];
+    const stages = DEFAULT_WORKFLOW_STAGES.map((stage, index) => {
+      const outputs = Array.isArray(stage.artifactTypes) ? stage.artifactTypes : [];
+      const outputsDetailed = buildOutputsDetailed(outputs);
+      return WorkflowStage.create(
+        stage.id,
+        stage.name,
+        index + 1,
+        stage.description || '',
+        'pending',
+        outputs,
+        outputsDetailed
+      );
+    });
 
     return new Workflow(workflowId, stages, 'requirement', false);
   }
@@ -122,12 +127,17 @@ export class Workflow extends Entity {
         throw new Error('阶段ID和名称不能为空');
       }
 
+      const stageOutputsDetailed = Array.isArray(stageData.outputsDetailed)
+        ? stageData.outputsDetailed
+        : buildOutputsDetailed(Array.isArray(stageData.outputs) ? stageData.outputs : []);
       return WorkflowStage.create(
         stageData.id,
         stageData.name,
         index + 1,
         stageData.description,
-        stageData.status || 'pending'
+        stageData.status || 'pending',
+        Array.isArray(stageData.outputs) ? stageData.outputs : [],
+        stageOutputsDetailed
       );
     });
 
@@ -222,13 +232,24 @@ export class Workflow extends Entity {
  * 工作流阶段实体
  */
 class WorkflowStage extends Entity {
-  constructor(id, name, orderNumber, description = '', status = 'pending', artifacts = []) {
+  constructor(
+    id,
+    name,
+    orderNumber,
+    description = '',
+    status = 'pending',
+    artifacts = [],
+    outputs = [],
+    outputsDetailed = []
+  ) {
     super(id);
     this._name = name;
     this._orderNumber = orderNumber;
     this._description = description;
     this._status = status;
     this._artifacts = artifacts;
+    this._outputs = outputs;
+    this._outputsDetailed = outputsDetailed;
     this._startedAt = null;
     this._completedAt = null;
   }
@@ -236,8 +257,8 @@ class WorkflowStage extends Entity {
   /**
    * 创建工作流阶段
    */
-  static create(id, name, orderNumber, description = '', status = 'pending') {
-    return new WorkflowStage(id, name, orderNumber, description, status, []);
+  static create(id, name, orderNumber, description = '', status = 'pending', outputs = [], outputsDetailed = []) {
+    return new WorkflowStage(id, name, orderNumber, description, status, [], outputs, outputsDetailed);
   }
 
   /**
@@ -247,13 +268,23 @@ class WorkflowStage extends Entity {
     if (!json) {
       return null;
     }
+    const fallbackStage = DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === json.id);
+    const fallbackOutputs = Array.isArray(fallbackStage?.artifactTypes)
+      ? fallbackStage.artifactTypes
+      : [];
+    const outputs = Array.isArray(json.outputs) ? json.outputs : fallbackOutputs;
+    const outputsDetailed = Array.isArray(json.outputsDetailed)
+      ? json.outputsDetailed
+      : buildOutputsDetailed(outputs);
     const stage = new WorkflowStage(
       json.id,
       json.name,
       json.orderNumber,
       json.description || '',
       json.status || 'pending',
-      Array.isArray(json.artifacts) ? json.artifacts : []
+      Array.isArray(json.artifacts) ? json.artifacts : [],
+      outputs,
+      outputsDetailed
     );
     stage._startedAt = json.startedAt ? new Date(json.startedAt) : null;
     stage._completedAt = json.completedAt ? new Date(json.completedAt) : null;
@@ -335,6 +366,12 @@ class WorkflowStage extends Entity {
   get artifacts() {
     return [...this._artifacts];
   }
+  get outputs() {
+    return [...this._outputs];
+  }
+  get outputsDetailed() {
+    return [...this._outputsDetailed];
+  }
   get startedAt() {
     return this._startedAt;
   }
@@ -350,8 +387,19 @@ class WorkflowStage extends Entity {
       description: this._description,
       status: this._status,
       artifacts: this._artifacts,
+      outputs: this._outputs,
+      outputsDetailed: this._outputsDetailed,
       startedAt: this._startedAt,
       completedAt: this._completedAt
     };
   }
+}
+
+function buildOutputsDetailed(outputs = []) {
+  return outputs.map(outputId => {
+    const def = ARTIFACT_TYPES[outputId];
+    return def
+      ? { id: outputId, name: def.name, promptTemplates: def.promptTemplates || [] }
+      : { id: outputId, name: outputId, promptTemplates: [] };
+  });
 }

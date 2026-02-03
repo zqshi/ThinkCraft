@@ -465,6 +465,38 @@ class ReportViewer {
                 }
                 return value;
             };
+            const renderReportMeta = () => {
+                const ideaTitle = safeText(this.state.userData.idea, '创意项目');
+                const dateText = new Date(report?.timestamp || Date.now()).toLocaleDateString();
+                const costLine = report?.costStats
+                    ? `使用 ${report.totalTokens} tokens · 成本 ${report.costStats.costString}`
+                    : '';
+                return `
+                    <div class="report-section">
+                        <div class="report-section-title">报告信息</div>
+                        <div class="document-chapter">
+                            <div class="chapter-content" style="padding-left: 0;">
+                                <div class="highlight-box">
+                                    <p><strong>项目名称：</strong>${ideaTitle}</p>
+                                    <p><strong>报告类型：</strong>${type === 'business' ? '商业计划书' : '产品立项材料'}</p>
+                                    <p><strong>生成日期：</strong>${dateText}</p>
+                                    ${costLine ? `<p><strong>生成成本：</strong>${costLine}</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            };
+            const openBusinessReportModal = () => {
+                const modalEl = document.getElementById('businessReportModal');
+                if (!modalEl) return;
+                modalEl.style.display = '';
+                if (window.modalManager) {
+                    window.modalManager.open('businessReportModal');
+                } else {
+                    modalEl.classList.add('active');
+                }
+            };
             const toggleShareButton = (reportType) => {
                 const shareBtn = document.getElementById('businessReportShareBtn');
                 if (!shareBtn) return;
@@ -486,27 +518,21 @@ class ReportViewer {
             if (report && report.document) {
                 window.currentGeneratedChapters = Array.isArray(report.selectedChapters) ? report.selectedChapters : [];
                 const reportContent = `
+                    ${renderReportMeta()}
                     <div class="report-section">
-                        <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
-                            <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
-                                ${safeText(this.state.userData.idea, '创意项目')}
-                            </h1>
-                            <p style="font-size: 16px; color: var(--text-secondary);">
-                                ${typeTitle} · AI生成于 ${new Date(report.timestamp || Date.now()).toLocaleDateString()}
-                            </p>
-                            ${report.costStats ? `<p style="font-size: 14px; color: var(--text-tertiary); margin-top: 8px;">
-                                使用 ${report.totalTokens} tokens · 成本 ${report.costStats.costString}
-                            </p>` : ''}
-                        </div>
-
-                        <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
-                            ${renderMarkdownContent(report.document)}
+                        <div class="report-section-title">报告正文</div>
+                        <div class="document-chapter">
+                            <div class="chapter-content" style="padding-left: 0;">
+                                <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
+                                    ${renderMarkdownContent(report.document)}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
 
                 document.getElementById('businessReportContent').innerHTML = reportContent;
-                document.getElementById('businessReportModal').classList.add('active');
+                openBusinessReportModal();
                 return;
             }
 
@@ -517,46 +543,27 @@ class ReportViewer {
 
                 // 生成报告内容（使用真实的AI生成内容）
                 const reportContent = `
-                    <div class="report-section">
-                        <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
-                            <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
-                                ${this.state.userData.idea || '创意项目'}
-                            </h1>
-                            <p style="font-size: 16px; color: var(--text-secondary);">
-                                ${typeTitle} · AI生成于 ${new Date(report.timestamp || Date.now()).toLocaleDateString()}
-                            </p>
-                            ${report.costStats ? `<p style="font-size: 14px; color: var(--text-tertiary); margin-top: 8px;">
-                                使用 ${report.totalTokens} tokens · 成本 ${report.costStats.costString}
-                            </p>` : ''}
-                        </div>
+                    ${renderReportMeta()}
+                    ${chapters.map((ch, index) => `
+                        <div class="report-section">
+                            <div class="report-section-title">${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</div>
+                            <div class="document-chapter">
+                                <div class="chapter-content" style="padding-left: 0;">
+                                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                                        <strong>分析师：</strong>${typeof getAgentIconSvg === 'function' ? getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon') : ''} ${safeText(ch.agent, 'AI分析师')}
+                                    </p>
 
-                        ${chapters.map((ch, index) => `
-                            <div class="report-section" style="margin-bottom: 40px;">
-                                <div class="report-section-title">${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</div>
-                                <div class="document-chapter">
-                                    <div class="chapter-content" style="padding-left: 0;">
-                                        <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                            <strong>分析师：</strong>${typeof getAgentIconSvg === 'function' ? getAgentIconSvg(ch.emoji || ch.agent, 16, 'agent-inline-icon') : ''} ${safeText(ch.agent, 'AI分析师')}
-                                        </p>
-
-                                        <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
-                                            ${ch.content ? renderMarkdownContent(ch.content) : '<p style="color: var(--text-secondary);">内容生成中...</p>'}
-                                        </div>
+                                    <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
+                                        ${ch.content ? renderMarkdownContent(ch.content) : '<p style="color: var(--text-secondary);">内容生成中...</p>'}
                                     </div>
                                 </div>
                             </div>
-                        `).join('')}
-
-                        <div style="text-align: center; padding: 30px 0; border-top: 2px solid var(--border); margin-top: 40px;">
-                            <p style="color: var(--text-secondary); font-size: 14px;">
-                                本报告由 ThinkCraft AI 自动生成 | 数据仅供参考
-                            </p>
                         </div>
-                    </div>
+                    `).join('')}
                 `;
 
                 document.getElementById('businessReportContent').innerHTML = reportContent;
-                document.getElementById('businessReportModal').classList.add('active');
+                openBusinessReportModal();
             }
         }
     }
@@ -619,9 +626,14 @@ class ReportViewer {
             window.toast.info('📄 正在生成PDF，请稍候...', 2000);
 
             // 调用后端API
+            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('thinkcraft_access_token');
             const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/business`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                },
                 body: JSON.stringify({
                     reportData: validation.data,
                     reportType: reportType,
@@ -630,6 +642,9 @@ class ReportViewer {
             });
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('未授权，请重新登录');
+                }
                 throw new Error('PDF生成失败');
             }
 

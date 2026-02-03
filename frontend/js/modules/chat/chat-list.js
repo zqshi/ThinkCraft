@@ -107,16 +107,62 @@ class ChatList {
             }
         });
 
-        // 从 IndexedDB 加载对话
-        if (window.storageManager) {
+        const authToken =
+            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+                ? window.apiClient.getAccessToken()
+                : null) ||
+            sessionStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('accessToken');
+
+        // 优先从后端加载对话列表
+        if (authToken && window.apiClient?.get) {
             try {
-                state.chats = await window.storageManager.getAllChats();
+                const response = await window.apiClient.get('/api/chat', { page: 1, pageSize: 100 });
+                if (response?.code === 0 && Array.isArray(response?.data?.chats)) {
+                    state.chats = response.data.chats.map(chat => ({
+                        id: chat.id,
+                        title: chat.title,
+                        titleEdited: !!chat.titleEdited,
+                        messages: Array.isArray(chat.messages)
+                            ? chat.messages.map(msg => ({
+                                role: msg.sender === 'user' ? 'user' : 'assistant',
+                                content: msg.content
+                            }))
+                            : [],
+                        userData: chat.userData || {},
+                        conversationStep: chat.conversationStep || 0,
+                        analysisCompleted: chat.analysisCompleted || false,
+                        reportState: chat.reportState || null,
+                        createdAt: chat.createdAt,
+                        updatedAt: chat.updatedAt,
+                        status: chat.status,
+                        tags: chat.tags || [],
+                        isPinned: chat.isPinned || false
+                    }));
+                    if (window.storageManager) {
+                        for (const chat of state.chats) {
+                            await window.storageManager.saveChat(chat);
+                        }
+                    }
+                }
             } catch (error) {
-                console.error('[ChatList] 加载对话失败:', error);
+                console.warn('[ChatList] 后端加载失败，回退本地缓存', error);
+            }
+        }
+
+        // 从 IndexedDB 加载对话（后端失败时）
+        if (!state.chats || state.chats.length === 0) {
+            if (window.storageManager) {
+                try {
+                    state.chats = await window.storageManager.getAllChats();
+                } catch (error) {
+                    console.error('[ChatList] 加载对话失败:', error);
+                    state.chats = [];
+                }
+            } else {
                 state.chats = [];
             }
-        } else {
-            state.chats = [];
         }
 
         // 排序：置顶优先，其次按 chat ID + requestID 倒序
@@ -227,6 +273,13 @@ class ChatList {
                 await window.storageManager.saveChat(chat);
             }
 
+            if (window.apiClient?.put) {
+                window.apiClient.put(`/api/chat/${chatId}`, {
+                    title: chat.title,
+                    titleEdited: true
+                }).catch(() => {});
+            }
+
             await this.loadChats();
         }
     }
@@ -259,6 +312,47 @@ class ChatList {
     async deleteChat(e, chatId) {
         e.stopPropagation();
 
+        const normalizedChatId = String(chatId).trim();
+        let linkedProject = null;
+
+        if (window.storageManager?.getProjectByIdeaId) {
+            try {
+                linkedProject = await window.storageManager.getProjectByIdeaId(normalizedChatId);
+            } catch (error) {
+                console.warn('[ChatList] 检查项目关联失败:', error);
+            }
+        }
+
+        let legacyLinkedProject = null;
+        if (!linkedProject && window.state?.teamSpace?.projects) {
+            legacyLinkedProject = window.state.teamSpace.projects.find(project => {
+                if (!project || project.status === 'deleted') {
+                    return false;
+                }
+                const ideaId = project.ideaId !== undefined && project.ideaId !== null
+                    ? String(project.ideaId).trim()
+                    : '';
+                const linkedIdeas = Array.isArray(project.linkedIdeas)
+                    ? project.linkedIdeas.map(id => String(id).trim())
+                    : [];
+                return ideaId === normalizedChatId || linkedIdeas.includes(normalizedChatId);
+            });
+        }
+
+        const relatedProject = linkedProject || legacyLinkedProject;
+        if (relatedProject) {
+            const projectName = relatedProject.name ? `“${relatedProject.name}”` : '';
+            const message = projectName
+                ? `该对话已创建项目${projectName}并引入创意，请先删除项目后再删除对话。`
+                : '该对话已创建项目并引入创意，请先删除项目后再删除对话。';
+            if (window.modalManager) {
+                window.modalManager.alert(message, 'warning');
+            } else {
+                alert(message);
+            }
+            return;
+        }
+
         if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) {
             return;
         }
@@ -274,11 +368,33 @@ class ChatList {
             item.classList.remove('menu-open');
         });
 
+        // 同步删除后端会话（已登录时）
+        const authToken =
+            (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+                ? window.apiClient.getAccessToken()
+                : null) ||
+            sessionStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('thinkcraft_access_token') ||
+            localStorage.getItem('accessToken');
+        if (authToken && window.apiClient?.delete) {
+            try {
+                await window.apiClient.delete(`/api/chat/${chatId}`);
+            } catch (error) {
+                console.warn('[ChatList] 删除后端会话失败，继续删除本地缓存', error);
+            }
+        }
+
         state.chats = state.chats.filter(c => String(c.id) !== String(chatId));
 
         // 从 IndexedDB 删除
         if (window.storageManager) {
             await window.storageManager.deleteChat(chatId);
+        }
+        // 同步更新 localStorage 缓存，避免删除后仍被旧缓存读取
+        try {
+            localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
+        } catch (error) {
+            console.warn('[ChatList] 更新 localStorage 失败:', error);
         }
 
         // 如果删除的是当前对话，重置状态
@@ -323,6 +439,7 @@ class ChatList {
 
         // 清除其他存储
         localStorage.removeItem('thinkcraft_reports');
+        localStorage.removeItem('thinkcraft_chats');
         sessionStorage.clear();
 
         // 清除IndexedDB（如果存在）

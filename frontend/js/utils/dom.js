@@ -12,6 +12,7 @@
 function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    updateMobileChatOffset();
 }
 
 /**
@@ -25,7 +26,39 @@ function scrollToBottom(force = false) {
     // 从全局state获取滚动状态
     if (!force && (state.autoScrollLocked || !state.autoScrollEnabled)) return;
 
+    updateMobileChatOffset();
     container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 更新移动端聊天容器底部安全间距，避免内容被输入区遮挡
+ */
+function updateMobileChatOffset() {
+    const container = document.getElementById('chatContainer');
+    if (!container) return;
+
+    const isMobile = document.body.classList.contains('mobile') || window.innerWidth <= 640;
+    if (!isMobile) {
+        container.style.removeProperty('--input-offset');
+        return;
+    }
+
+    const inputContainer = document.getElementById('inputContainer');
+    const isInputVisible = inputContainer && window.getComputedStyle(inputContainer).display !== 'none';
+    const height = isInputVisible
+        ? Math.ceil(inputContainer.getBoundingClientRect().height) + 16
+        : 0;
+
+    document.documentElement.style.setProperty('--input-offset', `${height}px`);
+    container.style.setProperty('--input-offset', `${height}px`);
+    container.style.paddingBottom = `${height}px`;
+    container.style.scrollPaddingBottom = `${height}px`;
+
+    const messageList = document.getElementById('messageList');
+    if (messageList) {
+        messageList.style.setProperty('--input-offset', `${height}px`);
+        messageList.style.paddingBottom = `${height}px`;
+    }
 }
 
 /**
@@ -137,6 +170,13 @@ function toggleClass(element, className) {
     return el.classList.toggle(className);
 }
 
+// 页面尺寸或方向变化时，更新移动端输入区占位
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateMobileChatOffset);
+    window.addEventListener('orientationchange', updateMobileChatOffset);
+    window.addEventListener('load', updateMobileChatOffset);
+}
+
 // 在测试环境中将函数导出到全局作用域
 if (typeof global !== 'undefined') {
     global.autoResize = autoResize;
@@ -150,5 +190,5 @@ if (typeof global !== 'undefined') {
     global.addClass = addClass;
     global.removeClass = removeClass;
     global.toggleClass = toggleClass;
+    global.updateMobileChatOffset = updateMobileChatOffset;
 }
-

@@ -1,7 +1,7 @@
 /**
  * 认证用例测试（手机号+验证码）
  */
-import { AuthUseCase } from '../auth.use-case.js';
+import { jest } from '@jest/globals';
 import {
   LoginRequestDTO,
   RegisterRequestDTO,
@@ -14,6 +14,13 @@ import { UserService } from '../../domain/user.service.js';
 describe('AuthUseCase', () => {
   let authUseCase;
   let mockPhoneVerificationUseCase;
+  let AuthUseCase;
+
+  beforeAll(async () => {
+    process.env.SMS_PROVIDER = process.env.SMS_PROVIDER || 'mock';
+    const module = await import('../auth.use-case.js');
+    AuthUseCase = module.AuthUseCase;
+  });
 
   beforeEach(() => {
     userRepository.users.clear();
@@ -94,6 +101,7 @@ describe('AuthUseCase', () => {
       const response = await authUseCase.refreshToken(refreshTokenRequest);
 
       expect(response.accessToken).toBeDefined();
+      expect(response.refreshToken).toBeDefined();
       expect(response.user.phone).toBe('13800138000');
     });
 

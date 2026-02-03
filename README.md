@@ -173,7 +173,7 @@ frontend/js/
 - **系统提示词**：`config/system-prompts.js`
 - **报告提示词**：`config/report-prompts.js`
 - **配置说明**：`config/README.md`
-- **架构文档**：`docs/ARCHITECTURE.md`
+- **架构文档**：`docs/architecture.md`
 - **运行手册**：`docs/OPERATIONS_RUNBOOK.md`
 - **生产检查清单**：`docs/PRODUCTION_CHECKLIST.md`
 - **认证OpenAPI**：`docs/openapi-auth.yaml`
@@ -263,7 +263,7 @@ ThinkCraft/
 │   ├── report-prompts.js
 │   └── README.md
 ├── docs/                         # 文档
-│   ├── ARCHITECTURE.md           # 架构文档
+│   ├── architecture.md           # 架构文档
 │   ├── MVP.md                    # MVP文档
 │   ├── OPERATIONS_RUNBOOK.md     # 运行手册
 │   ├── PRODUCTION_CHECKLIST.md   # 生产检查清单
@@ -298,7 +298,7 @@ ThinkCraft/
 - **MongoDB**：用户数据、对话历史、项目数据等
 - **Redis**：会话缓存、验证码缓存、频率限制等
 
-详见：[架构文档](docs/ARCHITECTURE.md)
+详见：[架构文档](docs/architecture.md)
 
 ## 🧪 开发与测试
 
@@ -345,7 +345,7 @@ npm run test:coverage
 ## 📚 文档
 
 - [执行计划](EXECUTION_PLAN.md) - 项目执行计划和进度跟踪
-- [架构文档](docs/ARCHITECTURE.md) - 系统架构设计
+- [架构文档](docs/architecture.md) - 系统架构设计
 - [MVP文档](docs/MVP.md) - MVP功能边界
 - [运行手册](docs/OPERATIONS_RUNBOOK.md) - 部署/回滚/监控/密钥
 - [生产检查清单](docs/PRODUCTION_CHECKLIST.md) - 投产前检查

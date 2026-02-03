@@ -103,7 +103,6 @@ const userSchema = new mongoose.Schema(
 );
 
 // 复合索引
-userSchema.index({ phone: 1 });
 userSchema.index({ status: 1, deletedAt: 1 });
 userSchema.index({ createdAt: -1 });
 

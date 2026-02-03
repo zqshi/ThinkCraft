@@ -4,6 +4,8 @@
  */
 import './config/env-loader.js';
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -36,6 +38,10 @@ import { validateEnv } from './config/env.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 // 中间件配置
 app.set('trust proxy', 1);
@@ -44,7 +50,31 @@ app.set('trust proxy', 1);
 app.use(logger);
 
 // 2. 安全与性能
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                'https://cdnjs.cloudflare.com'
+            ],
+            scriptSrcAttr: ["'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:'],
+            mediaSrc: ["'self'", 'data:', 'blob:'],
+            connectSrc: isDevelopment
+                ? ["'self'", 'http://localhost:3000', 'http://127.0.0.1:3000']
+                : ["'self'", FRONTEND_URL],
+            fontSrc: ["'self'", 'data:'],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            frameAncestors: ["'self'"],
+            upgradeInsecureRequests: null
+        }
+    }
+}));
 app.use(compression());
 app.use(securityHeaders);
 app.use(validateInput);
@@ -53,8 +83,6 @@ app.use(validateInput);
 app.use(performanceMonitor);
 
 // 2. CORS 跨域配置（开发环境允许所有来源）
-const isDevelopment = process.env.NODE_ENV === 'development';
-
 if (isDevelopment) {
     // 开发环境：宽松的CORS配置（包括file://协议）
     app.use((req, res, next) => {
@@ -93,6 +121,9 @@ if (isDevelopment) {
 // 3. JSON 解析
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 静态资源（本地开发直接由后端提供前端页面/资源）
+app.use(express.static(PROJECT_ROOT));
 
 // 4. 频率限制
 app.use('/api/', generalLimiter);

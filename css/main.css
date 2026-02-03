@@ -1818,6 +1818,13 @@ body {
   margin: 0 auto;
 }
 
+#messageList::after {
+  content: '';
+  display: block;
+  height: calc(var(--input-offset, 140px) + var(--safe-area-bottom));
+  flex: 0 0 auto;
+}
+
 .message {
   margin-bottom: 0;
   display: flex;
@@ -2864,6 +2871,16 @@ body {
   vertical-align: middle;
 }
 
+.beta-badge .beta-icon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+  display: inline-block;
+  margin-right: 4px;
+}
+
 .settings-item-desc {
   font-size: 13px;
   color: var(--text-secondary);
@@ -3429,7 +3446,8 @@ body {
   /* 修复：增加chat-container底部padding，避免被输入框遮挡 */
   .chat-container {
     padding: 12px;
-    padding-bottom: calc(240px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--input-offset, 140px) + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(var(--input-offset, 140px) + env(safe-area-inset-bottom, 0px));
   }
 
   /* 修复：提高floating-report-btn位置，避免被输入框遮挡 */
@@ -4332,20 +4350,21 @@ body {
 
   /* 为输入框和按钮预留足够空间 */
   .chat-container {
-    padding-bottom: calc(260px + var(--safe-area-bottom)) !important;
+    padding-bottom: calc(var(--input-offset, 140px) + var(--safe-area-bottom)) !important;
+    scroll-padding-bottom: calc(var(--input-offset, 140px) + var(--safe-area-bottom));
   }
 
   #messageList {
-    padding-bottom: 40px; /* 额外增加消息列表底部间距 */
+    padding-bottom: 16px; /* 由chat-container承担主要底部间距 */
   }
 
   .report-buttons {
-    margin-bottom: calc(220px + var(--safe-area-bottom));
+    margin-bottom: calc(var(--input-offset, 140px) + var(--safe-area-bottom));
   }
 
   /* 确保消息内的按钮也有足够间距 */
   .message:last-child .report-buttons {
-    margin-bottom: calc(240px + var(--safe-area-bottom));
+    margin-bottom: calc(var(--input-offset, 140px) + var(--safe-area-bottom));
   }
 
   /* 确保最后一条消息本身也有足够的底部间距 */
@@ -7261,4 +7280,3 @@ body {
   margin-bottom: 16px;
   opacity: 0.5;
 }
-

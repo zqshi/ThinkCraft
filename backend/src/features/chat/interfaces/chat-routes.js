@@ -66,6 +66,7 @@ router.post(
       .isString()
       .isLength({ min: 1, max: 200 })
       .withMessage('聊天标题长度必须在1-200个字符之间'),
+    body('titleEdited').optional().isBoolean().withMessage('titleEdited必须是布尔值'),
     body('initialMessage')
       .optional()
       .isString()

@@ -43,7 +43,6 @@ const BusinessPlanSchema = new mongoose.Schema(
 
 // 索引
 BusinessPlanSchema.index({ userId: 1, createdAt: -1 });
-BusinessPlanSchema.index({ projectId: 1 });
 BusinessPlanSchema.index({ status: 1 });
 
 // 中间件：更新时自动设置updatedAt

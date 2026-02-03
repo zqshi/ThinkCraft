@@ -9,13 +9,78 @@ class APIClient {
     this.requestQueue = [];
     this.processing = false;
     this.refreshingPromise = null;
+    this.lastRefreshAt = 0;
 
     // 默认配置
     this.config = {
       timeout: 30000, // 30秒超时
       retry: 3, // 重试次数
-      retryDelay: 1000 // 重试延迟(ms)
+      retryDelay: 1000, // 重试延迟(ms)
+      refreshThresholdMs: 5 * 60 * 1000, // 距离过期<=5分钟时刷新
+      refreshCooldownMs: 60 * 1000 // 刷新冷却时间，避免频繁请求
     };
+  }
+
+  setKeepAliveConfig({ thresholdMs, cooldownMs } = {}) {
+    if (Number.isFinite(thresholdMs) && thresholdMs > 0) {
+      this.config.refreshThresholdMs = thresholdMs;
+    }
+    if (Number.isFinite(cooldownMs) && cooldownMs >= 0) {
+      this.config.refreshCooldownMs = cooldownMs;
+    }
+  }
+
+  getAccessToken() {
+    return (
+      sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('accessToken')
+    );
+  }
+
+  getRefreshToken() {
+    return localStorage.getItem('thinkcraft_refresh_token');
+  }
+
+  decodeJwt(token) {
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+      let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padding = base64.length % 4;
+      if (padding) {
+        base64 = base64.padEnd(base64.length + (4 - padding), '=');
+      }
+      const json = atob(base64);
+      return JSON.parse(json);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  getTokenRemainingMs(token) {
+    const decoded = this.decodeJwt(token);
+    if (!decoded || !decoded.exp) return 0;
+    const currentTime = Math.floor(Date.now() / 1000);
+    const remainingSeconds = decoded.exp - currentTime;
+    return Math.max(0, remainingSeconds * 1000);
+  }
+
+  async ensureFreshToken() {
+    const authToken = this.getAccessToken();
+    if (!authToken) return false;
+    const remainingMs = this.getTokenRemainingMs(authToken);
+    const now = Date.now();
+    const nearExpiry = remainingMs <= this.config.refreshThresholdMs;
+    const cooldownOk = now - this.lastRefreshAt >= this.config.refreshCooldownMs;
+
+    if (!nearExpiry || !cooldownOk) return false;
+
+    const refreshed = await this.refreshAccessToken().catch(() => false);
+    if (refreshed) {
+      this.lastRefreshAt = Date.now();
+    }
+    return refreshed;
   }
 
   /**
@@ -37,10 +102,8 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
 
     // 请求配置
-    const authToken =
-      sessionStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('thinkcraft_access_token') ||
-      localStorage.getItem('accessToken');
+    await this.ensureFreshToken();
+    const authToken = this.getAccessToken();
     const fetchOptions = {
       method,
       headers: {
@@ -100,7 +163,7 @@ class APIClient {
    * @returns {Promise<boolean>}
    */
   async refreshAccessToken() {
-    const refreshToken = localStorage.getItem('thinkcraft_refresh_token');
+    const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
       return false;
     }
@@ -125,12 +188,16 @@ class APIClient {
 
         const data = await response.json().catch(() => null);
         const newAccessToken = data?.data?.accessToken;
+        const newRefreshToken = data?.data?.refreshToken;
         if (!newAccessToken) {
           return false;
         }
 
         sessionStorage.setItem('thinkcraft_access_token', newAccessToken);
         localStorage.setItem('accessToken', newAccessToken);
+        if (newRefreshToken) {
+          localStorage.setItem('thinkcraft_refresh_token', newRefreshToken);
+        }
         return true;
       } catch (error) {
         console.warn('[APIClient] 刷新令牌失败:', error);
@@ -177,6 +244,25 @@ class APIClient {
    */
   async post(endpoint, body = {}) {
     return this.request(endpoint, { method: 'POST', body });
+  }
+
+  /**
+   * PUT请求
+   * @param {String} endpoint - API端点
+   * @param {Object} body - 请求体
+   * @returns {Promise<Object>}
+   */
+  async put(endpoint, body = {}) {
+    return this.request(endpoint, { method: 'PUT', body });
+  }
+
+  /**
+   * DELETE请求
+   * @param {String} endpoint - API端点
+   * @returns {Promise<Object>}
+   */
+  async delete(endpoint) {
+    return this.request(endpoint, { method: 'DELETE' });
   }
 
   // ========== 业务API方法 ==========
@@ -384,5 +470,11 @@ if (typeof window !== 'undefined') {
   const settings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
   const apiUrl = settings.apiUrl || getDefaultBaseURL();
   window.apiClient = new APIClient(resolveBaseURL(apiUrl));
+  if (settings.keepAliveRefreshThresholdMs || settings.keepAliveRefreshCooldownMs) {
+    window.apiClient.setKeepAliveConfig({
+      thresholdMs: settings.keepAliveRefreshThresholdMs,
+      cooldownMs: settings.keepAliveRefreshCooldownMs
+    });
+  }
 
   }

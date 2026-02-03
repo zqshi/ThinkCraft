@@ -91,6 +91,10 @@ class ExportValidator {
         }
 
         // 5. 验证数据结构
+        if (reportType === 'analysis') {
+            reportData = this.normalizeAnalysisReport(reportData);
+        }
+
         const dataValid = this.validateReportData(reportType, reportData);
         if (!dataValid.valid) {
             return {
@@ -109,6 +113,36 @@ class ExportValidator {
     }
 
     /**
+     * 规范化分析报告数据结构
+     * @param {Object} reportData - 原始报告数据
+     * @returns {Object|null} 规范化后的报告数据
+     */
+    normalizeAnalysisReport(reportData) {
+        if (!reportData || typeof reportData !== 'object') {
+            return null;
+        }
+
+        let normalized = reportData;
+        if (normalized.report && !normalized.chapters) {
+            normalized = normalized.report;
+        }
+
+        if (!normalized || !normalized.chapters) {
+            return null;
+        }
+
+        if (Array.isArray(normalized.chapters)) {
+            const chaptersObj = {};
+            normalized.chapters.forEach((ch, idx) => {
+                chaptersObj[`chapter${idx + 1}`] = ch;
+            });
+            normalized.chapters = chaptersObj;
+        }
+
+        return normalized;
+    }
+
+    /**
      * 验证报告数据结构
      * @param {string} reportType - 报告类型
      * @param {Object} reportData - 报告数据
@@ -120,11 +154,9 @@ class ExportValidator {
             if (!reportData.chapters || typeof reportData.chapters !== 'object') {
                 return { valid: false, reason: '缺少chapters字段' };
             }
-            // 检查6个章节
-            for (let i = 1; i <= 6; i++) {
-                if (!reportData.chapters[`chapter${i}`]) {
-                    return { valid: false, reason: `缺少chapter${i}` };
-                }
+            const chapterKeys = Object.keys(reportData.chapters || {});
+            if (chapterKeys.length === 0) {
+                return { valid: false, reason: 'chapters内容为空' };
             }
         } else if (reportType === 'business' || reportType === 'proposal') {
             // 商业计划书/产品立项材料必须有chapters数组或document字符串

@@ -106,8 +106,9 @@ export class RefreshTokenRequestDTO {
 }
 
 export class RefreshTokenResponseDTO {
-  constructor(accessToken, user) {
+  constructor(accessToken, refreshToken, user) {
     this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
     this.user = user
       ? {
         id: user.id.value,

@@ -7,7 +7,8 @@ import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import {
     DEFAULT_WORKFLOW_STAGES,
     getStageById,
-    getRecommendedAgents
+    getRecommendedAgents,
+    normalizeStageId
 } from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
@@ -89,31 +90,31 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    strategy: `你是一位战略设计专家。基于创意与对话内容，输出战略设计方案。
+    strategy: `【角色定位】
+你是一位资深战略设计师，专注于 Agent 项目战略建模、能力域划分与模式原则制定。你的工作是输出可执行的战略设计标准与约束边界。
 
-创意对话内容：
+【输入说明】
+你将接收以下输入：
+1. 目标说明：本次需要完成的战略设计范围与目标
+2. 约束条件：时间、资源或实现边界（如有）
+3. 补充材料：既有原则或参考规范（如有）
+
+【核心职责】
+1. 战略建模：明确核心域/支撑域/通用域的边界与优先级
+2. 模式原则：给出能力驱动、ReAct Loop 等关键设计原则
+3. 实施标准：输出 Prompt 构造、工具设计、用例设计标准
+4. 风险规避：明确常见误区与约束边界
+
+【工作流程】
+1. 目标理解 - 明确战略设计目标与范围
+2. 域划分 - 识别核心域、支撑域、通用域
+3. 原则制定 - 形成设计哲学与模式原则
+4. 标准落盘 - 输出实施标准与注意事项
+
+【创意对话内容】
 {CONVERSATION}
 
-请生成以下内容：
-
-# 战略设计文档
-
-## 1. 战略目标
-（核心目标与阶段性目标）
-
-## 2. 关键假设
-（业务假设与验证路径）
-
-## 3. 核心策略
-（产品策略/技术策略/市场策略）
-
-## 4. 里程碑规划
-（关键节点与交付物）
-
-## 5. 风险与对策
-（潜在风险与缓释措施）
-
-请输出完整的Markdown格式文档。`,
+请根据以上要求生成“战略设计文档”，输出完整 Markdown 内容，避免额外说明。`,
     architecture: `你是一位资深的架构师。基于产品需求和设计方案，设计系统的技术架构。
 
 产品需求文档：
@@ -367,14 +368,90 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'strategy-doc': `请生成战略设计文档，包含：
-1. 战略目标（核心目标与阶段性目标）
-2. 关键假设（业务假设与验证路径）
-3. 核心策略（产品策略/技术策略/市场策略）
-4. 里程碑规划（关键节点与交付物）
-5. 风险与对策（潜在风险与缓释措施）
+    'strategy-doc': `请输出完整的“战略设计文档”，格式必须严格遵循以下模板与结构（Markdown）：
 
-请输出完整的Markdown格式文档。`,
+# 📘 Agent 项目战略设计标准
+
+---
+
+## 🧭 目录
+
+- [第一部分：战略目标与域划分](#第一部分战略目标与域划分)
+  - [1.1 战略建模的目标](#11-战略建模的目标)
+  - [1.2 子域划分与分析](#12-子域划分与分析)
+- [第二部分：设计哲学与模式原则](#第二部分设计哲学与模式原则)
+  - [2.1 能力驱动与流程驱动的对比](#21-能力驱动与流程驱动的对比)
+  - [2.2 ReAct Loop + LLM 模式原则](#22-react-loop--llm-模式原则)
+  - [2.3 常见设计误区](#23-常见设计误区)
+- [第三部分：实现标准](#第三部分实现标准)
+  - [3.1 Prompt 构造块设计原则](#31-prompt-构造块设计原则)
+  - [3.2 工具设计原则](#32-工具设计原则)
+  - [3.3 用户用例设计原则](#33-用户用例设计原则)
+- [附录A：特别注意事项](#附录a特别注意事项)
+
+---
+
+## 第一部分：战略目标与域划分
+
+### 1.1 战略建模的目标
+
+说明本次战略设计的核心目标与范围。
+
+---
+
+### 1.2 子域划分与分析
+
+请给出核心域、支撑域、通用域的划分与优先级，并给出简要分析。
+
+---
+
+## 第二部分：设计哲学与模式原则
+
+### 2.1 能力驱动与流程驱动的对比
+
+请用对比表说明两者差异，并点出本项目倾向。
+
+---
+
+### 2.2 ReAct Loop + LLM 模式原则
+
+阐述 ReAct 循环的设计原则与适用场景，可使用流程图或要点列表。
+
+---
+
+### 2.3 常见设计误区
+
+列举至少 3 条常见误区及规避建议。
+
+---
+
+## 第三部分：实现标准
+
+### 3.1 Prompt 构造块设计原则
+
+列出 Prompt 构造块的组成、定义与落地原则。
+
+---
+
+### 3.2 工具设计原则
+
+列出工具设计三大原则（必要性、完备性、完美模型假设）及示例说明。
+
+---
+
+### 3.3 用户用例设计原则
+
+用时序图或步骤列表示范关键用例设计方式。
+
+---
+
+## 附录A：特别注意事项
+
+列出关键检查项与风险提醒。
+
+---
+
+输出要求：必须使用 Markdown，标题与结构完整，内容可执行、具体、可落地。`,
 
     'ui-design': `请生成UI设计方案文档，包含：
 1. 设计目标（设计理念、视觉风格、用户体验目标）
@@ -435,15 +512,27 @@ const ARTIFACT_PROMPTS = {
  * @returns {Promise<Array>} 生成的交付物数组
  */
 async function executeStage(projectId, stageId, context = {}) {
-    const stage = getStageById(stageId);
+    const normalizedStageId = normalizeStageId(stageId);
+    const stage = getStageById(normalizedStageId);
     if (!stage) {
-        throw new Error(`无效的阶段ID: ${stageId}`);
+        const err = new Error(`无效的阶段ID: ${stageId}`);
+        err.status = 400;
+        throw err;
     }
 
     // 获取阶段提示词模板
-    let promptTemplate = STAGE_PROMPTS[stageId];
+    let promptTemplate = STAGE_PROMPTS[normalizedStageId];
     if (!promptTemplate) {
-        throw new Error(`阶段 ${stageId} 没有定义提示词模板`);
+        const err = new Error(`阶段 ${normalizedStageId} 没有定义提示词模板`);
+        err.status = 400;
+        throw err;
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey || apiKey === 'sk-your-api-key-here') {
+        const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
+        err.status = 400;
+        throw err;
     }
 
     // 替换上下文变量
@@ -467,19 +556,20 @@ async function executeStage(projectId, stageId, context = {}) {
             }
         );
 
+        const usage = result?.usage || { total_tokens: 0 };
         const artifact = {
             id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             projectId,
-            stageId,
+            stageId: normalizedStageId,
             type: stage.artifactTypes[0],
             name: getArtifactName(stage.artifactTypes[0]),
             content: result.content,
             agentName: getAgentName(stage.recommendedAgents[0]),
             createdAt: Date.now(),
-            tokens: result.usage.total_tokens
+            tokens: usage.total_tokens || 0
         };
         generatedArtifacts.push(artifact);
-        totalTokens = result.usage.total_tokens;
+        totalTokens = usage.total_tokens || 0;
     } else {
         // 如果有多个交付物类型，为每个类型生成专门的内容
         for (const artifactType of stage.artifactTypes) {
@@ -502,19 +592,20 @@ async function executeStage(projectId, stageId, context = {}) {
                 }
             );
 
+            const usage = result?.usage || { total_tokens: 0 };
             const artifact = {
                 id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 projectId,
-                stageId,
-                type: artifactType,
+            stageId: normalizedStageId,
+            type: artifactType,
                 name: getArtifactName(artifactType),
                 content: result.content,
                 agentName: getAgentName(stage.recommendedAgents[0]),
                 createdAt: Date.now(),
-                tokens: result.usage.total_tokens
+                tokens: usage.total_tokens || 0
             };
             generatedArtifacts.push(artifact);
-            totalTokens += result.usage.total_tokens;
+            totalTokens += usage.total_tokens || 0;
 
             // 添加延迟，避免API调用过快
             if (stage.artifactTypes.length > 1) {
@@ -528,10 +619,10 @@ async function executeStage(projectId, stageId, context = {}) {
         artifacts.set(projectId, new Map());
     }
     const projectArtifacts = artifacts.get(projectId);
-    if (!projectArtifacts.has(stageId)) {
-        projectArtifacts.set(stageId, []);
+    if (!projectArtifacts.has(normalizedStageId)) {
+        projectArtifacts.set(normalizedStageId, []);
     }
-    projectArtifacts.get(stageId).push(...generatedArtifacts);
+    projectArtifacts.get(normalizedStageId).push(...generatedArtifacts);
 
     return generatedArtifacts;
 }
@@ -597,7 +688,7 @@ router.post('/:projectId/execute-stage', async (req, res, next) => {
         res.json({
             code: 0,
             data: {
-                stageId,
+                stageId: normalizeStageId(stageId),
                 artifacts: generatedArtifacts,
                 totalTokens: generatedArtifacts.reduce((sum, a) => sum + (a.tokens || 0), 0)
             }

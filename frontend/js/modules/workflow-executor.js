@@ -23,6 +23,36 @@ class WorkflowExecutor {
     this.isExecuting = false;
   }
 
+  normalizeStageId(stageId) {
+    if (!stageId) return stageId;
+    const normalized = String(stageId).trim();
+    const aliases = {
+      'strategy-validation': 'strategy',
+      'strategy-review': 'strategy',
+      'strategy-plan': 'strategy',
+      'product-definition': 'requirement',
+      'product-requirement': 'requirement',
+      'requirements': 'requirement',
+      'ux-design': 'design',
+      'ui-design': 'design',
+      'product-design': 'design',
+      'experience-design': 'design',
+      'user-experience-design': 'design',
+      'architecture-design': 'architecture',
+      'tech-architecture': 'architecture',
+      'system-architecture': 'architecture',
+      'implementation': 'development',
+      'dev': 'development',
+      'qa': 'testing',
+      'test': 'testing',
+      'launch': 'deployment',
+      'release': 'deployment',
+      'operation': 'operation',
+      'ops': 'operation'
+    };
+    return aliases[normalized] || normalized;
+  }
+
   /**
    * 执行单个阶段任务
    * @param {String} projectId - 项目ID
@@ -37,6 +67,7 @@ class WorkflowExecutor {
 
     try {
       this.isExecuting = true;
+      const normalizedStageId = this.normalizeStageId(stageId);
       const canProceed = await this.ensureRolesForStage(projectId, stageId);
       if (!canProceed) {
         return { aborted: true };
@@ -44,15 +75,32 @@ class WorkflowExecutor {
       await this.updateProjectStageStatus(projectId, stageId, 'active');
 
       // 调用后端API
+      const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+        localStorage.getItem('thinkcraft_access_token');
       const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stageId, context })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({ stageId: normalizedStageId, context })
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '阶段执行失败');
+        if (response.status === 401) {
+          throw new Error('未授权，请重新登录');
+        }
+        let errorMessage = '阶段执行失败';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch (e) {
+          const text = await response.text();
+          if (text) {
+            errorMessage = text;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -66,6 +114,7 @@ class WorkflowExecutor {
 
       return result.data;
     } catch (error) {
+      await this.updateProjectStageStatus(projectId, stageId, 'pending');
       throw error;
     } finally {
       this.isExecuting = false;
@@ -103,6 +152,7 @@ class WorkflowExecutor {
       const skipRoleCheck = Boolean(options.skipRoleCheck);
       for (let index = 0; index < stageIds.length; index += 1) {
         const stageId = stageIds[index];
+        const normalizedStageId = this.normalizeStageId(stageId);
         this.currentExecution.currentStageIndex = index;
 
         const canProceed = skipRoleCheck ? true : await this.ensureRolesForStage(projectId, stageId);
@@ -114,20 +164,29 @@ class WorkflowExecutor {
           onProgress(stageId, 'active', index);
         }
 
-        const stageResult = await this.executeStageRequest(projectId, stageId, context);
+        let stageResult = null;
+        try {
+          stageResult = await this.executeStageRequest(projectId, normalizedStageId, context);
+        } catch (error) {
+          await this.updateProjectStageStatus(projectId, stageId, 'pending');
+          if (typeof onProgress === 'function') {
+            onProgress(stageId, 'pending', index);
+          }
+          throw error;
+        }
         const artifacts = stageResult.artifacts || [];
 
         totalTokens += stageResult.totalTokens || 0;
         if (artifacts.length > 0) {
           const mainArtifact = artifacts[0];
-          context[stageId.toUpperCase()] = mainArtifact.content;
-          if (stageId === 'requirement') {
+          context[normalizedStageId.toUpperCase()] = mainArtifact.content;
+          if (normalizedStageId === 'requirement') {
             context.PRD = mainArtifact.content;
-          } else if (stageId === 'design') {
+          } else if (normalizedStageId === 'design') {
             context.DESIGN = mainArtifact.content;
-          } else if (stageId === 'architecture') {
+          } else if (normalizedStageId === 'architecture') {
             context.ARCHITECTURE = mainArtifact.content;
-          } else if (stageId === 'development') {
+          } else if (normalizedStageId === 'development') {
             context.DEVELOPMENT = mainArtifact.content;
           }
         }
@@ -161,8 +220,9 @@ class WorkflowExecutor {
    */
   async getStageArtifacts(projectId, stageId) {
     try {
+      const normalizedStageId = this.normalizeStageId(stageId);
       const response = await fetch(
-        `${this.apiUrl}/api/workflow/${projectId}/stages/${stageId}/artifacts`
+        `${this.apiUrl}/api/workflow/${projectId}/stages/${normalizedStageId}/artifacts`
       );
 
       if (!response.ok) {
@@ -230,32 +290,49 @@ class WorkflowExecutor {
         return;
       }
 
-      // 更新阶段状态
+      const applyStageUpdate = (targetStage) => {
+        if (!targetStage) {
+          return;
+        }
+        targetStage.status = status;
+        if (Array.isArray(artifacts)) {
+          targetStage.artifacts = artifacts;
+        }
+        if (status === 'active' && !targetStage.startedAt) {
+          targetStage.startedAt = Date.now();
+        } else if (status === 'completed' && !targetStage.completedAt) {
+          targetStage.completedAt = Date.now();
+        } else if (status === 'pending') {
+          targetStage.startedAt = null;
+          targetStage.completedAt = null;
+        }
+      };
+
+      // 更新 workflow 中的阶段状态
       const stage = project.workflow.stages.find(s => s.id === stageId);
-        if (stage) {
-          stage.status = status;
-          if (Array.isArray(artifacts)) {
-            stage.artifacts = artifacts;
-            await this.storageManager.saveArtifacts(artifacts);
-          }
+      applyStageUpdate(stage);
 
-        if (status === 'active' && !stage.startedAt) {
-          stage.startedAt = Date.now();
-        } else if (status === 'completed' && !stage.completedAt) {
-          stage.completedAt = Date.now();
-        }
+      // 同步更新协作建议阶段状态（UI主要使用此来源）
+      const suggestionStages = project.collaborationSuggestion?.stages;
+      if (Array.isArray(suggestionStages)) {
+        const suggestionStage = suggestionStages.find(s => s.id === stageId);
+        applyStageUpdate(suggestionStage);
+      }
 
-        // 保存到本地存储
-        await this.storageManager.saveProject(project);
+      if (Array.isArray(artifacts) && artifacts.length > 0) {
+        await this.storageManager.saveArtifacts(artifacts);
+      }
 
-        // 更新全局状态
-        if (window.updateProject) {
-          window.updateProject(projectId, { workflow: project.workflow });
-        }
+      // 保存到本地存储
+      await this.storageManager.saveProject(project);
 
-        if (this.projectManager?.currentProjectId === projectId) {
-          this.projectManager.refreshProjectPanel(project);
-        }
+      // 更新全局状态
+      if (window.updateProject) {
+        window.updateProject(projectId, { workflow: project.workflow, collaborationSuggestion: project.collaborationSuggestion });
+      }
+
+      if (this.projectManager?.currentProjectId === projectId) {
+        this.projectManager.refreshProjectPanel(project);
       }
     } catch (error) {}
   }
@@ -332,15 +409,32 @@ class WorkflowExecutor {
   }
 
   async executeStageRequest(projectId, stageId, context) {
+    const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token');
     const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+      },
       body: JSON.stringify({ stageId, context })
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || '阶段执行失败');
+      if (response.status === 401) {
+        throw new Error('未授权，请重新登录');
+      }
+      let errorMessage = '阶段执行失败';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        const text = await response.text();
+        if (text) {
+          errorMessage = text;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();

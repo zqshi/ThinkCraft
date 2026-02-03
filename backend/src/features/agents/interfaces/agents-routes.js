@@ -612,44 +612,54 @@ router.get('/types-by-workflow', async (req, res) => {
         });
     }
 
-    const [promptIndex, workflowAgents] = await Promise.all([
-        loadPromptIndexByCategory(workflowCategory),
-        loadWorkflowAgentIds(workflowCategory)
-    ]);
+    try {
+        const [promptIndexResult, workflowAgents] = await Promise.all([
+            loadPromptIndexByCategory(workflowCategory),
+            loadWorkflowAgentIds(workflowCategory)
+        ]);
 
-    if (!promptIndex) {
-        return res.status(500).json({
-            code: -1,
-            error: 'Prompt索引加载失败'
+        const promptIndex = promptIndexResult || new Map();
+        const filtered = [];
+        const agentIds = workflowAgents.length > 0
+            ? workflowAgents
+            : (promptIndex.size > 0 ? Array.from(promptIndex.keys()) : Object.keys(AGENT_TYPES));
+
+        for (const id of agentIds) {
+            const base = AGENT_TYPES[id];
+            const promptInfo = promptIndex.get(id) || promptIndex.get(`${id}-agent`);
+            if (base) {
+                filtered.push({
+                    ...base,
+                    available: true,
+                    promptPath: promptInfo?.promptPath,
+                    promptName: promptInfo?.name,
+                    promptDescription: promptInfo?.description
+                });
+            } else if (promptInfo) {
+                filtered.push(buildFallbackAgent(id, promptInfo));
+            }
+        }
+
+        return res.json({
+            code: 0,
+            data: {
+                types: filtered,
+                total: filtered.length,
+                workflowCategory
+            }
+        });
+    } catch (error) {
+        console.error('[types-by-workflow] 加载失败:', error.message);
+        return res.json({
+            code: 0,
+            data: {
+                types: Object.values(AGENT_TYPES).map(agent => ({ ...agent, available: true })),
+                total: Object.values(AGENT_TYPES).length,
+                workflowCategory
+            },
+            warning: 'Prompt索引加载失败，已返回默认Agent列表'
         });
     }
-
-    const filtered = [];
-    const agentIds = workflowAgents.length > 0 ? workflowAgents : Array.from(promptIndex.keys());
-    for (const id of agentIds) {
-        const base = AGENT_TYPES[id];
-        const promptInfo = promptIndex.get(id) || promptIndex.get(`${id}-agent`);
-        if (base) {
-            filtered.push({
-                ...base,
-                available: true,
-                promptPath: promptInfo?.promptPath,
-                promptName: promptInfo?.name,
-                promptDescription: promptInfo?.description
-            });
-        } else if (promptInfo) {
-            filtered.push(buildFallbackAgent(id, promptInfo));
-        }
-    }
-
-    res.json({
-        code: 0,
-        data: {
-            types: filtered,
-            total: filtered.length,
-            workflowCategory
-        }
-    });
 });
 
 /**

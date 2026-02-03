@@ -80,6 +80,7 @@ class ReportGenerator {
             }
             window.apiClient = apiClient;
 
+            const chatId = normalizeChatId(this.state.currentChat);
             const data = await apiClient.request('/api/report/generate', {
                 method: 'POST',
                 body: {
@@ -87,6 +88,7 @@ class ReportGenerator {
                         role: m.role,
                         content: m.content
                     })),
+                    chatId,
                     reportKey: this.getAnalysisReportKey(),
                     force: false
                 },
@@ -146,6 +148,7 @@ class ReportGenerator {
             }
             window.apiClient = apiClient;
 
+            const chatId = normalizeChatId(this.state.currentChat);
             const data = await apiClient.request('/api/report/generate', {
                 method: 'POST',
                 body: {
@@ -153,6 +156,7 @@ class ReportGenerator {
                         role: m.role,
                         content: m.content
                     })),
+                    chatId,
                     reportKey: this.getAnalysisReportKey(),
                     force: false,
                     cacheOnly: true
@@ -290,14 +294,21 @@ class ReportGenerator {
                 }
             }, 180000);
 
+            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('accessToken');
             const response = await fetch(`${this.state.settings.apiUrl}/api/report/generate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                },
                 body: JSON.stringify({
                     messages: this.state.messages.map(m => ({
                         role: m.role,
                         content: m.content
                     })),
+                    chatId,
                     reportKey: this.getAnalysisReportKey(),
                     force: forceRegenerate || false
                 }),
@@ -334,6 +345,10 @@ class ReportGenerator {
                 // 先更新进度为 1/1 (100%)
                 window.stateManager.updateProgress(chatId, 'analysis', 'AI分析师', 1, report);
                 window.stateManager.completeGeneration(chatId, 'analysis', report);
+            }
+            this.state.analysisCompleted = true;
+            if (window.stateManager?.setAnalysisCompleted) {
+                window.stateManager.setAnalysisCompleted(chatId, true);
             }
 
             // 通知状态管理器清除缓存
@@ -490,16 +505,36 @@ class ReportGenerator {
             window.toast.info('📄 正在生成PDF，请稍候...', 2000);
 
             // 调用后端API
+            const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+                localStorage.getItem('thinkcraft_access_token');
+            let exportData = validation.data;
+            if (exportData && exportData.report && !exportData.chapters) {
+                exportData = exportData.report;
+            }
+            if (exportData && Array.isArray(exportData.chapters)) {
+                const chaptersObj = {};
+                exportData.chapters.forEach((ch, idx) => {
+                    chaptersObj[`chapter${idx + 1}`] = ch;
+                });
+                exportData.chapters = chaptersObj;
+            }
+
             const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/report`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                },
                 body: JSON.stringify({
-                    reportData: validation.data,
+                    reportData: exportData,
                     ideaTitle: this.state.userData.idea || '创意分析报告'
                 })
             });
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('未授权，请重新登录');
+                }
                 throw new Error('PDF生成失败');
             }
 
@@ -560,7 +595,10 @@ class ReportGenerator {
                 }
                 // 如果有 chapters 字段，验证其格式
                 if (report.data.chapters !== undefined) {
-                    if (!Array.isArray(report.data.chapters) || report.data.chapters.length === 0) {
+                    const chapters = report.data.chapters;
+                    const isArray = Array.isArray(chapters);
+                    const isObject = !isArray && chapters && typeof chapters === 'object';
+                    if ((isArray && chapters.length === 0) || (!isArray && !isObject)) {
                         console.warn('[数据验证] 分析报告 chapters 格式异常，但仍然接受', report);
                     }
                 }
@@ -744,33 +782,52 @@ class ReportGenerator {
             const GENERATION_TIMEOUT_MS = 30 * 60 * 1000; // 🔧 增加超时时间到30分钟
             const processedTypes = new Set();
 
-            // 🔧 去重：如果有多个相同类型的报告，优先保留 generating 状态的报告
+            // 🔧 去重：优先保留 completed，除非有更新的 generating 任务
             const deduplicatedReports = {};
             reports.forEach(report => {
                 const type = report.type;
                 if (!deduplicatedReports[type]) {
                     deduplicatedReports[type] = report;
-                } else {
-                    // 如果新报告是 generating 状态，或者旧报告不是 generating 状态，则替换
-                    const existing = deduplicatedReports[type];
-                    if (report.status === 'generating' || existing.status !== 'generating') {
-                        // 优先保留 generating 状态
-                        if (report.status === 'generating' && existing.status !== 'generating') {
-                            logger.debug('[加载状态] 替换为 generating 状态的报告', {
-                                type,
-                                oldStatus: existing.status,
-                                newStatus: report.status
-                            });
-                            deduplicatedReports[type] = report;
-                        } else if (report.status === existing.status) {
-                            // 如果状态相同，保留最新的（根据 startTime 或 id）
-                            const existingTime = existing.startTime || 0;
-                            const reportTime = report.startTime || 0;
-                            if (reportTime > existingTime) {
-                                deduplicatedReports[type] = report;
-                            }
-                        }
+                    return;
+                }
+
+                const existing = deduplicatedReports[type];
+                const existingStart = existing.startTime || 0;
+                const reportStart = report.startTime || 0;
+                const existingEnd = existing.endTime || 0;
+                const reportEnd = report.endTime || 0;
+
+                // completed 优先，除非 generating 更“新”且确实是新的任务
+                if (existing.status === 'completed' && report.status === 'generating') {
+                    if (reportStart > (existingEnd || existingStart)) {
+                        deduplicatedReports[type] = report;
                     }
+                    return;
+                }
+                if (existing.status === 'generating' && report.status === 'completed') {
+                    if (existingStart <= (reportEnd || reportStart)) {
+                        deduplicatedReports[type] = report;
+                    }
+                    return;
+                }
+
+                // 同状态，保留最新的
+                if (report.status === existing.status) {
+                    if (reportStart > existingStart) {
+                        deduplicatedReports[type] = report;
+                    }
+                    return;
+                }
+
+                // 其他情况：completed > generating > error > pending
+                const rank = (status) => {
+                    if (status === 'completed') return 3;
+                    if (status === 'generating') return 2;
+                    if (status === 'error') return 1;
+                    return 0;
+                };
+                if (rank(report.status) > rank(existing.status)) {
+                    deduplicatedReports[type] = report;
                 }
             });
 
@@ -794,6 +851,51 @@ class ReportGenerator {
                     // 🔧 数据无效时，不要重置所有按钮，只跳过这个报告
                     // 避免影响其他正在生成的报告
                     return;
+                }
+
+                // 🔧 修复缺失的 selectedChapters（历史数据可能只有 chapters）
+                if (report.status === 'generating' && (!Array.isArray(report.selectedChapters) || report.selectedChapters.length === 0)) {
+                    if (Array.isArray(report.data?.chapters) && report.data.chapters.length > 0) {
+                        report.selectedChapters = report.data.chapters
+                            .map(ch => ch?.chapterId || ch?.id)
+                            .filter(Boolean);
+                        if (report.selectedChapters.length > 0) {
+                            window.storageManager?.saveReport({
+                                id: report.id,
+                                type: report.type,
+                                chatId: report.chatId,
+                                data: report.data,
+                                status: report.status,
+                                progress: report.progress,
+                                selectedChapters: report.selectedChapters,
+                                startTime: report.startTime,
+                                endTime: report.endTime,
+                                error: report.error
+                            }).catch(() => {});
+                        }
+                    }
+                }
+
+                // 🔧 生成中但缺少开始时间，视为异常，避免永久卡住
+                if (report.status === 'generating' && (!report.startTime || Number.isNaN(Number(report.startTime)))) {
+                    report.status = 'error';
+                    report.endTime = Date.now();
+                    report.error = {
+                        message: '生成状态异常，请重试',
+                        timestamp: Date.now()
+                    };
+                    window.storageManager?.saveReport({
+                        id: report.id,
+                        type: report.type,
+                        chatId: report.chatId,
+                        data: report.data ?? null,
+                        status: report.status,
+                        progress: report.progress,
+                        selectedChapters: report.selectedChapters,
+                        startTime: report.startTime,
+                        endTime: report.endTime,
+                        error: report.error
+                    }).catch(() => {});
                 }
 
                 // 🔧 检查是否所有章节都已完成但状态还是 'generating'

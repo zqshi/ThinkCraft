@@ -322,7 +322,7 @@ class ModalManager {
         <button class="btn btn-secondary" onclick="modalManager.close(this.closest('.modal').id)">取消</button>
         <button class="btn btn-primary" id="confirm-btn">确定</button>
       `,
-      className: 'confirm-modal',
+      className: 'confirm-dialog',
       onClose: onCancel
     });
 
@@ -363,7 +363,7 @@ class ModalManager {
       footer: `
         <button class="btn btn-primary" onclick="modalManager.close(this.closest('.modal').id)">确定</button>
       `,
-      className: `alert-modal alert-${type}`,
+      className: `alert-dialog alert-${type}`,
       onClose: callback  // 添加回调支持
     });
   }

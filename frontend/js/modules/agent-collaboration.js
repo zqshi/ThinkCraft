@@ -30,6 +30,9 @@ class AgentCollaboration {
   }
 
   async fetchWithAuth(url, options = {}, retry = true) {
+    if (window.apiClient?.ensureFreshToken) {
+      await window.apiClient.ensureFreshToken();
+    }
     const headers = this.buildAuthHeaders(options.headers || {});
     const response = await fetch(url, { ...options, headers });
     if (response.status === 401 && retry && window.apiClient?.refreshAccessToken) {

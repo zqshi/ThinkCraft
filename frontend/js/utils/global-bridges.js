@@ -65,17 +65,23 @@ function adjustBusinessReportChapters() {
         console.log('[adjustBusinessReportChapters] 当前报告类型:', reportType);
 
         // 2. 关闭报告模态框
-        if (reportModal) {
-            reportModal.style.display = 'none';
+        if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+            window.modalManager.close('businessReportModal');
+        } else if (reportModal) {
+            reportModal.classList.remove('active');
+            reportModal.style.display = '';
         }
 
         // 3. 调用 showChapterSelection 渲染章节列表
-        if (window.businessPlanGenerator) {
-            window.businessPlanGenerator.showChapterSelection(reportType);
-            console.log('[adjustBusinessReportChapters] 已调用 showChapterSelection');
-        } else {
-            throw new Error('BusinessPlanGenerator 未初始化');
-        }
+        requestAnimationFrame(() => {
+            if (window.businessPlanGenerator) {
+                window.businessPlanGenerator.showChapterSelection(reportType);
+                console.log('[adjustBusinessReportChapters] 已调用 showChapterSelection');
+            } else {
+                console.error('[adjustBusinessReportChapters] BusinessPlanGenerator 未初始化');
+                alert('系统错误：商业计划书生成器未初始化，请刷新页面重试');
+            }
+        });
     } catch (error) {
         console.error('[adjustBusinessReportChapters] 执行失败:', error);
         alert(`调整章节失败：${error.message}`);
@@ -99,14 +105,25 @@ function regenerateBusinessReport() {
             return;
         }
 
-        // 关闭报告模态框
+        // 获取当前报告类型
         const reportModal = document.getElementById('businessReportModal');
-        if (reportModal) {
-            reportModal.style.display = 'none';
+        const reportType = reportModal?.dataset?.reportType || 'business';
+
+        // 关闭报告模态框
+        if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+            window.modalManager.close('businessReportModal');
+        } else if (reportModal) {
+            reportModal.classList.remove('active');
+            reportModal.style.display = '';
         }
 
-        // 调用生成器的重新生成方法
-        window.businessPlanGenerator.startGeneration();
+        // 调用生成器的重新生成方法（使用已选章节）
+        requestAnimationFrame(() => {
+            window.businessPlanGenerator.regenerateWithSelectedChapters(reportType).catch(error => {
+                console.error('[regenerateBusinessReport] 重新生成失败:', error);
+                alert(`重新生成失败：${error.message}`);
+            });
+        });
     } catch (error) {
         console.error('[regenerateBusinessReport] 执行失败:', error);
         alert(`重新生成失败：${error.message}`);
@@ -263,7 +280,11 @@ if (!window.closeBusinessReport) {
       // 降级处理
       const modal = document.getElementById('businessReportModal');
       if (modal) {
-        modal.style.display = 'none';
+        modal.classList.remove('active');
+        modal.style.display = '';
+        if (window.modalManager && window.modalManager.isOpen('businessReportModal')) {
+          window.modalManager.close('businessReportModal');
+        }
         console.log('[global-bridges] 降级关闭 businessReportModal');
       }
     }

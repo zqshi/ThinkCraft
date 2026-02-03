@@ -77,12 +77,12 @@ export class AuthUseCase {
       refreshTokenRequest.validate();
 
       // 执行刷新
-      const { accessToken, user } = await this.userService.refreshToken(
+      const { accessToken, refreshToken, user } = await this.userService.refreshToken(
         refreshTokenRequest.refreshToken
       );
 
       // 返回响应
-      return new RefreshTokenResponseDTO(accessToken, user);
+      return new RefreshTokenResponseDTO(accessToken, refreshToken, user);
     } catch (error) {
       console.error('[AuthUseCase] 刷新令牌失败:', error);
       throw error;

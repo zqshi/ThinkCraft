@@ -316,7 +316,13 @@ class StorageManager {
    * @returns {Promise<void>}
    */
   async deleteChat(id) {
-    return this.delete('chats', id);
+    await this.delete('chats', id);
+    // 兼容 ID 类型不一致（数字/字符串）导致的删除失败
+    if (typeof id === 'string' && !isNaN(Number(id))) {
+      await this.delete('chats', Number(id));
+    } else if (typeof id === 'number') {
+      await this.delete('chats', String(id));
+    }
   }
 
   /**

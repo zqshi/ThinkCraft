@@ -36,7 +36,9 @@ export class ChatMongoRepository {
       if (status) {
         query.status = status;
       } else if (!includeArchived) {
-        query.status = { $ne: 'archived' };
+        query.status = { $nin: ['archived', 'deleted'] };
+      } else {
+        query.status = { $ne: 'deleted' };
       }
 
       const docs = await ChatModel.find(query)
@@ -61,6 +63,7 @@ export class ChatMongoRepository {
       if (userId) {
         query.userId = userId;
       }
+      query.status = { $ne: 'deleted' };
 
       const docs = await ChatModel.find(query)
         .sort({ updatedAt: -1 })
@@ -247,9 +250,7 @@ export class ChatMongoRepository {
    * 将数据库文档转换为领域对象
    */
   _toDomain(doc) {
-    const messages = doc.messages.map(
-      msg => new Message(msg.id, msg.type, msg.content, msg.metadata, new Date(msg.createdAt))
-    );
+    const messages = (doc.messages || []).map(msg => Message.fromJSON(this._normalizeMessageDoc(msg)));
 
     const status = ChatStatus.create(doc.status);
 
@@ -257,10 +258,14 @@ export class ChatMongoRepository {
       doc._id,
       doc.userId,
       doc.title,
+      doc.titleEdited || false,
       status,
       messages,
       doc.tags || [],
       doc.isPinned || false,
+      doc.reportState || null,
+      doc.analysisCompleted || false,
+      doc.conversationStep || 0,
       new Date(doc.createdAt),
       new Date(doc.updatedAt)
     );
@@ -276,18 +281,54 @@ export class ChatMongoRepository {
       _id: json.id,
       userId: json.userId,
       title: json.title,
+      titleEdited: json.titleEdited || false,
       status: json.status,
       messages: json.messages.map(msg => ({
         id: msg.id,
         type: msg.type,
+        status: msg.status,
+        sender: msg.sender,
         content: msg.content,
         metadata: msg.metadata,
-        createdAt: msg.createdAt
+        createdAt: msg.createdAt,
+        updatedAt: msg.updatedAt
       })),
       tags: json.tags,
       isPinned: json.isPinned,
+      reportState: json.reportState || null,
+      analysisCompleted: json.analysisCompleted || false,
+      conversationStep: json.conversationStep || 0,
       createdAt: json.createdAt,
       updatedAt: json.updatedAt
+    };
+  }
+
+  _normalizeMessageDoc(msg) {
+    const validTypes = ['text', 'image', 'code', 'file', 'system'];
+    const validSenders = ['user', 'assistant', 'system'];
+    const validStatuses = ['pending', 'sent', 'delivered', 'read', 'failed'];
+
+    const hasLegacySenderType = validSenders.includes(msg.type) && !msg.sender;
+    const type = validTypes.includes(msg.type) ? msg.type : 'text';
+    const sender = hasLegacySenderType
+      ? msg.type
+      : validSenders.includes(msg.sender)
+        ? msg.sender
+        : 'user';
+    const status = validStatuses.includes(msg.status) ? msg.status : 'sent';
+
+    const resolvedId =
+      msg.id || msg._id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    return {
+      id: resolvedId,
+      content: msg.content,
+      type,
+      status,
+      sender,
+      metadata: msg.metadata || {},
+      createdAt: msg.createdAt || msg.updatedAt || new Date(),
+      updatedAt: msg.updatedAt || msg.createdAt || new Date()
     };
   }
 }

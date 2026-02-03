@@ -37,7 +37,9 @@ export const appState = {
     darkMode: false,
     saveHistory: true,
     enableTeam: false,
-    apiUrl: getDefaultApiUrl()
+    apiUrl: getDefaultApiUrl(),
+    keepAliveRefreshThresholdMs: 5 * 60 * 1000,
+    keepAliveRefreshCooldownMs: 60 * 1000
   }
 };
 

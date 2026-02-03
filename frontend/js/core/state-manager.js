@@ -114,7 +114,9 @@ class StateManager {
         settings: {
           darkMode: false,
           saveHistory: true,
-          apiUrl: defaultApiUrl
+          apiUrl: defaultApiUrl,
+          keepAliveRefreshThresholdMs: 5 * 60 * 1000,
+          keepAliveRefreshCooldownMs: 60 * 1000
         }
       };
       window.state = this.state;
@@ -155,6 +157,8 @@ class StateManager {
     if (index > -1) {
       this.listeners.splice(index, 1);
     }
+
+    this._chatSyncTimers = new Map();
   }
 
   /**
@@ -162,6 +166,119 @@ class StateManager {
    */
   notify() {
     this.listeners.forEach(listener => listener(this.state));
+  }
+
+  getAuthToken() {
+    return (
+      (window.apiClient && typeof window.apiClient.getAccessToken === 'function'
+        ? window.apiClient.getAccessToken()
+        : null) ||
+      sessionStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('thinkcraft_access_token') ||
+      localStorage.getItem('accessToken')
+    );
+  }
+
+  buildReportState(chatId) {
+    if (!chatId) return null;
+    const normalizedChatId = String(chatId);
+    const genState = this.state.generation?.[normalizedChatId];
+    if (!genState) return null;
+
+    const buildTypeState = (type) => {
+      if (!genState[type]) return null;
+      const { status, progress, startTime, endTime, error } = genState[type];
+      return {
+        status,
+        progress,
+        startTime,
+        endTime,
+        error
+      };
+    };
+
+    return {
+      analysis: buildTypeState('analysis'),
+      business: buildTypeState('business'),
+      proposal: buildTypeState('proposal')
+    };
+  }
+
+  scheduleChatStateSync(chatId) {
+    if (!chatId) return;
+    if (!window.apiClient?.put || !this.getAuthToken()) return;
+    if (!this._chatSyncTimers) {
+      this._chatSyncTimers = new Map();
+    }
+
+    const normalizedChatId = String(chatId);
+    const existing = this._chatSyncTimers.get(normalizedChatId);
+    if (existing) {
+      clearTimeout(existing);
+    }
+
+    const timer = setTimeout(() => {
+      this._chatSyncTimers.delete(normalizedChatId);
+      this.syncChatState(normalizedChatId).catch(() => {});
+    }, 500);
+    this._chatSyncTimers.set(normalizedChatId, timer);
+  }
+
+  async syncChatState(chatId) {
+    if (!chatId || !window.apiClient?.put) return;
+    if (!this.getAuthToken()) return;
+
+    const payload = {
+      reportState: this.buildReportState(chatId),
+      analysisCompleted: !!this.state.analysisCompleted,
+      conversationStep: Number.isFinite(this.state.conversationStep) ? this.state.conversationStep : 0
+    };
+    await window.apiClient.put(`/api/chat/${chatId}`, payload);
+  }
+
+  applyReportState(chatId, reportState) {
+    if (!chatId || !reportState) return;
+    const normalizedChatId = String(chatId);
+    const genState = this.getGenerationState(normalizedChatId);
+    ['analysis', 'business', 'proposal'].forEach(type => {
+      const incoming = reportState[type];
+      if (!incoming) return;
+      genState[type] = {
+        type,
+        status: incoming.status || 'idle',
+        selectedChapters: genState[type]?.selectedChapters || [],
+        progress: incoming.progress || genState[type]?.progress || {
+          current: 0,
+          total: 0,
+          currentAgent: null,
+          percentage: 0
+        },
+        results: genState[type]?.results || {},
+        error: incoming.error || null,
+        startTime: incoming.startTime || null,
+        endTime: incoming.endTime || null
+      };
+    });
+    this.notify();
+  }
+
+  setAnalysisCompleted(chatId, isCompleted) {
+    if (String(chatId) !== String(this.state.currentChat)) {
+      return;
+    }
+    this.state.analysisCompleted = !!isCompleted;
+    this.notify();
+    this.scheduleChatStateSync(chatId);
+  }
+
+  setConversationStep(chatId, step) {
+    if (String(chatId) !== String(this.state.currentChat)) {
+      return;
+    }
+    if (!Number.isFinite(step) || step < 0) return;
+    this.state.conversationStep = step;
+    this.notify();
+    this.scheduleChatStateSync(chatId);
   }
 
   /**
@@ -249,56 +366,72 @@ class StateManager {
     // 统一 chatId 类型为字符串
     const normalizedChatId = String(chatId);
 
-    // 如果该会话还没有生成状态，初始化
+    const buildDefaultTypeState = (type) => ({
+      type,
+      status: 'idle',
+      selectedChapters: [],
+      progress: {
+        current: 0,
+        total: 0,
+        currentAgent: null,
+        percentage: 0
+      },
+      results: {},
+      error: null,
+      startTime: null,
+      endTime: null
+    });
+
+    const ensureTypeState = (container, type) => {
+      if (!container[type] || typeof container[type] !== 'object') {
+        container[type] = buildDefaultTypeState(type);
+        return;
+      }
+
+      if (container[type].type !== type) {
+        container[type].type = type;
+      }
+      if (!Array.isArray(container[type].selectedChapters)) {
+        container[type].selectedChapters = [];
+      }
+      if (!container[type].progress || typeof container[type].progress !== 'object') {
+        container[type].progress = {
+          current: 0,
+          total: 0,
+          currentAgent: null,
+          percentage: 0
+        };
+      } else {
+        container[type].progress.current = Number(container[type].progress.current) || 0;
+        container[type].progress.total = Number(container[type].progress.total) || 0;
+        container[type].progress.currentAgent = container[type].progress.currentAgent || null;
+        container[type].progress.percentage = Number(container[type].progress.percentage) || 0;
+      }
+      if (!container[type].results || typeof container[type].results !== 'object') {
+        container[type].results = {};
+      }
+      if (container[type].status == null) {
+        container[type].status = 'idle';
+      }
+      if (container[type].error === undefined) {
+        container[type].error = null;
+      }
+      if (container[type].startTime === undefined) {
+        container[type].startTime = null;
+      }
+      if (container[type].endTime === undefined) {
+        container[type].endTime = null;
+      }
+    };
+
+    // 如果该会话还没有生成状态，初始化；否则补齐缺失字段
     if (!this.state.generation[normalizedChatId]) {
-      this.state.generation[normalizedChatId] = {
-        analysis: {
-          type: 'analysis',
-          status: 'idle',
-          selectedChapters: [],
-          progress: {
-            current: 0,
-            total: 0,
-            currentAgent: null,
-            percentage: 0
-          },
-          results: {},
-          error: null,
-          startTime: null,
-          endTime: null
-        },
-        business: {
-          type: 'business',
-          status: 'idle',
-          selectedChapters: [],
-          progress: {
-            current: 0,
-            total: 0,
-            currentAgent: null,
-            percentage: 0
-          },
-          results: {},
-          error: null,
-          startTime: null,
-          endTime: null
-        },
-        proposal: {
-          type: 'proposal',
-          status: 'idle',
-          selectedChapters: [],
-          progress: {
-            current: 0,
-            total: 0,
-            currentAgent: null,
-            percentage: 0
-          },
-          results: {},
-          error: null,
-          startTime: null,
-          endTime: null
-        }
-      };
+      this.state.generation[normalizedChatId] = {};
     }
+
+    ensureTypeState(this.state.generation[normalizedChatId], 'analysis');
+    ensureTypeState(this.state.generation[normalizedChatId], 'business');
+    ensureTypeState(this.state.generation[normalizedChatId], 'proposal');
 
     return this.state.generation[normalizedChatId];
   }
@@ -333,6 +466,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -362,6 +496,9 @@ class StateManager {
     };
 
     if (result) {
+      if (!genState[type].results || typeof genState[type].results !== 'object') {
+        genState[type].results = {};
+      }
       genState[type].results[result.id || current] = {
         ...result,
         agent: agentName,
@@ -370,6 +507,7 @@ class StateManager {
     }
 
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -398,6 +536,7 @@ class StateManager {
     }
 
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -420,6 +559,7 @@ class StateManager {
       timestamp: Date.now()
     };
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -454,6 +594,7 @@ class StateManager {
       endTime: null
     };
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -471,6 +612,7 @@ class StateManager {
 
     genState[type].status = 'selecting';
     this.notify();
+    this.scheduleChatStateSync(normalizedChatId);
   }
 
   /**
@@ -932,6 +1074,12 @@ class StateManager {
   updateSettings(updates) {
     this.state.settings = { ...this.state.settings, ...updates };
     this.saveSettings();
+    if (window.apiClient?.setKeepAliveConfig) {
+      window.apiClient.setKeepAliveConfig({
+        thresholdMs: this.state.settings.keepAliveRefreshThresholdMs,
+        cooldownMs: this.state.settings.keepAliveRefreshCooldownMs
+      });
+    }
     this.notify();
   }
 

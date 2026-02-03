@@ -36,7 +36,7 @@
 
   /* 调整聊天容器底部边距，为悬浮输入区留出空间 */
   .chat-container {
-    padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(var(--input-offset, 120px) + env(safe-area-inset-bottom)) !important;
   }
 }
 

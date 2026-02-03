@@ -9,6 +9,8 @@ const WorkflowStageSchema = new mongoose.Schema(
     id: { type: String, required: true },
     name: { type: String, required: true },
     status: { type: String, required: true },
+    outputs: { type: [String], default: [] },
+    outputsDetailed: { type: [mongoose.Schema.Types.Mixed], default: [] },
     artifacts: [
       {
         id: String,
@@ -59,7 +61,6 @@ const ProjectSchema = new mongoose.Schema(
 
 // 索引
 ProjectSchema.index({ userId: 1, createdAt: -1 });
-ProjectSchema.index({ ideaId: 1 });
 ProjectSchema.index(
   { ideaId: 1, userId: 1 },
   { unique: true, partialFilterExpression: { status: { $ne: 'deleted' } } }

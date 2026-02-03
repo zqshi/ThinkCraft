@@ -163,10 +163,38 @@ class ReportStatusManager {
 
         const status = report.status;
 
+        // 兼容旧数据：缺少status但已有报告数据
+        if (!status) {
+            if (this.validateReportData(report)) {
+                return {
+                    shouldShow: true,
+                    buttonText: '查看完整报告',
+                    buttonState: 'completed',
+                    reason: 'legacy_no_status'
+                };
+            }
+            return {
+                shouldShow: true,
+                buttonText: '报告数据不完整，点击重新生成',
+                buttonState: 'error',
+                reason: 'legacy_incomplete_data'
+            };
+        }
+
         // 生成中
         if (status === 'generating') {
+            // 生成中但缺少开始时间，视为异常状态，避免永久卡住
+            if (!report.startTime || Number.isNaN(Number(report.startTime))) {
+                return {
+                    shouldShow: true,
+                    buttonText: '生成状态异常，点击重试',
+                    buttonState: 'error',
+                    reason: 'invalid_start_time'
+                };
+            }
+
             // 检查是否超时
-            if (report.startTime && (Date.now() - report.startTime) > this.TIMEOUT_MS) {
+            if ((Date.now() - report.startTime) > this.TIMEOUT_MS) {
                 return {
                     shouldShow: true,
                     buttonText: '生成超时，点击重试',

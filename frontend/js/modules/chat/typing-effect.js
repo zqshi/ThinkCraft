@@ -101,6 +101,9 @@ class TypingEffect {
                 // 打字完成后：检测到标记时，验证报告状态后显示按钮
                 if (hasAnalysisMarker) {
                     state.analysisCompleted = true;
+                    if (window.stateManager?.setAnalysisCompleted) {
+                        window.stateManager.setAnalysisCompleted(targetChatId, true);
+                    }
 
                     // 预取分析报告
                     if (typeof prefetchAnalysisReport === 'function') {
@@ -117,58 +120,86 @@ class TypingEffect {
                     }
 
                     // 验证报告状态后再显示按钮
+                    const renderReportButton = (state) => {
+                        const buttonState = state?.buttonState || 'generating';
+                        const buttonText = state?.buttonText || '报告生成中...';
+
+                        actionElement.style.display = 'flex';
+                        actionElement.innerHTML = `
+                            <button class="view-report-btn ${buttonState}"
+                                    onclick="viewReport()"
+                                    data-state="${buttonState}">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                ${buttonText}
+                            </button>
+                        `;
+
+                    };
+
+                    const pollReportStatus = (chatId) => {
+                        if (!chatId || !window.reportStatusManager) {
+                            return;
+                        }
+
+                        const maxRetries = 20;
+                        let retries = 0;
+
+                        const timer = setInterval(() => {
+                            retries += 1;
+                            window.reportStatusManager.shouldShowReportButton(chatId, 'analysis')
+                                .then(buttonState => {
+                                    if (buttonState.shouldShow) {
+                                        clearInterval(timer);
+                                        renderReportButton(buttonState);
+                                    } else if (retries >= maxRetries) {
+                                        clearInterval(timer);
+                                    }
+                                })
+                                .catch(() => {
+                                    if (retries >= maxRetries) {
+                                        clearInterval(timer);
+                                    }
+                                });
+                        }, 1500);
+                    };
+
                     if (window.reportStatusManager) {
                         window.reportStatusManager.shouldShowReportButton(
                             targetChatId,
                             'analysis'
                         ).then(buttonState => {
                             if (buttonState.shouldShow) {
-                                const existingActions = actionElement.querySelector('.view-report-btn');
-                                if (!existingActions) {
-                                    actionElement.style.display = 'flex';
-                                    actionElement.innerHTML = `
-                                        <button class="view-report-btn ${buttonState.buttonState}"
-                                                onclick="viewReport()"
-                                                data-state="${buttonState.buttonState}">
-                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                            </svg>
-                                            ${buttonState.buttonText}
-                                        </button>
-                                    `;
-                                }
+                                renderReportButton(buttonState);
+                                return;
                             }
+
+                            if (buttonState.reason === 'no_chat_id') {
+                                return;
+                            }
+
+                            // 先显示“生成中”按钮，再轮询更新最终状态
+                            renderReportButton({
+                                buttonState: 'generating',
+                                buttonText: '报告生成中...'
+                            });
+                            pollReportStatus(targetChatId);
                         }).catch(error => {
                             console.error('[TypingEffect] 验证报告状态失败:', error);
                             // 回退：显示默认按钮
-                            const existingActions = actionElement.querySelector('.view-report-btn');
-                            if (!existingActions) {
-                                actionElement.style.display = 'flex';
-                                actionElement.innerHTML = `
-                                    <button class="view-report-btn" onclick="viewReport()">
-                                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                        </svg>
-                                        查看完整报告
-                                    </button>
-                                `;
-                            }
+                            renderReportButton({
+                                buttonState: 'completed',
+                                buttonText: '查看完整报告'
+                            });
                         });
                     } else {
                         // 回退：reportStatusManager 未初始化，显示默认按钮
                         console.warn('[TypingEffect] reportStatusManager 未初始化，使用默认按钮');
-                        const existingActions = actionElement.querySelector('.view-report-btn');
-                        if (!existingActions) {
-                            actionElement.style.display = 'flex';
-                            actionElement.innerHTML = `
-                                <button class="view-report-btn" onclick="viewReport()">
-                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                    </svg>
-                                    查看完整报告
-                                </button>
-                            `;
-                        }
+                        renderReportButton({
+                            buttonState: 'completed',
+                            buttonText: '查看完整报告'
+                        });
                     }
                 }
             }

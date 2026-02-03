@@ -43,7 +43,7 @@ class AgentProgressManager {
    * @param {Array} chapterIds - 章节ID数组
    * @returns {Promise} 返回Promise，确保DOM渲染完成
    */
-  async show(chapterIds) {
+  async show(chapterIds, type = null, chatId = null) {
     // 验证参数
     if (!chapterIds || !Array.isArray(chapterIds)) {
       console.error('[AgentProgressManager] 无效的章节ID列表:', chapterIds);
@@ -54,6 +54,10 @@ class AgentProgressManager {
       console.error('[AgentProgressManager] 章节ID列表为空');
       throw new Error('章节ID列表为空');
     }
+
+    // 记录当前上下文，供取消生成使用
+    this.currentType = type;
+    this.currentChatId = chatId;
 
     // 初始化Agent列表
     this.agents = chapterIds.map((chapterId, index) => ({
@@ -240,7 +244,7 @@ class AgentProgressManager {
     console.log('[AgentProgress] 当前agents列表:', this.agents.map(a => ({ id: a.id, status: a.status })));
 
     // 查找Agent
-    const agent = this.agents.find(a => a.id === chapterId);
+    let agent = this.agents.find(a => a.id === chapterId);
     if (!agent) {
       console.warn('[AgentProgress] 找不到章节:', chapterId);
       console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
@@ -255,10 +259,20 @@ class AgentProgressManager {
         return this.updateProgress(fuzzyMatch.id, status, result);
       }
 
-      // 匹配失败 - 显示警告但不中断流程
-      console.warn('[AgentProgress] 章节ID不匹配，跳过进度更新:', chapterId);
-      // 不再显示toast，避免干扰用户
-      return;
+      // 兜底：动态补充缺失的章节，避免进度被卡住
+      agent = {
+        id: chapterId,
+        ...this.agentConfig[chapterId],
+        status: 'pending',
+        statusText: this.getStatusText('pending'),
+        index: this.agents.length
+      };
+      this.agents.push(agent);
+
+      const list = document.getElementById('agentList');
+      if (list) {
+        list.insertAdjacentHTML('beforeend', this.renderAgentItem(agent));
+      }
     }
 
     // 更新状态
@@ -409,17 +423,45 @@ class AgentProgressManager {
    */
   cancel() {
     this.modalManager.confirm('确定要取消生成吗？已生成的内容将丢失。', () => {
+      const chatId = this.currentChatId || window.state?.currentChat || null;
+      const type = this.currentType || window.currentReportType || null;
+
       // 关闭模态框
       this.close();
 
       // 重置状态
-      if (window.stateManager) {
-        window.stateManager.resetGeneration();
+      if (window.stateManager && chatId && type) {
+        window.stateManager.resetGeneration(chatId, type);
+      } else if (window.stateManager && chatId) {
+        ['business', 'proposal'].forEach(reportType => {
+          window.stateManager.resetGeneration(chatId, reportType);
+        });
       }
 
       // 重置生成按钮状态
-      if (typeof window.resetGenerationButtons === 'function') {
+      if (type && window.businessPlanGenerator?.updateButtonUI) {
+        window.businessPlanGenerator.updateButtonUI(type, 'idle');
+      }
+      if (!type && typeof window.resetGenerationButtons === 'function') {
         window.resetGenerationButtons();
+      }
+
+      // 清理持久化状态，避免按钮仍显示"生成中"
+      if (window.storageManager && chatId) {
+        if (type) {
+          window.storageManager.deleteReportByType(chatId, type).catch(() => {});
+        } else {
+          window.storageManager.deleteReportByType(chatId, 'business').catch(() => {});
+          window.storageManager.deleteReportByType(chatId, 'proposal').catch(() => {});
+        }
+      }
+      if (window.reportStatusManager && chatId) {
+        if (type) {
+          window.reportStatusManager.clearCache(chatId, type);
+        } else {
+          window.reportStatusManager.clearCache(chatId, 'business');
+          window.reportStatusManager.clearCache(chatId, 'proposal');
+        }
       }
 
       // 返回到报告页面

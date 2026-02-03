@@ -216,7 +216,7 @@ class BusinessPlanGenerator {
     // 打开进度弹窗 - 使用 show() 方法并传递章节ID数组
     if (this.progressManager) {
       try {
-        await this.progressManager.show(selectedChapters);
+        await this.progressManager.show(selectedChapters, type, report.chatId || window.state?.currentChat || null);
 
         // 🔧 恢复进度显示 - 根据已完成的章节数据
         const completedChapters = report.data?.chapters || [];
@@ -523,7 +523,7 @@ class BusinessPlanGenerator {
           const remainingChapters = chapterIds.slice(resumeIndex);
 
           // 显示进度弹窗
-          await this.progressManager.show(chapterIds);
+          await this.progressManager.show(chapterIds, type, chatId);
 
           // 恢复已完成章节的状态
           for (let i = 0; i < resumeIndex; i++) {
@@ -568,7 +568,7 @@ class BusinessPlanGenerator {
       this.updateButtonUI(type, 'generating');
 
       // 显示进度模态框，并等待DOM完全渲染
-      await this.progressManager.show(chapterIds);
+      await this.progressManager.show(chapterIds, type, chatId);
 
       // 额外等待，确保DOM完全渲染
       await this.sleep(100);
@@ -857,8 +857,8 @@ class BusinessPlanGenerator {
       logger.debug('[保存报告] 开始保存:', { type, chatId: normalizedChatId, hasData: !!data });
 
       // 查找现有报告，使用相同的ID（避免创建重复记录）
-      const reports = await window.storageManager.getAllReports();
-      const existing = reports.find(r => r.type === type && r.chatId === normalizedChatId);
+      const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
+      const existing = reports.find(r => r.type === type);
       const reportId = existing?.id || `${type}-${Date.now()}`;
 
       logger.debug('[保存报告] 报告ID:', reportId, existing ? '(更新现有)' : '(创建新)');
@@ -906,8 +906,9 @@ class BusinessPlanGenerator {
         console.warn('[持久化状态] chatId 为空');
         return;
       }
-      const reports = await window.storageManager.getAllReports();
-      const existing = reports.find(r => r.type === type && normalizeChatId(r.chatId) === normalizeChatId(chatId));
+      const normalizedChatId = normalizeChatId(chatId);
+      const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
+      const existing = reports.find(r => r.type === type);
       logger.debug('[持久化状态] 现有报告:', existing ? `存在(id: ${existing.id})` : '不存在');
 
       // 如果没有现有报告，生成新ID；否则使用现有ID
@@ -933,7 +934,7 @@ class BusinessPlanGenerator {
       const payload = {
         id: reportId,
         type,
-        chatId,
+        chatId: normalizedChatId,
         data: reportData,
         status: updates.status ?? existing?.status,
         progress: updates.progress ?? existing?.progress,
@@ -948,7 +949,7 @@ class BusinessPlanGenerator {
 
       // 清除报告状态缓存，确保UI显示最新状态
       if (window.reportStatusManager && (updates.status === 'completed' || updates.status === 'error')) {
-        window.reportStatusManager.clearCache(chatId, type);
+        window.reportStatusManager.clearCache(normalizedChatId, type);
       }
 
       logger.debug('[持久化状态] 保存成功');
@@ -1063,7 +1064,7 @@ class BusinessPlanGenerator {
     }
 
     // 显示进度弹窗
-    await this.progressManager.show(chapterIds);
+    await this.progressManager.show(chapterIds, type, chatId);
 
     // 更新各章节状态
     chapterIds.forEach((chapterId, idx) => {
@@ -1154,6 +1155,106 @@ class BusinessPlanGenerator {
 
     // 显示章节选择弹窗，让用户重新选择章节
     this.showChapterSelection(reportType);
+  }
+
+  /**
+   * 使用已选章节直接重新生成
+   * @param {String} type - 可选，报告类型 'business' | 'proposal'
+   */
+  async regenerateWithSelectedChapters(type) {
+    logger.debug('[重新生成-已选章节] 开始重新生成流程', { providedType: type });
+
+    const chatId = window.state?.currentChat || null;
+    if (!chatId) {
+      console.error('[重新生成-已选章节] 缺少会话ID');
+      alert('生成失败：无法确定当前会话');
+      return;
+    }
+
+    const reportType = type || window.currentReportType || 'business';
+    if (!['business', 'proposal'].includes(reportType)) {
+      console.error('[重新生成-已选章节] 无效的报告类型:', reportType);
+      alert('生成失败：无效的报告类型');
+      return;
+    }
+
+    const selectedChapters = await this.resolveSelectedChapters(reportType, chatId);
+    if (!Array.isArray(selectedChapters) || selectedChapters.length === 0) {
+      window.modalManager?.alert('未找到已选章节，请重新选择章节', 'warning');
+      this.showChapterSelection(reportType);
+      return;
+    }
+
+    // 重置生成状态，清理之前的数据
+    this.state.resetGeneration(chatId, reportType, false);
+
+    // 清除 IndexedDB 中的旧报告数据
+    if (window.storageManager) {
+      try {
+        await window.storageManager.deleteReportByType(chatId, reportType);
+        logger.debug('[重新生成-已选章节] 已清除IndexedDB中的旧报告数据', { chatId, reportType });
+      } catch (error) {
+        console.error('[重新生成-已选章节] 清除旧报告数据失败:', error);
+      }
+    }
+
+    if (window.currentReportType !== undefined) {
+      window.currentReportType = reportType;
+    }
+
+    await this.generate(reportType, selectedChapters);
+  }
+
+  /**
+   * 获取可用于重新生成的章节列表
+   * @param {String} type - 报告类型
+   * @param {String} chatId - 会话ID
+   * @returns {Promise<Array>}
+   */
+  async resolveSelectedChapters(type, chatId) {
+    let selected = [];
+
+    if (window.storageManager && chatId) {
+      try {
+        const reportEntry = await window.storageManager.getReport(type, chatId);
+        if (Array.isArray(reportEntry?.data?.selectedChapters) && reportEntry.data.selectedChapters.length > 0) {
+          selected = reportEntry.data.selectedChapters;
+        } else if (Array.isArray(reportEntry?.selectedChapters) && reportEntry.selectedChapters.length > 0) {
+          selected = reportEntry.selectedChapters;
+        } else if (Array.isArray(reportEntry?.data?.chapters) && reportEntry.data.chapters.length > 0) {
+          selected = reportEntry.data.chapters.map(ch => ch.chapterId).filter(Boolean);
+        }
+      } catch (error) {
+        console.warn('[重新生成-已选章节] 读取报告数据失败:', error);
+      }
+    }
+
+    if (selected.length === 0 && chatId) {
+      const genState = this.state.getGenerationState(chatId);
+      if (Array.isArray(genState?.[type]?.selectedChapters) && genState[type].selectedChapters.length > 0) {
+        selected = genState[type].selectedChapters;
+      }
+    }
+
+    if (selected.length === 0 && Array.isArray(window.currentGeneratedChapters) && window.currentGeneratedChapters.length > 0) {
+      selected = window.currentGeneratedChapters;
+    }
+
+    if (window.StateValidator?.validateChapterIds && !window.StateValidator.validateChapterIds(type, selected, this.chapterConfig)) {
+      selected = window.StateValidator.fixChapterIds
+        ? window.StateValidator.fixChapterIds(type, selected, this.chapterConfig) || []
+        : [];
+    }
+
+    if (selected.length === 0) {
+      if (window.StateValidator?.getDefaultChapterIds) {
+        selected = window.StateValidator.getDefaultChapterIds(type, this.chapterConfig) || [];
+      } else {
+        selected = this.chapterConfig[type]?.core?.map(ch => ch.id) || [];
+      }
+    }
+
+    return selected;
   }
 
   /**
@@ -1345,10 +1446,13 @@ class BusinessPlanGenerator {
 
       // 调用后端API生成PDF
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+      const authToken = sessionStorage.getItem('thinkcraft_access_token') ||
+        localStorage.getItem('thinkcraft_access_token');
       const response = await fetch(`${window.state.settings.apiUrl}/api/pdf-export/business-plan`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
           chapters: chapters,
@@ -1358,6 +1462,9 @@ class BusinessPlanGenerator {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('未授权，请重新登录');
+        }
         const errorText = await response.text();
         console.error('[PDF导出] 后端错误', errorText);
         throw new Error(`PDF生成失败: ${response.status}`);

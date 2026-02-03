@@ -32,13 +32,14 @@ services:
       - '3000:3000'
     environment:
       - NODE_ENV=production
+      - FRONTEND_URL=${FRONTEND_URL}
       - DB_TYPE=mongodb
       - MONGODB_URI=mongodb://mongodb:27017/thinkcraft
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:-your-access-token-secret}
-      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:-your-refresh-token-secret}
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
       - SMS_PROVIDER=${SMS_PROVIDER}
     depends_on:
       mongodb:

@@ -127,7 +127,11 @@ class UIController {
     closeChapterSelection() {
         const modal = document.getElementById('chapterSelectionModal');
         if (modal) {
-            modal.style.display = 'none';
+            modal.classList.remove('active');
+            modal.style.display = '';
+            if (window.modalManager && window.modalManager.isOpen('chapterSelectionModal')) {
+                window.modalManager.close('chapterSelectionModal');
+            }
         }
     }
 

@@ -53,6 +53,9 @@ class ProjectManager {
   }
 
   async fetchWithAuth(url, options = {}, retry = true) {
+    if (window.apiClient?.ensureFreshToken) {
+      await window.apiClient.ensureFreshToken();
+    }
     const headers = this.buildAuthHeaders(options.headers || {});
     const response = await fetch(url, { ...options, headers });
     if (response.status === 401 && retry && window.apiClient?.refreshAccessToken) {
@@ -205,7 +208,8 @@ class ProjectManager {
             name: s.name,
             description: s.description,
             dependencies: s.dependencies,
-            outputs: s.outputs
+            outputs: s.outputs,
+            outputsDetailed: s.outputsDetailed
           })),
           agents: result.data.stages.reduce((acc, stage) => {
             acc[stage.id] = stage.agents;
@@ -1142,10 +1146,18 @@ class ProjectManager {
       : '';
 
     // 新增：显示预期交付物
+    const outputsDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
     const outputs = stage.outputs || [];
-    const outputsHTML = outputs.length > 0
+    const outputsHTML = (outputsDetailed.length > 0 || outputs.length > 0)
       ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
-           预期交付物：${outputs.map(o => this.escapeHtml(o)).join('、')}
+           预期交付物：${(outputsDetailed.length > 0 ? outputsDetailed : outputs).map(o => {
+             if (typeof o === 'string') return this.escapeHtml(o);
+             const name = this.escapeHtml(o.name || o.id || '未命名交付物');
+             const templates = Array.isArray(o.promptTemplates) && o.promptTemplates.length > 0
+               ? `（模板：${o.promptTemplates.map(p => this.escapeHtml(p)).join('，')}）`
+               : '';
+             return `${name}${templates}`;
+           }).join('、')}
          </div>`
       : '';
 
@@ -1308,6 +1320,8 @@ class ProjectManager {
       'report': { name: '报告', icon: '📈' },
       'plan': { name: '计划', icon: '📝' },
       'strategy-doc': { name: '战略设计文档', icon: '🎯' },
+      'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
+      'acceptance-criteria-quality': { name: '验收标准质量检查清单', icon: '✅' },
       'ui-design': { name: 'UI设计方案', icon: '🎨' },
       'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
       'marketing-plan': { name: '运营推广方案', icon: '📈' },
@@ -1424,8 +1438,8 @@ class ProjectManager {
       </div>
     ` : '';
 
-    // 渲染实际交付物（已完成阶段）
-    const actualArtifactsHTML = stage.status === 'completed' && (stage.artifacts || []).length > 0 ? `
+    // 渲染实际交付物（已生成交付物）
+    const actualArtifactsHTML = (stage.artifacts || []).length > 0 ? `
       <div class="workflow-stage-artifacts">
         <div class="workflow-stage-artifacts-title">
           <span>📦</span>
@@ -2886,17 +2900,23 @@ class ProjectManager {
    */
   async showCreateProjectDialog() {
     try {
-      // 获取当前有效的对话列表（从state.chats，不包括已删除的）
-      const chats = window.state?.chats || [];
-
-      // 如果state.chats为空，尝试从localStorage加载
+      // 优先从 IndexedDB 获取，避免使用过期的 localStorage 缓存
+      let chats = [];
+      if (this.storageManager) {
+        chats = await this.storageManager.getAllChats().catch(() => []);
+      }
+      // 如果 IndexedDB 不可用，再尝试从 state 获取
+      if (chats.length === 0) {
+        chats = window.state?.chats ? [...window.state.chats] : [];
+      }
+      // 最后兜底使用 localStorage（可能存在旧缓存）
       if (chats.length === 0) {
         const saved = localStorage.getItem('thinkcraft_chats');
         if (saved) {
           try {
             const parsedChats = JSON.parse(saved);
             if (Array.isArray(parsedChats)) {
-              chats.push(...parsedChats);
+              chats = parsedChats;
             }
           } catch (e) {
             console.error('Failed to parse chats from localStorage:', e);
@@ -3064,6 +3084,7 @@ class ProjectManager {
         agents: stage.agents || [],
         dependencies: stage.dependencies || [],
         outputs: stage.outputs || [],
+        outputsDetailed: stage.outputsDetailed || [],
         status: 'pending',
         order: index + 1,
         priority: 'high',
@@ -3266,7 +3287,8 @@ class ProjectManager {
       agents: catalog.agents?.[stage.id] || [],
       agentRoles: catalog.agentRoles?.[stage.id] || [],
       dependencies: stage.dependencies || [],
-      outputs: stage.outputs || []
+      outputs: stage.outputs || [],
+      outputsDetailed: stage.outputsDetailed || []
     }));
   }
 
@@ -3283,6 +3305,7 @@ class ProjectManager {
       agentRoles: Array.isArray(stage.agentRoles) ? stage.agentRoles : [],
       dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
       outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+      outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [],
       recommended: true
     }));
   }
@@ -3593,7 +3616,7 @@ class ProjectManager {
 
         // 交付物展示
         let artifactsHTML = '';
-        if (stage.status === 'completed' && artifactCount > 0) {
+        if (artifactCount > 0) {
           const artifactsList = (stage.artifacts || []).slice(0, 3).map(artifact => {
             const fileName = artifact.fileName || artifact.title || '未命名文件';
             const fileType = artifact.type || '文档';
