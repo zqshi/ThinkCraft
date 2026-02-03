@@ -37,13 +37,15 @@ docker-compose up -d
 ```
 
 启动后访问：
+
 - 前端应用：http://localhost
 - 后端API：http://localhost:3000
 - 健康检查：http://localhost/health
 
 详细文档：
-- [Docker快速开始](DOCKER_QUICKSTART.md)
-- [Docker详细指南](DOCKER.md)
+
+- [部署指南](docs/guides/deployment.md)
+- [开发文档索引](docs/README.md)
 
 ### 方式二：本地开发
 
@@ -57,6 +59,19 @@ python3 -m http.server 8000
 
 - 在 OS 页面点击"立即体验"进入登录页
 - 登录为演示模式（存储在浏览器本地）
+
+#### 一键启动前后端（推荐）
+
+```bash
+# 在项目根目录
+./dev.sh
+
+# 停止服务
+./stop.sh
+```
+
+- 日志目录：`logs/`
+- 运行时 PID：`run/`
 
 #### 启动后端（解锁完整功能）
 
@@ -101,6 +116,7 @@ SMS_PROVIDER=aliyun  # 可选: aliyun, tencent
 ThinkCraft已完成大规模模块化重构，将7098行的单体文件拆分为15+个独立模块：
 
 **重构成果**:
+
 - ✅ 代码行数减少 95.8%（7098行 → 296行）
 - ✅ 模块数量增加 1400%（1个 → 15+个）
 - ✅ 可维护性提升 300%
@@ -108,6 +124,7 @@ ThinkCraft已完成大规模模块化重构，将7098行的单体文件拆分为
 - ✅ 功能完整性 100%（无缺失）
 
 **模块结构**:
+
 ```
 frontend/js/
 ├── app-boot.js (296行) - 应用启动入口
@@ -141,14 +158,14 @@ frontend/js/
 ```
 
 **性能优化**:
+
 - 支持按需加载（懒加载）
 - 代码分割和缓存优化
-- 首屏加载时间预计减少60%
 
-详细文档：
-- [模块化重构分析报告](docs/MODULAR_REFACTOR_ANALYSIS.md)
-- [懒加载实施指南](docs/LAZY_LOADING_IMPLEMENTATION_GUIDE.md)
-- [备份文件归档](backups/2026-01-31-modular-refactor/README.md)
+相关文档：
+
+- [ADR-001 Modular Refactor](docs/architecture/ADR-001-modular-refactor.md)
+- [模块化重构备份](backups/2026-01-31-modular-refactor/README.md)
 
 ## 🧩 主要模块
 
@@ -173,15 +190,17 @@ frontend/js/
 - **系统提示词**：`config/system-prompts.js`
 - **报告提示词**：`config/report-prompts.js`
 - **配置说明**：`config/README.md`
-- **架构文档**：`docs/architecture.md`
-- **运行手册**：`docs/OPERATIONS_RUNBOOK.md`
-- **生产检查清单**：`docs/PRODUCTION_CHECKLIST.md`
+- **架构文档**：`docs/architecture/ADR-001-modular-refactor.md`
+- **开发文档索引**：`docs/README.md`
 - **认证OpenAPI**：`docs/openapi-auth.yaml`
 - **执行计划**：`EXECUTION_PLAN.md`
+- **日志目录**：`logs/`
+- **运行时PID**：`run/`
 
 ## 🔌 后端API
 
 ### 认证与账号
+
 - `POST /api/auth/register` - 手机号注册（验证码）
 - `POST /api/auth/login` - 手机号登录（首次登录自动注册）
 - `POST /api/auth/logout` - 用户登出
@@ -193,9 +212,11 @@ frontend/js/
 - `DELETE /api/account` - 注销账号
 
 ### 核心功能
+
 - `GET /health` - 健康检查（简单）
 - `GET /api/health` - 健康检查（详细）
-- `POST /api/chat` - 对话
+- `POST /api/chat/create` - 创建对话
+- `POST /api/chat/send-message` - 发送消息
 - `POST /api/report/generate` - 报告生成
 - `POST /api/business-plan/*` - 商业计划书生成
 - `POST /api/vision/analyze` - 图片分析
@@ -215,19 +236,20 @@ ThinkCraft/
 ├── login.html                    # 登录页
 ├── docker-compose.yml            # Docker编排配置
 ├── docker.sh                     # Docker管理脚本
+├── dev.sh                        # 本地开发一键启动
+├── stop.sh                       # 停止本地开发服务
+├── logs/                         # 本地开发日志
+├── run/                          # 运行时PID文件
 ├── EXECUTION_PLAN.md             # 项目执行计划
-├── DOCKER.md                     # Docker详细指南
-├── DOCKER_QUICKSTART.md          # Docker快速开始
 ├── frontend/
 │   ├── Dockerfile                # 前端Docker镜像
 │   ├── nginx.conf                # Nginx配置
 │   ├── css/                      # 样式文件
 │   ├── js/                       # 旧版JS（逐步迁移中）
-│   └── src/
+│   └── experimental-src/
 │       ├── features/             # DDD功能模块
 │       │   ├── chat/             # 对话模块
 │       │   ├── agents/           # 数字员工模块
-│       │   ├── (auth removed)     # 前端认证模块已合并到 login.html
 │       │   ├── projects/         # 项目管理模块
 │       │   ├── business-plan/    # 商业计划书模块
 │       │   ├── report/           # 报告模块
@@ -263,10 +285,9 @@ ThinkCraft/
 │   ├── report-prompts.js
 │   └── README.md
 ├── docs/                         # 文档
-│   ├── architecture.md           # 架构文档
-│   ├── MVP.md                    # MVP文档
-│   ├── OPERATIONS_RUNBOOK.md     # 运行手册
-│   ├── PRODUCTION_CHECKLIST.md   # 生产检查清单
+│   ├── architecture/             # 架构与ADR
+│   ├── guides/                   # 开发指南
+│   ├── modules/                  # 模块文档
 │   ├── openapi-auth.yaml         # 认证OpenAPI
 │   └── README.md
 ├── scripts/                      # 工具脚本
@@ -281,11 +302,13 @@ ThinkCraft/
 ## 🏗️ 技术架构
 
 ### 架构模式
+
 - **DDD（领域驱动设计）**：清晰的分层架构，领域模型驱动
 - **CQRS**：命令查询职责分离
 - **事件驱动**：领域事件支持
 
 ### 技术栈
+
 - **前端**：原生JavaScript + DDD架构
 - **后端**：Node.js + Express + DDD架构
 - **数据库**：MongoDB（主数据库）+ Redis（缓存）
@@ -295,10 +318,11 @@ ThinkCraft/
 - **代码质量**：ESLint + Prettier + Husky + lint-staged
 
 ### 数据库
+
 - **MongoDB**：用户数据、对话历史、项目数据等
 - **Redis**：会话缓存、验证码缓存、频率限制等
 
-详见：[架构文档](docs/architecture.md)
+详见：[架构文档](docs/architecture/ADR-001-modular-refactor.md)
 
 ## 🧪 开发与测试
 
@@ -333,11 +357,12 @@ npm run test:watch
 npm run test:coverage
 ```
 
-当前测试覆盖率：7.61%（Auth领域层完全覆盖）
+测试覆盖率：以 `npm run test:coverage` 输出为准
 
 ### Git提交
 
 项目配置了Husky + lint-staged，每次提交前会自动：
+
 - 运行ESLint检查和修复
 - 运行Prettier格式化
 - 确保代码质量
@@ -345,29 +370,18 @@ npm run test:coverage
 ## 📚 文档
 
 - [执行计划](EXECUTION_PLAN.md) - 项目执行计划和进度跟踪
-- [架构文档](docs/architecture.md) - 系统架构设计
-- [MVP文档](docs/MVP.md) - MVP功能边界
-- [运行手册](docs/OPERATIONS_RUNBOOK.md) - 部署/回滚/监控/密钥
-- [生产检查清单](docs/PRODUCTION_CHECKLIST.md) - 投产前检查
+- [开发文档索引](docs/README.md) - 开发者文档入口
+- [架构ADR](docs/architecture/ADR-001-modular-refactor.md) - 架构设计记录
+- [部署指南](docs/guides/deployment.md) - 部署说明
+- [快速开始](docs/guides/getting-started.md) - 本地开发
+- [测试指南](docs/guides/testing.md) - 单元测试与集成测试
 - [认证OpenAPI](docs/openapi-auth.yaml) - 登录/注册接口
-- [Docker快速开始](DOCKER_QUICKSTART.md) - Docker部署快速指南
-- [Docker详细指南](DOCKER.md) - Docker部署详细文档
 - [数据库文档](backend/DATABASE.md) - 数据库集成指南
 - [数据迁移文档](backend/scripts/README.md) - 数据迁移工具文档
 
 ## 📊 项目进度
 
-当前进度：**75%**
-
-- ✅ 阶段1：代码质量修复（100%）
-- ✅ 阶段2：测试体系建立（100%）
-- ✅ 阶段3：数据库集成（100%）
-- ✅ 阶段4：前端DDD重构（85%+）
-- ✅ 阶段5：账号体系完善（100%）
-- ✅ 阶段6：Docker容器化（100%）
-- ⏳ 阶段7：CI/CD流程（进行中）
-
-详见：[执行计划](EXECUTION_PLAN.md)
+项目进度以 [执行计划](EXECUTION_PLAN.md) 为准
 
 ## 🔒 安全特性
 
@@ -381,16 +395,18 @@ npm run test:coverage
 
 ## 🚧 已知限制
 
-- 前端部分模块仍在从旧架构迁移到DDD架构（85%完成）
-- 测试覆盖率需要提升（当前7.61%）
+- 前端部分模块仍在从旧架构迁移到DDD架构
+- 测试覆盖率需要提升
 - CI/CD流程尚未完成
 
 ## 🛠️ 故障排查
 
 ### Docker相关问题
-参见：[Docker详细指南 - 故障排查](DOCKER.md#故障排查)
+
+参见：[部署指南](docs/guides/deployment.md)
 
 ### 数据库相关问题
+
 参见：[数据库文档 - 故障排查](backend/DATABASE.md#故障排查)
 
 ### 常见问题
