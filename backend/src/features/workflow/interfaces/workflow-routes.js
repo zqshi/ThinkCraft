@@ -423,8 +423,7 @@ const STAGE_PROMPTS = {
 ## 8. 风险应对
 （潜在风险和应对措施）
 
-请输出完整的Markdown格式文档。`,
-
+请输出完整的Markdown格式文档。`
 };
 
 /**
@@ -609,18 +608,14 @@ function resolveStageDefinition(stageId) {
     const requirement = getStageById('requirement');
     const recommendedAgents = Array.from(
       new Set(
-        [
-          ...(strategy?.recommendedAgents || []),
-          ...(requirement?.recommendedAgents || [])
-        ].filter(Boolean)
+        [...(strategy?.recommendedAgents || []), ...(requirement?.recommendedAgents || [])].filter(
+          Boolean
+        )
       )
     );
     const artifactTypes = Array.from(
       new Set(
-        [
-          ...(strategy?.artifactTypes || []),
-          ...(requirement?.artifactTypes || [])
-        ].filter(Boolean)
+        [...(strategy?.artifactTypes || []), ...(requirement?.artifactTypes || [])].filter(Boolean)
       )
     );
     return {
@@ -708,6 +703,33 @@ function resolveProjectStageIds(project, stageId) {
 }
 
 const STRATEGY_STAGE_ARTIFACTS = new Set(['strategy-doc']);
+
+async function persistGeneratedArtifact(project, normalizedStageId, artifact) {
+  if (!project?.workflow || !artifact) {
+    return;
+  }
+  let targetStageId = normalizedStageId;
+  if (normalizedStageId === 'strategy-requirement') {
+    const hasStrategy = project.workflow.getStage('strategy');
+    const hasRequirement = project.workflow.getStage('requirement');
+    const fallbackStage = project.workflow.stages?.[0]?.id;
+    if (STRATEGY_STAGE_ARTIFACTS.has(artifact.type)) {
+      targetStageId = hasStrategy
+        ? 'strategy'
+        : hasRequirement
+          ? 'requirement'
+          : fallbackStage || normalizedStageId;
+    } else {
+      targetStageId = hasRequirement
+        ? 'requirement'
+        : hasStrategy
+          ? 'strategy'
+          : fallbackStage || normalizedStageId;
+    }
+  }
+  project.workflow.addArtifact(targetStageId, artifact);
+  await projectRepository.save(project);
+}
 
 async function executeStage(projectId, stageId, context = {}) {
   const normalizedStageId = normalizeStageId(stageId);
@@ -848,6 +870,7 @@ async function executeStage(projectId, stageId, context = {}) {
       tokens: usage.total_tokens || 0
     };
     generatedArtifacts.push(artifact);
+    await persistGeneratedArtifact(project, normalizedStageId, artifact);
   } else {
     // 如果有多个交付物类型，为每个类型生成专门的内容
     for (const artifactType of missingTypes) {
@@ -897,39 +920,13 @@ async function executeStage(projectId, stageId, context = {}) {
         tokens: usage.total_tokens || 0
       };
       generatedArtifacts.push(artifact);
+      await persistGeneratedArtifact(project, normalizedStageId, artifact);
 
       // 添加延迟，避免API调用过快
       if (missingTypes.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-  }
-
-  // 保存交付物到数据库
-  if (generatedArtifacts.length > 0 && project.workflow) {
-    generatedArtifacts.forEach(artifact => {
-      let targetStageId = normalizedStageId;
-      if (normalizedStageId === 'strategy-requirement') {
-        const hasStrategy = project.workflow.getStage('strategy');
-        const hasRequirement = project.workflow.getStage('requirement');
-        const fallbackStage = project.workflow.stages?.[0]?.id;
-        if (STRATEGY_STAGE_ARTIFACTS.has(artifact.type)) {
-          targetStageId = hasStrategy
-            ? 'strategy'
-            : hasRequirement
-              ? 'requirement'
-              : fallbackStage || normalizedStageId;
-        } else {
-          targetStageId = hasRequirement
-            ? 'requirement'
-            : hasStrategy
-              ? 'strategy'
-              : fallbackStage || normalizedStageId;
-        }
-      }
-      project.workflow.addArtifact(targetStageId, artifact);
-    });
-    await projectRepository.save(project);
   }
 
   const existingArtifacts = effectiveArtifactTypes

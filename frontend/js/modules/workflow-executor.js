@@ -23,6 +23,33 @@ class WorkflowExecutor {
     this.isExecuting = false;
   }
 
+  mergeArtifacts(existing = [], incoming = []) {
+    const merged = Array.isArray(existing) ? [...existing] : [];
+    const byId = new Map();
+    merged.forEach(item => {
+      if (item?.id) {
+        byId.set(item.id, item);
+      }
+    });
+    (incoming || []).forEach(item => {
+      if (!item) {
+        return;
+      }
+      if (item.id && byId.has(item.id)) {
+        const index = merged.findIndex(entry => entry?.id === item.id);
+        if (index >= 0) {
+          merged[index] = { ...merged[index], ...item };
+        }
+        return;
+      }
+      merged.push(item);
+      if (item.id) {
+        byId.set(item.id, item);
+      }
+    });
+    return merged;
+  }
+
   normalizeStageId(stageId) {
     if (!stageId) return stageId;
     const normalized = String(stageId).trim();
@@ -32,7 +59,7 @@ class WorkflowExecutor {
       'strategy-plan': 'strategy',
       'product-definition': 'requirement',
       'product-requirement': 'requirement',
-      'requirements': 'requirement',
+      requirements: 'requirement',
       'ux-design': 'design',
       'ui-design': 'design',
       'product-design': 'design',
@@ -41,14 +68,14 @@ class WorkflowExecutor {
       'architecture-design': 'architecture',
       'tech-architecture': 'architecture',
       'system-architecture': 'architecture',
-      'implementation': 'development',
-      'dev': 'development',
-      'qa': 'testing',
-      'test': 'testing',
-      'launch': 'deployment',
-      'release': 'deployment',
-      'operation': 'operation',
-      'ops': 'operation'
+      implementation: 'development',
+      dev: 'development',
+      qa: 'testing',
+      test: 'testing',
+      launch: 'deployment',
+      release: 'deployment',
+      operation: 'operation',
+      ops: 'operation'
     };
     return aliases[normalized] || normalized;
   }
@@ -76,12 +103,35 @@ class WorkflowExecutor {
 
       const result = await this.executeStageRequest(projectId, normalizedStageId, context);
       // 更新项目状态
-      await this.updateProjectStageStatus(
-        projectId,
-        stageId,
-        'completed',
-        result.artifacts || []
-      );
+      await this.updateProjectStageStatus(projectId, stageId, 'completed', result.artifacts || []);
+
+      return result;
+    } catch (error) {
+      await this.updateProjectStageStatus(projectId, stageId, 'pending');
+      throw error;
+    } finally {
+      this.isExecuting = false;
+    }
+  }
+
+  async executeStageWithOptions(projectId, stageId, context = {}, options = {}) {
+    if (this.isExecuting) {
+      throw new Error('当前正在执行任务，请稍后再试');
+    }
+
+    try {
+      this.isExecuting = true;
+      const normalizedStageId = this.normalizeStageId(stageId);
+      const canProceed = await this.ensureRolesForStage(projectId, stageId);
+      if (!canProceed) {
+        return { aborted: true };
+      }
+      await this.updateProjectStageStatus(projectId, stageId, 'active');
+
+      const result = await this.executeStageRequest(projectId, normalizedStageId, context);
+      await this.updateProjectStageStatus(projectId, stageId, 'completed', result.artifacts || [], {
+        mergeArtifacts: Boolean(options.mergeArtifacts)
+      });
 
       return result;
     } catch (error) {
@@ -126,7 +176,9 @@ class WorkflowExecutor {
         const normalizedStageId = this.normalizeStageId(stageId);
         this.currentExecution.currentStageIndex = index;
 
-        const canProceed = skipRoleCheck ? true : await this.ensureRolesForStage(projectId, stageId);
+        const canProceed = skipRoleCheck
+          ? true
+          : await this.ensureRolesForStage(projectId, stageId);
         if (!canProceed) {
           break;
         }
@@ -289,20 +341,26 @@ class WorkflowExecutor {
    * @param {String} status - 状态（pending|active|completed）
    * @param {Array<Object>} artifacts - 交付物
    */
-  async updateProjectStageStatus(projectId, stageId, status, artifacts = null) {
+  async updateProjectStageStatus(projectId, stageId, status, artifacts = null, options = {}) {
     try {
       const project = await this.storageManager.getProject(projectId);
       if (!project || !project.workflow || !project.workflow.stages) {
         return;
       }
 
-      const applyStageUpdate = (targetStage) => {
+      const applyStageUpdate = targetStage => {
         if (!targetStage) {
           return;
         }
         targetStage.status = status;
+        if (status === 'active' || status === 'completed') {
+          targetStage.repairNote = null;
+        }
         if (Array.isArray(artifacts)) {
-          targetStage.artifacts = artifacts;
+          targetStage.artifacts = options.mergeArtifacts
+            ? this.mergeArtifacts(targetStage.artifacts || [], artifacts)
+            : artifacts;
+          targetStage.artifactsUpdatedAt = Date.now();
         }
         if ((status === 'active' || status === 'in_progress') && !targetStage.startedAt) {
           targetStage.startedAt = Date.now();
@@ -337,7 +395,10 @@ class WorkflowExecutor {
         this.projectManager
           .updateProject(
             projectId,
-            { workflow: project.workflow, collaborationSuggestion: project.collaborationSuggestion },
+            {
+              workflow: project.workflow,
+              collaborationSuggestion: project.collaborationSuggestion
+            },
             { allowFallback: true }
           )
           .catch(() => {});
@@ -345,7 +406,10 @@ class WorkflowExecutor {
 
       // 更新全局状态
       if (window.updateProject) {
-        window.updateProject(projectId, { workflow: project.workflow, collaborationSuggestion: project.collaborationSuggestion });
+        window.updateProject(projectId, {
+          workflow: project.workflow,
+          collaborationSuggestion: project.collaborationSuggestion
+        });
       }
 
       if (this.projectManager?.currentProjectId === projectId) {
@@ -694,8 +758,8 @@ class WorkflowExecutor {
     return `
             <div style="margin-top: 12px; display: grid; gap: 8px;">
                 ${artifacts
-    .map(
-      artifact => `
+                  .map(
+                    artifact => `
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 10px;">
                         <div style="min-width: 0;">
                             <div style="font-size: 14px; font-weight: 600; color: #111827;">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -703,8 +767,8 @@ class WorkflowExecutor {
                         </div>
                     </div>
                 `
-    )
-    .join('')}
+                  )
+                  .join('')}
             </div>
         `;
   }
@@ -753,7 +817,7 @@ class WorkflowExecutor {
       }
 
       // 显示执行提示
-      if (window.modalManager) {
+      if (!options.silent && window.modalManager) {
         window.modalManager.alert('正在执行阶段任务，请稍候...', 'info');
       }
 
@@ -767,10 +831,15 @@ class WorkflowExecutor {
         ? options.selectedArtifactTypes
         : [];
       // 执行阶段（executeStage内部会自动更新状态为active，然后completed）
-      const result = await this.executeStage(projectId, stageId, {
-        CONVERSATION: conversation,
-        selectedArtifactTypes
-      });
+      const result = await this.executeStageWithOptions(
+        projectId,
+        stageId,
+        {
+          CONVERSATION: conversation,
+          selectedArtifactTypes
+        },
+        { mergeArtifacts: Boolean(options.mergeArtifacts) }
+      );
       if (result?.aborted) {
         if (window.modalManager) {
           window.modalManager.close();
@@ -779,14 +848,18 @@ class WorkflowExecutor {
       }
 
       // 显示成功提示
-      if (window.modalManager) {
+      if (!options.silent) {
+        if (window.modalManager) {
+          window.modalManager.close();
+          window.modalManager.alert(
+            `阶段执行完成！<br><br>生成了 ${result.artifacts.length} 个交付物<br>消耗 ${result.totalTokens} tokens`,
+            'success'
+          );
+        } else {
+          alert('阶段执行完成！');
+        }
+      } else if (window.modalManager) {
         window.modalManager.close();
-        window.modalManager.alert(
-          `阶段执行完成！<br><br>生成了 ${result.artifacts.length} 个交付物<br>消耗 ${result.totalTokens} tokens`,
-          'success'
-        );
-      } else {
-        alert('阶段执行完成！');
       }
 
       // 刷新UI
@@ -802,16 +875,34 @@ class WorkflowExecutor {
         }
       }
     } catch (error) {
-      if (window.modalManager) {
+      if (!options.silent) {
+        if (window.modalManager) {
+          window.modalManager.close();
+          window.modalManager.alert('执行失败: ' + error.message, 'error');
+        } else {
+          alert('执行失败: ' + error.message);
+        }
+      } else if (window.modalManager) {
         window.modalManager.close();
-        window.modalManager.alert('执行失败: ' + error.message, 'error');
-      } else {
-        alert('执行失败: ' + error.message);
       }
 
       // 恢复阶段状态为pending
       await this.updateProjectStageStatus(projectId, stageId, 'pending');
     }
+  }
+
+  async regenerateArtifact(projectId, stageId, artifact) {
+    if (!artifact || !artifact.type) {
+      throw new Error('交付物信息不完整，无法重新生成');
+    }
+    if (artifact.id) {
+      await this.deleteArtifact(projectId, artifact.id).catch(() => {});
+    }
+    return this.startStage(projectId, stageId, {
+      selectedArtifactTypes: [artifact.type],
+      mergeArtifacts: true,
+      silent: true
+    });
   }
 
   /**
