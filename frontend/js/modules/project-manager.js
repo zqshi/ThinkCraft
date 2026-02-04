@@ -398,7 +398,7 @@ class ProjectManager {
         throw new Error(result.message || '加载工作流配置失败');
       }
     } catch (error) {
-      console.error('加载工作流配置失败:', error);
+      logger.error('加载工作流配置失败:', error);
       throw error;
     }
   }
@@ -444,11 +444,11 @@ class ProjectManager {
    */
   async createProject(ideaId, name) {
     try {
-      console.log('[createProject] 输入参数:', { ideaId, name, ideaIdType: typeof ideaId });
+      logger.info('[createProject] 输入参数:', { ideaId, name, ideaIdType: typeof ideaId });
 
       // 统一转换为字符串，避免类型混淆
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
-      console.log('[createProject] 规范化后:', { normalizedIdeaId, type: typeof normalizedIdeaId });
+      logger.info('[createProject] 规范化后:', { normalizedIdeaId, type: typeof normalizedIdeaId });
 
       if (window.requireAuth) {
         const ok = await window.requireAuth({ redirect: true, prompt: true });
@@ -473,7 +473,7 @@ class ProjectManager {
 
       // 确保转换为字符串传给后端
       const ideaIdString = String(normalizedIdeaId);
-      console.log('[createProject] 发送给后端:', { ideaIdString });
+      logger.info('[createProject] 发送给后端:', { ideaIdString });
 
       // 检查该创意是否已创建项目
       const existing = await this.storageManager.getProjectByIdeaId(normalizedIdeaId);
@@ -853,7 +853,7 @@ class ProjectManager {
           logger.debug('[DEBUG] deleteProject - response.ok:', response.ok);
           logger.debug('[DEBUG] deleteProject - response.status:', response.status);
         } catch (error) {
-          console.error('[DEBUG] deleteProject - fetch error:', error);
+          logger.error('[DEBUG] deleteProject - fetch error:', error);
           window.modalManager?.alert(`删除项目失败: ${error.message}`, 'error');
           return;
         }
@@ -900,7 +900,7 @@ class ProjectManager {
       this.renderProjectList('projectListContainer');
       logger.debug('[DEBUG] deleteProject - completed');
     } catch (error) {
-      console.error('[DEBUG] deleteProject - error:', error);
+      logger.error('[DEBUG] deleteProject - error:', error);
       throw error;
     }
   }
@@ -2104,43 +2104,43 @@ class ProjectManager {
       selectedDeliverables
     );
     const statusMap = {
-      generated: { label: '已生成', bg: '#ecfdf5', color: '#047857' },
-      generating: { label: '生成中', bg: '#eff6ff', color: '#2563eb' },
-      pending: { label: '待执行', bg: '#f3f4f6', color: '#6b7280' },
-      unselected: { label: '未选择', bg: '#fef3c7', color: '#b45309' },
-      missing: { label: '未生成', bg: '#fee2e2', color: '#b91c1c' }
+      generated: '已生成',
+      generating: '生成中',
+      pending: '待执行',
+      unselected: '未选择',
+      missing: '未生成'
     };
     const progressPercent =
       progress.selectedCount > 0
         ? Math.min(100, Math.round((progress.generatedCount / progress.selectedCount) * 100))
         : 0;
     return `
-      <div style="margin-top: 12px; padding: 12px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fafafa;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <div style="font-size: 12px; font-weight: 600; color: #111827;">交付物进度</div>
-          <div style="font-size: 12px; color: #6b7280;">
+      <div class="project-deliverable-status">
+        <div class="project-deliverable-status-header">
+          <div class="project-deliverable-status-title">交付物进度</div>
+          <div class="project-deliverable-status-summary">
             已生成 ${progress.generatedCount} / 选择 ${progress.selectedCount}
           </div>
         </div>
-        <div style="height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
-          <div style="height: 100%; width: ${progressPercent}%; background: #10b981; transition: width 0.3s;"></div>
+        <div class="project-deliverable-progress">
+          <div class="project-deliverable-progress-bar" style="width: ${progressPercent}%;"></div>
         </div>
-        <div style="display: grid; gap: 8px;">
+        <div class="project-deliverable-status-list">
           ${progress.items
             .map(item => {
-              const status = statusMap[item.status] || statusMap.pending;
+              const statusLabel = statusMap[item.status] || statusMap.pending;
               const regenBtn =
                 item.status === 'generated' && stage.status === 'completed'
                   ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.regenerateStageDeliverable('${projectId}', '${stage.id}', '${item.artifact?.id || ''}')" style="padding: 4px 8px; font-size: 11px;">重新生成</button>`
                   : '';
               return `
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;">
-                <div style="min-width: 0;">
-                  <div style="font-size: 13px; font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.escapeHtml(item.label)}</div>
-                  <div style="font-size: 11px; color: #9ca3af;">${status.label}</div>
+              <div class="project-deliverable-status-item status-${item.status}">
+                <div class="project-deliverable-status-info">
+                  <div class="project-deliverable-status-name">${this.escapeHtml(item.label)}</div>
+                  <div class="project-deliverable-status-meta">${statusLabel}</div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: ${status.bg}; color: ${status.color};">${status.label}</span>
+                <div class="project-deliverable-status-actions">
+                  <span class="project-deliverable-status-pill">${statusLabel}</span>
                   ${regenBtn}
                 </div>
               </div>
@@ -2171,9 +2171,9 @@ class ProjectManager {
     }
     const picked = new Set(this.stageSupplementSelection[stage.id] || []);
     return `
-      <div style="margin-top: 12px; padding: 12px; border-radius: 10px; border: 1px dashed #e5e7eb; background: #fff7ed;">
-        <div style="font-size: 12px; font-weight: 600; color: #92400e; margin-bottom: 8px;">追加生成未勾选交付物</div>
-        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+      <div class="project-deliverable-supplement">
+        <div class="project-deliverable-supplement-title">追加生成未勾选交付物</div>
+        <div class="project-deliverable-supplement-list">
           ${unselectedItems
             .map((item, index) => {
               const id = item.id || item.key || `deliverable-${index}`;
@@ -2189,7 +2189,7 @@ class ProjectManager {
             })
             .join('')}
         </div>
-        <button class="btn-secondary" onclick="projectManager.generateAdditionalDeliverables('${projectId}', '${stage.id}')" style="border: 1px solid #f59e0b; color: #b45309; background: #fff7ed;">
+        <button class="btn-secondary project-deliverable-supplement-action" onclick="projectManager.generateAdditionalDeliverables('${projectId}', '${stage.id}')">
           追加生成
         </button>
       </div>
@@ -2735,7 +2735,7 @@ class ProjectManager {
    */
   viewAllArtifacts(projectId, stageId) {
     // 可以实现一个模态框显示所有交付物
-    console.log('查看所有交付物:', projectId, stageId);
+    logger.info('查看所有交付物:', projectId, stageId);
   }
 
   switchDeliverableTab(stageId, tab) {
@@ -3022,7 +3022,7 @@ class ProjectManager {
   async renderProjectMembersPanel(project) {
     const container = document.getElementById('projectPanelMembers');
     if (!container) {
-      console.warn('[项目成员面板] 容器不存在');
+      logger.warn('[项目成员面板] 容器不存在');
       return;
     }
 
@@ -3034,7 +3034,7 @@ class ProjectManager {
     }
 
     const assignedIds = project.assignedAgents || [];
-    console.log('[项目成员面板] 分配的成员ID:', assignedIds);
+    logger.info('[项目成员面板] 分配的成员ID:', assignedIds);
 
     if (assignedIds.length === 0) {
       container.classList.add('is-empty');
@@ -3044,14 +3044,14 @@ class ProjectManager {
 
     // 尝试从已雇佣列表获取成员
     const hiredAgents = await this.getUserHiredAgents();
-    console.log('[项目成员面板] 已雇佣的成员:', hiredAgents.length);
+    logger.info('[项目成员面板] 已雇佣的成员:', hiredAgents.length);
 
     let members = hiredAgents.filter(agent => assignedIds.includes(agent.id));
-    console.log('[项目成员面板] 从已雇佣列表匹配的成员:', members.length);
+    logger.info('[项目成员面板] 从已雇佣列表匹配的成员:', members.length);
 
     // 如果没有匹配到已雇佣的成员，则根据成员类型生成虚拟成员卡片
     if (members.length === 0) {
-      console.log('[项目成员面板] 使用成员类型生成虚拟成员卡片');
+      logger.info('[项目成员面板] 使用成员类型生成虚拟成员卡片');
       members = assignedIds.map(agentType => {
         const agentDef = this.getAgentDefinition(agentType);
         return {
@@ -3324,7 +3324,7 @@ class ProjectManager {
     const buildAnalysisHTML = reportData => {
       // 兼容性处理：提取嵌套的report字段
       if (reportData && reportData.report && !reportData.chapters) {
-        console.warn('[项目面板] 检测到旧数据格式，自动提取 report 字段');
+        logger.warn('[项目面板] 检测到旧数据格式，自动提取 report 字段');
         reportData = reportData.report;
       }
 
@@ -3335,7 +3335,7 @@ class ProjectManager {
 
       // 数组格式转换为对象格式
       if (Array.isArray(chapters)) {
-        console.warn('[项目面板] chapters是数组格式，转换为对象格式');
+        logger.warn('[项目面板] chapters是数组格式，转换为对象格式');
         const chaptersObj = {};
         chapters.forEach((ch, idx) => {
           chaptersObj[`chapter${idx + 1}`] = ch;
@@ -4412,7 +4412,7 @@ class ProjectManager {
               chats = parsedChats;
             }
           } catch (e) {
-            console.error('Failed to parse chats from localStorage:', e);
+            logger.error('Failed to parse chats from localStorage:', e);
           }
         }
       }
@@ -4472,7 +4472,7 @@ class ProjectManager {
           }
 
           // 调试日志
-          console.log('[创建项目对话框] 创意:', {
+          logger.info('[创建项目对话框] 创意:', {
             id: chat.id,
             title: chat.title,
             disabled,
@@ -4589,12 +4589,12 @@ class ProjectManager {
       return;
     }
 
-    console.log('[应用协作建议] 开始应用', { projectId, suggestion });
+    logger.info('[应用协作建议] 开始应用', { projectId, suggestion });
 
     const recommendedAgents = suggestion.recommendedAgents || [];
     const suggestedStages = suggestion.stages || []; // AI返回的阶段
-    console.log('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
-    console.log('[应用协作建议] AI建议的阶段:', suggestedStages);
+    logger.info('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
+    logger.info('[应用协作建议] AI建议的阶段:', suggestedStages);
 
     // 使用AI返回的阶段，而不是从固定的workflow中过滤
     let adjustedStages = [];
@@ -4614,10 +4614,10 @@ class ProjectManager {
         priority: 'high',
         recommended: true
       }));
-      console.log('[应用协作建议] 使用AI生成的阶段，数量:', adjustedStages.length);
+      logger.info('[应用协作建议] 使用AI生成的阶段，数量:', adjustedStages.length);
     } else {
       // 降级方案：如果AI没有返回阶段，从现有workflow中过滤
-      console.log('[应用协作建议] AI未返回阶段，使用降级方案');
+      logger.info('[应用协作建议] AI未返回阶段，使用降级方案');
       const stages = project.workflow?.stages || [];
       adjustedStages = stages
         .map(stage => {
@@ -4651,8 +4651,8 @@ class ProjectManager {
       }
     });
 
-    console.log('[应用协作建议] 最终阶段数量:', adjustedStages.length);
-    console.log(
+    logger.info('[应用协作建议] 最终阶段数量:', adjustedStages.length);
+    logger.info(
       '[应用协作建议] 阶段列表:',
       adjustedStages.map(s => ({ id: s.id, name: s.name, agents: s.agents }))
     );
@@ -4666,13 +4666,13 @@ class ProjectManager {
     }
     const result = await response.json();
     const hiredAgents = result.data?.agents || [];
-    console.log(
+    logger.info(
       '[应用协作建议] 已雇佣的Agent (直接从API):',
       hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name }))
     );
 
     const currentAssignedAgents = project.assignedAgents || [];
-    console.log('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
+    logger.info('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
 
     // 为每个推荐的类型ID找到对应的已雇佣Agent实例
     const recommendedAgentInstances = [];
@@ -4682,32 +4682,32 @@ class ProjectManager {
       // 通过agent.type字段匹配（而不是agent.id）
       const hiredAgent = hiredAgents.find(agent => agent.type === agentType);
       if (hiredAgent) {
-        console.log('[应用协作建议] 找到匹配的Agent:', {
+        logger.info('[应用协作建议] 找到匹配的Agent:', {
           type: agentType,
           id: hiredAgent.id,
           name: hiredAgent.name
         });
         recommendedAgentInstances.push(hiredAgent.id);
       } else {
-        console.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
+        logger.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
         missingAgentTypes.push(agentType);
       }
     }
 
-    console.log('[应用协作建议] 推荐的Agent实例ID:', recommendedAgentInstances);
-    console.log('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
+    logger.info('[应用协作建议] 推荐的Agent实例ID:', recommendedAgentInstances);
+    logger.info('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
 
     // 合并现有成员和推荐成员的实例ID
     const mergedAgents = Array.from(
       new Set([...currentAssignedAgents, ...recommendedAgentInstances])
     );
-    console.log('[应用协作建议] 合并后的Agent ID:', mergedAgents);
+    logger.info('[应用协作建议] 合并后的Agent ID:', mergedAgents);
 
     let updatedWorkflow = null;
     try {
       updatedWorkflow = await this.customizeWorkflow(projectId, adjustedStages);
     } catch (error) {
-      console.warn('[应用协作建议] 工作流远端更新失败，使用本地覆盖:', error);
+      logger.warn('[应用协作建议] 工作流远端更新失败，使用本地覆盖:', error);
     }
     project.workflow = updatedWorkflow || { ...project.workflow, stages: adjustedStages };
     await this.hydrateProjectStageOutputs(project);
@@ -4735,7 +4735,7 @@ class ProjectManager {
     }
 
     // 不再显示未雇佣Agent的提示（本期需求：不检测是否需要雇佣其他成员）
-    console.log('[应用协作建议] 应用完成，推荐成员已添加到项目');
+    logger.info('[应用协作建议] 应用完成，推荐成员已添加到项目');
   }
 
   /**
@@ -4870,11 +4870,11 @@ class ProjectManager {
 
       const ideaId = selectedIdeaInput.value;
 
-      console.log('[创建项目] 选中的创意ID:', ideaId, '类型:', typeof ideaId);
+      logger.info('[创建项目] 选中的创意ID:', ideaId, '类型:', typeof ideaId);
 
       // 验证 ideaId 不为空
       if (!ideaId || ideaId.trim() === '') {
-        console.error('[创建项目] 创意ID为空');
+        logger.error('[创建项目] 创意ID为空');
         if (window.modalManager) {
           window.modalManager.alert('创意ID无效，请重新选择', 'warning');
         } else {
@@ -4885,11 +4885,11 @@ class ProjectManager {
 
       // 【增强】获取创意标题，尝试多种方式
       const normalizedIdeaId = this.normalizeIdeaId(ideaId);
-      console.log('[创建项目] 规范化后的ID:', normalizedIdeaId, '类型:', typeof normalizedIdeaId);
+      logger.info('[创建项目] 规范化后的ID:', normalizedIdeaId, '类型:', typeof normalizedIdeaId);
 
       // 再次验证规范化后的ID
       if (!normalizedIdeaId) {
-        console.error('[创建项目] 规范化后的ID为空');
+        logger.error('[创建项目] 规范化后的ID为空');
         if (window.modalManager) {
           window.modalManager.alert('创意ID格式错误，请重新选择', 'warning');
         } else {
@@ -4923,7 +4923,7 @@ class ProjectManager {
           projectName = `创意${shortId} - 项目`;
         }
       } else {
-        console.warn('未找到创意对话，使用默认项目名称', { ideaId, normalizedIdeaId });
+        logger.warn('未找到创意对话，使用默认项目名称', { ideaId, normalizedIdeaId });
       }
 
       // 关闭对话框
@@ -4934,7 +4934,7 @@ class ProjectManager {
       // 直接创建项目（工作流编辑在项目面板中完成）
       await this.createProjectFromIdea(normalizedIdeaId, projectName);
     } catch (error) {
-      console.error('创建项目失败:', error);
+      logger.error('创建项目失败:', error);
       if (window.modalManager) {
         window.modalManager.alert('创建项目失败: ' + error.message, 'error');
       } else {
@@ -5954,8 +5954,8 @@ class ProjectManager {
    * @param {String} projectId - 项目ID
    */
   async startWorkflowExecution(projectId) {
-    console.log('[开始执行] ========== 开始工作流执行 ==========');
-    console.log('[开始执行] 项目ID:', projectId);
+    logger.info('[开始执行] ========== 开始工作流执行 ==========');
+    logger.info('[开始执行] 项目ID:', projectId);
 
     try {
       const project = await this.getProject(projectId);
@@ -5963,7 +5963,7 @@ class ProjectManager {
         throw new Error('项目不存在');
       }
 
-      console.log('[开始执行] 项目信息:', {
+      logger.info('[开始执行] 项目信息:', {
         name: project.name,
         status: project.status,
         stageCount:
@@ -6001,11 +6001,11 @@ class ProjectManager {
       );
 
       if (!confirmed) {
-        console.log('[开始执行] 用户取消执行');
+        logger.info('[开始执行] 用户取消执行');
         return;
       }
 
-      console.log('[开始执行] 用户确认执行，开始调用 executeAllStages');
+      logger.info('[开始执行] 用户确认执行，开始调用 executeAllStages');
 
       if (this.executeAllStages) {
         await this.executeAllStages(projectId, {
@@ -6015,9 +6015,9 @@ class ProjectManager {
         throw new Error('executeAllStages 方法不存在');
       }
 
-      console.log('[开始执行] ========== 工作流执行完成 ==========');
+      logger.info('[开始执行] ========== 工作流执行完成 ==========');
     } catch (error) {
-      console.error('[开始执行] 执行失败:', error);
+      logger.error('[开始执行] 执行失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('执行失败：' + error.message, 'error');
       }
@@ -6046,7 +6046,7 @@ class ProjectManager {
       const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
       const artifact = artifacts.find(a => a.id === artifactId);
       if (!artifact) {
-        console.error('[交付物预览] 未找到交付物:', {
+        logger.error('[交付物预览] 未找到交付物:', {
           artifactId,
           availableArtifacts: artifacts.map(a => ({ id: a.id, name: a.name, type: a.type }))
         });
@@ -6077,7 +6077,7 @@ class ProjectManager {
         this.stageDetailPanel.classList.add('open');
       }, 10);
     } catch (error) {
-      console.error('[交付物预览] 打开失败:', error);
+      logger.error('[交付物预览] 打开失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('打开预览失败：' + error.message, 'error');
       }
@@ -6431,7 +6431,7 @@ class ProjectManager {
         window.ErrorHandler.showToast('已复制到剪贴板', 'success');
       }
     } catch (error) {
-      console.error('[复制内容] 失败:', error);
+      logger.error('[复制内容] 失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('复制失败：' + error.message, 'error');
       }
@@ -6480,7 +6480,7 @@ class ProjectManager {
         window.ErrorHandler.showToast('开始下载', 'success');
       }
     } catch (error) {
-      console.error('[下载交付物] 失败:', error);
+      logger.error('[下载交付物] 失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('下载失败：' + error.message, 'error');
       }

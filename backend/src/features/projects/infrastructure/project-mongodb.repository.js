@@ -115,8 +115,10 @@ export class ProjectMongoRepository {
   async save(project) {
     try {
       const data = this._toPersistence(project);
-      const normalizeWorkflow = (workflow) => {
-        if (!workflow) return workflow;
+      const normalizeWorkflow = workflow => {
+        if (!workflow) {
+          return workflow;
+        }
         if (Array.isArray(workflow.stages)) {
           return workflow;
         }
@@ -130,16 +132,15 @@ export class ProjectMongoRepository {
       };
       data.workflow = normalizeWorkflow(data.workflow);
 
-      console.log('[DEBUG] save - project status:', project.status?.value || project._status?.value);
+      console.log(
+        '[DEBUG] save - project status:',
+        project.status?.value || project._status?.value
+      );
       console.log('[DEBUG] save - data.status:', data.status);
       console.log('[DEBUG] save - data._id:', data._id);
 
       // 使用 updateOne 而不是 findByIdAndUpdate，因为我们使用自定义字符串 ID
-      await ProjectModel.updateOne(
-        { _id: data._id },
-        data,
-        { upsert: true }
-      );
+      await ProjectModel.updateOne({ _id: data._id }, data, { upsert: true });
 
       // 发布领域事件
       const events = project.getDomainEvents();
@@ -310,10 +311,7 @@ export class ProjectMongoRepository {
       query.userId = userId;
     }
 
-    const docs = await ProjectModel.find(query)
-      .sort({ updatedAt: -1 })
-      .limit(limit)
-      .lean();
+    const docs = await ProjectModel.find(query).sort({ updatedAt: -1 }).limit(limit).lean();
 
     return docs.map(doc => this._toDomain(doc));
   }
@@ -330,10 +328,9 @@ export class ProjectMongoRepository {
 
     let workflow = null;
     if (doc.workflow) {
-      const stages =
-        Array.isArray(doc.workflow.stages)
-          ? doc.workflow.stages
-          : Object.values(doc.workflow.stages || {});
+      const stages = Array.isArray(doc.workflow.stages)
+        ? doc.workflow.stages
+        : Object.values(doc.workflow.stages || {});
       workflow = Workflow.fromJSON({
         ...doc.workflow,
         stages
@@ -367,43 +364,44 @@ export class ProjectMongoRepository {
    */
   _toPersistence(project) {
     const json = project.toJSON();
-    const normalizeStages = (stages) => {
-      if (!stages) return [];
+    const normalizeStages = stages => {
+      if (!stages) {
+        return [];
+      }
       const list = Array.isArray(stages) ? stages : Object.values(stages);
-      return list
-        .filter(Boolean)
-        .map((stage, index) => ({
-          id: stage.id || stage.stageId || `stage-${index + 1}`,
-          name: stage.name || `阶段${index + 1}`,
-          orderNumber: Number.isFinite(stage.orderNumber)
-            ? stage.orderNumber
-            : Number.isFinite(stage.order)
-              ? stage.order
-              : index + 1,
-          description: stage.description || '',
-          status: stage.status || 'pending',
-          agents: Array.isArray(stage.agents) ? stage.agents : [],
-          agentRoles: Array.isArray(stage.agentRoles) ? stage.agentRoles : [],
-          dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
-          priority: stage.priority,
-          outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
-          outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [],
-          artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
-          startedAt: stage.startedAt || null,
-          completedAt: stage.completedAt || null
-        }));
+      return list.filter(Boolean).map((stage, index) => ({
+        id: stage.id || stage.stageId || `stage-${index + 1}`,
+        name: stage.name || `阶段${index + 1}`,
+        orderNumber: Number.isFinite(stage.orderNumber)
+          ? stage.orderNumber
+          : Number.isFinite(stage.order)
+            ? stage.order
+            : index + 1,
+        description: stage.description || '',
+        status: stage.status || 'pending',
+        agents: Array.isArray(stage.agents) ? stage.agents : [],
+        agentRoles: Array.isArray(stage.agentRoles) ? stage.agentRoles : [],
+        dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
+        priority: stage.priority,
+        outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+        outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [],
+        artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
+        startedAt: stage.startedAt || null,
+        completedAt: stage.completedAt || null
+      }));
     };
 
-    const workflow =
-      json.workflow
-        ? {
-            stages: normalizeStages(json.workflow.stages),
-            currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
-            isCustomized: Boolean(
-              json.workflow.isCustomized !== undefined ? json.workflow.isCustomized : json.workflow.isCustom
-            )
-          }
-        : null;
+    const workflow = json.workflow
+      ? {
+          stages: normalizeStages(json.workflow.stages),
+          currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
+          isCustomized: Boolean(
+            json.workflow.isCustomized !== undefined
+              ? json.workflow.isCustomized
+              : json.workflow.isCustom
+          )
+        }
+      : null;
 
     return {
       _id: json.id,

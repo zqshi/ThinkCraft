@@ -6413,6 +6413,142 @@ body {
   font-weight: 600;
 }
 
+.project-deliverable-status {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.project-deliverable-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.project-deliverable-status-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.project-deliverable-status-summary {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.project-deliverable-progress {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.project-deliverable-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #22c55e);
+  transition: width 0.3s ease;
+}
+
+.project-deliverable-status-list {
+  display: grid;
+  gap: 8px;
+}
+
+.project-deliverable-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.project-deliverable-status-info {
+  min-width: 0;
+}
+
+.project-deliverable-status-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-deliverable-status-meta {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.project-deliverable-status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-deliverable-status-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.project-deliverable-status-item.status-generated .project-deliverable-status-pill {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.project-deliverable-status-item.status-generating .project-deliverable-status-pill {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.project-deliverable-status-item.status-unselected .project-deliverable-status-pill {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.project-deliverable-status-item.status-missing .project-deliverable-status-pill {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.project-deliverable-supplement {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed #f59e0b;
+  background: #fff7ed;
+}
+
+.project-deliverable-supplement-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.project-deliverable-supplement-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.project-deliverable-supplement-action {
+  border: 1px solid #f59e0b;
+  color: #b45309;
+  background: #fff7ed;
+}
+
 .project-stage-deliverables {
   display: grid;
   gap: 8px;
