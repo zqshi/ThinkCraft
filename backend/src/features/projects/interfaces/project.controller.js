@@ -239,10 +239,19 @@ export class ProjectController {
     } catch (error) {
       console.error('[ProjectController] 根据创意ID获取项目失败:', error);
 
-      // 返回错误响应
-      res.status(404).json({
+      // 创意未创建项目时，返回空结果避免前端出现404噪音
+      if (error?.message?.includes('尚未创建项目')) {
+        return res.json({
+          code: 0,
+          message: '项目不存在',
+          data: { project: null }
+        });
+      }
+
+      // 其他错误仍按错误响应处理
+      res.status(500).json({
         code: -1,
-        error: error.message || '项目不存在'
+        error: error.message || '项目查询失败'
       });
     }
   }

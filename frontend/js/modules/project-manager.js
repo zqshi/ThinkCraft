@@ -127,6 +127,142 @@ class ProjectManager {
     return String(value).trim();
   }
 
+  normalizeStageIdForWorkflow(stageId) {
+    if (!stageId) return stageId;
+    if (window.workflowExecutor?.normalizeStageId) {
+      return window.workflowExecutor.normalizeStageId(stageId);
+    }
+    const normalized = String(stageId).trim();
+    const aliases = {
+      'strategy-validation': 'strategy',
+      'strategy-review': 'strategy',
+      'strategy-plan': 'strategy',
+      'product-definition': 'requirement',
+      'product-requirement': 'requirement',
+      requirements: 'requirement',
+      'ux-design': 'design',
+      'ui-design': 'design',
+      'product-design': 'design',
+      'experience-design': 'design',
+      'user-experience-design': 'design',
+      'prototype-design': 'design',
+      'architecture-design': 'architecture',
+      'tech-architecture': 'architecture',
+      'system-architecture': 'architecture',
+      implementation: 'development',
+      dev: 'development',
+      qa: 'testing',
+      test: 'testing',
+      launch: 'deployment',
+      release: 'deployment',
+      operation: 'operation',
+      ops: 'operation'
+    };
+    return aliases[normalized] || normalized;
+  }
+
+  resolveCatalogStageIdByAgents(agentIds = []) {
+    const agents = Array.isArray(agentIds) ? agentIds : [];
+    if (agents.includes('ui-ux-designer')) return 'design';
+    if (agents.includes('tech-lead')) return 'architecture';
+    if (agents.includes('frontend-developer') || agents.includes('backend-developer'))
+      return 'development';
+    if (agents.includes('qa-engineer')) return 'testing';
+    if (agents.includes('devops')) return 'deployment';
+    if (agents.includes('marketing') || agents.includes('operations')) return 'operation';
+    if (agents.includes('strategy-design')) return 'strategy';
+    if (agents.includes('product-manager')) return 'requirement';
+    return null;
+  }
+
+  async hydrateProjectStageOutputs(project) {
+    if (!project?.workflow?.stages?.length) {
+      return project;
+    }
+    const category = project.workflowCategory || 'product-development';
+    let catalog = null;
+    try {
+      catalog = await this.getWorkflowCatalog(category);
+    } catch (error) {
+      return project;
+    }
+    if (!catalog?.stages?.length) {
+      return project;
+    }
+
+    const catalogMap = new Map(catalog.stages.map(stage => [stage.id, stage]));
+    let mutated = false;
+    const patchedStages = project.workflow.stages.map(stage => {
+      const normalizedId = this.normalizeStageIdForWorkflow(stage.id);
+      let catalogStage = catalogMap.get(stage.id) || catalogMap.get(normalizedId);
+      if (!catalogStage) {
+        const inferredId = this.resolveCatalogStageIdByAgents(stage.agents);
+        if (inferredId) {
+          catalogStage = catalogMap.get(inferredId);
+        }
+      }
+      if (!catalogStage) {
+        return stage;
+      }
+
+      const currentOutputs = Array.isArray(stage.outputs) ? stage.outputs : [];
+      const catalogOutputs = Array.isArray(catalogStage.outputs) ? catalogStage.outputs : [];
+      const outputs =
+        catalogOutputs.length > 0
+          ? Array.from(new Set([...currentOutputs, ...catalogOutputs].filter(Boolean)))
+          : currentOutputs;
+      const currentDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
+      const catalogDetailed = Array.isArray(catalogStage.outputsDetailed)
+        ? catalogStage.outputsDetailed
+        : [];
+      const mergedMap = new Map();
+      currentDetailed.forEach(item => {
+        const key = item?.id || item?.type || item?.name;
+        if (key) {
+          mergedMap.set(key, item);
+        }
+      });
+      catalogDetailed.forEach(item => {
+        const key = item?.id || item?.type || item?.name;
+        if (!key) return;
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, item);
+          return;
+        }
+        const existing = mergedMap.get(key);
+        const existingTemplates = Array.isArray(existing?.promptTemplates)
+          ? existing.promptTemplates
+          : [];
+        const catalogTemplates = Array.isArray(item?.promptTemplates) ? item.promptTemplates : [];
+        if (existingTemplates.length === 0 && catalogTemplates.length > 0) {
+          mergedMap.set(key, { ...existing, ...item });
+        }
+      });
+      const outputsDetailed = Array.from(mergedMap.values());
+
+      const outputsChanged =
+        currentOutputs.length !== outputs.length ||
+        currentOutputs.some((item, index) => item !== outputs[index]);
+      const outputsDetailedChanged =
+        currentDetailed.length !== outputsDetailed.length ||
+        currentDetailed.some((item, index) => item !== outputsDetailed[index]);
+
+      if (outputsChanged || outputsDetailedChanged) {
+        mutated = true;
+        return { ...stage, outputs, outputsDetailed };
+      }
+      return stage;
+    });
+
+    if (mutated) {
+      project.workflow.stages = patchedStages;
+      await this.storageManager.saveProject(project);
+      await this.updateProject(project.id, { workflow: project.workflow }, { localOnly: true });
+    }
+
+    return project;
+  }
+
   /**
    * 初始化：加载所有项目
    */
@@ -825,22 +961,31 @@ class ProjectManager {
     const statusClass = `status-${project.status || 'planning'}`;
     const memberCount = (project.assignedAgents || []).length;
     const ideaCount = project.ideaId ? 1 : 0;
-    const stageCount = project.workflow?.stages?.length || 0;
-    const completedStages = (project.workflow?.stages || []).filter(
-      stage => stage.status === 'completed'
-    ).length;
+    const stages = project.workflow?.stages || [];
+    const stageCount = stages.length;
+    const completedStages = stages.filter(stage => stage.status === 'completed').length;
     const pendingStages = Math.max(stageCount - completedStages, 0);
+    const hasStageActivity = stages.some(stage => stage.status && stage.status !== 'pending');
+    const hasStageArtifacts = stages.some(
+      stage => Array.isArray(stage.artifacts) && stage.artifacts.length > 0
+    );
+    const showStageProgress =
+      Boolean(project.collaborationExecuted) || hasStageActivity || hasStageArtifacts;
     const progress = this.calculateWorkflowProgress(project.workflow);
-    const metaItems = [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`];
+    const metaItems = showStageProgress
+      ? [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`]
+      : [`更新 ${timeAgo}`, '阶段 未生成'];
 
-    const contentHTML = `
+    const contentHTML = showStageProgress
+      ? `
                 <div class="project-card-progress-row">
                     <div class="project-card-progress-label">进度 ${progress}%</div>
                     <div class="project-card-progress">
                         <span style="width: ${progress}%;"></span>
                     </div>
                 </div>
-            `;
+            `
+      : '';
 
     return `
             <div class="project-card${isActive ? ' active' : ''}" data-project-id="${project.id}" onclick="projectManager.openProject('${project.id}')">
@@ -873,7 +1018,7 @@ class ProjectManager {
                     </div>
                     <div class="project-card-kpi">
                         <span>进度</span>
-                        <strong>${progress}%</strong>
+                        <strong>${showStageProgress ? `${progress}%` : '-'}</strong>
                     </div>
                 </div>
                 ${contentHTML}
@@ -1297,10 +1442,27 @@ class ProjectManager {
               const encodedId = encodeURIComponent(id);
               const label = this.escapeHtml(item.label || item.id || id);
               const checked = selectedSet.has(id) ? 'checked' : '';
+              const templates = Array.isArray(item.promptTemplates) ? item.promptTemplates : [];
+              const missingTemplates = Array.isArray(item.missingPromptTemplates)
+                ? item.missingPromptTemplates
+                : [];
+              const templateLabel =
+                templates.length > 0
+                  ? `模板：${templates.map(t => this.escapeHtml(t)).join('，')}`
+                  : '';
+              const missingLabel =
+                missingTemplates.length > 0
+                  ? `缺失模板：${missingTemplates.map(t => this.escapeHtml(t)).join('，')}`
+                  : '';
+              const meta =
+                templateLabel || missingLabel
+                  ? `<div class="project-deliverable-checklist-meta">${templateLabel}${templateLabel && missingLabel ? '｜' : ''}${missingLabel}</div>`
+                  : '';
               return `
               <label class="project-deliverable-checklist-item">
                 <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
+                ${meta}
               </label>
             `;
             })
@@ -1511,7 +1673,9 @@ class ProjectManager {
         return {
           id: item,
           key: this.normalizeDeliverableKey(item),
-          label: def?.name || item
+          label: def?.name || item,
+          promptTemplates: [],
+          missingPromptTemplates: []
         };
       }
       const id = item?.id || item?.type || item?.name || '';
@@ -1519,7 +1683,11 @@ class ProjectManager {
       return {
         id,
         key: this.normalizeDeliverableKey(id),
-        label
+        label,
+        promptTemplates: Array.isArray(item?.promptTemplates) ? item.promptTemplates : [],
+        missingPromptTemplates: Array.isArray(item?.missingPromptTemplates)
+          ? item.missingPromptTemplates
+          : []
       };
     });
   }
@@ -3658,11 +3826,16 @@ class ProjectManager {
     );
     console.log('[应用协作建议] 合并后的Agent ID:', mergedAgents);
 
+    project.workflow = {
+      ...project.workflow,
+      stages: adjustedStages
+    };
+    await this.hydrateProjectStageOutputs(project);
+
     // 如果有未雇佣的推荐Agent，记录到项目中以便后续提示
     const updateData = {
       workflow: {
-        ...project.workflow,
-        stages: adjustedStages
+        ...project.workflow
       },
       collaborationSuggestion: suggestion,
       assignedAgents: mergedAgents
@@ -3950,6 +4123,7 @@ class ProjectManager {
         await this.applyWorkflowCategory(project.id, workflowCategory);
       }
       await this.saveIdeaKnowledge(project.id, ideaId);
+      await this.hydrateProjectStageOutputs(project);
 
       // 刷新项目列表
       await this.loadProjects();
@@ -3980,6 +4154,8 @@ class ProjectManager {
       if (!project) {
         throw new Error('项目不存在');
       }
+
+      await this.hydrateProjectStageOutputs(project);
 
       this.currentProjectId = projectId;
       this.currentProject = project;

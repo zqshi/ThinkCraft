@@ -10,7 +10,8 @@ import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import {
   AGENT_PROMPT_MAP,
   ARTIFACT_TYPES,
-  getAgentPromptProfiles
+  getAgentPromptProfiles,
+  DEFAULT_WORKFLOW_STAGES
 } from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
@@ -22,11 +23,6 @@ const WORKFLOW_CATEGORY_DIRS = {
   'product-development': 'product-development'
 };
 
-/**
- * 根据推荐的Agent生成默认阶段
- * @param {Array<string>} recommendedAgents - 推荐的Agent类型ID列表
- * @returns {Array<Object>} 阶段列表
- */
 function normalizeOutputToTypeId(output) {
   const text = String(output || '').trim();
   if (!text) {
@@ -39,33 +35,140 @@ function normalizeOutputToTypeId(output) {
   return entry ? entry[0] : null;
 }
 
-function buildStageFromAgent(agentType) {
-  const map = AGENT_PROMPT_MAP[agentType];
-  if (!map) {
-    return null;
-  }
-  const stageHint = map.stageHint || {};
-  const outputs = (map.deliverables || []).map(type => ARTIFACT_TYPES[type]?.name || type);
-  return {
-    id: stageHint.id || agentType,
-    name: stageHint.name || `${map.name || agentType}阶段`,
-    description: stageHint.description || '',
-    agents: [agentType],
-    dependencies: [],
-    outputs,
-    status: 'pending'
-  };
+function buildRoleTemplateMapping() {
+  return Object.entries(AGENT_PROMPT_MAP).map(([agentId, profile]) => {
+    const deliverables = (profile.deliverables || []).map(type => {
+      const def = ARTIFACT_TYPES[type];
+      return {
+        type,
+        name: def?.name || type,
+        templates: Array.isArray(def?.promptTemplates) ? def.promptTemplates : []
+      };
+    });
+    return {
+      agentId,
+      name: profile.name || agentId,
+      deliverables
+    };
+  });
 }
 
-function generateDefaultStages(recommendedAgents) {
-  const stages = recommendedAgents.map(agentType => buildStageFromAgent(agentType)).filter(Boolean);
-  stages.forEach((stage, index) => {
-    if (index > 0) {
-      stage.dependencies = [stages[index - 1].id];
-    }
-    stage.order = index + 1;
+function buildOutputsDetailed(outputs = []) {
+  return outputs.map(outputId => {
+    const def = ARTIFACT_TYPES[outputId];
+    return def
+      ? { id: outputId, name: def.name, promptTemplates: def.promptTemplates || [] }
+      : { id: outputId, name: outputId, promptTemplates: [] };
   });
-  console.log('[默认阶段生成] 生成了', stages.length, '个阶段');
+}
+
+function buildFullWorkflowStages(recommendedAgents = [], stageHints = []) {
+  const recommendedSet = new Set(recommendedAgents || []);
+  recommendedSet.add('strategy-design');
+
+  const stageHintMap = new Map();
+  (stageHints || []).forEach(stage => {
+    if (stage?.id) {
+      stageHintMap.set(stage.id, stage);
+    }
+  });
+
+  const stageDefaults = DEFAULT_WORKFLOW_STAGES.reduce((acc, stage) => {
+    acc[stage.id] = stage;
+    return acc;
+  }, {});
+
+  const mergedStageOutputs = Array.from(
+    new Set(
+      [
+        ...(stageDefaults.strategy?.artifactTypes || []),
+        ...(stageDefaults['hypothesis-validation']?.artifactTypes || []),
+        ...(stageDefaults.requirement?.artifactTypes || [])
+      ].filter(Boolean)
+    )
+  );
+
+  const stageTemplates = [
+    {
+      id: 'strategy-requirement',
+      name: '战略与需求',
+      description: '战略建模与需求分析',
+      defaultAgents: Array.from(
+        new Set(
+          [
+            ...(stageDefaults.strategy?.recommendedAgents || []),
+            ...(stageDefaults['hypothesis-validation']?.recommendedAgents || []),
+            ...(stageDefaults.requirement?.recommendedAgents || [])
+          ].filter(Boolean)
+        )
+      ),
+      outputs: mergedStageOutputs
+    },
+    {
+      id: 'design',
+      name: stageDefaults.design?.name || '产品设计',
+      description: stageDefaults.design?.description || '',
+      defaultAgents: stageDefaults.design?.recommendedAgents || [],
+      outputs: stageDefaults.design?.artifactTypes || []
+    },
+    {
+      id: 'architecture',
+      name: stageDefaults.architecture?.name || '架构设计',
+      description: stageDefaults.architecture?.description || '',
+      defaultAgents: stageDefaults.architecture?.recommendedAgents || [],
+      outputs: stageDefaults.architecture?.artifactTypes || []
+    },
+    {
+      id: 'development',
+      name: stageDefaults.development?.name || '开发实现',
+      description: stageDefaults.development?.description || '',
+      defaultAgents: stageDefaults.development?.recommendedAgents || [],
+      outputs: stageDefaults.development?.artifactTypes || []
+    },
+    {
+      id: 'testing',
+      name: stageDefaults.testing?.name || '测试验证',
+      description: stageDefaults.testing?.description || '',
+      defaultAgents: stageDefaults.testing?.recommendedAgents || [],
+      outputs: stageDefaults.testing?.artifactTypes || []
+    },
+    {
+      id: 'deployment',
+      name: stageDefaults.deployment?.name || '部署上线',
+      description: stageDefaults.deployment?.description || '',
+      defaultAgents: stageDefaults.deployment?.recommendedAgents || [],
+      outputs: stageDefaults.deployment?.artifactTypes || []
+    }
+  ];
+
+  const stages = stageTemplates.map((template, index) => {
+    const hint =
+      stageHintMap.get(template.id) ||
+      (template.id === 'strategy-requirement'
+        ? stageHintMap.get('strategy') || stageHintMap.get('requirement')
+        : null);
+
+    const agents = (hint?.agents || template.defaultAgents || []).filter(agentId =>
+      recommendedSet.has(agentId)
+    );
+    const fallbackAgents =
+      agents.length > 0
+        ? agents
+        : (template.defaultAgents || []).filter(agentId => recommendedSet.has(agentId));
+
+    return {
+      id: template.id,
+      name: hint?.name || template.name,
+      description: hint?.description || template.description,
+      agents: fallbackAgents.length > 0 ? fallbackAgents : template.defaultAgents || [],
+      dependencies: index === 0 ? [] : [stageTemplates[index - 1].id],
+      outputs: template.outputs,
+      outputsDetailed: buildOutputsDetailed(template.outputs),
+      status: 'pending',
+      order: index + 1
+    };
+  });
+
   return stages;
 }
 
@@ -117,7 +220,9 @@ async function evaluateStageOutputsWithAI({
       allowedDeliverables: buildAllowedForStage(s)
     }));
 
-    const prompt = `你是项目交付物规划专家。请基于创意、阶段信息与可用交付物列表，为每个阶段选择最必要的交付物类型。
+    const roleTemplateMapping = buildRoleTemplateMapping();
+
+    const prompt = `你是项目交付物规划专家。请基于创意、阶段信息、角色-模板映射与可用交付物列表，为每个阶段选择最必要的交付物类型。
 
 【创意】
 ${idea || '未提供'}
@@ -127,6 +232,9 @@ ${workflowCategory || 'product-development'}
 
 【对话摘要】
 ${conversation || '未提供'}
+
+【角色与交付物模板映射（仅能从映射中选择）】
+${JSON.stringify(roleTemplateMapping, null, 2)}
 
 【阶段列表（包含该阶段可选交付物范围，必须在范围内选择）】
 ${JSON.stringify(stageBrief, null, 2)}
@@ -1065,6 +1173,7 @@ router.post('/collaboration-plan', async (req, res, next) => {
     const agentDesc = agentList.map(a => `${a.name || a.type}`).join('、') || '暂无';
     const agentPromptProfiles = getAgentPromptProfiles(agentList.map(a => a.type));
     const agentPromptSummary = JSON.stringify(agentPromptProfiles, null, 2);
+    const roleTemplateMapping = JSON.stringify(buildRoleTemplateMapping(), null, 2);
     const conversationText = conversation ? `\n创意对话内容：\n${conversation}\n` : '';
     const workflowNote = workflowCategory ? `当前流程类型：${workflowCategory}\n` : '';
     const prompt = `你是一位项目协作专家，请基于创意输出协作模式、雇佣方案和流程阶段。
@@ -1074,8 +1183,10 @@ router.post('/collaboration-plan', async (req, res, next) => {
 创意：${idea || '未提供'}
 ${workflowNote}${conversationText}
 当前团队成员：${agentDesc}
-成员提示词与交付物模板映射（persona + deliverables）：
+已雇佣成员提示词与交付物模板映射（persona + deliverables）：
 ${agentPromptSummary}
+全量角色-交付物模板映射（用于推荐岗位与交付物）：
+${roleTemplateMapping}
 ${instruction ? `补充要求：${instruction}` : ''}
 
 请根据创意的具体内容和特点，输出以下内容：
@@ -1092,7 +1203,7 @@ ${instruction ? `补充要求：${instruction}` : ''}
    - operations: 运营专员
    - strategy-design: 战略设计师
    - tech-lead: 技术负责人
-3. 流程阶段列表（根据推荐的Agent动态生成，每个阶段包含对应的Agent；outputs 必须来自“成员提示词与交付物模板映射”中的 deliverables.type）
+3. 流程阶段列表（必须覆盖全流程：strategy-requirement、design、architecture、development、testing、deployment；暂不包含operation；每个阶段包含对应的Agent；outputs 可以留空或仅给建议）
 4. 详细的协作执行计划（Markdown格式）
 
 【关键】
@@ -1107,7 +1218,7 @@ ${instruction ? `补充要求：${instruction}` : ''}
   "recommendedAgents": ["推荐岗位列表，使用agent类型id"],
   "stages": [
     {
-      "id": "阶段唯一标识（如strategy、requirement、design等）",
+      "id": "阶段唯一标识（仅限 strategy-requirement、design、architecture、development、testing、deployment）",
       "name": "阶段名称",
       "description": "阶段描述",
       "agents": ["该阶段负责的agent类型id列表"],
@@ -1122,7 +1233,7 @@ ${instruction ? `补充要求：${instruction}` : ''}
 1. 推荐岗位必须来自统一流程的岗位集合：strategy-design、product-manager、ui-ux-designer、tech-lead、frontend-developer、backend-developer、qa-engineer、devops、marketing、operations
 2. stages数组中的每个阶段必须包含至少一个推荐的Agent
 3. 阶段数量应该与推荐的Agent数量相匹配（可以多个Agent在同一阶段）
-4. 阶段id使用英文小写加连字符，如strategy、requirement、design、development等
+4. 阶段id使用英文小写加连字符，仅限 strategy-requirement、design、architecture、development、testing、deployment
 5. dependencies数组中的阶段id必须是已定义的阶段
 6. plan字段必须使用Markdown格式，结构清晰，易于阅读`;
 
@@ -1172,33 +1283,12 @@ ${instruction ? `补充要求：${instruction}` : ''}
       console.log('[协作建议] 使用默认推荐成员:', recommendedAgents);
     }
 
-    // 处理stages字段
-    let stages = [];
-    if (Array.isArray(parsed?.stages) && parsed.stages.length > 0) {
-      // 验证和清理stages数据
-      stages = parsed.stages
-        .map((stage, index) => ({
-          id: stage.id || `stage-${index + 1}`,
-          name: stage.name || `阶段${index + 1}`,
-          description: stage.description || '',
-          agents: Array.isArray(stage.agents)
-            ? stage.agents.filter(a => recommendedAgents.includes(a))
-            : [],
-          dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
-          outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
-          status: 'pending',
-          order: index + 1
-        }))
-        .filter(stage => stage.agents.length > 0); // 只保留有Agent的阶段
+    // 处理stages字段：强制覆盖全流程（无operation）
+    const stageHints = Array.isArray(parsed?.stages) ? parsed.stages : [];
+    const stages = buildFullWorkflowStages(recommendedAgents, stageHints);
+    console.log('[协作建议] 使用全流程阶段，数量:', stages.length);
 
-      console.log('[协作建议] AI生成的阶段数量:', stages.length);
-    } else {
-      console.log('[协作建议] AI未返回stages，使用默认阶段生成逻辑');
-      // 如果AI没有返回stages，根据推荐的Agent生成默认阶段
-      stages = generateDefaultStages(recommendedAgents);
-    }
-
-    // outputs 动态补全与标准化：优先使用大模型评估结果
+    // 交付物建议（不覆盖全量输出，仅作为参考）
     const agentDeliverableMap = new Map();
     recommendedAgents.forEach(agentId => {
       const deliverables = AGENT_PROMPT_MAP[agentId]?.deliverables || [];
@@ -1212,26 +1302,7 @@ ${instruction ? `补充要求：${instruction}` : ''}
       workflowCategory,
       agentDeliverableMap
     });
-
-    stages = stages.map(stage => {
-      const outputs = Array.isArray(stage.outputs) ? stage.outputs : [];
-      const normalized = outputs.map(normalizeOutputToTypeId).filter(Boolean);
-
-      const aiOutputs = Array.isArray(evaluatedOutputs?.[stage.id])
-        ? evaluatedOutputs[stage.id].map(normalizeOutputToTypeId).filter(Boolean)
-        : [];
-
-      if (aiOutputs.length > 0) {
-        return { ...stage, outputs: Array.from(new Set(aiOutputs)) };
-      }
-      if (normalized.length > 0) {
-        return { ...stage, outputs: normalized };
-      }
-      const agentOutputs = stage.agents
-        .flatMap(agentId => agentDeliverableMap.get(agentId) || [])
-        .filter(Boolean);
-      return { ...stage, outputs: Array.from(new Set(agentOutputs)) };
-    });
+    const recommendedDeliverablesByStage = evaluatedOutputs || {};
 
     // 改进plan字段的fallback逻辑
     let plan = '暂无建议';
@@ -1263,7 +1334,7 @@ ${instruction ? `补充要求：${instruction}` : ''}
 
     res.json({
       code: 0,
-      data: { plan, collaborationMode, recommendedAgents, stages }
+      data: { plan, collaborationMode, recommendedAgents, stages, recommendedDeliverablesByStage }
     });
   } catch (error) {
     next(error);

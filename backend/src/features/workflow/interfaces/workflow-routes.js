@@ -5,22 +5,93 @@
 import express from 'express';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import {
-    DEFAULT_WORKFLOW_STAGES,
-    getStageById,
-    getRecommendedAgents,
-    normalizeStageId
+  getStageById,
+  normalizeStageId,
+  ARTIFACT_TYPES,
+  AGENT_PROMPT_MAP
 } from '../../../../config/workflow-stages.js';
+import { projectRepository } from '../../../features/projects/infrastructure/index.js';
 
 const router = express.Router();
 
 // 内存存储（实际应该使用数据库）
 const artifacts = new Map(); // key: projectId, value: Map<stageId, Array<artifact>>
 
+function parseJsonPayload(text) {
+  if (!text) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const match = String(text).match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (inner) {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function buildRoleTemplateMapping() {
+  return Object.entries(AGENT_PROMPT_MAP).map(([agentId, profile]) => {
+    const deliverables = (profile.deliverables || []).map(type => {
+      const def = ARTIFACT_TYPES[type];
+      return {
+        type,
+        name: def?.name || type,
+        templates: Array.isArray(def?.promptTemplates) ? def.promptTemplates : []
+      };
+    });
+    return {
+      agentId,
+      name: profile.name || agentId,
+      deliverables
+    };
+  });
+}
+
+function normalizeOutputToTypeId(output) {
+  const text = String(output || '').trim();
+  if (!text) {
+    return null;
+  }
+  if (ARTIFACT_TYPES[text]) {
+    return text;
+  }
+  const entry = Object.entries(ARTIFACT_TYPES).find(([, def]) => def?.name === text);
+  return entry ? entry[0] : null;
+}
+
+function collectProjectArtifacts(projectId, workflowStages) {
+  const byStage = new Map();
+  const projectArtifacts = artifacts.get(projectId);
+  if (projectArtifacts) {
+    for (const [stageId, stageArtifacts] of projectArtifacts.entries()) {
+      byStage.set(stageId, Array.isArray(stageArtifacts) ? stageArtifacts : []);
+    }
+  }
+  (workflowStages || []).forEach(stage => {
+    if (!stage || !stage.id) {
+      return;
+    }
+    if (byStage.has(stage.id)) {
+      return;
+    }
+    const stageArtifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+    byStage.set(stage.id, stageArtifacts);
+  });
+  return byStage;
+}
+
 /**
  * 阶段任务提示词模板
  */
 const STAGE_PROMPTS = {
-    requirement: `你是一位经验丰富的产品经理。基于用户的创意对话，生成完整的产品需求文档（PRD）。
+  requirement: `你是一位经验丰富的产品经理。基于用户的创意对话，生成完整的产品需求文档（PRD）。
 
 创意对话内容：
 {CONVERSATION}
@@ -55,7 +126,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    design: `你是一位专业的产品设计师。基于产品需求文档，设计产品的UI/UX方案。
+  design: `你是一位专业的产品设计师。基于产品需求文档，设计产品的UI/UX方案。
 
 产品需求文档：
 {PRD}
@@ -90,7 +161,35 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    strategy: `【角色定位】
+  'strategy-requirement': `你是一位战略与产品负责人。基于用户创意与对话内容，完成“战略 + 需求”合并阶段的基础输出，为后续设计与开发奠定方向。
+
+创意对话内容：
+{CONVERSATION}
+
+请输出以下内容（合并但结构清晰）：
+
+# 战略与需求综述
+
+## 1. 战略目标与范围
+- 目标定位
+- 关键假设
+- 约束边界
+
+## 2. 价值验证与MVP范围（如适用）
+- 价值假设
+- MVP范围与验证路径
+
+## 3. 产品需求概览（PRD框架）
+- 目标用户与核心价值
+- 核心功能与用户故事
+- 功能优先级与验收标准
+
+## 4. 下一阶段输入要求
+- 设计/架构/开发阶段的关键输入
+
+请输出完整的Markdown格式文档。`,
+
+  strategy: `【角色定位】
 你是一位资深战略设计师，专注于 Agent 项目战略建模、能力域划分与模式原则制定。你的工作是输出可执行的战略设计标准与约束边界。
 
 【输入说明】
@@ -115,7 +214,7 @@ const STAGE_PROMPTS = {
 {CONVERSATION}
 
 请根据以上要求生成“战略设计文档”，输出完整 Markdown 内容，避免额外说明。`,
-    architecture: `你是一位资深的架构师。基于产品需求和设计方案，设计系统的技术架构。
+  architecture: `你是一位资深的架构师。基于产品需求和设计方案，设计系统的技术架构。
 
 产品需求文档：
 {PRD}
@@ -158,7 +257,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    development: `你是一位全栈工程师。基于架构设计文档，提供开发实现指南。
+  development: `你是一位全栈工程师。基于架构设计文档，提供开发实现指南。
 
 架构设计文档：
 {ARCHITECTURE}
@@ -193,7 +292,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档，代码示例使用适当的编程语言。`,
 
-    testing: `你是一位质量保证工程师。基于产品需求和开发文档，制定测试计划和执行测试。
+  testing: `你是一位质量保证工程师。基于产品需求和开发文档，制定测试计划和执行测试。
 
 产品需求文档：
 {PRD}
@@ -236,7 +335,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    deployment: `你是一位运维工程师。基于架构设计，提供部署方案和上线checklist。
+  deployment: `你是一位运维工程师。基于架构设计，提供部署方案和上线checklist。
 
 架构设计文档：
 {ARCHITECTURE}
@@ -285,7 +384,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    operation: `你是一位运营专家。基于产品定位和用户需求，制定运营推广策略。
+  operation: `你是一位运营专家。基于产品定位和用户需求，制定运营推广策略。
 
 产品需求文档：
 {PRD}
@@ -338,7 +437,7 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'hypothesis-validation': `你是一位产品验证负责人，负责基于创意与现有资料完成价值假设验证与MVP可行性评估。
+  'hypothesis-validation': `你是一位产品验证负责人，负责基于创意与现有资料完成价值假设验证与MVP可行性评估。
 
 创意对话内容：
 {CONVERSATION}
@@ -356,7 +455,7 @@ const STAGE_PROMPTS = {
  * 交付物类型的专门提示词
  */
 const ARTIFACT_PROMPTS = {
-    'prd': `请生成完整的产品需求文档（PRD），包含：
+  prd: `请生成完整的产品需求文档（PRD），包含：
 1. 产品概述（产品名称、定位、目标用户、核心价值）
 2. 功能需求（核心功能和辅助功能的详细描述）
 3. 用户故事（以用户视角描述功能需求）
@@ -365,7 +464,7 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'user-story': `请生成用户故事文档，包含：
+  'user-story': `请生成用户故事文档，包含：
 1. 用户角色定义（不同类型的用户及其特征）
 2. 核心用户故事（格式：作为[角色]，我想要[功能]，以便[目的]）
 3. 验收标准（每个用户故事的验收条件）
@@ -373,7 +472,7 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'feature-list': `请生成功能清单文档，包含：
+  'feature-list': `请生成功能清单文档，包含：
 1. 功能分类（按模块或功能域分类）
 2. 功能列表（每个功能的名称、描述、优先级）
 3. 功能依赖关系（功能之间的依赖和顺序）
@@ -381,7 +480,7 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'strategy-doc': `请输出完整的“战略设计文档”，格式必须严格遵循以下模板与结构（Markdown）：
+  'strategy-doc': `请输出完整的“战略设计文档”，格式必须严格遵循以下模板与结构（Markdown）：
 
 # 📘 Agent 项目战略设计标准
 
@@ -466,7 +565,7 @@ const ARTIFACT_PROMPTS = {
 
 输出要求：必须使用 Markdown，标题与结构完整，内容可执行、具体、可落地。`,
 
-    'ui-design': `请生成UI设计方案文档，包含：
+  'ui-design': `请生成UI设计方案文档，包含：
 1. 设计目标（设计理念、视觉风格、用户体验目标）
 2. 信息架构（页面结构和导航设计）
 3. 界面设计（主要页面的布局和交互设计）
@@ -475,7 +574,7 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-    'design-spec': `请生成设计规范文档（Design Specification），包含：
+  'design-spec': `请生成设计规范文档（Design Specification），包含：
 1. 色彩系统
    - 主色调（Primary Color）及其色值
    - 辅助色（Secondary Color）
@@ -504,7 +603,7 @@ const ARTIFACT_PROMPTS = {
 
 请输出完整的Markdown格式文档，包含具体的数值和色值。`,
 
-    'prototype': `请生成一个简单的HTML原型页面，展示产品的核心界面。
+  prototype: `请生成一个简单的HTML原型页面，展示产品的核心界面。
 
 要求：
 1. 使用纯HTML + CSS实现，不依赖外部库
@@ -524,181 +623,236 @@ const ARTIFACT_PROMPTS = {
  * @param {Object} context - 上下文数据
  * @returns {Promise<Array>} 生成的交付物数组
  */
-async function executeStage(projectId, stageId, context = {}) {
-    const normalizedStageId = normalizeStageId(stageId);
-    const stage = getStageById(normalizedStageId);
-    if (!stage) {
-        const err = new Error(`无效的阶段ID: ${stageId}`);
-        err.status = 400;
-        throw err;
-    }
+function resolveStageDefinition(stageId) {
+  const stage = getStageById(stageId);
+  if (stage) {
+    return stage;
+  }
+  if (stageId === 'strategy-requirement') {
+    const strategy = getStageById('strategy');
+    const hypothesis = getStageById('hypothesis-validation');
+    const requirement = getStageById('requirement');
+    const recommendedAgents = Array.from(
+      new Set(
+        [
+          ...(strategy?.recommendedAgents || []),
+          ...(hypothesis?.recommendedAgents || []),
+          ...(requirement?.recommendedAgents || [])
+        ].filter(Boolean)
+      )
+    );
+    const artifactTypes = Array.from(
+      new Set(
+        [
+          ...(strategy?.artifactTypes || []),
+          ...(hypothesis?.artifactTypes || []),
+          ...(requirement?.artifactTypes || [])
+        ].filter(Boolean)
+      )
+    );
+    return {
+      id: 'strategy-requirement',
+      name: '战略与需求',
+      description: '战略建模与需求分析',
+      recommendedAgents,
+      artifactTypes
+    };
+  }
+  return null;
+}
 
-    // 获取阶段提示词模板
-    let promptTemplate = STAGE_PROMPTS[normalizedStageId];
-    if (!promptTemplate) {
-        const err = new Error(`阶段 ${normalizedStageId} 没有定义提示词模板`);
-        err.status = 400;
-        throw err;
-    }
+function ensureStageDefinition(stageId) {
+  const stage = resolveStageDefinition(stageId);
+  if (!stage) {
+    return null;
+  }
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey || apiKey === 'sk-your-api-key-here') {
-        const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
-        err.status = 400;
-        throw err;
-    }
-
-    // 替换上下文变量
-    let basePrompt = promptTemplate;
-    for (const [key, value] of Object.entries(context)) {
-        basePrompt = basePrompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
-    }
-
-    const selectedArtifactTypes = Array.isArray(context?.selectedArtifactTypes)
-        ? context.selectedArtifactTypes
+  const fallback = getStageById(stageId);
+  const recommendedAgents =
+    Array.isArray(stage.recommendedAgents) && stage.recommendedAgents.length > 0
+      ? stage.recommendedAgents
+      : Array.isArray(fallback?.recommendedAgents)
+        ? fallback.recommendedAgents
         : [];
-    const effectiveArtifactTypes = selectedArtifactTypes.length > 0
-        ? stage.artifactTypes.filter(type => selectedArtifactTypes.includes(type))
-        : stage.artifactTypes;
-    if (selectedArtifactTypes.length > 0 && effectiveArtifactTypes.length === 0) {
-        const err = new Error('未选择有效的交付物类型');
-        err.status = 400;
-        throw err;
+  const artifactTypes =
+    Array.isArray(stage.artifactTypes) && stage.artifactTypes.length > 0
+      ? stage.artifactTypes
+      : Array.isArray(fallback?.artifactTypes)
+        ? fallback.artifactTypes
+        : [];
+
+  return {
+    ...stage,
+    recommendedAgents,
+    artifactTypes
+  };
+}
+
+async function executeStage(projectId, stageId, context = {}) {
+  const normalizedStageId = normalizeStageId(stageId);
+  const stage = ensureStageDefinition(normalizedStageId);
+  if (!stage) {
+    const err = new Error(`无效的阶段ID: ${stageId}`);
+    err.status = 400;
+    throw err;
+  }
+
+  // 获取阶段提示词模板
+  const promptTemplate = STAGE_PROMPTS[normalizedStageId];
+  if (!promptTemplate) {
+    const err = new Error(`阶段 ${normalizedStageId} 没有定义提示词模板`);
+    err.status = 400;
+    throw err;
+  }
+
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey || apiKey === 'sk-your-api-key-here') {
+    const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
+    err.status = 400;
+    throw err;
+  }
+
+  // 替换上下文变量
+  let basePrompt = promptTemplate;
+  for (const [key, value] of Object.entries(context)) {
+    basePrompt = basePrompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
+  }
+
+  const selectedArtifactTypes = Array.isArray(context?.selectedArtifactTypes)
+    ? context.selectedArtifactTypes
+    : [];
+  const effectiveArtifactTypes =
+    selectedArtifactTypes.length > 0
+      ? (stage.artifactTypes || []).filter(type => selectedArtifactTypes.includes(type))
+      : stage.artifactTypes || [];
+  if (selectedArtifactTypes.length > 0 && effectiveArtifactTypes.length === 0) {
+    const err = new Error('未选择有效的交付物类型');
+    err.status = 400;
+    throw err;
+  }
+
+  // 创建交付物
+  const generatedArtifacts = [];
+
+  // 如果只有一个交付物类型，使用原有逻辑
+  if (effectiveArtifactTypes.length === 1) {
+    const result = await callDeepSeekAPI([{ role: 'user', content: basePrompt }], null, {
+      max_tokens: 4000,
+      temperature: 0.7
+    });
+
+    const usage = result?.usage || { total_tokens: 0 };
+    const artifact = {
+      id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      projectId,
+      stageId: normalizedStageId,
+      type: effectiveArtifactTypes[0],
+      name: getArtifactName(effectiveArtifactTypes[0]),
+      content: result.content,
+      agentName: getAgentName(stage.recommendedAgents[0]),
+      createdAt: Date.now(),
+      tokens: usage.total_tokens || 0
+    };
+    generatedArtifacts.push(artifact);
+  } else {
+    // 如果有多个交付物类型，为每个类型生成专门的内容
+    for (const artifactType of effectiveArtifactTypes) {
+      // 构建针对该交付物类型的提示词
+      const artifactPrompt = ARTIFACT_PROMPTS[artifactType];
+      let finalPrompt = basePrompt;
+      const artifactName = getArtifactName(artifactType);
+
+      if (artifactPrompt) {
+        // 如果有专门的交付物提示词，追加到基础提示词后
+        finalPrompt = `${basePrompt}\n\n${artifactPrompt}`;
+      } else if (artifactName && artifactName !== artifactType) {
+        finalPrompt = `${basePrompt}\n\n请仅输出《${artifactName}》对应内容，输出为完整的Markdown格式文档。`;
+      } else {
+        finalPrompt = `${basePrompt}\n\n请仅输出该交付物对应内容，输出为完整的Markdown格式文档。`;
+      }
+
+      // 调用AI生成该交付物的内容
+      const result = await callDeepSeekAPI([{ role: 'user', content: finalPrompt }], null, {
+        max_tokens: 4000,
+        temperature: 0.7
+      });
+
+      const usage = result?.usage || { total_tokens: 0 };
+      const artifact = {
+        id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        projectId,
+        stageId: normalizedStageId,
+        type: artifactType,
+        name: getArtifactName(artifactType),
+        content: result.content,
+        agentName: getAgentName(stage.recommendedAgents[0]),
+        createdAt: Date.now(),
+        tokens: usage.total_tokens || 0
+      };
+      generatedArtifacts.push(artifact);
+
+      // 添加延迟，避免API调用过快
+      if (effectiveArtifactTypes.length > 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
+  }
 
-    // 创建交付物
-    const generatedArtifacts = [];
-    let totalTokens = 0;
+  // 保存交付物
+  if (!artifacts.has(projectId)) {
+    artifacts.set(projectId, new Map());
+  }
+  const projectArtifacts = artifacts.get(projectId);
+  if (!projectArtifacts.has(normalizedStageId)) {
+    projectArtifacts.set(normalizedStageId, []);
+  }
+  projectArtifacts.get(normalizedStageId).push(...generatedArtifacts);
 
-    // 如果只有一个交付物类型，使用原有逻辑
-    if (effectiveArtifactTypes.length === 1) {
-        const result = await callDeepSeekAPI(
-            [{ role: 'user', content: basePrompt }],
-            null,
-            {
-                max_tokens: 4000,
-                temperature: 0.7
-            }
-        );
-
-        const usage = result?.usage || { total_tokens: 0 };
-        const artifact = {
-            id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            projectId,
-            stageId: normalizedStageId,
-            type: effectiveArtifactTypes[0],
-            name: getArtifactName(effectiveArtifactTypes[0]),
-            content: result.content,
-            agentName: getAgentName(stage.recommendedAgents[0]),
-            createdAt: Date.now(),
-            tokens: usage.total_tokens || 0
-        };
-        generatedArtifacts.push(artifact);
-        totalTokens = usage.total_tokens || 0;
-    } else {
-        // 如果有多个交付物类型，为每个类型生成专门的内容
-        for (const artifactType of effectiveArtifactTypes) {
-            // 构建针对该交付物类型的提示词
-            const artifactPrompt = ARTIFACT_PROMPTS[artifactType];
-            let finalPrompt = basePrompt;
-            const artifactName = getArtifactName(artifactType);
-
-            if (artifactPrompt) {
-                // 如果有专门的交付物提示词，追加到基础提示词后
-                finalPrompt = `${basePrompt}\n\n${artifactPrompt}`;
-            } else if (artifactName && artifactName !== artifactType) {
-                finalPrompt = `${basePrompt}\n\n请仅输出《${artifactName}》对应内容，输出为完整的Markdown格式文档。`;
-            } else {
-                finalPrompt = `${basePrompt}\n\n请仅输出该交付物对应内容，输出为完整的Markdown格式文档。`;
-            }
-
-            // 调用AI生成该交付物的内容
-            const result = await callDeepSeekAPI(
-                [{ role: 'user', content: finalPrompt }],
-                null,
-                {
-                    max_tokens: 4000,
-                    temperature: 0.7
-                }
-            );
-
-            const usage = result?.usage || { total_tokens: 0 };
-            const artifact = {
-                id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                projectId,
-            stageId: normalizedStageId,
-            type: artifactType,
-                name: getArtifactName(artifactType),
-                content: result.content,
-                agentName: getAgentName(stage.recommendedAgents[0]),
-                createdAt: Date.now(),
-                tokens: usage.total_tokens || 0
-            };
-            generatedArtifacts.push(artifact);
-            totalTokens += usage.total_tokens || 0;
-
-            // 添加延迟，避免API调用过快
-            if (effectiveArtifactTypes.length > 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-        }
-    }
-
-    // 保存交付物
-    if (!artifacts.has(projectId)) {
-        artifacts.set(projectId, new Map());
-    }
-    const projectArtifacts = artifacts.get(projectId);
-    if (!projectArtifacts.has(normalizedStageId)) {
-        projectArtifacts.set(normalizedStageId, []);
-    }
-    projectArtifacts.get(normalizedStageId).push(...generatedArtifacts);
-
-    return generatedArtifacts;
+  return generatedArtifacts;
 }
 
 /**
  * 获取交付物名称
  */
 function getArtifactName(artifactType) {
-    const typeMap = {
-        'prd': '产品需求文档',
-        'user-story': '用户故事',
-        'feature-list': '功能清单',
-        'ui-design': 'UI设计方案',
-        'design-spec': '设计规范',
-        'prototype': '交互原型',
-        'architecture-doc': '系统架构设计',
-        'code': '开发实现指南',
-        'strategy-doc': '战略设计文档',
-        'value-hypothesis-report': '价值假设验证报告',
-        'core-prompt-design': '核心引导逻辑Prompt设计',
-        'user-test-feedback': '3-5位用户测试反馈记录',
-        'mvp-feasibility-conclusion': 'MVP可行性结论',
-        'test-report': '测试报告',
-        'deploy-doc': '部署文档',
-        'marketing-plan': '运营推广方案'
-    };
-    return typeMap[artifactType] || artifactType;
+  const typeMap = {
+    prd: '产品需求文档',
+    'user-story': '用户故事',
+    'feature-list': '功能清单',
+    'ui-design': 'UI设计方案',
+    'design-spec': '设计规范',
+    prototype: '交互原型',
+    'architecture-doc': '系统架构设计',
+    code: '开发实现指南',
+    'strategy-doc': '战略设计文档',
+    'value-hypothesis-report': '价值假设验证报告',
+    'core-prompt-design': '核心引导逻辑Prompt设计',
+    'user-test-feedback': '3-5位用户测试反馈记录',
+    'mvp-feasibility-conclusion': 'MVP可行性结论',
+    'test-report': '测试报告',
+    'deploy-doc': '部署文档',
+    'marketing-plan': '运营推广方案'
+  };
+  return typeMap[artifactType] || artifactType;
 }
 
 /**
  * 获取Agent名称
  */
 function getAgentName(agentType) {
-    const nameMap = {
-        'strategy-design': '战略设计师',
-        'product-manager': '产品经理',
-        'ui-ux-designer': 'UI/UX设计师',
-        'tech-lead': '技术负责人',
-        'backend-developer': '后端开发',
-        'frontend-developer': '前端开发',
-        'qa-engineer': '测试工程师',
-        'devops': '运维工程师',
-        'marketing': '营销专家',
-        'operations': '运营专家'
-    };
-    return nameMap[agentType] || agentType;
+  const nameMap = {
+    'strategy-design': '战略设计师',
+    'product-manager': '产品经理',
+    'ui-ux-designer': 'UI/UX设计师',
+    'tech-lead': '技术负责人',
+    'backend-developer': '后端开发',
+    'frontend-developer': '前端开发',
+    'qa-engineer': '测试工程师',
+    devops: '运维工程师',
+    marketing: '营销专家',
+    operations: '运营专家'
+  };
+  return nameMap[agentType] || agentType;
 }
 
 /**
@@ -706,34 +860,33 @@ function getAgentName(agentType) {
  * 执行单个阶段
  */
 router.post('/:projectId/execute-stage', async (req, res, next) => {
-    try {
-        const { projectId } = req.params;
-        const { stageId, context = {}, selectedArtifactTypes } = req.body;
+  try {
+    const { projectId } = req.params;
+    const { stageId, context = {}, selectedArtifactTypes } = req.body;
 
-        if (!stageId) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少参数: stageId'
-            });
-        }
-
-        if (Array.isArray(selectedArtifactTypes) && selectedArtifactTypes.length > 0) {
-            context.selectedArtifactTypes = selectedArtifactTypes;
-        }
-        const generatedArtifacts = await executeStage(projectId, stageId, context);
-
-        res.json({
-            code: 0,
-            data: {
-                stageId: normalizeStageId(stageId),
-                artifacts: generatedArtifacts,
-                totalTokens: generatedArtifacts.reduce((sum, a) => sum + (a.tokens || 0), 0)
-            }
-        });
-
-    } catch (error) {
-        next(error);
+    if (!stageId) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少参数: stageId'
+      });
     }
+
+    if (Array.isArray(selectedArtifactTypes) && selectedArtifactTypes.length > 0) {
+      context.selectedArtifactTypes = selectedArtifactTypes;
+    }
+    const generatedArtifacts = await executeStage(projectId, stageId, context);
+
+    res.json({
+      code: 0,
+      data: {
+        stageId: normalizeStageId(stageId),
+        artifacts: generatedArtifacts,
+        totalTokens: generatedArtifacts.reduce((sum, a) => sum + (a.tokens || 0), 0)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -741,65 +894,65 @@ router.post('/:projectId/execute-stage', async (req, res, next) => {
  * 批量执行阶段任务
  */
 router.post('/:projectId/execute-batch', async (req, res, next) => {
-    try {
-        const { projectId } = req.params;
-        const { stageIds, conversation } = req.body;
+  try {
+    const { projectId } = req.params;
+    const { stageIds, conversation } = req.body;
 
-        if (!stageIds || !Array.isArray(stageIds) || stageIds.length === 0) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的stageIds'
-            });
-        }
-
-        const results = [];
-        let context = {
-            CONVERSATION: conversation || ''
-        };
-
-        // 依次执行每个阶段，后续阶段可以访问前面阶段的产物
-        for (const stageId of stageIds) {
-            const generatedArtifacts = await executeStage(projectId, stageId, context);
-
-            // 将当前阶段的产物添加到上下文中，供后续阶段使用
-            if (generatedArtifacts.length > 0) {
-                const mainArtifact = generatedArtifacts[0];
-                context[stageId.toUpperCase()] = mainArtifact.content;
-
-                // 特殊处理：PRD、DESIGN、ARCHITECTURE等作为常用上下文
-                if (stageId === 'requirement') {
-                    context.PRD = mainArtifact.content;
-                } else if (stageId === 'design') {
-                    context.DESIGN = mainArtifact.content;
-                } else if (stageId === 'architecture') {
-                    context.ARCHITECTURE = mainArtifact.content;
-                } else if (stageId === 'development') {
-                    context.DEVELOPMENT = mainArtifact.content;
-                }
-            }
-
-            results.push({
-                stageId,
-                artifacts: generatedArtifacts
-            });
-        }
-
-        const totalTokens = results.reduce((sum, r) =>
-            sum + r.artifacts.reduce((s, a) => s + (a.tokens || 0), 0), 0
-        );
-
-        res.json({
-            code: 0,
-            data: {
-                results,
-                totalTokens,
-                completedAt: new Date().toISOString()
-            }
-        });
-
-    } catch (error) {
-        next(error);
+    if (!stageIds || !Array.isArray(stageIds) || stageIds.length === 0) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的stageIds'
+      });
     }
+
+    const results = [];
+    const context = {
+      CONVERSATION: conversation || ''
+    };
+
+    // 依次执行每个阶段，后续阶段可以访问前面阶段的产物
+    for (const stageId of stageIds) {
+      const generatedArtifacts = await executeStage(projectId, stageId, context);
+
+      // 将当前阶段的产物添加到上下文中，供后续阶段使用
+      if (generatedArtifacts.length > 0) {
+        const mainArtifact = generatedArtifacts[0];
+        context[stageId.toUpperCase()] = mainArtifact.content;
+
+        // 特殊处理：PRD、DESIGN、ARCHITECTURE等作为常用上下文
+        if (stageId === 'requirement') {
+          context.PRD = mainArtifact.content;
+        } else if (stageId === 'design') {
+          context.DESIGN = mainArtifact.content;
+        } else if (stageId === 'architecture') {
+          context.ARCHITECTURE = mainArtifact.content;
+        } else if (stageId === 'development') {
+          context.DEVELOPMENT = mainArtifact.content;
+        }
+      }
+
+      results.push({
+        stageId,
+        artifacts: generatedArtifacts
+      });
+    }
+
+    const totalTokens = results.reduce(
+      (sum, r) => sum + r.artifacts.reduce((s, a) => s + (a.tokens || 0), 0),
+      0
+    );
+
+    res.json({
+      code: 0,
+      data: {
+        results,
+        totalTokens,
+        completedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -807,32 +960,31 @@ router.post('/:projectId/execute-batch', async (req, res, next) => {
  * 获取阶段交付物
  */
 router.get('/:projectId/stages/:stageId/artifacts', (req, res, next) => {
-    try {
-        const { projectId, stageId } = req.params;
+  try {
+    const { projectId, stageId } = req.params;
 
-        const projectArtifacts = artifacts.get(projectId);
-        if (!projectArtifacts) {
-            return res.json({
-                code: 0,
-                data: {
-                    artifacts: []
-                }
-            });
+    const projectArtifacts = artifacts.get(projectId);
+    if (!projectArtifacts) {
+      return res.json({
+        code: 0,
+        data: {
+          artifacts: []
         }
-
-        const stageArtifacts = projectArtifacts.get(stageId) || [];
-
-        res.json({
-            code: 0,
-            data: {
-                stageId,
-                artifacts: stageArtifacts
-            }
-        });
-
-    } catch (error) {
-        next(error);
+      });
     }
+
+    const stageArtifacts = projectArtifacts.get(stageId) || [];
+
+    res.json({
+      code: 0,
+      data: {
+        stageId,
+        artifacts: stageArtifacts
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -840,36 +992,35 @@ router.get('/:projectId/stages/:stageId/artifacts', (req, res, next) => {
  * 获取项目所有交付物
  */
 router.get('/:projectId/artifacts', (req, res, next) => {
-    try {
-        const { projectId } = req.params;
+  try {
+    const { projectId } = req.params;
 
-        const projectArtifacts = artifacts.get(projectId);
-        if (!projectArtifacts) {
-            return res.json({
-                code: 0,
-                data: {
-                    artifacts: []
-                }
-            });
+    const projectArtifacts = artifacts.get(projectId);
+    if (!projectArtifacts) {
+      return res.json({
+        code: 0,
+        data: {
+          artifacts: []
         }
-
-        // 将所有阶段的交付物合并
-        const allArtifacts = [];
-        for (const [stageId, stageArtifacts] of projectArtifacts.entries()) {
-            allArtifacts.push(...stageArtifacts);
-        }
-
-        res.json({
-            code: 0,
-            data: {
-                total: allArtifacts.length,
-                artifacts: allArtifacts
-            }
-        });
-
-    } catch (error) {
-        next(error);
+      });
     }
+
+    // 将所有阶段的交付物合并
+    const allArtifacts = [];
+    for (const stageArtifacts of projectArtifacts.values()) {
+      allArtifacts.push(...stageArtifacts);
+    }
+
+    res.json({
+      code: 0,
+      data: {
+        total: allArtifacts.length,
+        artifacts: allArtifacts
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -877,42 +1028,198 @@ router.get('/:projectId/artifacts', (req, res, next) => {
  * 删除交付物
  */
 router.delete('/:projectId/artifacts/:artifactId', (req, res, next) => {
-    try {
-        const { projectId, artifactId } = req.params;
+  try {
+    const { projectId, artifactId } = req.params;
 
-        const projectArtifacts = artifacts.get(projectId);
-        if (!projectArtifacts) {
-            return res.status(404).json({
-                code: -1,
-                error: '项目不存在'
-            });
-        }
-
-        let deleted = false;
-        for (const [stageId, stageArtifacts] of projectArtifacts.entries()) {
-            const index = stageArtifacts.findIndex(a => a.id === artifactId);
-            if (index !== -1) {
-                stageArtifacts.splice(index, 1);
-                deleted = true;
-                break;
-            }
-        }
-
-        if (!deleted) {
-            return res.status(404).json({
-                code: -1,
-                error: '交付物不存在'
-            });
-        }
-
-        res.json({
-            code: 0,
-            message: '交付物已删除'
-        });
-
-    } catch (error) {
-        next(error);
+    const projectArtifacts = artifacts.get(projectId);
+    if (!projectArtifacts) {
+      return res.status(404).json({
+        code: -1,
+        error: '项目不存在'
+      });
     }
+
+    let deleted = false;
+    for (const stageArtifacts of projectArtifacts.values()) {
+      const index = stageArtifacts.findIndex(a => a.id === artifactId);
+      if (index !== -1) {
+        stageArtifacts.splice(index, 1);
+        deleted = true;
+        break;
+      }
+    }
+
+    if (!deleted) {
+      return res.status(404).json({
+        code: -1,
+        error: '交付物不存在'
+      });
+    }
+
+    res.json({
+      code: 0,
+      message: '交付物已删除'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/workflow/:projectId/deploy-readiness
+ * 基于ReAct Loop评估项目是否满足“可部署交付”的目标
+ * body: { goal?: string, idea?: string, conversation?: string }
+ */
+router.post('/:projectId/deploy-readiness', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { goal, idea, conversation } = req.body || {};
+
+    const project = await projectRepository.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ code: -1, error: '项目不存在' });
+    }
+
+    const workflow = project.workflow?.toJSON ? project.workflow.toJSON() : project.workflow;
+    const workflowStages = Array.isArray(workflow?.stages) ? workflow.stages : [];
+    const stageArtifacts = collectProjectArtifacts(projectId, workflowStages);
+
+    const stageBrief = workflowStages.map(stage => ({
+      id: stage.id,
+      name: stage.name,
+      description: stage.description || '',
+      agents: Array.isArray(stage.agents) ? stage.agents : [],
+      outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+      outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : []
+    }));
+
+    const deliverablesCatalog = Object.entries(ARTIFACT_TYPES).map(([id, def]) => ({
+      id,
+      name: def?.name || id,
+      description: def?.description || '',
+      templates: Array.isArray(def?.promptTemplates) ? def.promptTemplates : []
+    }));
+
+    const roleTemplateMapping = buildRoleTemplateMapping();
+    const targetGoal = goal || '输出一个可实际交付部署的完整产品';
+
+    // ReAct Loop Step 1: 规划阶段所需的关键交付物
+    const step1Prompt = `你是项目交付物规划专家。目标是：${targetGoal}
+
+【创意】
+${idea || '未提供'}
+
+【对话摘要】
+${conversation || '未提供'}
+
+【角色与交付物模板映射（仅能从映射中选择）】
+${JSON.stringify(roleTemplateMapping, null, 2)}
+
+【阶段列表】
+${JSON.stringify(stageBrief, null, 2)}
+
+【交付物类型库（仅能从以下id中选择，必须基于现有模板）】
+${JSON.stringify(deliverablesCatalog, null, 2)}
+
+请输出JSON：
+{
+  "requiredByStage": { "stageId": ["deliverableTypeId", "..."] },
+  "criticalDeliverables": ["deliverableTypeId", "..."],
+  "notes": "简短说明"
+}
+
+要求：
+1. 每个阶段至少选择1个交付物类型
+2. 必须来自交付物类型库
+3. requiredByStage 内的类型必须与阶段输出和角色职责匹配`;
+
+    const step1Result = await callDeepSeekAPI([{ role: 'user', content: step1Prompt }], null, {
+      max_tokens: 1200,
+      temperature: 0.2,
+      timeout: 90000
+    });
+
+    const step1Parsed = parseJsonPayload(step1Result?.content) || {};
+    const requiredByStage = step1Parsed.requiredByStage || {};
+    const criticalDeliverables = Array.isArray(step1Parsed.criticalDeliverables)
+      ? step1Parsed.criticalDeliverables
+      : [];
+
+    // 计算缺失交付物
+    const missingByStage = {};
+    const availableByStage = {};
+    workflowStages.forEach(stage => {
+      const stageId = stage.id;
+      const required = Array.isArray(requiredByStage?.[stageId]) ? requiredByStage[stageId] : [];
+      const artifactsForStage = Array.isArray(stageArtifacts.get(stageId))
+        ? stageArtifacts.get(stageId)
+        : [];
+      const actualTypes = artifactsForStage
+        .map(a => normalizeOutputToTypeId(a?.type || a?.name))
+        .filter(Boolean);
+
+      const actualSet = new Set(actualTypes);
+      const missing = required.filter(type => !actualSet.has(type));
+      if (missing.length > 0) {
+        missingByStage[stageId] = missing;
+      }
+      availableByStage[stageId] = Array.from(new Set(actualTypes));
+    });
+
+    const overallMissingCritical = criticalDeliverables.filter(type => {
+      return !Object.values(availableByStage).some(list => list.includes(type));
+    });
+
+    // ReAct Loop Step 2: 基于缺失情况给出部署可交付性判断
+    const step2Prompt = `你是项目交付评估专家。目标是：${targetGoal}
+
+【阶段要求】
+${JSON.stringify(requiredByStage, null, 2)}
+
+【阶段已产出交付物】
+${JSON.stringify(availableByStage, null, 2)}
+
+【缺失交付物】
+${JSON.stringify(missingByStage, null, 2)}
+
+【关键交付物缺失】
+${JSON.stringify(overallMissingCritical, null, 2)}
+
+请输出JSON：
+{
+  "isDeployable": true/false,
+  "riskLevel": "low|medium|high",
+  "summary": "简短结论",
+  "nextActions": ["动作1", "动作2", "..."],
+  "stageGaps": [{ "stageId": "阶段", "missing": ["类型"], "impact": "影响说明" }]
+}
+
+要求：仅输出JSON，避免额外解释。`;
+
+    const step2Result = await callDeepSeekAPI([{ role: 'user', content: step2Prompt }], null, {
+      max_tokens: 1000,
+      temperature: 0.2,
+      timeout: 90000
+    });
+
+    const step2Parsed = parseJsonPayload(step2Result?.content) || {};
+
+    res.json({
+      code: 0,
+      data: {
+        goal: targetGoal,
+        requiredByStage,
+        criticalDeliverables,
+        availableByStage,
+        missingByStage,
+        missingCritical: overallMissingCritical,
+        assessment: step2Parsed,
+        method: 'react-loop'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

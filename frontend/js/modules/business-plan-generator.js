@@ -6,7 +6,11 @@
 /* global normalizeChatId */
 
 // 创建日志实例（避免脚本被重复加载时报错）
-const logger = window.createLogger ? window.createLogger('BusinessPlan') : console;
+const logger =
+  window.__businessPlanLogger ||
+  (window.__businessPlanLogger = window.createLogger
+    ? window.createLogger('BusinessPlan')
+    : console);
 
 class BusinessPlanGenerator {
   constructor(apiClient, stateManager, agentProgressManager) {
@@ -215,6 +219,37 @@ class BusinessPlanGenerator {
             const completedCount = report.data.chapters.length;
             const totalCount = report.selectedChapters.length;
             if (completedCount === totalCount && completedCount > 0) {
+              report.status = 'completed';
+              report.endTime = Date.now();
+              report.progress = {
+                current: totalCount,
+                total: totalCount,
+                percentage: 100
+              };
+              await window.storageManager.saveReport({
+                id: report.id,
+                type: report.type,
+                chatId: report.chatId,
+                data: report.data ?? null,
+                status: report.status,
+                progress: report.progress,
+                selectedChapters: report.selectedChapters,
+                startTime: report.startTime,
+                endTime: report.endTime,
+                error: null
+              });
+            }
+          }
+
+          // 🔧 兼容历史数据：未保存 selectedChapters 但已有完整内容
+          if (report.status === 'generating' && report.data && !report.selectedChapters) {
+            let totalCount = 0;
+            if (Array.isArray(report.data.chapters)) {
+              totalCount = report.data.chapters.length;
+            } else if (report.data.document && typeof report.data.document === 'object') {
+              totalCount = Object.keys(report.data.document).length;
+            }
+            if (totalCount > 0) {
               report.status = 'completed';
               report.endTime = Date.now();
               report.progress = {
