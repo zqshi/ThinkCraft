@@ -8,26 +8,47 @@ const WorkflowStageSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
     name: { type: String, required: true },
+    orderNumber: { type: Number },
+    description: { type: String },
     status: { type: String, required: true },
+    agents: { type: [String], default: [] },
+    agentRoles: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    dependencies: { type: [String], default: [] },
+    priority: { type: String },
     outputs: { type: [String], default: [] },
     outputsDetailed: { type: [mongoose.Schema.Types.Mixed], default: [] },
     artifacts: [
       {
         id: String,
+        stageId: String,
+        projectId: String,
         type: String,
         name: String,
         content: mongoose.Schema.Types.Mixed,
+        agentName: String,
         source: String,
+        tokens: Number,
         createdAt: Date
       }
-    ]
+    ],
+    startedAt: Date,
+    completedAt: Date
   },
   { _id: false }
 );
 
 const WorkflowSchema = new mongoose.Schema(
   {
-    stages: [WorkflowStageSchema],
+    stages: {
+      type: [WorkflowStageSchema],
+      default: [],
+      set: value => {
+        if (!value) {
+          return [];
+        }
+        return Array.isArray(value) ? value : [value];
+      }
+    },
     currentStage: String,
     isCustomized: { type: Boolean, default: false }
   },
@@ -43,6 +64,9 @@ const ProjectSchema = new mongoose.Schema(
     mode: { type: String, required: true, enum: ['development'] },
     workflowCategory: { type: String, default: 'product-development' },
     assignedAgents: { type: [String], default: [] },
+    collaborationSuggestion: { type: mongoose.Schema.Types.Mixed, default: null },
+    collaborationExecuted: { type: Boolean, default: false },
+    missingRecommendedAgents: { type: [String], default: [] },
     status: {
       type: String,
       required: true,

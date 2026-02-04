@@ -4,6 +4,8 @@
  * 提供统一的日志输出接口，支持开发/生产环境切换
  */
 
+const RAW_CONSOLE = typeof console !== 'undefined' ? console : null;
+
 // 日志级别
 const LOG_LEVELS = {
   DEBUG: 0,
@@ -13,11 +15,33 @@ const LOG_LEVELS = {
   NONE: 4
 };
 
+function readLocalStorage(key) {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseBool(value) {
+  if (value === null || value === undefined) return null;
+  return value === '1' || value === 'true';
+}
+
+function parseModules(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 // 配置
 const LOG_CONFIG = {
   // 生产环境设置为 LOG_LEVELS.ERROR 或 LOG_LEVELS.NONE
   // 开发环境设置为 LOG_LEVELS.DEBUG
-  currentLevel: LOG_LEVELS.DEBUG,
+  currentLevel: LOG_LEVELS.WARN,
 
   // 是否启用时间戳
   enableTimestamp: true,
@@ -26,7 +50,10 @@ const LOG_CONFIG = {
   enableColors: true,
 
   // 模块过滤（空数组表示显示所有模块）
-  moduleFilter: []
+  moduleFilter: [],
+
+  // 是否屏蔽非必要console输出
+  suppressConsole: true
 };
 
 // 颜色配置
@@ -99,11 +126,11 @@ class Logger {
     const formattedMessage = this.formatMessage(level, message);
     const levelName = Object.keys(LOG_LEVELS).find(key => LOG_LEVELS[key] === level);
 
-    if (LOG_CONFIG.enableColors && typeof console !== 'undefined') {
+    if (LOG_CONFIG.enableColors && RAW_CONSOLE) {
       const color = COLORS[levelName];
-      console.log(`%c${formattedMessage}`, `color: ${color}`, ...data);
+      RAW_CONSOLE.log(`%c${formattedMessage}`, `color: ${color}`, ...data);
     } else {
-      console.log(formattedMessage, ...data);
+      RAW_CONSOLE && RAW_CONSOLE.log(formattedMessage, ...data);
     }
   }
 
@@ -191,6 +218,28 @@ if (typeof window !== 'undefined') {
 
 // 根据环境自动设置日志级别
 if (typeof window !== 'undefined') {
+  const storedLevel = readLocalStorage('tc_log_level');
+  const storedModules = parseModules(readLocalStorage('tc_log_modules'));
+  const storedTimestamp = parseBool(readLocalStorage('tc_log_timestamp'));
+  const storedColors = parseBool(readLocalStorage('tc_log_colors'));
+  const storedConsole = parseBool(readLocalStorage('tc_log_console'));
+
+  if (storedLevel) {
+    setLogLevel(storedLevel);
+  }
+  if (storedModules.length > 0) {
+    setModuleFilter(storedModules);
+  }
+  if (storedTimestamp !== null) {
+    LOG_CONFIG.enableTimestamp = storedTimestamp;
+  }
+  if (storedColors !== null) {
+    LOG_CONFIG.enableColors = storedColors;
+  }
+  if (storedConsole !== null) {
+    LOG_CONFIG.suppressConsole = !storedConsole;
+  }
+
   // 检查是否是生产环境
   const isProduction = window.location.hostname !== 'localhost' &&
                        window.location.hostname !== '127.0.0.1' &&
@@ -198,12 +247,21 @@ if (typeof window !== 'undefined') {
 
   if (isProduction) {
     // 生产环境：只显示错误
-    setLogLevel(LOG_LEVELS.ERROR);
-    console.log('%c🚀 ThinkCraft 生产模式', 'color: #28a745; font-weight: bold');
+    if (!storedLevel) {
+      setLogLevel(LOG_LEVELS.ERROR);
+    }
   } else {
-    // 开发环境：显示所有日志
-    setLogLevel(LOG_LEVELS.DEBUG);
-    console.log('%c🔧 ThinkCraft 开发模式', 'color: #ffc107; font-weight: bold');
+    // 开发环境：默认只显示警告及以上（可通过 localStorage 覆盖）
+    if (!storedLevel) {
+      setLogLevel(LOG_LEVELS.WARN);
+    }
+  }
+
+  if (LOG_CONFIG.suppressConsole && window.console) {
+    const noop = () => {};
+    window.console.log = noop;
+    window.console.debug = noop;
+    window.console.info = noop;
   }
 }
 

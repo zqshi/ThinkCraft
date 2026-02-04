@@ -6,7 +6,7 @@
 /* global normalizeChatId */
 
 // 创建日志实例（避免脚本被重复加载时报错）
-const logger =
+var logger =
   window.__businessPlanLogger ||
   (window.__businessPlanLogger = window.createLogger
     ? window.createLogger('BusinessPlan')
@@ -116,15 +116,31 @@ class BusinessPlanGenerator {
       btn.disabled = false;
     }
 
-    // 获取当前会话ID
-    const chatId = window.state?.currentChat;
+    // 获取当前会话ID（多重兜底）
+    const reportModalChatId = document.getElementById('reportModal')?.dataset?.chatId;
+    const activeChatId = document.querySelector('.chat-item.active')?.dataset?.chatId;
+    const chatId =
+      window.state?.currentChat ||
+      btn?.dataset?.chatId ||
+      reportModalChatId ||
+      activeChatId;
     console.log('[按钮点击] 会话ID:', chatId);
 
     // 添加 chatId 有效性验证
     if (!chatId) {
       console.error('[按钮点击] 当前没有活动会话');
-      window.ErrorHandler?.showToast('请先创建或选择一个会话', 'warning');
+      if (window.ErrorHandler?.showToast) {
+        window.ErrorHandler.showToast('请先创建或选择一个会话', 'warning');
+      } else if (window.modalManager?.alert) {
+        window.modalManager.alert('请先创建或选择一个会话', 'warning');
+      } else {
+        alert('请先创建或选择一个会话');
+      }
       return;
+    }
+
+    if (!window.state?.currentChat) {
+      window.state.currentChat = chatId;
     }
 
     // 检查报告状态
@@ -279,12 +295,22 @@ class BusinessPlanGenerator {
             const elapsed = Number.isFinite(startTime) ? Date.now() - startTime : NaN;
             const invalidStart = !Number.isFinite(startTime) || startTime <= 0;
             const isTimeout = Number.isFinite(elapsed) && elapsed > timeoutMs;
+            const progressUpdatedAt = Number(report.progress?.updatedAt || 0);
+            const progressIdleMs = 10 * 60 * 1000;
+            const isProgressStalled =
+              Number.isFinite(progressUpdatedAt) &&
+              progressUpdatedAt > 0 &&
+              Date.now() - progressUpdatedAt > progressIdleMs;
 
-            if (invalidStart || isTimeout) {
+            if (invalidStart || isTimeout || isProgressStalled) {
               report.status = 'error';
               report.endTime = Date.now();
               report.error = {
-                message: invalidStart ? '生成状态异常，请重试' : '生成超时，请重试',
+                message: invalidStart
+                  ? '生成状态异常，请重试'
+                  : isProgressStalled
+                    ? '生成停滞，请重试'
+                    : '生成超时，请重试',
                 timestamp: Date.now()
               };
               await window.storageManager.saveReport({
@@ -728,6 +754,7 @@ class BusinessPlanGenerator {
           // 重新开始
           console.log('[生成] 重新开始生成任务');
           this.state.resetGeneration(chatId, type);
+          await this.clearReportsByType(chatId, type);
         }
       }
 
@@ -1179,6 +1206,9 @@ class BusinessPlanGenerator {
         endTime: updates.endTime ?? existing?.endTime,
         error: updates.error ?? existing?.error
       };
+      if (payload.progress && !payload.progress.updatedAt) {
+        payload.progress.updatedAt = Date.now();
+      }
       logger.debug('[持久化状态] 保存payload:', {
         id: payload.id,
         type: payload.type,
@@ -1392,10 +1422,10 @@ class BusinessPlanGenerator {
     // 重置生成状态，清理之前的数据
     this.state.resetGeneration(chatId, reportType, false);
 
-    // 清除 IndexedDB 中的旧报告数据
+    // 清除 IndexedDB 中的旧报告数据（可能存在多个历史记录）
     if (window.storageManager) {
       try {
-        await window.storageManager.deleteReportByType(chatId, reportType);
+        await this.clearReportsByType(chatId, reportType);
         logger.debug('[重新生成] 已清除IndexedDB中的旧报告数据', { chatId, reportType });
       } catch (error) {
         console.error('[重新生成] 清除旧报告数据失败:', error);
@@ -1443,10 +1473,10 @@ class BusinessPlanGenerator {
     // 重置生成状态，清理之前的数据
     this.state.resetGeneration(chatId, reportType, false);
 
-    // 清除 IndexedDB 中的旧报告数据
+    // 清除 IndexedDB 中的旧报告数据（可能存在多个历史记录）
     if (window.storageManager) {
       try {
-        await window.storageManager.deleteReportByType(chatId, reportType);
+        await this.clearReportsByType(chatId, reportType);
         logger.debug('[重新生成-已选章节] 已清除IndexedDB中的旧报告数据', { chatId, reportType });
       } catch (error) {
         console.error('[重新生成-已选章节] 清除旧报告数据失败:', error);
@@ -1458,6 +1488,22 @@ class BusinessPlanGenerator {
     }
 
     await this.generate(reportType, selectedChapters);
+  }
+
+  async clearReportsByType(chatId, type) {
+    if (!window.storageManager || !chatId || !type) {
+      return;
+    }
+    const normalizedChatId = normalizeChatId(chatId);
+    const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
+    const matches = (reports || []).filter(report => report.type === type);
+    await Promise.all(matches.map(report => window.storageManager.deleteReport(report.id)));
+    if (window.reportStatusManager) {
+      window.reportStatusManager.clearCache(normalizedChatId, type);
+    }
+    if (this.updateButtonUI) {
+      this.updateButtonUI(type, 'idle');
+    }
   }
 
   /**

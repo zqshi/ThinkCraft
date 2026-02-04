@@ -630,10 +630,17 @@ class AgentCollaboration {
 
       // 标记项目为已执行状态
       const updatedProject = await window.storageManager?.getProject(this.currentContext.projectId);
-      await window.storageManager?.saveProject({
-        ...updatedProject,
-        collaborationExecuted: true
-      });
+      await window.projectManager?.updateProject(
+        this.currentContext.projectId,
+        { collaborationExecuted: true },
+        { forceRemote: true }
+      );
+      if (updatedProject) {
+        await window.storageManager?.saveProject({
+          ...updatedProject,
+          collaborationExecuted: true
+        });
+      }
 
       // 关闭弹窗
       window.modalManager?.close('collaborationModeModal');

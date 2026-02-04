@@ -115,6 +115,20 @@ export class ProjectMongoRepository {
   async save(project) {
     try {
       const data = this._toPersistence(project);
+      const normalizeWorkflow = (workflow) => {
+        if (!workflow) return workflow;
+        if (Array.isArray(workflow.stages)) {
+          return workflow;
+        }
+        if (workflow.stages) {
+          return { ...workflow, stages: [workflow.stages] };
+        }
+        if (workflow.id && workflow.name && workflow.status) {
+          return { stages: [workflow] };
+        }
+        return { ...workflow, stages: [] };
+      };
+      data.workflow = normalizeWorkflow(data.workflow);
 
       console.log('[DEBUG] save - project status:', project.status?.value || project._status?.value);
       console.log('[DEBUG] save - data.status:', data.status);
@@ -316,7 +330,14 @@ export class ProjectMongoRepository {
 
     let workflow = null;
     if (doc.workflow) {
-      workflow = Workflow.fromJSON(doc.workflow);
+      const stages =
+        Array.isArray(doc.workflow.stages)
+          ? doc.workflow.stages
+          : Object.values(doc.workflow.stages || {});
+      workflow = Workflow.fromJSON({
+        ...doc.workflow,
+        stages
+      });
     }
 
     const project = new Project(
@@ -328,7 +349,10 @@ export class ProjectMongoRepository {
       status,
       workflow,
       doc.workflowCategory || 'product-development',
-      doc.assignedAgents || []
+      doc.assignedAgents || [],
+      doc.collaborationSuggestion || null,
+      Boolean(doc.collaborationExecuted),
+      doc.missingRecommendedAgents || []
     );
 
     // 设置时间戳
@@ -343,6 +367,43 @@ export class ProjectMongoRepository {
    */
   _toPersistence(project) {
     const json = project.toJSON();
+    const normalizeStages = (stages) => {
+      if (!stages) return [];
+      const list = Array.isArray(stages) ? stages : Object.values(stages);
+      return list
+        .filter(Boolean)
+        .map((stage, index) => ({
+          id: stage.id || stage.stageId || `stage-${index + 1}`,
+          name: stage.name || `阶段${index + 1}`,
+          orderNumber: Number.isFinite(stage.orderNumber)
+            ? stage.orderNumber
+            : Number.isFinite(stage.order)
+              ? stage.order
+              : index + 1,
+          description: stage.description || '',
+          status: stage.status || 'pending',
+          agents: Array.isArray(stage.agents) ? stage.agents : [],
+          agentRoles: Array.isArray(stage.agentRoles) ? stage.agentRoles : [],
+          dependencies: Array.isArray(stage.dependencies) ? stage.dependencies : [],
+          priority: stage.priority,
+          outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
+          outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [],
+          artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
+          startedAt: stage.startedAt || null,
+          completedAt: stage.completedAt || null
+        }));
+    };
+
+    const workflow =
+      json.workflow
+        ? {
+            stages: normalizeStages(json.workflow.stages),
+            currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
+            isCustomized: Boolean(
+              json.workflow.isCustomized !== undefined ? json.workflow.isCustomized : json.workflow.isCustom
+            )
+          }
+        : null;
 
     return {
       _id: json.id,
@@ -353,7 +414,10 @@ export class ProjectMongoRepository {
       status: json.status,
       workflowCategory: json.workflowCategory || 'product-development',
       assignedAgents: json.assignedAgents || [],
-      workflow: json.workflow,
+      collaborationSuggestion: json.collaborationSuggestion || null,
+      collaborationExecuted: Boolean(json.collaborationExecuted),
+      missingRecommendedAgents: json.missingRecommendedAgents || [],
+      workflow,
       createdAt: json.createdAt,
       updatedAt: json.updatedAt
     };

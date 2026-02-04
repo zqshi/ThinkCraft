@@ -22,37 +22,10 @@
       "outputs": ["strategy-doc"]
     },
     {
-      "phase_id": "hypothesis-validation",
-      "phase_name": "假设验证",
-      "description": "价值假设验证与MVP可行性评估；无真实用户时需模拟反馈与数据",
-      "dependencies": ["strategy"],
-      "agents": [
-        {
-          "agent_id": "product-manager",
-          "role": "产品经理",
-          "tasks": ["提炼价值假设与关键风险", "设计验证路径与MVP范围"]
-        },
-        {
-          "agent_id": "operations",
-          "role": "运营专员",
-          "tasks": [
-            "在无真实参与前提下模拟用户验证与反馈（需说明模拟假设）",
-            "汇总验证结果并输出可行性结论（标注模拟结论）"
-          ]
-        }
-      ],
-      "outputs": [
-        "value-hypothesis-report",
-        "core-prompt-design",
-        "user-test-feedback",
-        "mvp-feasibility-conclusion"
-      ]
-    },
-    {
       "phase_id": "requirement",
       "phase_name": "需求分析",
       "description": "产品定位、用户分析与功能规划；完成全量产品交付物",
-      "dependencies": ["hypothesis-validation"],
+      "dependencies": ["strategy"],
       "agents": [
         {
           "agent_id": "product-manager",
@@ -66,7 +39,6 @@
         "acceptance-criteria-quality",
         "user-story",
         "feature-list",
-        "value-hypothesis-report",
         "core-prompt-design"
       ]
     },

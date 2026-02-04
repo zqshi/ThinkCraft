@@ -361,6 +361,32 @@ export class PdfGenerationService {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
+    const normalizeMarkdownForPdfHtml = value => {
+      if (!value) return '';
+      const lines = String(value).split(/\r?\n/);
+      const normalized = lines.map(line => {
+        if (line.includes('|') || line.includes('\t')) {
+          return line; // keep table-like lines intact
+        }
+        let text = line;
+        text = text.replace(/\s*(#{1,6})\s+/g, '\n$1 ');
+        text = text.replace(/\s*(\d+[\.\、])\s+/g, '\n$1 ');
+        text = text.replace(/\s*([一二三四五六七八九十]+、)\s+/g, '\n$1 ');
+        text = text.replace(/\s*(第[一二三四五六七八九十]+[章节篇部分])\s*/g, '\n$1 ');
+        text = text.replace(/\s*(行动建议\s*\d+[\.\、]?)\s*/g, '\n$1 ');
+        text = text.replace(/\s*(关键结论\s*\d+[\.\、]?)\s*/g, '\n$1 ');
+        text = text.replace(/\s*([*-])\s+/g, '\n- ');
+        text = text.replace(/([。！？；:：\?])\s*(#{1,6}\s+)/g, '$1\n$2');
+        text = text.replace(/([。！？；:：\?])\s*(\d+[\.\、])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：\?])\s*([一二三四五六七八九十]+、)/g, '$1\n$2');
+        text = text.replace(/([。！？；:：\?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：\?])\s*(行动建议\s*\d+[\.\、])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：\?])\s*(关键结论\s*\d+[\.\、])/g, '$1\n$2');
+        return text;
+      });
+      return normalized.join('\n');
+    };
+
     const renderInline = (value) => {
       let text = String(value || '');
       text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -372,7 +398,8 @@ export class PdfGenerationService {
     const renderMarkdown = (value) => {
       const raw = String(value || '');
       if (!raw) return '';
-      const escaped = escapeHtml(raw);
+      const normalized = normalizeMarkdownForPdfHtml(raw);
+      const escaped = escapeHtml(normalized);
       const segments = escaped.split(/```/g);
       const htmlParts = segments.map((segment, idx) => {
         if (idx % 2 === 1) {
@@ -482,6 +509,69 @@ export class PdfGenerationService {
 </body>
 </html>
 `;
+  }
+
+  normalizeMarkdownForPdfText(markdown) {
+    if (!markdown) return '';
+    const lines = String(markdown).split(/\r?\n/);
+    const output = [];
+    let inCode = false;
+
+    const isSeparatorLine = line => {
+      const normalized = line.replace(/\t/g, '|').replace(/\s+/g, '');
+      if (!normalized.includes('-')) return false;
+      return /^\|?[:\-|]+\|?$/.test(normalized);
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      if (line.trim().startsWith('```')) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) {
+        output.push(line);
+        continue;
+      }
+
+      if (isSeparatorLine(line)) {
+        continue;
+      }
+
+      let text = line;
+      if (/\t/.test(text) && !/\|/.test(text)) {
+        const cells = text.split('\t').map(cell => cell.trim()).filter(Boolean);
+        if (cells.length) {
+          output.push(cells.join(' | '));
+          continue;
+        }
+      }
+
+      if (/\|/.test(text)) {
+        const cells = text
+          .split('|')
+          .map(cell => cell.trim())
+          .filter(Boolean);
+        if (cells.length > 1) {
+          output.push(cells.join(' | '));
+          continue;
+        }
+      }
+
+      text = text.replace(/^(#{1,6})\s+/g, '');
+      text = text.replace(/^>\s+/g, '');
+      text = text.replace(/^[-*+]\s+/g, '- ');
+      text = text.replace(/^\d+\.\s+/g, match => match.trim() + ' ');
+      text = text.replace(/\*\*(.+?)\*\*/g, '$1');
+      text = text.replace(/__(.+?)__/g, '$1');
+      text = text.replace(/\*(.+?)\*/g, '$1');
+      text = text.replace(/_(.+?)_/g, '$1');
+      text = text.replace(/`([^`]+)`/g, '$1');
+
+      output.push(text);
+    }
+
+    return output.join('\n').trim();
   }
 
   /**

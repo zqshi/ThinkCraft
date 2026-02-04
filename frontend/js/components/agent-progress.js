@@ -276,8 +276,11 @@ class AgentProgressManager {
     // 查找Agent
     let agent = this.agents.find(a => a.id === normalizedChapterId);
     if (!agent) {
-      console.warn('[AgentProgress] 找不到章节:', normalizedChapterId);
-      console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
+      const knownChapter = Boolean(this.agentConfig[normalizedChapterId]);
+      if (!knownChapter) {
+        console.warn('[AgentProgress] 找不到章节:', normalizedChapterId);
+        console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
+      }
 
       // 尝试模糊匹配（处理命名不一致）
       const fuzzyMatch = this.agents.find(a =>

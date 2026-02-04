@@ -23,7 +23,10 @@ export class Project extends AggregateRoot {
     status = ProjectStatus.PLANNING,
     workflow = null,
     workflowCategory = 'product-development',
-    assignedAgents = []
+    assignedAgents = [],
+    collaborationSuggestion = null,
+    collaborationExecuted = false,
+    missingRecommendedAgents = []
   ) {
     super(id);
     this._userId = userId;
@@ -34,6 +37,9 @@ export class Project extends AggregateRoot {
     this._workflow = workflow;
     this._workflowCategory = workflowCategory;
     this._assignedAgents = assignedAgents;
+    this._collaborationSuggestion = collaborationSuggestion;
+    this._collaborationExecuted = collaborationExecuted;
+    this._missingRecommendedAgents = missingRecommendedAgents;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
@@ -63,6 +69,9 @@ export class Project extends AggregateRoot {
       ProjectStatus.PLANNING,
       workflow,
       'product-development',
+      [],
+      null,
+      false,
       []
     );
 
@@ -96,6 +105,21 @@ export class Project extends AggregateRoot {
 
     if (updates.assignedAgents !== undefined) {
       this._assignedAgents = Array.isArray(updates.assignedAgents) ? updates.assignedAgents : [];
+    }
+
+    if (updates.collaborationSuggestion !== undefined) {
+      this._collaborationSuggestion =
+        updates.collaborationSuggestion === null ? null : updates.collaborationSuggestion;
+    }
+
+    if (updates.collaborationExecuted !== undefined) {
+      this._collaborationExecuted = Boolean(updates.collaborationExecuted);
+    }
+
+    if (updates.missingRecommendedAgents !== undefined) {
+      this._missingRecommendedAgents = Array.isArray(updates.missingRecommendedAgents)
+        ? updates.missingRecommendedAgents
+        : [];
     }
 
     this.updateTimestamp();
@@ -174,6 +198,15 @@ export class Project extends AggregateRoot {
   get assignedAgents() {
     return this._assignedAgents;
   }
+  get collaborationSuggestion() {
+    return this._collaborationSuggestion;
+  }
+  get collaborationExecuted() {
+    return this._collaborationExecuted;
+  }
+  get missingRecommendedAgents() {
+    return this._missingRecommendedAgents;
+  }
 
   toJSON() {
     return {
@@ -185,7 +218,10 @@ export class Project extends AggregateRoot {
       status: this._status.value,
       workflow: this._workflow ? this._workflow.toJSON() : null,
       workflowCategory: this._workflowCategory,
-      assignedAgents: this._assignedAgents
+      assignedAgents: this._assignedAgents,
+      collaborationSuggestion: this._collaborationSuggestion,
+      collaborationExecuted: this._collaborationExecuted,
+      missingRecommendedAgents: this._missingRecommendedAgents
     };
   }
 }

@@ -18,21 +18,6 @@ export const DEFAULT_WORKFLOW_STAGES = [
     color: '#6366f1'
   },
   {
-    id: 'hypothesis-validation',
-    name: '假设验证',
-    description: '价值假设验证与MVP可行性评估',
-    recommendedAgents: ['product-manager', 'operations'],
-    artifactTypes: [
-      'value-hypothesis-report',
-      'core-prompt-design',
-      'user-test-feedback',
-      'mvp-feasibility-conclusion'
-    ],
-    estimatedDuration: 2,
-    icon: '🧪',
-    color: '#22c55e'
-  },
-  {
     id: 'requirement',
     name: '需求分析',
     description: '产品定位、用户分析、功能规划',
@@ -43,7 +28,6 @@ export const DEFAULT_WORKFLOW_STAGES = [
       'acceptance-criteria-quality',
       'user-story',
       'feature-list',
-      'value-hypothesis-report',
       'core-prompt-design'
     ],
     estimatedDuration: 2, // 天数（仅供参考）
@@ -198,34 +182,12 @@ export const ARTIFACT_TYPES = {
       'prompts/agents/strategy/strategy-designer/strategy-designer.strategy-doc.md'
     ]
   },
-  'value-hypothesis-report': {
-    name: '价值假设验证报告',
-    description: '价值假设验证过程与结论',
-    extension: 'md',
-    promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.value-hypothesis-report.md'
-    ]
-  },
   'core-prompt-design': {
     name: '核心引导逻辑Prompt设计',
     description: '核心引导逻辑与Prompt设计说明',
     extension: 'md',
     promptTemplates: [
       'prompts/agents/product/product-manager/product-manager-agent.core-prompt-design.md'
-    ]
-  },
-  'user-test-feedback': {
-    name: '3-5位用户测试反馈记录',
-    description: '用户测试过程与反馈记录',
-    extension: 'md',
-    promptTemplates: ['prompts/agents/ops/operations/operations-agent.user-test-feedback.md']
-  },
-  'mvp-feasibility-conclusion': {
-    name: 'MVP可行性结论',
-    description: 'MVP可行性评估结论与建议',
-    extension: 'md',
-    promptTemplates: [
-      'prompts/agents/ops/operations/operations-agent.mvp-feasibility-conclusion.md'
     ]
   },
 
@@ -400,7 +362,6 @@ export const AGENT_PROMPT_MAP = {
       'acceptance-criteria-quality',
       'user-story',
       'feature-list',
-      'value-hypothesis-report',
       'core-prompt-design'
     ],
     stageHint: { id: 'requirement', name: '需求分析', description: '需求分析与产品规划' }
@@ -450,7 +411,7 @@ export const AGENT_PROMPT_MAP = {
   operations: {
     name: '运营专员',
     persona: [],
-    deliverables: ['analytics-report', 'user-test-feedback', 'mvp-feasibility-conclusion'],
+    deliverables: ['analytics-report'],
     stageHint: { id: 'operation', name: '运营推广', description: '用户运营与数据分析' }
   }
 };

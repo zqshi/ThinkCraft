@@ -562,19 +562,25 @@ class ProjectManager {
    * @param {String} projectId - 项目ID
    * @returns {Promise<Object>} 项目对象
    */
-  async getProject(projectId) {
+  async getProject(projectId, options = {}) {
     try {
-      // 先从本地获取
-      const project = await this.storageManager.getProject(projectId);
-      if (project) {
-        const patched = await this.ensureProjectWorkflow(project);
-        if (patched !== project) {
-          await this.storageManager.saveProject(patched);
+      const requireRemote = Boolean(options.requireRemote);
+      const localProject = this.storageManager?.getProject
+        ? await this.storageManager.getProject(projectId).catch(() => null)
+        : null;
+      if (!requireRemote) {
+        // 先从本地获取
+        const project = localProject;
+        if (project) {
+          const patched = await this.ensureProjectWorkflow(project);
+          if (patched !== project) {
+            await this.storageManager.saveProject(patched);
+          }
+          return patched;
         }
-        return patched;
       }
 
-      // 如果本地没有，从后端获取
+      // 从后端获取
       const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}`);
       if (!response.ok) {
         throw new Error('项目不存在');
@@ -582,7 +588,8 @@ class ProjectManager {
 
       const result = await response.json();
       const remoteProject = result.data.project;
-      const patchedRemote = await this.ensureProjectWorkflow(remoteProject);
+      const mergedRemote = this.mergeExecutionState(remoteProject, localProject);
+      const patchedRemote = await this.ensureProjectWorkflow(mergedRemote);
       if (patchedRemote !== remoteProject) {
         await this.storageManager.saveProject(patchedRemote);
       }
@@ -592,11 +599,79 @@ class ProjectManager {
     }
   }
 
+  mergeExecutionState(remoteProject, localProject) {
+    if (!remoteProject || !localProject) {
+      return remoteProject;
+    }
+
+    const mergeStages = (remoteStages = [], localStages = []) => {
+      if (!Array.isArray(remoteStages) || !Array.isArray(localStages)) {
+        return remoteStages;
+      }
+      const localMap = new Map(localStages.map(stage => [stage.id, stage]));
+      return remoteStages.map(stage => {
+        const localStage = localMap.get(stage.id);
+        if (!localStage) {
+          return stage;
+        }
+        return {
+          ...stage,
+          status: localStage.status || stage.status,
+          startedAt: localStage.startedAt ?? stage.startedAt,
+          completedAt: localStage.completedAt ?? stage.completedAt,
+          artifacts:
+            Array.isArray(localStage.artifacts) && localStage.artifacts.length > 0
+              ? localStage.artifacts
+              : stage.artifacts
+        };
+      });
+    };
+
+    const merged = { ...remoteProject };
+
+    if (localProject.workflow && remoteProject.workflow) {
+      merged.workflow = {
+        ...remoteProject.workflow,
+        stages: mergeStages(remoteProject.workflow.stages, localProject.workflow.stages),
+        currentStage: remoteProject.workflow.currentStage || localProject.workflow.currentStage
+      };
+    } else if (!remoteProject.workflow && localProject.workflow) {
+      merged.workflow = localProject.workflow;
+    }
+
+    if (remoteProject.collaborationSuggestion || localProject.collaborationSuggestion) {
+      const remoteSuggestion = remoteProject.collaborationSuggestion
+        ? { ...remoteProject.collaborationSuggestion }
+        : null;
+      if (remoteSuggestion?.stages && localProject.collaborationSuggestion?.stages) {
+        remoteSuggestion.stages = mergeStages(
+          remoteSuggestion.stages,
+          localProject.collaborationSuggestion.stages
+        );
+      } else if (!remoteSuggestion && localProject.collaborationSuggestion) {
+        return {
+          ...merged,
+          collaborationSuggestion: localProject.collaborationSuggestion
+        };
+      }
+      merged.collaborationSuggestion = remoteSuggestion;
+    }
+
+    if (localProject.collaborationExecuted && !remoteProject.collaborationExecuted) {
+      merged.collaborationExecuted = true;
+    }
+
+    return merged;
+  }
+
   async ensureProjectWorkflow(project) {
     if (!project) {
       return project;
     }
     if (project.workflow && Array.isArray(project.workflow.stages)) {
+      return project;
+    }
+    if (!project.collaborationExecuted) {
       return project;
     }
     const suggestedStages = project.collaborationSuggestion?.stages;
@@ -1117,6 +1192,7 @@ class ProjectManager {
       return;
     }
 
+    project = this.normalizeExecutionState(project);
     const statusText =
       {
         planning: '规划中',
@@ -1139,16 +1215,16 @@ class ProjectManager {
     const workflowCategory = project.workflowCategory || 'product-development';
     const workflowLabel = this.getWorkflowCategoryLabel(workflowCategory);
 
-    const suggestedStages = project.collaborationSuggestion?.stages;
-    const hasSuggestedStages = Array.isArray(suggestedStages) && suggestedStages.length > 0;
-    const stages = hasSuggestedStages
-      ? this.normalizeSuggestedStages(suggestedStages)
-      : project.workflow?.stages || [];
-
-    // 检查是否已执行协同模式
     const collaborationExecuted = project.collaborationExecuted || false;
+    const suggestedStages = collaborationExecuted ? project.collaborationSuggestion?.stages : null;
+    const hasSuggestedStages = Array.isArray(suggestedStages) && suggestedStages.length > 0;
+    const stages = collaborationExecuted
+      ? hasSuggestedStages
+        ? this.normalizeSuggestedStages(suggestedStages)
+        : project.workflow?.stages || []
+      : [];
 
-    const shouldRenderWorkflow = hasSuggestedStages || (collaborationExecuted && stages.length > 0);
+    const shouldRenderWorkflow = collaborationExecuted && stages.length > 0;
     const effectiveStages = shouldRenderWorkflow ? stages : [];
     const stageCount = effectiveStages.length;
     const completedStages = effectiveStages.filter(stage => stage.status === 'completed').length;
@@ -1253,13 +1329,97 @@ class ProjectManager {
     // 不再需要 renderStageContent，因为阶段详情已经在 renderProjectPanel 中渲染
   }
 
+  normalizeExecutionState(project) {
+    if (!project || !project.workflow || !Array.isArray(project.workflow.stages)) {
+      return project;
+    }
+
+    const now = Date.now();
+    const normalizeTimestamp = value => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return numeric;
+      }
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const stages = project.workflow.stages;
+    const activeStages = stages.filter(stage => ['active', 'in_progress'].includes(stage.status));
+    const allCompleted = stages.length > 0 && stages.every(stage => stage.status === 'completed');
+    const timeoutMs = 30 * 60 * 1000;
+
+    let updated = false;
+    let nextStatus = project.status;
+    let nextStages = stages;
+
+    if (allCompleted && project.status !== 'completed') {
+      nextStatus = 'completed';
+      updated = true;
+    }
+
+    if (activeStages.length === 0 && project.status === 'in_progress') {
+      nextStatus = allCompleted ? 'completed' : 'active';
+      updated = true;
+    }
+
+    if (activeStages.length > 0) {
+      const projectUpdatedAt = normalizeTimestamp(project.updatedAt);
+      const staleActive = activeStages.every(stage => {
+        const startedAt = normalizeTimestamp(stage.startedAt);
+        const fallbackAt = startedAt ?? projectUpdatedAt;
+        if (!fallbackAt) {
+          return true;
+        }
+        return now - fallbackAt > timeoutMs;
+      });
+      if (staleActive) {
+        nextStages = stages.map(stage => {
+          if (!['active', 'in_progress'].includes(stage.status)) {
+            return stage;
+          }
+          return {
+            ...stage,
+            status: 'pending',
+            startedAt: null,
+            completedAt: null
+          };
+        });
+        nextStatus = allCompleted ? 'completed' : 'active';
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      return project;
+    }
+
+    const updatedProject = {
+      ...project,
+      status: nextStatus,
+      workflow: {
+        ...project.workflow,
+        stages: nextStages
+      }
+    };
+
+    setTimeout(() => {
+      this.updateProject(
+        project.id,
+        { status: nextStatus, workflow: updatedProject.workflow },
+        { localOnly: true }
+      ).catch(() => {});
+    }, 0);
+
+    return updatedProject;
+  }
+
   async openCollaborationMode(projectId) {
     if (!window.agentCollaboration) {
       window.modalManager?.alert('协同编辑模式暂不可用', 'info');
       return;
     }
 
-    const project = await this.getProject(projectId);
+    const project = await this.getProject(projectId, { requireRemote: true });
     if (!project) {
       return;
     }
@@ -2213,7 +2373,7 @@ class ProjectManager {
     const rendered = window.markdownRenderer
       ? window.markdownRenderer.render(artifact.content || '')
       : this.escapeHtml(artifact.content || '');
-    container.innerHTML = `<div class="markdown-body">${rendered}</div>`;
+    container.innerHTML = `<div class="report-rich-text markdown-content">${rendered}</div>`;
   }
 
   getArtifactTypeLabel(artifact) {
@@ -2316,7 +2476,7 @@ class ProjectManager {
     const contentHTML = `
             <div style="display: grid; gap: 12px;">
                 <div style="font-size: 18px; font-weight: 600;">${this.escapeHtml(item.title || '知识条目')}</div>
-                <div class="markdown-body">${rendered}</div>
+                <div class="report-rich-text markdown-content">${rendered}</div>
             </div>
         `;
     window.modalManager.showCustomModal('知识查看', contentHTML, 'knowledgeDetailModal');
@@ -2439,6 +2599,12 @@ class ProjectManager {
     const container = document.getElementById('projectPanelMembers');
     if (!container) {
       console.warn('[项目成员面板] 容器不存在');
+      return;
+    }
+
+    if (!project?.collaborationExecuted) {
+      container.classList.add('is-empty');
+      container.innerHTML = '<div class="project-panel-empty centered">协同模式未确认，暂不展示成员</div>';
       return;
     }
 
@@ -2677,9 +2843,30 @@ class ProjectManager {
     }
 
     const data = report.data || {};
+    const normalizeMarkdown = text => {
+      if (
+        window.reportViewer &&
+        typeof window.reportViewer._normalizeMarkdownForRendering === 'function'
+      ) {
+        return window.reportViewer._normalizeMarkdownForRendering(text || '');
+      }
+      return text || '';
+    };
     const renderMarkdown = text => {
-      const raw = text || '';
+      const raw = normalizeMarkdown(text || '');
       return window.markdownRenderer ? window.markdownRenderer.render(raw) : this.escapeHtml(raw);
+    };
+    const tryParseReportDocument = text => {
+      if (window.reportViewer && typeof window.reportViewer._tryParseReportDocument === 'function') {
+        return window.reportViewer._tryParseReportDocument(text || '');
+      }
+      return null;
+    };
+    const renderStructuredReport = reportData => {
+      if (window.reportViewer && typeof window.reportViewer.buildStructuredReportHTML === 'function') {
+        return window.reportViewer.buildStructuredReportHTML(reportData);
+      }
+      return '';
     };
     const safeText = text => this.escapeHtml(text ?? '');
     const normalizeArray = value => (Array.isArray(value) ? value : []);
@@ -2695,7 +2882,7 @@ class ProjectManager {
                 <div class="report-section-title">${index + 1}. ${safeText(chapter.title || `章节 ${index + 1}`)}</div>
                 <div class="document-chapter">
                     <div class="chapter-content" style="padding-left: 0;">
-                        <div class="markdown-body">${renderMarkdown(chapter.content || '')}</div>
+                        <div class="report-rich-text markdown-content">${renderMarkdown(chapter.content || '')}</div>
                     </div>
                 </div>
             </div>
@@ -2730,25 +2917,37 @@ class ProjectManager {
         return buildChaptersHTML(chapters);
       }
 
+      const fallbackText = '—';
+      const ensureList = list => (Array.isArray(list) && list.length ? list : [fallbackText]);
       const ch1 = normalizeObject(chapters.chapter1);
       const ch2 = normalizeObject(chapters.chapter2);
       const ch3 = normalizeObject(chapters.chapter3);
       const ch4 = normalizeObject(chapters.chapter4);
       const ch5 = normalizeObject(chapters.chapter5);
       const ch6 = normalizeObject(chapters.chapter6);
-      const ch2Assumptions = normalizeArray(ch2.assumptions);
-      const ch3Limitations = normalizeArray(ch3.limitations);
+      const ch2Assumptions = ensureList(normalizeArray(ch2.assumptions));
+      const ch3Limitations = ensureList(normalizeArray(ch3.limitations));
       const ch4Stages = normalizeArray(ch4.stages);
-      const ch5BlindSpots = normalizeArray(ch5.blindSpots);
+      const ch5BlindSpots = ensureList(normalizeArray(ch5.blindSpots));
       const ch5KeyQuestions = normalizeArray(ch5.keyQuestions);
-      const ch6ImmediateActions = normalizeArray(ch6.immediateActions);
-      const ch6ExtendedIdeas = normalizeArray(ch6.extendedIdeas);
+      const ch6ImmediateActions = ensureList(normalizeArray(ch6.immediateActions));
+      const ch6ExtendedIdeas = ensureList(normalizeArray(ch6.extendedIdeas));
       const ch6MidtermPlan = normalizeObject(ch6.midtermPlan);
       const ch3Prerequisites = normalizeObject(ch3.prerequisites);
-      const coreDefinition = safeText(normalizeText(reportData.coreDefinition));
-      const problem = safeText(normalizeText(reportData.problem));
-      const solution = safeText(normalizeText(reportData.solution));
-      const targetUser = safeText(normalizeText(reportData.targetUser));
+      const coreDefinition = safeText(normalizeText(reportData.coreDefinition, fallbackText));
+      const problem = safeText(normalizeText(reportData.problem, fallbackText));
+      const solution = safeText(normalizeText(reportData.solution, fallbackText));
+      const targetUser = safeText(normalizeText(reportData.targetUser, fallbackText));
+      const keyQuestions =
+        Array.isArray(ch5KeyQuestions) && ch5KeyQuestions.length
+          ? ch5KeyQuestions
+          : [{ category: '关键问题', question: fallbackText, validation: fallbackText, why: '' }];
+      const stages =
+        Array.isArray(ch4Stages) && ch4Stages.length
+          ? ch4Stages
+          : [{ stage: '阶段 1', goal: fallbackText, tasks: fallbackText }];
+      const validationMethods = ensureList(normalizeArray(ch6.validationMethods));
+      const successMetrics = ensureList(normalizeArray(ch6.successMetrics));
 
       return `
         <div class="report-section">
@@ -2757,21 +2956,53 @@ class ProjectManager {
                 <div class="chapter-content" style="padding-left: 0;">
                     <h4>1. 原始表述</h4>
                     <div class="highlight-box">
-                        ${safeText(normalizeText(ch1.originalIdea || reportData.initialIdea))}
+                        ${safeText(normalizeText(ch1.originalIdea || reportData.initialIdea, fallbackText))}
                     </div>
 
-                    <h4>2. 核心定义（对话后）</h4>
-                    <p><strong>一句话概括：</strong>${coreDefinition}</p>
+                    <h4>2. 核心定义与价值主张</h4>
+                    <div class="analysis-grid">
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🧭</div>
+                                <div class="analysis-card-title">一句话核心定义</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${coreDefinition}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🎯</div>
+                                <div class="analysis-card-title">解决的根本问题</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${problem}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">✨</div>
+                                <div class="analysis-card-title">提供的独特价值</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${solution}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">👥</div>
+                                <div class="analysis-card-title">目标受益者</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${targetUser}
+                            </div>
+                        </div>
+                    </div>
 
-                    <h4>3. 价值主张</h4>
-                    <ul>
-                        <li><strong>解决的根本问题：</strong>${problem}</li>
-                        <li><strong>提供的独特价值：</strong>${solution}</li>
-                        <li><strong>目标受益者：</strong>${targetUser}</li>
-                    </ul>
-
-                    <h4>4. 演变说明</h4>
-                    <p>${safeText(normalizeText(ch1.evolution))}</p>
+                    <h4>3. 演变说明</h4>
+                    <div class="highlight-box">
+                        ${safeText(normalizeText(ch1.evolution, fallbackText))}
+                    </div>
                 </div>
             </div>
         </div>
@@ -2781,16 +3012,39 @@ class ProjectManager {
             <div class="document-chapter">
                 <div class="chapter-content" style="padding-left: 0;">
                     <h4>1. 识别的根本需求</h4>
-                    <div class="highlight-box">
-                        <strong>表层需求：</strong>${safeText(normalizeText(ch2.surfaceNeed))}<br><br>
-                        <strong>深层动力：</strong>${safeText(normalizeText(ch2.deepMotivation))}
+                    <div class="analysis-grid">
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🌊</div>
+                                <div class="analysis-card-title">表层需求</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch2.surfaceNeed, fallbackText))}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🧠</div>
+                                <div class="analysis-card-title">深层动力</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch2.deepMotivation, fallbackText))}
+                            </div>
+                        </div>
                     </div>
 
                     <h4>2. 核心假设清单</h4>
                     <p><strong>创意成立所依赖的关键前提（未经完全验证）：</strong></p>
-                    <ul>
-                        ${ch2Assumptions.map(item => `<li>${safeText(item)}</li>`).join('')}
-                    </ul>
+                    ${ch2Assumptions
+                      .map(
+                        (item, idx) => `
+                        <div class="insight-item">
+                            <div class="insight-number">${idx + 1}</div>
+                            <div class="insight-text">${safeText(item)}</div>
+                        </div>
+                    `
+                      )
+                      .join('')}
                 </div>
             </div>
         </div>
@@ -2801,7 +3055,7 @@ class ProjectManager {
                 <div class="chapter-content" style="padding-left: 0;">
                     <h4>1. 理想应用场景</h4>
                     <div class="highlight-box">
-                        ${safeText(normalizeText(ch3.idealScenario))}
+                        ${safeText(normalizeText(ch3.idealScenario, fallbackText))}
                     </div>
 
                     <h4>2. 潜在限制因素</h4>
@@ -2818,7 +3072,7 @@ class ProjectManager {
                                 <div class="analysis-card-title">技术基础</div>
                             </div>
                             <div class="analysis-card-content">
-                                ${safeText(normalizeText(ch3Prerequisites.technical))}
+                                ${safeText(normalizeText(ch3Prerequisites.technical, fallbackText))}
                             </div>
                         </div>
                         <div class="analysis-card">
@@ -2827,7 +3081,7 @@ class ProjectManager {
                                 <div class="analysis-card-title">资源要求</div>
                             </div>
                             <div class="analysis-card-content">
-                                ${safeText(normalizeText(ch3Prerequisites.resources))}
+                                ${safeText(normalizeText(ch3Prerequisites.resources, fallbackText))}
                             </div>
                         </div>
                         <div class="analysis-card">
@@ -2836,7 +3090,7 @@ class ProjectManager {
                                 <div class="analysis-card-title">合作基础</div>
                             </div>
                             <div class="analysis-card-content">
-                                ${safeText(normalizeText(ch3Prerequisites.partnerships))}
+                                ${safeText(normalizeText(ch3Prerequisites.partnerships, fallbackText))}
                             </div>
                         </div>
                     </div>
@@ -2850,22 +3104,26 @@ class ProjectManager {
                 <div class="chapter-content" style="padding-left: 0;">
                     <h4>1. 实现路径分解</h4>
                     <p><strong>将大创意拆解为关键模块/发展阶段：</strong></p>
-                    <ol>
-                        ${ch4Stages
-                          .map(
-                            (stage, idx) => `
-                            <li><strong>${safeText(normalizeText(stage?.stage, `阶段 ${idx + 1}`))}：</strong>${safeText(
-                              normalizeText(stage?.goal)
-                            )} - ${safeText(normalizeText(stage?.tasks))}</li>
-                        `
-                          )
-                          .join('')}
-                    </ol>
+                    ${stages
+                      .map(
+                        (stage, idx) => `
+                        <div class="insight-item">
+                            <div class="insight-number">${idx + 1}</div>
+                            <div class="insight-text">
+                                <strong>${safeText(normalizeText(stage?.stage, `阶段 ${idx + 1}`))}：</strong>
+                                ${safeText(normalizeText(stage?.goal, fallbackText))} · ${safeText(
+                          normalizeText(stage?.tasks, fallbackText)
+                        )}
+                            </div>
+                        </div>
+                    `
+                      )
+                      .join('')}
 
                     <h4>2. 最大障碍预判</h4>
                     <div class="highlight-box">
-                        <strong>⚠️ 最大单一风险点：</strong>${safeText(normalizeText(ch4.biggestRisk))}<br><br>
-                        <strong>预防措施：</strong>${safeText(normalizeText(ch4.mitigation))}
+                        <strong>⚠️ 最大单一风险点：</strong>${safeText(normalizeText(ch4.biggestRisk, fallbackText))}<br><br>
+                        <strong>预防措施：</strong>${safeText(normalizeText(ch4.mitigation, fallbackText))}
                     </div>
                 </div>
             </div>
@@ -2886,17 +3144,20 @@ class ProjectManager {
                     <h4>2. 关键待验证问题</h4>
                     <p><strong>以下问题需通过调研、实验或原型才能回答：</strong></p>
                     <div class="analysis-grid">
-                        ${ch5KeyQuestions
+                        ${keyQuestions
                           .map(
                             (item, idx) => `
                             <div class="analysis-card">
                                 <div class="analysis-card-header">
                                     <div class="analysis-icon">❓</div>
-                                    <div class="analysis-card-title">决定性问题 ${idx + 1}</div>
+                                    <div class="analysis-card-title">${safeText(
+                                      normalizeText(item?.category, `决定性问题 ${idx + 1}`)
+                                    )}</div>
                                 </div>
                                 <div class="analysis-card-content">
-                                    ${safeText(normalizeText(item?.question))}<br><br>
-                                    <strong>验证方法：</strong>${safeText(normalizeText(item?.validation))}
+                                    <strong>问题：</strong>${safeText(normalizeText(item?.question, fallbackText))}<br><br>
+                                    <strong>验证方法：</strong>${safeText(normalizeText(item?.validation, fallbackText))}<br><br>
+                                    ${item?.why ? `<strong>为何重要：</strong>${safeText(normalizeText(item?.why, ''))}` : ''}
                                 </div>
                             </div>
                         `
@@ -2921,18 +3182,83 @@ class ProjectManager {
 
                     <h4>2. 中期探索方向（1-3个月）</h4>
                     <p><strong>为解答待探索问题，规划以下研究计划：</strong></p>
-                    <ul>
-                        <li><strong>用户研究：</strong>${safeText(normalizeText(ch6MidtermPlan.userResearch))}</li>
-                        <li><strong>市场调研：</strong>${safeText(normalizeText(ch6MidtermPlan.marketResearch))}</li>
-                        <li><strong>原型开发：</strong>${safeText(normalizeText(ch6MidtermPlan.prototyping))}</li>
-                        <li><strong>合作探索：</strong>${safeText(normalizeText(ch6MidtermPlan.partnerships))}</li>
-                    </ul>
+                    <div class="analysis-grid">
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">👥</div>
+                                <div class="analysis-card-title">用户研究</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch6MidtermPlan.userResearch, fallbackText))}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">📈</div>
+                                <div class="analysis-card-title">市场调研</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch6MidtermPlan.marketResearch, fallbackText))}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🧩</div>
+                                <div class="analysis-card-title">原型开发</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch6MidtermPlan.prototyping, fallbackText))}
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🤝</div>
+                                <div class="analysis-card-title">合作探索</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                ${safeText(normalizeText(ch6MidtermPlan.partnerships, fallbackText))}
+                            </div>
+                        </div>
+                    </div>
 
                     <h4>3. 概念延伸提示</h4>
                     <p><strong>对话中衍生的关联创意方向：</strong></p>
-                    <ul>
-                        ${ch6ExtendedIdeas.map(item => `<li>${safeText(item)}</li>`).join('')}
-                    </ul>
+                    ${ch6ExtendedIdeas
+                      .map(
+                        (item, idx) => `
+                        <div class="insight-item">
+                            <div class="insight-number">${idx + 1}</div>
+                            <div class="insight-text">${safeText(item)}</div>
+                        </div>
+                    `
+                      )
+                      .join('')}
+
+                    <h4>4. 验证方法与成功指标</h4>
+                    <div class="analysis-grid">
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">🧪</div>
+                                <div class="analysis-card-title">验证方法</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                <ul style="margin: 0; padding-left: 18px;">
+                                    ${validationMethods.map(item => `<li>${safeText(item)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="analysis-card">
+                            <div class="analysis-card-header">
+                                <div class="analysis-icon">✅</div>
+                                <div class="analysis-card-title">成功指标</div>
+                            </div>
+                            <div class="analysis-card-content">
+                                <ul style="margin: 0; padding-left: 18px;">
+                                    ${successMetrics.map(item => `<li>${safeText(item)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2941,6 +3267,13 @@ class ProjectManager {
 
     const metaHTML =
       type === 'analysis' ? `<div class="report-meta">项目面板 · 只读预览</div>` : '';
+    const buildReportHeader = ({ title, subtitle, meta }) => `
+      <div class="report-hero">
+        <div class="report-hero-title">${safeText(title)}</div>
+        <div class="report-hero-sub">${safeText(subtitle)}</div>
+        ${meta ? `<div class="report-hero-meta">${meta}</div>` : ''}
+      </div>
+    `;
     let contentHTML = '';
     if (type === 'analysis') {
       // 检查数据是否有效
@@ -2964,94 +3297,71 @@ class ProjectManager {
     } else if (type === 'business' || type === 'proposal') {
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
       const ideaTitle = chat?.userData?.idea || chat?.title || '创意项目';
+      const headerHTML = buildReportHeader({
+        title: typeTitle,
+        subtitle: ideaTitle
+      });
       if (data.document) {
-        contentHTML = `
-          <div class="report-section">
-              <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
-                  <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
-                      ${safeText(ideaTitle)}
-                  </h1>
-                  <p style="font-size: 16px; color: var(--text-secondary);">
-                      ${typeTitle} · AI生成于 ${new Date(data.timestamp || report.timestamp || Date.now()).toLocaleDateString()}
-                  </p>
-                  ${
-                    data.costStats || report.costStats
-                      ? `<p style="font-size: 14px; color: var(--text-tertiary); margin-top: 8px;">
-                          使用 ${data.totalTokens || report.totalTokens || ''} tokens · 成本 ${
-                            (data.costStats || report.costStats)?.costString || ''
-                          }
-                        </p>`
-                      : ''
-                  }
-              </div>
-
-              <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
-                  ${renderMarkdown(data.document)}
-              </div>
-          </div>
-        `;
+        const parsed = tryParseReportDocument(data.document);
+        if (parsed && parsed.chapters) {
+          contentHTML = `
+            ${headerHTML}
+            ${renderStructuredReport(parsed)}
+          `;
+        } else {
+          contentHTML = `
+            ${headerHTML}
+            <div class="report-section">
+                <div class="report-section-title">报告正文</div>
+                <div class="report-section-body report-rich-text markdown-content">
+                    ${renderMarkdown(data.document)}
+                </div>
+            </div>
+          `;
+        }
       } else if (data.chapters) {
-        const chapters = Array.isArray(data.chapters)
-          ? data.chapters
-          : Object.values(data.chapters || {});
-        contentHTML = `
-          <div class="report-section">
-              <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px;">
-                  <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
-                      ${safeText(ideaTitle)}
-                  </h1>
-                  <p style="font-size: 16px; color: var(--text-secondary);">
-                      ${typeTitle} · AI生成于 ${new Date(data.timestamp || report.timestamp || Date.now()).toLocaleDateString()}
-                  </p>
-                  ${
-                    data.costStats || report.costStats
-                      ? `<p style="font-size: 14px; color: var(--text-tertiary); margin-top: 8px;">
-                          使用 ${data.totalTokens || report.totalTokens || ''} tokens · 成本 ${
-                            (data.costStats || report.costStats)?.costString || ''
+        if (!Array.isArray(data.chapters) && data.chapters.chapter1) {
+          contentHTML = `
+            ${headerHTML}
+            ${renderStructuredReport(data)}
+          `;
+        } else {
+          const chapters = Array.isArray(data.chapters)
+            ? data.chapters
+            : Object.values(data.chapters || {});
+          contentHTML = `
+            ${headerHTML}
+            ${chapters
+              .map((chapter, index) => {
+                const agentIcon =
+                  typeof window.getAgentIconSvg === 'function'
+                    ? window.getAgentIconSvg(chapter.emoji || chapter.agent, 16, 'agent-inline-icon')
+                    : '';
+                const agentLine = chapter.agent ? `${agentIcon} ${safeText(chapter.agent)}` : '';
+                return `
+                  <div class="report-section">
+                      <div class="report-section-title">${index + 1}. ${safeText(
+                        chapter.title || `章节 ${index + 1}`
+                      )}</div>
+                      ${
+                        agentLine
+                          ? `<div class="report-section-meta">分析师：${agentLine}</div>`
+                          : ''
+                      }
+                      <div class="report-section-body report-rich-text markdown-content">
+                          ${
+                            chapter.content
+                              ? renderMarkdown(chapter.content)
+                              : '<p class="report-empty">内容生成中...</p>'
                           }
-                        </p>`
-                      : ''
-                  }
-              </div>
-
-              ${chapters
-                .map(
-                  (chapter, index) => `
-                    <div class="report-section" style="margin-bottom: 40px;">
-                        <div class="report-section-title">${index + 1}. ${safeText(
-                          chapter.title || `章节 ${index + 1}`
-                        )}</div>
-                        <div class="document-chapter">
-                            <div class="chapter-content" style="padding-left: 0;">
-                                <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                    <strong>分析师：</strong>${
-                                      typeof window.getAgentIconSvg === 'function'
-                                        ? window.getAgentIconSvg(
-                                            chapter.emoji || chapter.agent,
-                                            16,
-                                            'agent-inline-icon'
-                                          )
-                                        : ''
-                                    } ${safeText(chapter.agent || 'AI分析师')}
-                                </p>
-
-                                <div class="markdown-content" style="line-height: 1.8; font-size: 15px;">
-                                    ${chapter.content ? renderMarkdown(chapter.content) : '<p style="color: var(--text-secondary);">内容生成中...</p>'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `
-                )
-                .join('')}
-
-              <div style="text-align: center; padding: 30px 0; border-top: 2px solid var(--border); margin-top: 40px;">
-                  <p style="color: var(--text-secondary); font-size: 14px;">
-                      本报告由 ThinkCraft AI 自动生成 | 数据仅供参考
-                  </p>
-              </div>
-          </div>
-        `;
+                      </div>
+                  </div>
+                `;
+              })
+              .join('')}
+            <div class="report-footer-note">本报告由 ThinkCraft AI 自动生成 | 数据仅供参考</div>
+          `;
+        }
       }
     } else if (data.chapters) {
       const chapters = Array.isArray(data.chapters)
@@ -3151,13 +3461,41 @@ class ProjectManager {
       return;
     }
 
-    const agentMarket = await this.getAgentMarketList(
+    const catalog = await this.getWorkflowCatalog(project.workflowCategory || 'product-development')
+      .catch(() => null);
+    if (catalog) {
+      if (!this.workflowCatalogCache) {
+        this.workflowCatalogCache = {};
+      }
+      this.workflowCatalogCache[project.workflowCategory || 'product-development'] = catalog;
+    }
+
+    const stageIdFallback =
+      this.currentStageId || project.workflow?.currentStage || project.workflow?.stages?.[0]?.id;
+    let recommended =
+      catalog ? this.getRecommendedAgentsForStageFromCatalog(catalog, stageIdFallback) : [];
+    if (recommended.length === 0) {
+      recommended = this.getRecommendedAgentsFromProjectWorkflow(project, stageIdFallback);
+    }
+
+    let agentMarket = await this.getAgentMarketList(
       project.workflowCategory || 'product-development'
     );
     const hiredAgents = await this.getUserHiredAgents();
     const hiredIds = project.assignedAgents || [];
     const assignedAgents = hiredAgents.filter(agent => hiredIds.includes(agent.id));
-    const recommended = this.getRecommendedAgentsForStage(project, this.currentStageId);
+
+    const missingRecommended = recommended.filter(
+      id => !agentMarket.some(agent => agent.id === id)
+    );
+    if (missingRecommended.length > 0) {
+      const fallbackAgents = missingRecommended
+        .map(id => this.buildFallbackAgentFromCatalog(catalog, id, project))
+        .filter(Boolean);
+      if (fallbackAgents.length > 0) {
+        agentMarket = [...fallbackAgents, ...agentMarket];
+      }
+    }
 
     container.innerHTML = agentMarket
       .map(agent => {
@@ -3190,6 +3528,64 @@ class ProjectManager {
             `;
       })
       .join('');
+  }
+
+  buildFallbackAgentFromCatalog(catalog, agentId, project = null) {
+    if (!catalog || !agentId) {
+      if (!agentId) {
+        return null;
+      }
+      return {
+        id: agentId,
+        name: agentId,
+        emoji: agentId === 'strategy-design' ? '🎯' : '🤖',
+        desc: '推荐岗位',
+        skills: [],
+        level: 'custom',
+        role: agentId
+      };
+    }
+    const roleEntries = Object.values(catalog.agentRoles || {}).flat();
+    const match = roleEntries.find(entry => entry.id === agentId);
+    if (!match) {
+      return {
+        id: agentId,
+        name: agentId,
+        emoji: '🤖',
+        desc: '推荐岗位',
+        skills: [],
+        level: 'custom',
+        role: agentId
+      };
+    }
+    return {
+      id: agentId,
+      name: match.role || agentId,
+      emoji: agentId === 'strategy-design' ? '🎯' : '🤖',
+      desc: Array.isArray(match.tasks) ? match.tasks.join('；') : '推荐岗位',
+      skills: Array.isArray(match.tasks) ? match.tasks.slice(0, 4) : [],
+      level: 'custom',
+      role: match.role || agentId
+    };
+  }
+
+  getRecommendedAgentsFromProjectWorkflow(project, stageId) {
+    const stages = project?.workflow?.stages || [];
+    if (!stageId || stages.length === 0) {
+      return [];
+    }
+    const mapAgents = stage =>
+      Array.isArray(stage?.agents) ? stage.agents : (stage?.agentRoles || []).map(r => r.id);
+    if (stageId === 'strategy-requirement') {
+      const merged = [];
+      ['strategy', 'requirement'].forEach(id => {
+        const stage = stages.find(s => s.id === id);
+        merged.push(...mapAgents(stage));
+      });
+      return Array.from(new Set(merged.filter(Boolean)));
+    }
+    const stage = stages.find(s => s.id === stageId);
+    return Array.from(new Set(mapAgents(stage).filter(Boolean)));
   }
 
   async renderMemberHired() {
@@ -3408,10 +3804,23 @@ class ProjectManager {
 
   getRecommendedAgentsForStage(project, stageId) {
     const category = project.workflowCategory || 'product-development';
-    const catalog = this.getWorkflowCatalog();
-    const workflow = catalog[category];
+    const workflow = this.workflowCatalogCache?.[category];
     if (!workflow || !stageId) {
       return [];
+    }
+    return this.getRecommendedAgentsForStageFromCatalog(workflow, stageId);
+  }
+
+  getRecommendedAgentsForStageFromCatalog(workflow, stageId) {
+    if (!workflow || !stageId) {
+      return [];
+    }
+    if (stageId === 'strategy-requirement') {
+      const merged = [
+        ...(workflow.agents?.strategy || []),
+        ...(workflow.agents?.requirement || [])
+      ];
+      return Array.from(new Set(merged));
     }
     return workflow.agents?.[stageId] || [];
   }
@@ -3574,9 +3983,23 @@ class ProjectManager {
       const reports = await this.storageManager.getAllReports().catch(() => []);
       const analysisMap = new Map();
       reports.forEach(report => {
-        if (report.type === 'analysis' && report.chatId) {
-          analysisMap.set(this.normalizeIdeaIdForCompare(report.chatId), true);
+        if (report.type !== 'analysis' || !report.chatId) {
+          return;
         }
+        if (report.status !== 'completed') {
+          return;
+        }
+        const data = report.data || {};
+        const chapters = data.chapters;
+        const hasChapters =
+          chapters !== null &&
+          chapters !== undefined &&
+          (Array.isArray(chapters) || typeof chapters === 'object');
+        const hasDocument = typeof data.document === 'string' && data.document.trim().length > 0;
+        if (!hasChapters && !hasDocument) {
+          return;
+        }
+        analysisMap.set(this.normalizeIdeaIdForCompare(report.chatId), true);
       });
 
       // 检查哪些创意已经创建过项目
@@ -3706,6 +4129,23 @@ class ProjectManager {
     await this.updateProject(projectId, { workflow: project.workflow }, { localOnly: true });
   }
 
+  async customizeWorkflow(projectId, stages) {
+    if (!projectId || !Array.isArray(stages) || stages.length === 0) {
+      return null;
+    }
+    const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}/workflow`, {
+      method: 'PUT',
+      headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ stages })
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || '更新工作流失败');
+    }
+    const result = await response.json();
+    return result.data?.workflow || null;
+  }
+
   async applyCollaborationSuggestion(projectId, suggestion) {
     const project = await this.getProject(projectId);
     if (!project || !suggestion) {
@@ -3826,10 +4266,13 @@ class ProjectManager {
     );
     console.log('[应用协作建议] 合并后的Agent ID:', mergedAgents);
 
-    project.workflow = {
-      ...project.workflow,
-      stages: adjustedStages
-    };
+    let updatedWorkflow = null;
+    try {
+      updatedWorkflow = await this.customizeWorkflow(projectId, adjustedStages);
+    } catch (error) {
+      console.warn('[应用协作建议] 工作流远端更新失败，使用本地覆盖:', error);
+    }
+    project.workflow = updatedWorkflow || { ...project.workflow, stages: adjustedStages };
     await this.hydrateProjectStageOutputs(project);
 
     // 如果有未雇佣的推荐Agent，记录到项目中以便后续提示
@@ -3846,7 +4289,7 @@ class ProjectManager {
     }
 
     // 保存调整后的阶段和成员
-    await this.updateProject(projectId, updateData, { localOnly: true });
+    await this.updateProject(projectId, updateData, { forceRemote: true });
 
     // 刷新项目面板
     if (this.currentProject?.id === projectId) {
@@ -4149,13 +4592,28 @@ class ProjectManager {
    */
   async openProject(projectId) {
     try {
-      // 获取项目详情
-      const project = await this.getProject(projectId);
+      const backendHealthy = await this.checkBackendHealth();
+      if (!backendHealthy) {
+        const msg =
+          this.lastHealthError === 'unauthorized'
+            ? '请先登录后再试'
+            : '服务异常，稍候再试';
+        if (window.modalManager) {
+          window.modalManager.alert(msg, 'warning');
+        } else {
+          alert(msg);
+        }
+        return;
+      }
+
+      // 获取项目详情（仅远端，避免本地缓存兜底）
+      const project = await this.getProject(projectId, { requireRemote: true });
       if (!project) {
         throw new Error('项目不存在');
       }
 
       await this.hydrateProjectStageOutputs(project);
+      await this.syncWorkflowArtifactsFromServer(project);
 
       this.currentProjectId = projectId;
       this.currentProject = project;
@@ -4167,6 +4625,7 @@ class ProjectManager {
       }
 
       // 右侧面板展示
+      this.ensureProjectPanelStyles();
       this.renderProjectPanel(project);
       this.updateProjectSelection(projectId);
     } catch (error) {
@@ -4176,6 +4635,153 @@ class ProjectManager {
         alert('打开项目失败: ' + error.message);
       }
     }
+  }
+
+  ensureProjectPanelStyles() {
+    if (this.projectPanelStyleEnsured) {
+      return;
+    }
+    this.projectPanelStyleEnsured = true;
+
+    const hasMainCss = Array.from(document.styleSheets || []).some(sheet => {
+      try {
+        return sheet?.href && sheet.href.includes('/css/main.css');
+      } catch (error) {
+        return false;
+      }
+    });
+
+    if (!hasMainCss) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/css/main.css';
+      link.dataset.tc = 'project-panel-css';
+      document.head.appendChild(link);
+    }
+
+    const probe = document.createElement('div');
+    probe.className = 'project-deliverable-checklist';
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    document.body.appendChild(probe);
+    const style = window.getComputedStyle(probe);
+    const hasChecklistStyle =
+      style.borderRadius !== '0px' && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    document.body.removeChild(probe);
+
+    if (hasChecklistStyle) {
+      return;
+    }
+
+    if (document.getElementById('project-panel-style-fallback')) {
+      return;
+    }
+    const styleTag = document.createElement('style');
+    styleTag.id = 'project-panel-style-fallback';
+    styleTag.textContent = `
+      .project-deliverable-checklist {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fafafa;
+      }
+      .project-deliverable-checklist-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 6px;
+      }
+      .project-deliverable-checklist-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .project-deliverable-checklist-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #374151;
+        padding: 4px 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 999px;
+        background: #fff;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+      .project-deliverable-checklist-input {
+        accent-color: #10b981;
+      }
+      .project-deliverable-checklist-label {
+        line-height: 1.2;
+      }
+      .project-deliverable-checklist-item:hover {
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+        color: #065f46;
+      }
+      .project-deliverable-checklist-input:checked + .project-deliverable-checklist-label {
+        color: #065f46;
+        font-weight: 600;
+      }
+    `;
+    document.head.appendChild(styleTag);
+  }
+
+  async checkBackendHealth() {
+    try {
+      this.lastHealthError = null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      let response = await fetch(`${this.apiUrl}/api/health`, { signal: controller.signal });
+      if (!response.ok) {
+        response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/health`, {
+          signal: controller.signal
+        });
+      }
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.lastHealthError = 'unauthorized';
+        }
+        return false;
+      }
+      const result = await response.json().catch(() => ({}));
+      if (result?.code === 0) {
+        return true;
+      }
+      if (result?.status === 'ok') {
+        return true;
+      }
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async syncWorkflowArtifactsFromServer(project) {
+    if (!project || !project.workflow || !window.workflowExecutor) {
+      return;
+    }
+    const artifacts = await window.workflowExecutor.getAllArtifacts(project.id);
+    const byStage = new Map();
+    (artifacts || []).forEach(artifact => {
+      if (!artifact?.stageId) {
+        return;
+      }
+      if (!byStage.has(artifact.stageId)) {
+        byStage.set(artifact.stageId, []);
+      }
+      byStage.get(artifact.stageId).push(artifact);
+    });
+    const stages = project.workflow.stages || [];
+    stages.forEach(stage => {
+      stage.artifacts = byStage.get(stage.id) || [];
+    });
+
+    this.normalizeExecutionState(project);
   }
 
   /**
@@ -4557,6 +5163,7 @@ class ProjectManager {
         window.modalManager.close();
         window.modalManager.alert('执行失败: ' + error.message, 'error');
       }
+      await this.updateProject(projectId, { status: 'active' }, { allowFallback: true }).catch(() => {});
     }
   }
 

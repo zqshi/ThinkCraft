@@ -3,6 +3,7 @@
  * 支持Agent雇佣、任务分配、工作协同
  */
 import express from 'express';
+import { UserAgentModel } from '../infrastructure/user-agent.model.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -82,7 +83,6 @@ function buildFullWorkflowStages(recommendedAgents = [], stageHints = []) {
     new Set(
       [
         ...(stageDefaults.strategy?.artifactTypes || []),
-        ...(stageDefaults['hypothesis-validation']?.artifactTypes || []),
         ...(stageDefaults.requirement?.artifactTypes || [])
       ].filter(Boolean)
     )
@@ -97,7 +97,6 @@ function buildFullWorkflowStages(recommendedAgents = [], stageHints = []) {
         new Set(
           [
             ...(stageDefaults.strategy?.recommendedAgents || []),
-            ...(stageDefaults['hypothesis-validation']?.recommendedAgents || []),
             ...(stageDefaults.requirement?.recommendedAgents || [])
           ].filter(Boolean)
         )
@@ -690,6 +689,91 @@ function buildFallbackAgent(id, promptInfo) {
 // 用户雇佣的Agent存储（内存存储，生产环境应使用数据库）
 const userAgents = new Map(); // userId -> agents[]
 
+function normalizeUserAgent(doc) {
+  if (!doc) {
+    return null;
+  }
+  const id = doc.id || doc._id;
+  return {
+    id,
+    userId: doc.userId,
+    type: doc.type,
+    name: doc.name,
+    nickname: doc.nickname || doc.name,
+    emoji: doc.emoji,
+    desc: doc.desc,
+    skills: Array.isArray(doc.skills) ? doc.skills : [],
+    salary: doc.salary || 0,
+    level: doc.level,
+    hiredAt: doc.hiredAt,
+    status: doc.status || 'idle',
+    tasksCompleted: doc.tasksCompleted || 0,
+    performance: doc.performance || 100
+  };
+}
+
+async function loadUserAgentsFromDb(userId) {
+  try {
+    const docs = await UserAgentModel.find({ userId }).lean();
+    if (!docs || docs.length === 0) {
+      return [];
+    }
+    return docs.map(doc => normalizeUserAgent(doc)).filter(Boolean);
+  } catch (error) {
+    return null;
+  }
+}
+
+async function saveUserAgentToDb(agent) {
+  try {
+    if (!agent?.id || !agent?.userId) {
+      return null;
+    }
+    await UserAgentModel.updateOne(
+      { _id: agent.id },
+      {
+        $set: {
+          userId: agent.userId,
+          type: agent.type,
+          name: agent.name || agent.nickname || '',
+          nickname: agent.nickname || agent.name || '',
+          emoji: agent.emoji || '',
+          desc: agent.desc || '',
+          skills: Array.isArray(agent.skills) ? agent.skills : [],
+          salary: agent.salary || 0,
+          level: agent.level || '',
+          hiredAt: agent.hiredAt || new Date().toISOString(),
+          status: agent.status || 'idle',
+          tasksCompleted: agent.tasksCompleted || 0,
+          performance: agent.performance || 100
+        }
+      },
+      { upsert: true }
+    );
+    return agent;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function updateUserAgentInDb(agentId, updates = {}) {
+  try {
+    await UserAgentModel.updateOne({ _id: agentId }, { $set: updates });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function deleteUserAgentFromDb(agentId) {
+  try {
+    await UserAgentModel.deleteOne({ _id: agentId });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 /**
  * Agent任务提示词模板
  */
@@ -892,11 +976,12 @@ router.post('/hire', async (req, res, next) => {
       performance: 100 // 绩效分数
     };
 
-    // 保存到用户的Agent列表
+    // 保存到用户的Agent列表（内存 + DB）
     if (!userAgents.has(userId)) {
       userAgents.set(userId, []);
     }
     userAgents.get(userId).push(agent);
+    await saveUserAgentToDb(agent);
 
     res.json({
       code: 0,
@@ -911,10 +996,14 @@ router.post('/hire', async (req, res, next) => {
  * GET /api/agents/my/:userId
  * 获取用户的Agent团队
  */
-router.get('/my/:userId', (req, res) => {
+router.get('/my/:userId', async (req, res) => {
   const { userId } = req.params;
-
-  const agents = userAgents.get(userId) || [];
+  let agents = await loadUserAgentsFromDb(userId);
+  if (!agents) {
+    agents = userAgents.get(userId) || [];
+  } else if (!userAgents.has(userId)) {
+    userAgents.set(userId, agents);
+  }
 
   res.json({
     code: 0,
@@ -942,7 +1031,10 @@ router.post('/assign-task', async (req, res, next) => {
     }
 
     // 查找Agent
-    const agents = userAgents.get(userId) || [];
+    let agents = await loadUserAgentsFromDb(userId);
+    if (!agents) {
+      agents = userAgents.get(userId) || [];
+    }
     const agent = agents.find(a => a.id === agentId);
 
     if (!agent) {
@@ -954,6 +1046,7 @@ router.post('/assign-task', async (req, res, next) => {
 
     // 更新Agent状态
     agent.status = 'working';
+    await updateUserAgentInDb(agent.id, { status: agent.status });
 
     // 使用AI生成Agent的工作结果
     const promptTemplate = AGENT_TASK_PROMPTS[agent.type] || AGENT_TASK_PROMPTS['consultant'];
@@ -969,6 +1062,10 @@ router.post('/assign-task', async (req, res, next) => {
     // 更新Agent数据
     agent.status = 'idle';
     agent.tasksCompleted++;
+    await updateUserAgentInDb(agent.id, {
+      status: agent.status,
+      tasksCompleted: agent.tasksCompleted
+    });
 
     const taskResult = {
       agentId: agent.id,
@@ -986,10 +1083,14 @@ router.post('/assign-task', async (req, res, next) => {
     });
   } catch (error) {
     // 恢复Agent状态
-    const agents = userAgents.get(req.body.userId) || [];
+    let agents = await loadUserAgentsFromDb(req.body.userId);
+    if (!agents) {
+      agents = userAgents.get(req.body.userId) || [];
+    }
     const agent = agents.find(a => a.id === req.body.agentId);
     if (agent) {
       agent.status = 'idle';
+      await updateUserAgentInDb(agent.id, { status: 'idle' });
     }
 
     next(error);
@@ -1000,17 +1101,21 @@ router.post('/assign-task', async (req, res, next) => {
  * DELETE /api/agents/:userId/:agentId
  * 解雇Agent
  */
-router.delete('/:userId/:agentId', (req, res) => {
+router.delete('/:userId/:agentId', async (req, res) => {
   const { userId, agentId } = req.params;
 
-  if (!userAgents.has(userId)) {
+  let agents = await loadUserAgentsFromDb(userId);
+  if (!agents) {
+    agents = userAgents.get(userId) || [];
+  }
+  if (agents.length === 0) {
     return res.status(404).json({
       code: -1,
       error: '用户不存在'
     });
   }
 
-  const agents = userAgents.get(userId);
+  const localAgents = userAgents.get(userId) || agents;
   const index = agents.findIndex(a => a.id === agentId);
 
   if (index === -1) {
@@ -1022,6 +1127,11 @@ router.delete('/:userId/:agentId', (req, res) => {
 
   const agent = agents[index];
   agents.splice(index, 1);
+  const localIndex = localAgents.findIndex(a => a.id === agentId);
+  if (localIndex !== -1) {
+    localAgents.splice(localIndex, 1);
+  }
+  await deleteUserAgentFromDb(agentId);
 
   res.json({
     code: 0,
@@ -1033,18 +1143,22 @@ router.delete('/:userId/:agentId', (req, res) => {
  * PUT /api/agents/:userId/:agentId
  * 更新Agent信息（如nickname）
  */
-router.put('/:userId/:agentId', (req, res) => {
+router.put('/:userId/:agentId', async (req, res) => {
   const { userId, agentId } = req.params;
   const { nickname } = req.body;
 
-  if (!userAgents.has(userId)) {
+  let agents = await loadUserAgentsFromDb(userId);
+  if (!agents) {
+    agents = userAgents.get(userId) || [];
+  }
+  if (agents.length === 0) {
     return res.status(404).json({
       code: -1,
       error: '用户不存在'
     });
   }
 
-  const agents = userAgents.get(userId);
+  const localAgents = userAgents.get(userId) || agents;
   const agent = agents.find(a => a.id === agentId);
 
   if (!agent) {
@@ -1056,6 +1170,11 @@ router.put('/:userId/:agentId', (req, res) => {
 
   if (nickname) {
     agent.nickname = nickname;
+    await updateUserAgentInDb(agent.id, { nickname });
+    const localAgent = localAgents.find(a => a.id === agent.id);
+    if (localAgent) {
+      localAgent.nickname = nickname;
+    }
   }
 
   res.json({
@@ -1079,7 +1198,10 @@ router.post('/team-collaboration', async (req, res, next) => {
       });
     }
 
-    const agents = userAgents.get(userId) || [];
+    let agents = await loadUserAgentsFromDb(userId);
+    if (!agents) {
+      agents = userAgents.get(userId) || [];
+    }
     const selectedAgents = agents.filter(a => agentIds.includes(a.id));
 
     if (selectedAgents.length === 0) {
@@ -1093,6 +1215,9 @@ router.post('/team-collaboration', async (req, res, next) => {
     selectedAgents.forEach(a => {
       a.status = 'working';
     });
+    await Promise.all(
+      selectedAgents.map(agent => updateUserAgentInDb(agent.id, { status: 'working' }))
+    );
 
     // 生成协同任务提示词
     const agentRoles = selectedAgents.map(a => `${a.emoji} ${a.nickname}（${a.name}）`).join('、');
@@ -1123,6 +1248,14 @@ ${context ? `背景信息：\n${context}` : ''}
       a.status = 'idle';
       a.tasksCompleted++;
     });
+    await Promise.all(
+      selectedAgents.map(agent =>
+        updateUserAgentInDb(agent.id, {
+          status: 'idle',
+          tasksCompleted: agent.tasksCompleted
+        })
+      )
+    );
 
     const collaborationResult = {
       teamMembers: selectedAgents.map(a => ({
@@ -1142,11 +1275,15 @@ ${context ? `背景信息：\n${context}` : ''}
     });
   } catch (error) {
     // 恢复所有Agent状态
-    const agents = userAgents.get(req.body.userId) || [];
+    let agents = await loadUserAgentsFromDb(req.body.userId);
+    if (!agents) {
+      agents = userAgents.get(req.body.userId) || [];
+    }
     req.body.agentIds.forEach(id => {
       const agent = agents.find(a => a.id === id);
       if (agent) {
         agent.status = 'idle';
+        updateUserAgentInDb(agent.id, { status: 'idle' });
       }
     });
 

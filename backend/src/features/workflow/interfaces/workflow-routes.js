@@ -14,9 +14,6 @@ import { projectRepository } from '../../../features/projects/infrastructure/ind
 
 const router = express.Router();
 
-// 内存存储（实际应该使用数据库）
-const artifacts = new Map(); // key: projectId, value: Map<stageId, Array<artifact>>
-
 function parseJsonPayload(text) {
   if (!text) {
     return null;
@@ -66,19 +63,10 @@ function normalizeOutputToTypeId(output) {
   return entry ? entry[0] : null;
 }
 
-function collectProjectArtifacts(projectId, workflowStages) {
+function collectProjectArtifacts(workflowStages) {
   const byStage = new Map();
-  const projectArtifacts = artifacts.get(projectId);
-  if (projectArtifacts) {
-    for (const [stageId, stageArtifacts] of projectArtifacts.entries()) {
-      byStage.set(stageId, Array.isArray(stageArtifacts) ? stageArtifacts : []);
-    }
-  }
   (workflowStages || []).forEach(stage => {
     if (!stage || !stage.id) {
-      return;
-    }
-    if (byStage.has(stage.id)) {
       return;
     }
     const stageArtifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
@@ -437,18 +425,6 @@ const STAGE_PROMPTS = {
 
 请输出完整的Markdown格式文档。`,
 
-  'hypothesis-validation': `你是一位产品验证负责人，负责基于创意与现有资料完成价值假设验证与MVP可行性评估。
-
-创意对话内容：
-{CONVERSATION}
-
-请围绕以下交付物给出可执行的验证输出（可包含方法、样本、证据与结论）：
-1. 价值假设验证报告
-2. 核心引导逻辑Prompt设计
-3. 3-5位用户测试反馈记录
-4. MVP可行性结论
-
-请输出完整的Markdown格式文档。`
 };
 
 /**
@@ -630,13 +606,11 @@ function resolveStageDefinition(stageId) {
   }
   if (stageId === 'strategy-requirement') {
     const strategy = getStageById('strategy');
-    const hypothesis = getStageById('hypothesis-validation');
     const requirement = getStageById('requirement');
     const recommendedAgents = Array.from(
       new Set(
         [
           ...(strategy?.recommendedAgents || []),
-          ...(hypothesis?.recommendedAgents || []),
           ...(requirement?.recommendedAgents || [])
         ].filter(Boolean)
       )
@@ -645,7 +619,6 @@ function resolveStageDefinition(stageId) {
       new Set(
         [
           ...(strategy?.artifactTypes || []),
-          ...(hypothesis?.artifactTypes || []),
           ...(requirement?.artifactTypes || [])
         ].filter(Boolean)
       )
@@ -688,6 +661,54 @@ function ensureStageDefinition(stageId) {
   };
 }
 
+async function loadProject(projectId) {
+  const project = await projectRepository.findById(projectId);
+  if (!project) {
+    const err = new Error('项目不存在');
+    err.status = 404;
+    throw err;
+  }
+  return project;
+}
+
+function getStageArtifactsFromProject(project, stageId) {
+  const workflow = project.workflow;
+  if (!workflow) {
+    return [];
+  }
+  const stage = workflow.getStage(stageId);
+  if (!stage) {
+    return [];
+  }
+  return Array.isArray(stage.artifacts) ? stage.artifacts : [];
+}
+
+function normalizeArtifactsForResponse(stageId, artifactsList = []) {
+  return (artifactsList || []).map(artifact => ({
+    ...artifact,
+    stageId: artifact?.stageId || stageId
+  }));
+}
+
+function resolveProjectStageIds(project, stageId) {
+  if (stageId !== 'strategy-requirement') {
+    return [stageId];
+  }
+  const workflow = project.workflow;
+  if (!workflow) {
+    return [];
+  }
+  const candidates = ['strategy', 'requirement'];
+  const matched = candidates.filter(id => workflow.getStage(id));
+  if (matched.length > 0) {
+    return matched;
+  }
+  const fallback = workflow.stages?.[0]?.id;
+  return fallback ? [fallback] : [];
+}
+
+const STRATEGY_STAGE_ARTIFACTS = new Set(['strategy-doc']);
+
 async function executeStage(projectId, stageId, context = {}) {
   const normalizedStageId = normalizeStageId(stageId);
   const stage = ensureStageDefinition(normalizedStageId);
@@ -705,12 +726,16 @@ async function executeStage(projectId, stageId, context = {}) {
     throw err;
   }
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey || apiKey === 'sk-your-api-key-here') {
-    const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
+  const project = await loadProject(projectId);
+  const stageIdsForProject = resolveProjectStageIds(project, normalizedStageId);
+  if (stageIdsForProject.length === 0) {
+    const err = new Error(`项目工作流未包含阶段: ${normalizedStageId}`);
     err.status = 400;
     throw err;
   }
+  const existingStageArtifacts = stageIdsForProject.flatMap(stageId =>
+    getStageArtifactsFromProject(project, stageId)
+  );
 
   // 替换上下文变量
   let basePrompt = promptTemplate;
@@ -731,32 +756,101 @@ async function executeStage(projectId, stageId, context = {}) {
     throw err;
   }
 
+  const normalizedExistingArtifacts = normalizeArtifactsForResponse(
+    normalizedStageId,
+    existingStageArtifacts
+  );
+  const hasExplicitSelection = selectedArtifactTypes.length > 0;
+  if (!hasExplicitSelection && normalizedExistingArtifacts.length > 0) {
+    console.info('[Workflow] execute-stage skip model', {
+      projectId,
+      stageId: normalizedStageId,
+      reason: 'existing_artifacts',
+      artifactCount: normalizedExistingArtifacts.length
+    });
+    return normalizedExistingArtifacts;
+  }
+  if (effectiveArtifactTypes.length === 0) {
+    if (normalizedExistingArtifacts.length > 0) {
+      console.info('[Workflow] execute-stage skip model', {
+        projectId,
+        stageId: normalizedStageId,
+        reason: 'no_effective_types',
+        artifactCount: normalizedExistingArtifacts.length
+      });
+      return normalizedExistingArtifacts;
+    }
+    const err = new Error('阶段未配置交付物类型');
+    err.status = 400;
+    throw err;
+  }
+
+  const existingByType = new Map();
+  normalizedExistingArtifacts.forEach(artifact => {
+    if (artifact?.type && !existingByType.has(artifact.type)) {
+      existingByType.set(artifact.type, artifact);
+    }
+  });
+  const missingTypes = effectiveArtifactTypes.filter(type => !existingByType.has(type));
+  if (missingTypes.length === 0) {
+    console.info('[Workflow] execute-stage skip model', {
+      projectId,
+      stageId: normalizedStageId,
+      reason: 'no_missing_types',
+      artifactCount: effectiveArtifactTypes.length
+    });
+    const existingArtifacts = effectiveArtifactTypes
+      .map(type => existingByType.get(type))
+      .filter(Boolean);
+    return existingArtifacts;
+  }
+
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey || apiKey === 'sk-your-api-key-here') {
+    const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
+    err.status = 400;
+    throw err;
+  }
+
   // 创建交付物
   const generatedArtifacts = [];
 
   // 如果只有一个交付物类型，使用原有逻辑
-  if (effectiveArtifactTypes.length === 1) {
+  if (missingTypes.length === 1) {
+    console.info('[Workflow] execute-stage call model', {
+      projectId,
+      stageId: normalizedStageId,
+      artifactType: missingTypes[0],
+      promptChars: basePrompt.length
+    });
     const result = await callDeepSeekAPI([{ role: 'user', content: basePrompt }], null, {
       max_tokens: 4000,
       temperature: 0.7
     });
 
     const usage = result?.usage || { total_tokens: 0 };
+    console.info('[Workflow] execute-stage model response', {
+      projectId,
+      stageId: normalizedStageId,
+      artifactType: missingTypes[0],
+      tokens: usage.total_tokens || 0
+    });
     const artifact = {
       id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       projectId,
       stageId: normalizedStageId,
-      type: effectiveArtifactTypes[0],
-      name: getArtifactName(effectiveArtifactTypes[0]),
+      type: missingTypes[0],
+      name: getArtifactName(missingTypes[0]),
       content: result.content,
       agentName: getAgentName(stage.recommendedAgents[0]),
+      source: 'model',
       createdAt: Date.now(),
       tokens: usage.total_tokens || 0
     };
     generatedArtifacts.push(artifact);
   } else {
     // 如果有多个交付物类型，为每个类型生成专门的内容
-    for (const artifactType of effectiveArtifactTypes) {
+    for (const artifactType of missingTypes) {
       // 构建针对该交付物类型的提示词
       const artifactPrompt = ARTIFACT_PROMPTS[artifactType];
       let finalPrompt = basePrompt;
@@ -772,12 +866,24 @@ async function executeStage(projectId, stageId, context = {}) {
       }
 
       // 调用AI生成该交付物的内容
+      console.info('[Workflow] execute-stage call model', {
+        projectId,
+        stageId: normalizedStageId,
+        artifactType,
+        promptChars: finalPrompt.length
+      });
       const result = await callDeepSeekAPI([{ role: 'user', content: finalPrompt }], null, {
         max_tokens: 4000,
         temperature: 0.7
       });
 
       const usage = result?.usage || { total_tokens: 0 };
+      console.info('[Workflow] execute-stage model response', {
+        projectId,
+        stageId: normalizedStageId,
+        artifactType,
+        tokens: usage.total_tokens || 0
+      });
       const artifact = {
         id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         projectId,
@@ -786,29 +892,50 @@ async function executeStage(projectId, stageId, context = {}) {
         name: getArtifactName(artifactType),
         content: result.content,
         agentName: getAgentName(stage.recommendedAgents[0]),
+        source: 'model',
         createdAt: Date.now(),
         tokens: usage.total_tokens || 0
       };
       generatedArtifacts.push(artifact);
 
       // 添加延迟，避免API调用过快
-      if (effectiveArtifactTypes.length > 1) {
+      if (missingTypes.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
   }
 
-  // 保存交付物
-  if (!artifacts.has(projectId)) {
-    artifacts.set(projectId, new Map());
+  // 保存交付物到数据库
+  if (generatedArtifacts.length > 0 && project.workflow) {
+    generatedArtifacts.forEach(artifact => {
+      let targetStageId = normalizedStageId;
+      if (normalizedStageId === 'strategy-requirement') {
+        const hasStrategy = project.workflow.getStage('strategy');
+        const hasRequirement = project.workflow.getStage('requirement');
+        const fallbackStage = project.workflow.stages?.[0]?.id;
+        if (STRATEGY_STAGE_ARTIFACTS.has(artifact.type)) {
+          targetStageId = hasStrategy
+            ? 'strategy'
+            : hasRequirement
+              ? 'requirement'
+              : fallbackStage || normalizedStageId;
+        } else {
+          targetStageId = hasRequirement
+            ? 'requirement'
+            : hasStrategy
+              ? 'strategy'
+              : fallbackStage || normalizedStageId;
+        }
+      }
+      project.workflow.addArtifact(targetStageId, artifact);
+    });
+    await projectRepository.save(project);
   }
-  const projectArtifacts = artifacts.get(projectId);
-  if (!projectArtifacts.has(normalizedStageId)) {
-    projectArtifacts.set(normalizedStageId, []);
-  }
-  projectArtifacts.get(normalizedStageId).push(...generatedArtifacts);
 
-  return generatedArtifacts;
+  const existingArtifacts = effectiveArtifactTypes
+    .map(type => existingByType.get(type))
+    .filter(Boolean);
+  return [...existingArtifacts, ...generatedArtifacts];
 }
 
 /**
@@ -825,10 +952,7 @@ function getArtifactName(artifactType) {
     'architecture-doc': '系统架构设计',
     code: '开发实现指南',
     'strategy-doc': '战略设计文档',
-    'value-hypothesis-report': '价值假设验证报告',
     'core-prompt-design': '核心引导逻辑Prompt设计',
-    'user-test-feedback': '3-5位用户测试反馈记录',
-    'mvp-feasibility-conclusion': 'MVP可行性结论',
     'test-report': '测试报告',
     'deploy-doc': '部署文档',
     'marketing-plan': '运营推广方案'
@@ -959,26 +1083,21 @@ router.post('/:projectId/execute-batch', async (req, res, next) => {
  * GET /api/workflow/:projectId/stages/:stageId/artifacts
  * 获取阶段交付物
  */
-router.get('/:projectId/stages/:stageId/artifacts', (req, res, next) => {
+router.get('/:projectId/stages/:stageId/artifacts', async (req, res, next) => {
   try {
     const { projectId, stageId } = req.params;
-
-    const projectArtifacts = artifacts.get(projectId);
-    if (!projectArtifacts) {
-      return res.json({
-        code: 0,
-        data: {
-          artifacts: []
-        }
-      });
-    }
-
-    const stageArtifacts = projectArtifacts.get(stageId) || [];
+    const normalizedStageId = normalizeStageId(stageId);
+    const project = await loadProject(projectId);
+    const stageIdsForProject = resolveProjectStageIds(project, normalizedStageId);
+    const stageArtifacts = normalizeArtifactsForResponse(
+      normalizedStageId,
+      stageIdsForProject.flatMap(id => getStageArtifactsFromProject(project, id))
+    );
 
     res.json({
       code: 0,
       data: {
-        stageId,
+        stageId: normalizedStageId,
         artifacts: stageArtifacts
       }
     });
@@ -991,24 +1110,17 @@ router.get('/:projectId/stages/:stageId/artifacts', (req, res, next) => {
  * GET /api/workflow/:projectId/artifacts
  * 获取项目所有交付物
  */
-router.get('/:projectId/artifacts', (req, res, next) => {
+router.get('/:projectId/artifacts', async (req, res, next) => {
   try {
     const { projectId } = req.params;
+    const project = await loadProject(projectId);
+    const workflow = project.workflow?.toJSON ? project.workflow.toJSON() : project.workflow;
+    const workflowStages = Array.isArray(workflow?.stages) ? workflow.stages : [];
+    const stageArtifacts = collectProjectArtifacts(workflowStages);
 
-    const projectArtifacts = artifacts.get(projectId);
-    if (!projectArtifacts) {
-      return res.json({
-        code: 0,
-        data: {
-          artifacts: []
-        }
-      });
-    }
-
-    // 将所有阶段的交付物合并
     const allArtifacts = [];
-    for (const stageArtifacts of projectArtifacts.values()) {
-      allArtifacts.push(...stageArtifacts);
+    for (const [stageId, artifactsList] of stageArtifacts.entries()) {
+      allArtifacts.push(...normalizeArtifactsForResponse(stageId, artifactsList));
     }
 
     res.json({
@@ -1027,12 +1139,12 @@ router.get('/:projectId/artifacts', (req, res, next) => {
  * DELETE /api/workflow/:projectId/artifacts/:artifactId
  * 删除交付物
  */
-router.delete('/:projectId/artifacts/:artifactId', (req, res, next) => {
+router.delete('/:projectId/artifacts/:artifactId', async (req, res, next) => {
   try {
     const { projectId, artifactId } = req.params;
-
-    const projectArtifacts = artifacts.get(projectId);
-    if (!projectArtifacts) {
+    const project = await loadProject(projectId);
+    const workflow = project.workflow;
+    if (!workflow) {
       return res.status(404).json({
         code: -1,
         error: '项目不存在'
@@ -1040,11 +1152,10 @@ router.delete('/:projectId/artifacts/:artifactId', (req, res, next) => {
     }
 
     let deleted = false;
-    for (const stageArtifacts of projectArtifacts.values()) {
-      const index = stageArtifacts.findIndex(a => a.id === artifactId);
-      if (index !== -1) {
-        stageArtifacts.splice(index, 1);
-        deleted = true;
+    const stages = workflow.stages || [];
+    for (const stage of stages) {
+      if (stage?.artifacts?.some(a => a.id === artifactId)) {
+        deleted = workflow.removeArtifact(stage.id, artifactId);
         break;
       }
     }
@@ -1055,6 +1166,8 @@ router.delete('/:projectId/artifacts/:artifactId', (req, res, next) => {
         error: '交付物不存在'
       });
     }
+
+    await projectRepository.save(project);
 
     res.json({
       code: 0,
@@ -1082,7 +1195,7 @@ router.post('/:projectId/deploy-readiness', async (req, res, next) => {
 
     const workflow = project.workflow?.toJSON ? project.workflow.toJSON() : project.workflow;
     const workflowStages = Array.isArray(workflow?.stages) ? workflow.stages : [];
-    const stageArtifacts = collectProjectArtifacts(projectId, workflowStages);
+    const stageArtifacts = collectProjectArtifacts(workflowStages);
 
     const stageBrief = workflowStages.map(stage => ({
       id: stage.id,

@@ -74,50 +74,16 @@ class WorkflowExecutor {
       }
       await this.updateProjectStageStatus(projectId, stageId, 'active');
 
-      // 调用后端API
-      if (window.requireAuth) {
-        const ok = await window.requireAuth({ redirect: true, prompt: true });
-        if (!ok) {
-          return { aborted: true };
-        }
-      }
-      const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-        },
-        body: JSON.stringify({ stageId: normalizedStageId, context })
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('未授权，请重新登录');
-        }
-        let errorMessage = '阶段执行失败';
-        try {
-          const error = await response.json();
-          errorMessage = error.error || errorMessage;
-        } catch (e) {
-          const text = await response.text();
-          if (text) {
-            errorMessage = text;
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
+      const result = await this.executeStageRequest(projectId, normalizedStageId, context);
       // 更新项目状态
       await this.updateProjectStageStatus(
         projectId,
         stageId,
         'completed',
-        result.data.artifacts || []
+        result.artifacts || []
       );
 
-      return result.data;
+      return result;
     } catch (error) {
       await this.updateProjectStageStatus(projectId, stageId, 'pending');
       throw error;
@@ -338,7 +304,7 @@ class WorkflowExecutor {
         if (Array.isArray(artifacts)) {
           targetStage.artifacts = artifacts;
         }
-        if (status === 'active' && !targetStage.startedAt) {
+        if ((status === 'active' || status === 'in_progress') && !targetStage.startedAt) {
           targetStage.startedAt = Date.now();
         } else if (status === 'completed' && !targetStage.completedAt) {
           targetStage.completedAt = Date.now();
@@ -365,6 +331,17 @@ class WorkflowExecutor {
 
       // 保存到本地存储
       await this.storageManager.saveProject(project);
+
+      // 同步到后端，避免刷新后状态回退
+      if (this.projectManager?.updateProject) {
+        this.projectManager
+          .updateProject(
+            projectId,
+            { workflow: project.workflow, collaborationSuggestion: project.collaborationSuggestion },
+            { allowFallback: true }
+          )
+          .catch(() => {});
+      }
 
       // 更新全局状态
       if (window.updateProject) {
@@ -421,13 +398,29 @@ class WorkflowExecutor {
       return true;
     }
     const assigned = project.assignedAgents || [];
+    const hiredAgents =
+      (await window.projectManager?.getUserHiredAgents?.()) ||
+      window.agentCollaboration?.myAgents ||
+      [];
+    const hiredTypes = (hiredAgents || [])
+      .map(agent => agent.type || agent.role || agent.id)
+      .filter(Boolean);
     if (assigned.length === 0) {
-      return await this.confirmMissingRoles(required);
+      // 若项目未绑定成员，但用户已雇佣所需岗位，则不再提示
+      const missingByHire = required.filter(role => !hiredTypes.includes(role));
+      if (missingByHire.length === 0) {
+        return true;
+      }
+      return await this.confirmMissingRoles(missingByHire);
     }
-    const hiredAgents = await window.projectManager?.getUserHiredAgents?.();
+    if (assigned.length > 0 && (!hiredAgents || hiredAgents.length === 0)) {
+      // 后端内存雇佣数据丢失时，优先信任项目已分配成员
+      return true;
+    }
     const assignedTypes = (hiredAgents || [])
       .filter(agent => assigned.includes(agent.id))
-      .map(agent => agent.type);
+      .map(agent => agent.type || agent.role || agent.id)
+      .filter(Boolean);
     const missing = required.filter(role => !assignedTypes.includes(role));
     if (missing.length === 0) {
       return true;
@@ -456,14 +449,33 @@ class WorkflowExecutor {
       }
     }
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
-    const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-      },
-      body: JSON.stringify({ stageId, context })
-    });
+    const controller = new AbortController();
+    const timeoutMs = 10 * 60 * 1000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      console.info('[WorkflowExecutor] execute-stage request', {
+        projectId,
+        stageId,
+        hasContext: Boolean(context && Object.keys(context).length > 0)
+      });
+      response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({ stageId, context }),
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('阶段执行超时，请稍后重试');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -483,6 +495,12 @@ class WorkflowExecutor {
     }
 
     const result = await response.json();
+    console.info('[WorkflowExecutor] execute-stage response', {
+      projectId,
+      stageId,
+      code: result?.code,
+      artifactCount: Array.isArray(result?.data?.artifacts) ? result.data.artifacts.length : 0
+    });
     return result.data;
   }
 
@@ -499,13 +517,6 @@ class WorkflowExecutor {
         description: '战略设计、关键假设与里程碑',
         icon: '🎯',
         color: '#6366f1'
-      },
-      'hypothesis-validation': {
-        id: 'hypothesis-validation',
-        name: '假设验证',
-        description: '价值假设验证与MVP可行性评估',
-        icon: '🧪',
-        color: '#22c55e'
       },
       requirement: {
         id: 'requirement',

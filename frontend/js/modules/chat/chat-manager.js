@@ -250,12 +250,22 @@ class ChatManager {
                 const stateEntry = chat.reportState?.[type];
                 if (!stateEntry) continue;
                 const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
+                const nextData = stateEntry.data ?? existing?.data ?? null;
+                const nextStatus = stateEntry.status ?? existing?.status;
+                if (nextStatus === 'completed' && !nextData) {
+                    console.warn('[ChatManager] 跳过写入完成状态但缺少数据的报告', {
+                        chatId: chat.id,
+                        type,
+                        status: nextStatus
+                    });
+                    continue;
+                }
                 await window.storageManager.saveReport({
                     id: existing?.id,
                     type,
                     chatId: chat.id,
-                    data: stateEntry.data ?? existing?.data ?? null,
-                    status: stateEntry.status ?? existing?.status,
+                    data: nextData,
+                    status: nextStatus,
                     progress: stateEntry.progress ?? existing?.progress,
                     startTime: stateEntry.startTime ?? existing?.startTime,
                     endTime: stateEntry.endTime ?? existing?.endTime,

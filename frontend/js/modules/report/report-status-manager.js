@@ -58,7 +58,13 @@ class ReportStatusManager {
     if (report) {
       const hasDocument =
         typeof report.data?.document === 'string' && report.data.document.trim().length > 0;
-      const hasChapters = Array.isArray(report.data?.chapters) && report.data.chapters.length > 0;
+      const chapters = report.data?.chapters;
+      const hasChapters =
+        (Array.isArray(chapters) && chapters.length > 0) ||
+        (!Array.isArray(chapters) &&
+          chapters &&
+          typeof chapters === 'object' &&
+          Object.keys(chapters).length > 0);
       const hasData = hasDocument || hasChapters;
       if ((report.status === 'idle' || report.status === 'generating') && hasData) {
         console.warn('[ReportStatusManager] 状态与数据不一致', {

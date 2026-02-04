@@ -2378,6 +2378,162 @@ body {
   gap: 8px;
 }
 
+.report-hero {
+  text-align: center;
+  padding: 20px 0 24px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 28px;
+}
+
+.report-hero-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.report-hero-sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.report-hero-meta {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.report-section-meta {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.report-section-body {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+}
+
+.report-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.report-info-item {
+  display: grid;
+  gap: 6px;
+}
+
+.report-info-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.report-info-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.report-rich-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.report-rich-text h1,
+.report-rich-text h2,
+.report-rich-text h3,
+.report-rich-text h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+.report-rich-text h1 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.report-rich-text h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.report-rich-text h3,
+.report-rich-text h4 {
+  font-size: 16px;
+}
+
+.report-rich-text p {
+  margin-bottom: 16px;
+}
+
+.report-rich-text ul,
+.report-rich-text ol {
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+.report-rich-text li {
+  margin-bottom: 8px;
+}
+
+.report-rich-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.report-rich-text blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.report-rich-text code {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.report-rich-text pre code {
+  display: block;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+.report-footer-note {
+  text-align: center;
+  padding: 24px 0 8px;
+  border-top: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.report-empty {
+  color: var(--text-tertiary);
+}
+
 #projectIdeaReportModal .markdown-body h1,
 #projectIdeaReportModal .markdown-body h2,
 #projectIdeaReportModal .markdown-body h3,
@@ -2690,6 +2846,35 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.share-card-value {
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+.share-card-highlights {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-highlight-item {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #0f172a;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}
+
+.share-highlight-empty {
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .share-tag {
@@ -6530,6 +6715,11 @@ body {
 /* 商业计划书弹窗 - 最高层级 */
 #businessReportModal {
   z-index: 10001 !important;
+}
+
+/* 分享卡片弹窗 - 顶层 */
+#shareModal {
+  z-index: 10003 !important;
 }
 
 /* 商业计划书弹窗样式优化 */

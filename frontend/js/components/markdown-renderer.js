@@ -48,19 +48,22 @@ class MarkdownRenderer {
       // 5. 水平线
       html = this.renderHorizontalRules(html);
 
-      // 6. 列表
+      // 6. 表格（GFM）
+      html = this.renderTables(html);
+
+      // 7. 列表
       html = this.renderLists(html);
 
-      // 7. 粗体和斜体
+      // 8. 粗体和斜体
       html = this.renderEmphasis(html);
 
-      // 8. 链接
+      // 9. 链接
       html = this.renderLinks(html);
 
-      // 9. 图片
+      // 10. 图片
       html = this.renderImages(html);
 
-      // 10. 段落和换行处理（优化显示，减少不必要的换行）
+      // 11. 段落和换行处理（优化显示，减少不必要的换行）
       if (opts.breaks) {
         // 智能处理换行，避免过多的<br>标签
         const lines = html.split('\n');
@@ -108,14 +111,65 @@ class MarkdownRenderer {
    * 同时去除多余的空行，避免空间浪费（参考DeepSeek桌面端的紧凑显示）
    */
   normalizeSoftLineBreaks(text) {
-    const lines = text.split('\n');
+    const injectLineBreaks = line => {
+      if (line.includes('|') || line.includes('\t')) {
+        return line;
+      }
+      let updated = line;
+      const punctuationBreak = /([。！？；:：\?])\s*/g;
+      updated = updated.replace(
+        /([。！？；:：\?])\s*(\d+[\.\、])/g,
+        '$1\n$2'
+      );
+      updated = updated.replace(
+        /([。！？；:：\?])\s*([一二三四五六七八九十]+、)/g,
+        '$1\n$2'
+      );
+      updated = updated.replace(
+        /([。！？；:：\?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g,
+        '$1\n$2'
+      );
+      updated = updated.replace(
+        /([。！？；:：\?])\s*(行动建议\s*\d+[\.\、])/g,
+        '$1\n$2'
+      );
+      updated = updated.replace(
+        /([。！？；:：\?])\s*(关键结论\s*\d+[\.\、])/g,
+        '$1\n$2'
+      );
+      return updated;
+    };
+
+    const normalizedText = text
+      .split('\n')
+      .map(injectLineBreaks)
+      .join('\n');
+
+    const lines = normalizedText.split('\n');
     const result = [];
     let inCodeBlock = false;
     let lastWasEmpty = false;  // 跟踪上一行是否为空
     let consecutiveEmptyCount = 0;  // 连续空行计数
 
+    const isSectionHeader = line => {
+      return /^(第[一二三四五六七八九十]+[章节篇部分]|[一二三四五六七八九十]+、|\d+、|\d+[\.．)]|\([一二三四五六七八九十]+\)|（[一二三四五六七八九十]+）)/.test(
+        line
+      );
+    };
+
+    const isTableLine = line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (/^\|.*\|$/.test(trimmed)) return true;
+      if (/\t/.test(trimmed) && trimmed.split('\t').length >= 2) return true;
+      return /^\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?$/.test(trimmed);
+    };
+
     const isBlockLine = line => {
-      return /^(#{1,6}\s|>|\* |\-\s|•\s|\d+\.\s)/.test(line.trim());
+      const trimmed = line.trim();
+      if (isSectionHeader(trimmed)) return true;
+      if (isTableLine(trimmed)) return true;
+      return /^(#{1,6}\s|>|\* |\-\s|•\s|\d+\.\s)/.test(trimmed);
     };
 
     for (const line of lines) {
@@ -309,6 +363,103 @@ class MarkdownRenderer {
   }
 
   /**
+   * 渲染表格（GFM风格）
+   */
+  renderTables(text) {
+    const lines = text.split('\n');
+    const output = [];
+    let index = 0;
+
+    const toPipeRow = row => {
+      const cells = row.split('\t').map(cell => cell.trim()).filter(Boolean);
+      if (!cells.length) return row;
+      return `| ${cells.join(' | ')} |`;
+    };
+
+    const isSeparatorLine = row => {
+      if (!row) return false;
+      const normalized = row.replace(/\t/g, '|').replace(/\s+/g, '');
+      if (!normalized.includes('-')) return false;
+      return /^\|?[:\-|]+\|?$/.test(normalized);
+    };
+
+    const isSeparatorCell = cell => /^:?-+:?$/.test(cell);
+
+    const splitRow = row => {
+      const cells = row.split('|').map(cell => cell.trim());
+      if (cells.length && cells[0] === '') cells.shift();
+      if (cells.length && cells[cells.length - 1] === '') cells.pop();
+      return cells;
+    };
+
+    while (index < lines.length) {
+      const rawLine = lines[index];
+      const rawNext = lines[index + 1] || '';
+      const line = /\t/.test(rawLine) && !/\|/.test(rawLine) ? toPipeRow(rawLine) : rawLine;
+      const next = /\t/.test(rawNext) && !/\|/.test(rawNext) ? toPipeRow(rawNext) : rawNext;
+      const isHeader = /\|/.test(line);
+      const isSeparator = isSeparatorLine(next) || isSeparatorLine(rawNext);
+
+      if (isHeader && isSeparator) {
+        let headerCells = splitRow(line);
+        const filteredHeader = headerCells.filter(cell => !isSeparatorCell(cell));
+        if (filteredHeader.length > 0) {
+          headerCells = filteredHeader;
+        }
+        const colCount = headerCells.length;
+        const bodyRows = [];
+        index += 2;
+
+        while (index < lines.length) {
+          const rawRow = lines[index];
+          if (!rawRow || rawRow.trim() === '') break;
+          if (/^\s*#{1,6}\s+/.test(rawRow) || /^\s*\|\s*#{1,6}\s+/.test(rawRow)) {
+            break;
+          }
+          const row = /\t/.test(rawRow) && !/\|/.test(rawRow) ? toPipeRow(rawRow) : rawRow;
+          if (!/\|/.test(row)) break;
+          if (isSeparatorLine(row)) {
+            index += 1;
+            continue;
+          }
+          let cells = splitRow(row);
+          if (cells.length > colCount) {
+            const trimmed = cells.filter(cell => !isSeparatorCell(cell));
+            if (trimmed.length >= colCount) {
+              cells = trimmed;
+            }
+          }
+          if (cells.length > colCount && colCount > 0) {
+            const head = cells.slice(0, colCount - 1);
+            const tail = cells.slice(colCount - 1).join(' | ');
+            bodyRows.push([...head, tail]);
+          } else if (cells.length < colCount && colCount > 0) {
+            bodyRows.push(cells.concat(Array(colCount - cells.length).fill('')));
+          } else {
+            bodyRows.push(cells);
+          }
+          index += 1;
+        }
+
+        const headHtml = `<thead><tr>${headerCells
+          .map(cell => `<th>${cell}</th>`)
+          .join('')}</tr></thead>`;
+        const bodyHtml = `<tbody>${bodyRows
+          .map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`)
+          .join('')}</tbody>`;
+
+        output.push(`<table class="md-table">${headHtml}${bodyHtml}</table>`);
+        continue;
+      }
+
+      output.push(line);
+      index += 1;
+    }
+
+    return output.join('\n');
+  }
+
+  /**
    * 渲染行内代码
    */
   renderInlineCode(text) {
@@ -435,6 +586,27 @@ class MarkdownRenderer {
             .markdown-content .md-link:hover {
                 color: #764ba2;
                 border-bottom-color: #764ba2;
+            }
+
+            .markdown-content .md-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0 12px;
+                font-size: 14px;
+            }
+
+            .markdown-content .md-table th,
+            .markdown-content .md-table td {
+                border: 1px solid #e5e7eb;
+                padding: 8px 10px;
+                vertical-align: top;
+                text-align: left;
+            }
+
+            .markdown-content .md-table th {
+                background: #f8fafc;
+                font-weight: 600;
+                color: #374151;
             }
 
             .markdown-content .md-code {

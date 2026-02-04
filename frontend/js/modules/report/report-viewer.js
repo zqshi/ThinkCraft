@@ -31,6 +31,9 @@ class ReportViewer {
   async viewReport() {
     const reportModal = document.getElementById('reportModal');
     const reportContent = document.getElementById('reportContent');
+    if (reportModal && this.state?.currentChat) {
+      reportModal.dataset.chatId = normalizeChatId(this.state.currentChat);
+    }
 
     // 使用class控制显示，避免内联样式优先级问题
     if (window.modalManager) {
@@ -152,6 +155,8 @@ class ReportViewer {
     const normalizeObject = value => (value && typeof value === 'object' ? value : {});
     const normalizeText = (value, fallback = '') =>
       value === undefined || value === null || value === '' ? fallback : value;
+    const fallbackText = '—';
+    const ensureList = list => (Array.isArray(list) && list.length ? list : [fallbackText]);
 
     // 🔧 兼容性处理：如果数据是 {report: {...}, cached: ...} 格式，提取 report 字段
     if (reportData && reportData.report && !reportData.chapters) {
@@ -253,84 +258,300 @@ class ReportViewer {
       return;
     }
 
+    reportContent.innerHTML = this.buildStructuredReportHTML(reportData);
+    if (typeof updateShareLinkButtonVisibility === 'function') {
+      updateShareLinkButtonVisibility();
+    }
+  }
+
+  _tryParseReportDocument(document) {
+    if (!document || typeof document !== 'string') return null;
+    const trimmed = document.trim();
+    const fencedMatch = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
+    const jsonText = (fencedMatch ? fencedMatch[1] : trimmed).trim();
+    if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) return null;
+    try {
+      return JSON.parse(jsonText);
+    } catch (error) {
+      console.warn('[报告查看器] JSON解析失败:', error.message);
+      return null;
+    }
+  }
+
+  _normalizeMarkdownForRendering(content) {
+    if (!content || typeof content !== 'string') return '';
+    let text = content;
+    const newlineCount = (text.match(/\n/g) || []).length;
+    const looksLikeMarkdown = /#{1,6}\s+|^\s*[-*+]\s+|^\s*\|.*\|\s*$/m.test(text);
+
+    if (newlineCount < 3 && looksLikeMarkdown) {
+      text = text.replace(/([^\n])\s*(#{1,6})\s+/g, '$1\n\n$2 ');
+      text = text.replace(/([^\n])\s*([-*+])\s+/g, '$1\n$2 ');
+      text = text.replace(/([^\n])\s*(\|.*\|)\s*/g, '$1\n$2');
+    }
+
+    if (/\|\|/.test(text) && /\|/.test(text)) {
+      text = text.replace(/\s*\|\|\s*/g, '\n|');
+    }
+
+    const rebuildPipeTable = source => {
+      const lines = source.split('\n');
+      let headerIndex = -1;
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (/\|/.test(line) && /关键议题|核心假设|验证优先级|当前状态/.test(line)) {
+          headerIndex = i;
+          break;
+        }
+      }
+      if (headerIndex === -1) return source;
+
+      const headerLine = lines[headerIndex];
+      const headerCells = headerLine.split('|').map(cell => cell.trim()).filter(Boolean);
+      const colCount = headerCells.length;
+      if (colCount < 2) return source;
+
+      const nextNonEmptyIndex = (() => {
+        for (let i = headerIndex + 1; i < lines.length; i += 1) {
+          if (lines[i].trim() !== '') return i;
+        }
+        return -1;
+      })();
+
+      const hasSeparator = nextNonEmptyIndex !== -1
+        && /^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(lines[nextNonEmptyIndex]);
+      const looksBroken = lines.slice(headerIndex + 1, headerIndex + 6).some(line => /\|/.test(line) && !/^\s*\|/.test(line));
+      if (hasSeparator && !looksBroken) return source;
+
+      const rowLines = [];
+      let endIndex = lines.length;
+      for (let i = headerIndex + 1; i < lines.length; i += 1) {
+        if (/^\s*#{1,6}\s+/.test(lines[i])) {
+          endIndex = i;
+          break;
+        }
+        rowLines.push(lines[i]);
+      }
+
+      const cells = rowLines
+        .join(' ')
+        .split('|')
+        .map(cell => cell.trim())
+        .filter(Boolean);
+
+      if (!cells.length) return source;
+
+      const separator = `| ${Array(colCount).fill('---').join(' | ')} |`;
+      const rebuilt = [];
+      rebuilt.push(`| ${headerCells.join(' | ')} |`);
+      rebuilt.push(separator);
+
+      for (let i = 0; i < cells.length; i += colCount) {
+        const rowCells = cells.slice(i, i + colCount);
+        if (!rowCells.length) break;
+        const padded = rowCells.concat(Array(Math.max(0, colCount - rowCells.length)).fill(''));
+        rebuilt.push(`| ${padded.join(' | ')} |`);
+      }
+
+      const before = lines.slice(0, headerIndex).join('\n');
+      const after = lines.slice(endIndex).join('\n');
+      return [before, rebuilt.join('\n'), after].filter(Boolean).join('\n');
+    };
+
+    text = rebuildPipeTable(text);
+
+    const lines = text.split('\n');
+    const normalizedLines = [];
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (/^\s*\|.*\|\s*$/.test(line)) {
+        if (normalizedLines.length && normalizedLines[normalizedLines.length - 1].trim() !== '') {
+          normalizedLines.push('');
+        }
+        normalizedLines.push(line.trim());
+        const next = lines[i + 1] || '';
+        if (!/^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(next)) {
+          const cols = line.split('|').filter(cell => cell.trim() !== '').length;
+          const separator = `| ${Array(cols).fill('---').join(' | ')} |`;
+          normalizedLines.push(separator);
+        }
+        continue;
+      }
+      normalizedLines.push(line);
+    }
+
+    return normalizedLines.join('\n').trim();
+  }
+
+  buildStructuredReportHTML(reportData) {
+    const normalizeArray = value => (Array.isArray(value) ? value : []);
+    const normalizeObject = value => (value && typeof value === 'object' ? value : {});
+    const normalizeText = (value, fallback = '') =>
+      value === undefined || value === null || value === '' ? fallback : value;
+    const fallbackText = '—';
+    const ensureList = list => (Array.isArray(list) && list.length ? list : [fallbackText]);
+
+    if (!reportData || !reportData.chapters) {
+      return `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                    <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                        报告数据格式错误
+                    </div>
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                        缺少必需字段: chapters
+                    </div>
+                </div>
+            `;
+    }
+
     const ch1 = normalizeObject(reportData.chapters.chapter1);
     const ch2 = normalizeObject(reportData.chapters.chapter2);
     const ch3 = normalizeObject(reportData.chapters.chapter3);
     const ch4 = normalizeObject(reportData.chapters.chapter4);
     const ch5 = normalizeObject(reportData.chapters.chapter5);
     const ch6 = normalizeObject(reportData.chapters.chapter6);
-    const ch2Assumptions = normalizeArray(ch2.assumptions);
-    const ch3Limitations = normalizeArray(ch3.limitations);
+    const ch2Assumptions = ensureList(normalizeArray(ch2.assumptions));
+    const ch3Limitations = ensureList(normalizeArray(ch3.limitations));
     const ch4Stages = normalizeArray(ch4.stages);
-    const ch5BlindSpots = normalizeArray(ch5.blindSpots);
+    const ch5BlindSpots = ensureList(normalizeArray(ch5.blindSpots));
     const ch5KeyQuestions = normalizeArray(ch5.keyQuestions);
-    const ch6ImmediateActions = normalizeArray(ch6.immediateActions);
-    const ch6ExtendedIdeas = normalizeArray(ch6.extendedIdeas);
+    const ch6ImmediateActions = ensureList(normalizeArray(ch6.immediateActions));
+    const ch6ExtendedIdeas = ensureList(normalizeArray(ch6.extendedIdeas));
     const ch6MidtermPlan = normalizeObject(ch6.midtermPlan);
     const ch3Prerequisites = normalizeObject(ch3.prerequisites);
-    const coreDefinition = normalizeText(reportData.coreDefinition);
-    const problem = normalizeText(reportData.problem);
-    const solution = normalizeText(reportData.solution);
-    const targetUser = normalizeText(reportData.targetUser);
+    const coreDefinition = normalizeText(reportData.coreDefinition, fallbackText);
+    const problem = normalizeText(reportData.problem, fallbackText);
+    const solution = normalizeText(reportData.solution, fallbackText);
+    const targetUser = normalizeText(reportData.targetUser, fallbackText);
+    const keyQuestions =
+      Array.isArray(ch5KeyQuestions) && ch5KeyQuestions.length
+        ? ch5KeyQuestions
+        : [{ category: '关键问题', question: fallbackText, validation: fallbackText, why: '' }];
+    const stages =
+      Array.isArray(ch4Stages) && ch4Stages.length
+        ? ch4Stages
+        : [{ stage: '阶段 1', goal: fallbackText, tasks: fallbackText }];
+    const validationMethods = ensureList(normalizeArray(ch6.validationMethods));
+    const successMetrics = ensureList(normalizeArray(ch6.successMetrics));
+    const chapterTitles = [ch1, ch2, ch3, ch4, ch5, ch6]
+      .map((ch, idx) => normalizeText(ch.title, `章节 ${idx + 1}`))
+      .map((title, idx) => `<li>${idx + 1}. ${title}</li>`)
+      .join('');
 
-    reportContent.innerHTML = `
-            <!-- 报告内容 -->
+    return `
             <div id="insights-plan" class="report-tab-content active">
+                <div class="highlight-box">
+                    <strong>结构化目录</strong>
+                    <ul>${chapterTitles}</ul>
+                </div>
 
-                <!-- 第一章：创意定义与演化 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch1.title, '创意定义与演化')}</div>
                     <div class="document-chapter">
                         <div class="chapter-content" style="padding-left: 0;">
                             <h4>1. 原始表述</h4>
                             <div class="highlight-box">
-                                ${normalizeText(ch1.originalIdea || reportData.initialIdea)}
+                                ${normalizeText(ch1.originalIdea || reportData.initialIdea, fallbackText)}
                             </div>
 
-                            <h4>2. 核心定义（对话后）</h4>
-                            <p><strong>一句话概括：</strong>${coreDefinition}</p>
+                            <h4>2. 核心定义与价值主张</h4>
+                            <div class="analysis-grid">
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🧭</div>
+                                        <div class="analysis-card-title">一句话核心定义</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${coreDefinition}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🎯</div>
+                                        <div class="analysis-card-title">解决的根本问题</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${problem}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">✨</div>
+                                        <div class="analysis-card-title">提供的独特价值</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${solution}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">👥</div>
+                                        <div class="analysis-card-title">目标受益者</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${targetUser}
+                                    </div>
+                                </div>
+                            </div>
 
-                            <h4>3. 价值主张</h4>
-                            <ul>
-                                <li><strong>解决的根本问题：</strong>${problem}</li>
-                                <li><strong>提供的独特价值：</strong>${solution}</li>
-                                <li><strong>目标受益者：</strong>${targetUser}</li>
-                            </ul>
-
-                            <h4>4. 演变说明</h4>
-                            <p>${normalizeText(ch1.evolution)}</p>
+                            <h4>3. 演变说明</h4>
+                            <div class="highlight-box">
+                                ${normalizeText(ch1.evolution, fallbackText)}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 第二章：核心洞察与根本假设 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch2.title, '核心洞察与根本假设')}</div>
                     <div class="document-chapter">
                         <div class="chapter-content" style="padding-left: 0;">
                             <h4>1. 识别的根本需求</h4>
-                            <div class="highlight-box">
-                                <strong>表层需求：</strong>${normalizeText(ch2.surfaceNeed)}<br><br>
-                                <strong>深层动力：</strong>${normalizeText(ch2.deepMotivation)}
+                            <div class="analysis-grid">
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🌊</div>
+                                        <div class="analysis-card-title">表层需求</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch2.surfaceNeed, fallbackText)}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🧠</div>
+                                        <div class="analysis-card-title">深层动力</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch2.deepMotivation, fallbackText)}
+                                    </div>
+                                </div>
                             </div>
 
                             <h4>2. 核心假设清单</h4>
                             <p><strong>创意成立所依赖的关键前提（未经完全验证）：</strong></p>
-                            <ul>
-                                ${ch2Assumptions.map(assumption => `<li>${assumption}</li>`).join('')}
-                            </ul>
+                            ${ch2Assumptions
+                              .map(
+                                (assumption, idx) => `
+                                <div class="insight-item">
+                                    <div class="insight-number">${idx + 1}</div>
+                                    <div class="insight-text">${assumption}</div>
+                                </div>
+                            `
+                              )
+                              .join('')}
                         </div>
                     </div>
                 </div>
 
-                <!-- 第三章：边界条件与应用场景 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch3.title, '边界条件与应用场景')}</div>
                     <div class="document-chapter">
                         <div class="chapter-content" style="padding-left: 0;">
                             <h4>1. 理想应用场景</h4>
                             <div class="highlight-box">
-                                ${normalizeText(ch3.idealScenario)}
+                                ${normalizeText(ch3.idealScenario, fallbackText)}
                             </div>
 
                             <h4>2. 潜在限制因素</h4>
@@ -347,7 +568,7 @@ class ReportViewer {
                                         <div class="analysis-card-title">技术基础</div>
                                     </div>
                                     <div class="analysis-card-content">
-                                        ${normalizeText(ch3Prerequisites.technical)}
+                                        ${normalizeText(ch3Prerequisites.technical, fallbackText)}
                                     </div>
                                 </div>
                                 <div class="analysis-card">
@@ -356,7 +577,7 @@ class ReportViewer {
                                         <div class="analysis-card-title">资源要求</div>
                                     </div>
                                     <div class="analysis-card-content">
-                                        ${normalizeText(ch3Prerequisites.resources)}
+                                        ${normalizeText(ch3Prerequisites.resources, fallbackText)}
                                     </div>
                                 </div>
                                 <div class="analysis-card">
@@ -365,7 +586,7 @@ class ReportViewer {
                                         <div class="analysis-card-title">合作基础</div>
                                     </div>
                                     <div class="analysis-card-content">
-                                        ${normalizeText(ch3Prerequisites.partnerships)}
+                                        ${normalizeText(ch3Prerequisites.partnerships, fallbackText)}
                                     </div>
                                 </div>
                             </div>
@@ -373,33 +594,35 @@ class ReportViewer {
                     </div>
                 </div>
 
-                <!-- 第四章：可行性分析与关键挑战 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch4.title, '可行性分析与关键挑战')}</div>
                     <div class="document-chapter">
                         <div class="chapter-content" style="padding-left: 0;">
                             <h4>1. 实现路径分解</h4>
                             <p><strong>将大创意拆解为关键模块/发展阶段：</strong></p>
-                            <ol>
-                                ${ch4Stages
-                                  .map(
-                                    (stage, idx) => `
-                                    <li><strong>${normalizeText(stage?.stage, `阶段 ${idx + 1}`)}：</strong>${normalizeText(stage?.goal)} - ${normalizeText(stage?.tasks)}</li>
-                                `
-                                  )
-                                  .join('')}
-                            </ol>
+                            ${stages
+                              .map(
+                                (stage, idx) => `
+                                <div class="insight-item">
+                                    <div class="insight-number">${idx + 1}</div>
+                                    <div class="insight-text">
+                                        <strong>${normalizeText(stage?.stage, `阶段 ${idx + 1}`)}：</strong>
+                                        ${normalizeText(stage?.goal, fallbackText)} · ${normalizeText(stage?.tasks, fallbackText)}
+                                    </div>
+                                </div>
+                            `
+                              )
+                              .join('')}
 
                             <h4>2. 最大障碍预判</h4>
                             <div class="highlight-box">
-                                <strong>⚠️ 最大单一风险点：</strong>${normalizeText(ch4.biggestRisk)}<br><br>
-                                <strong>预防措施：</strong>${normalizeText(ch4.mitigation)}
+                                <strong>⚠️ 最大单一风险点：</strong>${normalizeText(ch4.biggestRisk, fallbackText)}<br><br>
+                                <strong>预防措施：</strong>${normalizeText(ch4.mitigation, fallbackText)}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 第五章：思维盲点与待探索问题 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch5.title, '思维盲点与待探索问题')}</div>
                     <div class="document-chapter">
@@ -415,17 +638,18 @@ class ReportViewer {
                             <h4>2. 关键待验证问题</h4>
                             <p><strong>以下问题需通过调研、实验或原型才能回答：</strong></p>
                             <div class="analysis-grid">
-                                ${ch5KeyQuestions
+                                ${keyQuestions
                                   .map(
                                     (item, idx) => `
                                     <div class="analysis-card">
                                         <div class="analysis-card-header">
                                             <div class="analysis-icon">❓</div>
-                                            <div class="analysis-card-title">决定性问题 ${idx + 1}</div>
+                                            <div class="analysis-card-title">${normalizeText(item?.category, `决定性问题 ${idx + 1}`)}</div>
                                         </div>
                                         <div class="analysis-card-content">
-                                            ${normalizeText(item?.question)}<br><br>
-                                            <strong>验证方法：</strong>${normalizeText(item?.validation)}
+                                            <strong>问题：</strong>${normalizeText(item?.question, fallbackText)}<br><br>
+                                            <strong>验证方法：</strong>${normalizeText(item?.validation, fallbackText)}<br><br>
+                                            ${item?.why ? `<strong>为何重要：</strong>${normalizeText(item?.why, '')}` : ''}
                                         </div>
                                     </div>
                                 `
@@ -436,7 +660,6 @@ class ReportViewer {
                     </div>
                 </div>
 
-                <!-- 第六章：结构化行动建议 -->
                 <div class="report-section">
                     <div class="report-section-title">${normalizeText(ch6.title, '结构化行动建议')}</div>
                     <div class="document-chapter">
@@ -451,26 +674,250 @@ class ReportViewer {
 
                             <h4>2. 中期探索方向（1-3个月）</h4>
                             <p><strong>为解答待探索问题，规划以下研究计划：</strong></p>
-                            <ul>
-                                <li><strong>用户研究：</strong>${normalizeText(ch6MidtermPlan.userResearch)}</li>
-                                <li><strong>市场调研：</strong>${normalizeText(ch6MidtermPlan.marketResearch)}</li>
-                                <li><strong>原型开发：</strong>${normalizeText(ch6MidtermPlan.prototyping)}</li>
-                                <li><strong>合作探索：</strong>${normalizeText(ch6MidtermPlan.partnerships)}</li>
-                            </ul>
+                            <div class="analysis-grid">
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">👥</div>
+                                        <div class="analysis-card-title">用户研究</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch6MidtermPlan.userResearch, fallbackText)}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">📈</div>
+                                        <div class="analysis-card-title">市场调研</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch6MidtermPlan.marketResearch, fallbackText)}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🧩</div>
+                                        <div class="analysis-card-title">原型开发</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch6MidtermPlan.prototyping, fallbackText)}
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🤝</div>
+                                        <div class="analysis-card-title">合作探索</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        ${normalizeText(ch6MidtermPlan.partnerships, fallbackText)}
+                                    </div>
+                                </div>
+                            </div>
 
                             <h4>3. 概念延伸提示</h4>
                             <p><strong>对话中衍生的关联创意方向：</strong></p>
-                            <ul>
-                                ${ch6ExtendedIdeas.map(idea => `<li>${idea}</li>`).join('')}
-                            </ul>
+                            ${ch6ExtendedIdeas
+                              .map(
+                                (idea, idx) => `
+                                <div class="insight-item">
+                                    <div class="insight-number">${idx + 1}</div>
+                                    <div class="insight-text">${idea}</div>
+                                </div>
+                            `
+                              )
+                              .join('')}
+
+                            <h4>4. 验证方法与成功指标</h4>
+                            <div class="analysis-grid">
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">🧪</div>
+                                        <div class="analysis-card-title">验证方法</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        <ul style="margin: 0; padding-left: 18px;">
+                                            ${validationMethods.map(item => `<li>${item}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-card-header">
+                                        <div class="analysis-icon">✅</div>
+                                        <div class="analysis-card-title">成功指标</div>
+                                    </div>
+                                    <div class="analysis-card-content">
+                                        <ul style="margin: 0; padding-left: 18px;">
+                                            ${successMetrics.map(item => `<li>${item}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-    if (typeof updateShareLinkButtonVisibility === 'function') {
-      updateShareLinkButtonVisibility();
+  }
+
+  _buildStructuredChapterMarkdown(reportData, chapterKey, chapterIndex) {
+    const chapter = reportData?.chapters?.[chapterKey] || {};
+    const title = chapter.title || `章节 ${chapterIndex + 1}`;
+    const list = value => (Array.isArray(value) ? value : []).filter(Boolean);
+    const lines = [];
+
+    lines.push(`# ${title}`);
+
+    if (chapterKey === 'chapter1') {
+      lines.push('## 原始表述');
+      lines.push(chapter.originalIdea || reportData.initialIdea || '—');
+      lines.push('');
+      lines.push('## 核心定义与价值主张');
+      lines.push(`- 一句话核心定义：${reportData.coreDefinition || '—'}`);
+      lines.push(`- 解决的根本问题：${reportData.problem || '—'}`);
+      lines.push(`- 提供的独特价值：${reportData.solution || '—'}`);
+      lines.push(`- 目标受益者：${reportData.targetUser || '—'}`);
+      lines.push('');
+      lines.push('## 演变说明');
+      lines.push(chapter.evolution || '—');
     }
+
+    if (chapterKey === 'chapter2') {
+      lines.push('## 识别的根本需求');
+      lines.push(`- 表层需求：${chapter.surfaceNeed || '—'}`);
+      lines.push(`- 深层动力：${chapter.deepMotivation || '—'}`);
+      lines.push('');
+      lines.push('## 核心假设清单');
+      list(chapter.assumptions).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.assumptions).length) {
+        lines.push('- —');
+      }
+    }
+
+    if (chapterKey === 'chapter3') {
+      lines.push('## 理想应用场景');
+      lines.push(chapter.idealScenario || '—');
+      lines.push('');
+      lines.push('## 潜在限制因素');
+      list(chapter.limitations).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.limitations).length) {
+        lines.push('- —');
+      }
+      lines.push('');
+      lines.push('## 必要前置条件');
+      const pre = chapter.prerequisites || {};
+      lines.push(`- 技术基础：${pre.technical || '—'}`);
+      lines.push(`- 资源要求：${pre.resources || '—'}`);
+      lines.push(`- 合作基础：${pre.partnerships || '—'}`);
+    }
+
+    if (chapterKey === 'chapter4') {
+      lines.push('## 实现路径分解');
+      list(chapter.stages).forEach((stage, idx) => {
+        lines.push(
+          `- 阶段 ${idx + 1}：${stage?.stage || '—'} | 目标：${stage?.goal || '—'} | 任务：${stage?.tasks || '—'}`
+        );
+      });
+      if (!list(chapter.stages).length) {
+        lines.push('- —');
+      }
+      lines.push('');
+      lines.push('## 最大障碍预判');
+      lines.push(`- 最大单一风险点：${chapter.biggestRisk || '—'}`);
+      lines.push(`- 预防措施：${chapter.mitigation || '—'}`);
+    }
+
+    if (chapterKey === 'chapter5') {
+      lines.push('## 对话中暴露的空白');
+      list(chapter.blindSpots).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.blindSpots).length) {
+        lines.push('- —');
+      }
+      lines.push('');
+      lines.push('## 关键待验证问题');
+      list(chapter.keyQuestions).forEach(item => {
+        lines.push(`- ${item?.category || '关键问题'}：${item?.question || '—'}`);
+        lines.push(`  - 验证方法：${item?.validation || '—'}`);
+        if (item?.why) {
+          lines.push(`  - 为什么重要：${item.why}`);
+        }
+      });
+      if (!list(chapter.keyQuestions).length) {
+        lines.push('- —');
+      }
+    }
+
+    if (chapterKey === 'chapter6') {
+      lines.push('## 立即验证步骤（下周内）');
+      list(chapter.immediateActions).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.immediateActions).length) {
+        lines.push('- —');
+      }
+      lines.push('');
+      lines.push('## 中期探索方向（1-3个月）');
+      const mid = chapter.midtermPlan || {};
+      lines.push(`- 用户研究：${mid.userResearch || '—'}`);
+      lines.push(`- 市场调研：${mid.marketResearch || '—'}`);
+      lines.push(`- 原型开发：${mid.prototyping || '—'}`);
+      lines.push(`- 合作探索：${mid.partnerships || '—'}`);
+      lines.push('');
+      lines.push('## 概念延伸提示');
+      list(chapter.extendedIdeas).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.extendedIdeas).length) {
+        lines.push('- —');
+      }
+      lines.push('');
+      lines.push('## 验证方法与成功指标');
+      lines.push('### 验证方法');
+      list(chapter.validationMethods).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.validationMethods).length) {
+        lines.push('- —');
+      }
+      lines.push('### 成功指标');
+      list(chapter.successMetrics).forEach(item => lines.push(`- ${item}`));
+      if (!list(chapter.successMetrics).length) {
+        lines.push('- —');
+      }
+    }
+
+    return {
+      title,
+      content: lines.join('\n')
+    };
+  }
+
+  _buildExportChaptersFromReportData(reportData) {
+    if (!reportData) return [];
+
+    if (Array.isArray(reportData.chapters) && reportData.chapters.length) {
+      return reportData.chapters.map(ch => ({
+        title: ch.title || ch.chapterId || '章节',
+        content: ch.content || ''
+      }));
+    }
+
+    if (reportData.chapters && reportData.chapters.chapter1) {
+      const order = ['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'];
+      return order
+        .filter(key => reportData.chapters[key])
+        .map((key, idx) => this._buildStructuredChapterMarkdown(reportData, key, idx));
+    }
+
+    if (typeof reportData.document === 'string' && reportData.document.trim()) {
+      const parsed = this._tryParseReportDocument(reportData.document);
+      if (parsed && parsed.chapters) {
+        const order = ['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'];
+        return order
+          .filter(key => parsed.chapters[key])
+          .map((key, idx) => this._buildStructuredChapterMarkdown(parsed, key, idx));
+      }
+      return [
+        {
+          title: '报告正文',
+          content: reportData.document
+        }
+      ];
+    }
+
+    return [];
   }
 
   /**
@@ -494,7 +941,7 @@ class ReportViewer {
   async viewGeneratedReport(type, report) {
     if (type === 'business' || type === 'proposal') {
       const renderMarkdownContent = value => {
-        const content = value || '';
+        const content = this._normalizeMarkdownForRendering(value || '');
         if (window.markdownRenderer) {
           return window.markdownRenderer.render(content);
         }
@@ -505,28 +952,6 @@ class ReportViewer {
           return fallback;
         }
         return value;
-      };
-      const renderReportMeta = () => {
-        const ideaTitle = safeText(this.state.userData.idea, '创意项目');
-        const dateText = new Date(report?.timestamp || Date.now()).toLocaleDateString();
-        const costLine = report?.costStats
-          ? `使用 ${report.totalTokens} tokens · 成本 ${report.costStats.costString}`
-          : '';
-        return `
-                    <div class="report-section">
-                        <div class="report-section-title">报告信息</div>
-                        <div class="document-chapter">
-                            <div class="chapter-content">
-                                <div class="highlight-box">
-                                    <p><strong>项目名称：</strong>${ideaTitle}</p>
-                                    <p><strong>报告类型：</strong>${type === 'business' ? '商业计划书' : '产品立项材料'}</p>
-                                    <p><strong>生成日期：</strong>${dateText}</p>
-                                    ${costLine ? `<p><strong>生成成本：</strong>${costLine}</p>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
       };
       const renderBusinessReportStyle = () => `
                 <style>
@@ -589,7 +1014,6 @@ class ReportViewer {
         const container = document.getElementById('businessReportContent');
         if (container) {
           container.innerHTML = `
-                        ${renderReportMeta()}
                         <div class="report-section">
                             <div class="report-section-title">报告内容缺失</div>
                             <div class="document-chapter">
@@ -612,6 +1036,17 @@ class ReportViewer {
         window.currentGeneratedChapters = Array.isArray(report.selectedChapters)
           ? report.selectedChapters
           : [];
+        const parsed = this._tryParseReportDocument(report.document);
+
+        if (parsed && parsed.chapters) {
+          document.getElementById('businessReportContent').innerHTML = `
+                        ${renderBusinessReportStyle()}
+                        ${this.buildStructuredReportHTML(parsed)}
+                    `;
+          openBusinessReportModal();
+          return;
+        }
+
         const outlineItems = window.currentGeneratedChapters.length
           ? window.currentGeneratedChapters
               .map(
@@ -622,7 +1057,6 @@ class ReportViewer {
           : '';
         const reportContent = `
                     ${renderBusinessReportStyle()}
-                    ${renderReportMeta()}
                     ${
                       outlineItems
                         ? `
@@ -651,16 +1085,23 @@ class ReportViewer {
 
       // 如果report包含chapters数据，直接显示
       if (report && report.chapters) {
+        if (!Array.isArray(report.chapters) && report.chapters.chapter1) {
+          document.getElementById('businessReportContent').innerHTML = `
+                        ${renderBusinessReportStyle()}
+                        ${this.buildStructuredReportHTML(report)}
+                    `;
+          openBusinessReportModal();
+          return;
+        }
+
         const chapters = report.chapters;
         window.currentGeneratedChapters = chapters.map(ch => ch.chapterId);
         const outlineItems = chapters
           .map((ch, index) => `<li>${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</li>`)
           .join('');
 
-        // 生成报告内容（使用真实的AI生成内容）
         const reportContent = `
                     ${renderBusinessReportStyle()}
-                    ${renderReportMeta()}
                     <div class="highlight-box">
                         <strong>结构化目录</strong>
                         <ul>${outlineItems}</ul>
@@ -755,16 +1196,22 @@ class ReportViewer {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/business`, {
+      const chapters = this._buildExportChaptersFromReportData(validation.data);
+      if (!chapters.length) {
+        window.toast.error('导出失败：未找到可导出的结构化内容', 4000);
+        return;
+      }
+
+      const response = await fetch(`${this.state.settings.apiUrl}/api/pdf-export/business-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
-          reportData: validation.data,
-          reportType: reportType,
-          ideaTitle: this.state.userData.idea || '创意项目'
+          chapters,
+          title: reportType === 'proposal' ? '产品立项材料' : '商业计划书',
+          type: reportType
         })
       });
 

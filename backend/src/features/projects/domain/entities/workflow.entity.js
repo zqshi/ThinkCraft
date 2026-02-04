@@ -167,6 +167,22 @@ export class Workflow extends Entity {
   }
 
   /**
+   * 删除阶段产物
+   */
+  removeArtifact(stageId, artifactId) {
+    const stage = this.getStage(stageId);
+    if (!stage) {
+      throw new Error('阶段不存在');
+    }
+
+    const removed = stage.removeArtifact(artifactId);
+    if (removed) {
+      this.updateTimestamp();
+    }
+    return removed;
+  }
+
+  /**
    * 获取所有产物
    */
   getAllArtifacts() {
@@ -327,6 +343,18 @@ class WorkflowStage extends Entity {
       ...artifact,
       createdAt: new Date()
     });
+  }
+
+  /**
+   * 删除产物
+   */
+  removeArtifact(artifactId) {
+    const index = this._artifacts.findIndex(a => a.id === artifactId);
+    if (index === -1) {
+      return false;
+    }
+    this._artifacts.splice(index, 1);
+    return true;
   }
 
   /**

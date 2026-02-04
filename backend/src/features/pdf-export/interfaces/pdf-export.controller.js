@@ -251,7 +251,10 @@ export class PdfExportController {
           doc.addPage();
           doc.fontSize(16).text(chapter.title || `章节 ${idx + 1}`);
           doc.moveDown(0.5);
-          doc.fontSize(10).text(chapter.content || '');
+          const cleanedContent = this.pdfExportUseCase.pdfGenerationService.normalizeMarkdownForPdfText(
+            chapter.content || ''
+          );
+          doc.fontSize(10).text(cleanedContent);
         });
 
         doc.end();

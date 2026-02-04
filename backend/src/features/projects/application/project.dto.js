@@ -53,6 +53,9 @@ export class CreateProjectResponseDTO {
       status: project.status.value,
       workflowCategory: project.workflowCategory,
       assignedAgents: project.assignedAgents,
+      collaborationSuggestion: project.collaborationSuggestion,
+      collaborationExecuted: project.collaborationExecuted,
+      missingRecommendedAgents: project.missingRecommendedAgents,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt
     };
@@ -112,6 +115,27 @@ export class UpdateProjectRequestDTO {
         throw new Error('assignedAgents 必须是数组');
       }
     }
+
+    if (this.updates.collaborationExecuted !== undefined) {
+      if (typeof this.updates.collaborationExecuted !== 'boolean') {
+        throw new Error('collaborationExecuted 必须是布尔值');
+      }
+    }
+
+    if (this.updates.missingRecommendedAgents !== undefined) {
+      if (!Array.isArray(this.updates.missingRecommendedAgents)) {
+        throw new Error('missingRecommendedAgents 必须是数组');
+      }
+    }
+
+    if (this.updates.collaborationSuggestion !== undefined) {
+      if (
+        this.updates.collaborationSuggestion !== null &&
+        typeof this.updates.collaborationSuggestion !== 'object'
+      ) {
+        throw new Error('collaborationSuggestion 必须是对象或null');
+      }
+    }
   }
 }
 
@@ -125,6 +149,9 @@ export class ProjectResponseDTO {
     this.status = project.status.value;
     this.workflowCategory = project.workflowCategory;
     this.assignedAgents = project.assignedAgents;
+    this.collaborationSuggestion = project.collaborationSuggestion;
+    this.collaborationExecuted = project.collaborationExecuted;
+    this.missingRecommendedAgents = project.missingRecommendedAgents;
     this.createdAt = project.createdAt;
     this.updatedAt = project.updatedAt;
 
