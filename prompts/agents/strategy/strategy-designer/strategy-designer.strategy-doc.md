@@ -1,6 +1,6 @@
 ---
 name: strategy-designer-strategy-doc-template
-description: 战略设计文档模板（strategy-design-agent）
+description: 战略设计师，负责战略设计文档输出（strategy-doc模板）
 model: inherit
 ---
 
@@ -11,7 +11,7 @@ Last Updated: 2026-02-03
 【模板：strategy-designer.strategy-doc.md】
 
 ```markdown
-# 战略设计文档
+# 战略设计文档（战略阶段）
 
 ---
 
@@ -23,13 +23,14 @@ Last Updated: 2026-02-03
 
 # 概述
 
-[描述 Agent 项目背景和目标]
+[描述项目背景、战略目标与关键约束]
 
 ---
 
 # 提示词构造块设计
 
 **[构造块名称]**
+
 - **详细内容**：这个构造块定义的具体的内容
 
 ---
@@ -37,6 +38,7 @@ Last Updated: 2026-02-03
 # 工具设计
 
 **[工具名称]**
+
 - **英文ID**：工具的英文命名，大驼峰命名方式
 - **介绍**：描述工具的功能
 - **输入参数**：用 jsonschema 格式定义参数
@@ -45,11 +47,13 @@ Last Updated: 2026-02-03
 ---
 
 # 能力展示
+
 [mermaid 时序图展示 Agent 的能力，工具使用英文ID]
 
 ---
 
 # 全域纵览图
+
 [把核心域、通用域、支撑域的关系画出来用 mermaid 文档]
 
 ---

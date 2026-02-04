@@ -37,7 +37,15 @@ export const DEFAULT_WORKFLOW_STAGES = [
     name: '需求分析',
     description: '产品定位、用户分析、功能规划',
     recommendedAgents: ['product-manager'],
-    artifactTypes: ['research-analysis-doc', 'prd', 'acceptance-criteria-quality', 'user-story', 'feature-list'],
+    artifactTypes: [
+      'research-analysis-doc',
+      'prd',
+      'acceptance-criteria-quality',
+      'user-story',
+      'feature-list',
+      'value-hypothesis-report',
+      'core-prompt-design'
+    ],
     estimatedDuration: 2, // 天数（仅供参考）
     icon: '📋',
     color: '#667eea'
@@ -67,7 +75,7 @@ export const DEFAULT_WORKFLOW_STAGES = [
     name: '开发实现',
     description: '前后端开发、功能实现、代码编写',
     recommendedAgents: ['frontend-developer', 'backend-developer'],
-    artifactTypes: ['code', 'api-doc', 'component-lib'],
+    artifactTypes: ['code', 'api-doc', 'component-lib', 'frontend-doc', 'backend-doc'],
     estimatedDuration: 7,
     icon: '💻',
     color: '#4facfe'
@@ -110,21 +118,21 @@ const STAGE_ID_ALIASES = {
   'strategy-plan': 'strategy',
   'product-definition': 'requirement',
   'product-requirement': 'requirement',
-  'requirements': 'requirement',
+  requirements: 'requirement',
   'ux-design': 'design',
   'ui-design': 'design',
   'product-design': 'design',
   'architecture-design': 'architecture',
   'tech-architecture': 'architecture',
   'system-architecture': 'architecture',
-  'implementation': 'development',
-  'dev': 'development',
-  'qa': 'testing',
-  'test': 'testing',
-  'launch': 'deployment',
-  'release': 'deployment',
-  'operation': 'operation',
-  'ops': 'operation'
+  implementation: 'development',
+  dev: 'development',
+  qa: 'testing',
+  test: 'testing',
+  launch: 'deployment',
+  release: 'deployment',
+  operation: 'operation',
+  ops: 'operation'
 };
 
 export function normalizeStageId(stageId) {
@@ -144,19 +152,25 @@ export const ARTIFACT_TYPES = {
     name: '产品需求文档',
     description: '完整的产品需求文档，包含功能、流程、原型等',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.requirement-design-doc.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.requirement-design-doc.md'
+    ]
   },
   'research-analysis-doc': {
     name: '产品研究分析报告',
     description: '市场分析与竞品调研报告（含数据来源）',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.research-analysis-doc.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.research-analysis-doc.md'
+    ]
   },
   'acceptance-criteria-quality': {
     name: '验收标准质量检查清单',
     description: '验收标准质量检查与改进建议',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.acceptance-criteria-quality.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.acceptance-criteria-quality.md'
+    ]
   },
   'user-story': {
     name: '用户故事',
@@ -168,7 +182,9 @@ export const ARTIFACT_TYPES = {
     name: '功能清单',
     description: '产品功能列表和优先级',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.feature-list.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.feature-list.md'
+    ]
   },
 
   // 战略设计阶段
@@ -186,13 +202,17 @@ export const ARTIFACT_TYPES = {
     name: '价值假设验证报告',
     description: '价值假设验证过程与结论',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.value-hypothesis-report.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.value-hypothesis-report.md'
+    ]
   },
   'core-prompt-design': {
     name: '核心引导逻辑Prompt设计',
     description: '核心引导逻辑与Prompt设计说明',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.core-prompt-design.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/product-manager-agent.core-prompt-design.md'
+    ]
   },
   'user-test-feedback': {
     name: '3-5位用户测试反馈记录',
@@ -204,7 +224,9 @@ export const ARTIFACT_TYPES = {
     name: 'MVP可行性结论',
     description: 'MVP可行性评估结论与建议',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/operations/operations-agent.mvp-feasibility-conclusion.md']
+    promptTemplates: [
+      'prompts/agents/ops/operations/operations-agent.mvp-feasibility-conclusion.md'
+    ]
   },
 
   // 产品设计阶段
@@ -227,7 +249,9 @@ export const ARTIFACT_TYPES = {
     name: '设计规范',
     description: 'UI组件库和设计规范文档',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ui-ux/design-spec/design-spec-agent.design-doc-traditional.md']
+    promptTemplates: [
+      'prompts/agents/ui-ux/design-spec/design-spec-agent.design-doc-traditional.md'
+    ]
   },
 
   // 架构设计阶段
@@ -235,7 +259,7 @@ export const ARTIFACT_TYPES = {
     name: '架构设计文档',
     description: '系统架构、模块划分、技术选型',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/tech-lead/tech-lead-agent.strategy-doc.md']
+    promptTemplates: ['prompts/agents/engineering/tech-lead/tech-lead-agent.architecture-doc.md']
   },
   'api-spec': {
     name: 'API接口规范',
@@ -264,13 +288,33 @@ export const ARTIFACT_TYPES = {
     name: 'API文档',
     description: '接口使用文档',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/backend-developer/backend-developer-agent.api-doc.md']
+    promptTemplates: [
+      'prompts/agents/engineering/backend-developer/backend-developer-agent.api-doc.md'
+    ]
   },
   'component-lib': {
     name: '组件库',
     description: '前端组件库文档',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/frontend-developer/frontend-developer-agent.frontend-doc.md']
+    promptTemplates: [
+      'prompts/agents/engineering/frontend-developer/frontend-developer-agent.frontend-doc.md'
+    ]
+  },
+  'frontend-doc': {
+    name: '前端开发文档',
+    description: '前端实现说明与交付文档',
+    extension: 'md',
+    promptTemplates: [
+      'prompts/agents/engineering/frontend-developer/frontend-developer-agent.frontend-doc.md'
+    ]
+  },
+  'backend-doc': {
+    name: '后端开发文档',
+    description: '后端实现说明与交付文档',
+    extension: 'md',
+    promptTemplates: [
+      'prompts/agents/engineering/backend-developer/backend-developer-agent.code.md'
+    ]
   },
 
   // 测试验证阶段
@@ -376,13 +420,13 @@ export const AGENT_PROMPT_MAP = {
   'frontend-developer': {
     name: '前端开发',
     persona: [],
-    deliverables: ['code', 'component-lib'],
+    deliverables: ['code', 'component-lib', 'frontend-doc'],
     stageHint: { id: 'development', name: '开发实现', description: '前后端开发实现' }
   },
   'backend-developer': {
     name: '后端开发',
     persona: [],
-    deliverables: ['code', 'api-doc'],
+    deliverables: ['code', 'api-doc', 'backend-doc'],
     stageHint: { id: 'development', name: '开发实现', description: '前后端开发实现' }
   },
   'qa-engineer': {
@@ -391,19 +435,19 @@ export const AGENT_PROMPT_MAP = {
     deliverables: ['test-report', 'bug-list', 'performance-report'],
     stageHint: { id: 'testing', name: '测试验证', description: '功能与性能测试' }
   },
-  'devops': {
+  devops: {
     name: '运维工程师',
     persona: [],
     deliverables: ['deploy-doc', 'env-config', 'release-notes'],
     stageHint: { id: 'deployment', name: '部署上线', description: '部署与发布' }
   },
-  'marketing': {
+  marketing: {
     name: '市场营销',
     persona: [],
     deliverables: ['marketing-plan', 'growth-strategy'],
     stageHint: { id: 'operation', name: '运营推广', description: '市场推广与增长策略' }
   },
-  'operations': {
+  operations: {
     name: '运营专员',
     persona: [],
     deliverables: ['analytics-report', 'user-test-feedback', 'mvp-feasibility-conclusion'],
@@ -459,9 +503,7 @@ export function getAgentPromptProfile(agentId) {
 }
 
 export function getAgentPromptProfiles(agentIds = []) {
-  return (agentIds || [])
-    .map(agentId => getAgentPromptProfile(agentId))
-    .filter(Boolean);
+  return (agentIds || []).map(agentId => getAgentPromptProfile(agentId)).filter(Boolean);
 }
 
 /**

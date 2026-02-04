@@ -5,7 +5,7 @@
 
 /* global normalizeChatId */
 
-// 创建日志实例
+// 创建日志实例（避免脚本被重复加载时报错）
 const logger = window.createLogger ? window.createLogger('BusinessPlan') : console;
 
 class BusinessPlanGenerator {

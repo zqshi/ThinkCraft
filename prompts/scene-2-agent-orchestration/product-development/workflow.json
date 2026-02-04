@@ -1,0 +1,171 @@
+{
+  "workflow_id": "product-development",
+  "workflow_name": "统一产品开发流程（AI交付物选择）",
+  "description": "覆盖完整产品迭代流程，交付物由大模型在可选范围内动态选择",
+  "phases": [
+    {
+      "phase_id": "strategy",
+      "phase_name": "战略设计",
+      "description": "战略建模与范围边界定义；输出关键假设、原则与里程碑；明确对后续阶段的输入要求",
+      "dependencies": [],
+      "agents": [
+        {
+          "agent_id": "strategy-design",
+          "role": "战略设计师",
+          "tasks": [
+            "明确战略目标、范围边界与关键假设",
+            "输出战略设计文档、约束原则与里程碑",
+            "定义对需求/设计/架构阶段的输入要求"
+          ]
+        }
+      ],
+      "outputs": ["strategy-doc"]
+    },
+    {
+      "phase_id": "hypothesis-validation",
+      "phase_name": "假设验证",
+      "description": "价值假设验证与MVP可行性评估；无真实用户时需模拟反馈与数据",
+      "dependencies": ["strategy"],
+      "agents": [
+        {
+          "agent_id": "product-manager",
+          "role": "产品经理",
+          "tasks": ["提炼价值假设与关键风险", "设计验证路径与MVP范围"]
+        },
+        {
+          "agent_id": "operations",
+          "role": "运营专员",
+          "tasks": [
+            "在无真实参与前提下模拟用户验证与反馈（需说明模拟假设）",
+            "汇总验证结果并输出可行性结论（标注模拟结论）"
+          ]
+        }
+      ],
+      "outputs": [
+        "value-hypothesis-report",
+        "core-prompt-design",
+        "user-test-feedback",
+        "mvp-feasibility-conclusion"
+      ]
+    },
+    {
+      "phase_id": "requirement",
+      "phase_name": "需求分析",
+      "description": "产品定位、用户分析与功能规划；完成全量产品交付物",
+      "dependencies": ["hypothesis-validation"],
+      "agents": [
+        {
+          "agent_id": "product-manager",
+          "role": "产品经理",
+          "tasks": ["完成完整需求分析与产品规划", "输出全量产品交付物"]
+        }
+      ],
+      "outputs": [
+        "research-analysis-doc",
+        "prd",
+        "acceptance-criteria-quality",
+        "user-story",
+        "feature-list",
+        "value-hypothesis-report",
+        "core-prompt-design"
+      ]
+    },
+    {
+      "phase_id": "design",
+      "phase_name": "产品设计",
+      "description": "UI/UX设计、交互原型与视觉规范",
+      "dependencies": ["requirement"],
+      "agents": [
+        {
+          "agent_id": "ui-ux-designer",
+          "role": "UI/UX设计师",
+          "tasks": ["输出UI设计稿与交互原型", "形成设计规范与视觉体系"]
+        }
+      ],
+      "outputs": ["ui-design", "prototype", "design-spec"]
+    },
+    {
+      "phase_id": "architecture",
+      "phase_name": "架构设计",
+      "description": "系统架构、技术选型与API规范",
+      "dependencies": ["design"],
+      "agents": [
+        {
+          "agent_id": "tech-lead",
+          "role": "技术负责人",
+          "tasks": ["制定整体技术方案与架构设计", "完成技术选型与接口规范"]
+        }
+      ],
+      "outputs": ["architecture-doc", "api-spec", "tech-stack"]
+    },
+    {
+      "phase_id": "development",
+      "phase_name": "开发实现",
+      "description": "前后端开发、功能实现与代码交付文档",
+      "dependencies": ["architecture"],
+      "agents": [
+        {
+          "agent_id": "frontend-developer",
+          "role": "前端开发",
+          "tasks": ["完成前端实现与组件交付", "输出前端开发文档"]
+        },
+        {
+          "agent_id": "backend-developer",
+          "role": "后端开发",
+          "tasks": ["完成后端实现与接口交付", "输出后端开发文档"]
+        }
+      ],
+      "outputs": ["code", "api-doc", "component-lib", "frontend-doc", "backend-doc"]
+    },
+    {
+      "phase_id": "testing",
+      "phase_name": "测试验证",
+      "description": "功能/性能验证与缺陷收敛",
+      "dependencies": ["development"],
+      "agents": [
+        {
+          "agent_id": "qa-engineer",
+          "role": "测试工程师",
+          "tasks": ["输出测试报告与缺陷清单", "完成性能评估与验证"]
+        }
+      ],
+      "outputs": ["test-report", "bug-list", "performance-report"]
+    },
+    {
+      "phase_id": "deployment",
+      "phase_name": "部署上线",
+      "description": "环境配置、部署发布与上线说明",
+      "dependencies": ["testing"],
+      "agents": [
+        {
+          "agent_id": "devops",
+          "role": "运维工程师",
+          "tasks": ["输出部署方案与环境配置", "完成发布说明"]
+        }
+      ],
+      "outputs": ["deploy-doc", "env-config", "release-notes"]
+    },
+    {
+      "phase_id": "operation",
+      "phase_name": "运营推广",
+      "description": "市场推广、用户运营与数据分析；无真实数据时需模拟反馈与分析依据",
+      "dependencies": ["deployment"],
+      "agents": [
+        {
+          "agent_id": "marketing",
+          "role": "市场营销",
+          "tasks": ["制定营销推广与增长策略"]
+        },
+        {
+          "agent_id": "operations",
+          "role": "运营专员",
+          "tasks": [
+            "在无真实数据前提下模拟用户/市场反馈并输出分析依据",
+            "输出数据分析与运营建议（标注模拟结论）"
+          ]
+        }
+      ],
+      "outputs": ["marketing-plan", "growth-strategy", "analytics-report"]
+    }
+  ]
+}

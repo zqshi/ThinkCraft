@@ -8,7 +8,11 @@ import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { DEFAULT_WORKFLOW_STAGES, ARTIFACT_TYPES } from '../../../../config/workflow-stages.js';
+import {
+  DEFAULT_WORKFLOW_STAGES,
+  ARTIFACT_TYPES,
+  AGENT_PROMPT_MAP
+} from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -185,7 +189,10 @@ router.get('/workflow-config/:category', async (req, res) => {
         })),
         dependencies: phase.dependencies || [],
         outputs: phase.outputs || [],
-        outputsDetailed: buildOutputsDetailed(phase.outputs || []),
+        outputsDetailed: buildOutputsDetailed(
+          phase.outputs || [],
+          phase.agents.map(a => a.agent_id)
+        ),
         order: index + 1
       }));
 
@@ -214,7 +221,10 @@ router.get('/workflow-config/:category', async (req, res) => {
       })),
       dependencies: index > 0 ? [DEFAULT_WORKFLOW_STAGES[index - 1].id] : [],
       outputs: stage.artifactTypes || [],
-      outputsDetailed: buildOutputsDetailed(stage.artifactTypes || []),
+      outputsDetailed: buildOutputsDetailed(
+        stage.artifactTypes || [],
+        stage.recommendedAgents || []
+      ),
       order: index + 1
     }));
 
@@ -238,9 +248,15 @@ router.get('/workflow-config/:category', async (req, res) => {
   }
 });
 
-function buildOutputsDetailed(outputs = []) {
+function buildOutputsDetailed(outputs = [], agentIds = []) {
   const projectRoot = process.cwd();
-  return outputs.map(outputId => {
+  const agentDeliverables = (agentIds || [])
+    .map(agentId => AGENT_PROMPT_MAP[agentId]?.deliverables || [])
+    .flat();
+  const mergedOutputs = Array.from(new Set([...(outputs || []), ...agentDeliverables])).filter(
+    Boolean
+  );
+  return mergedOutputs.map(outputId => {
     const def = ARTIFACT_TYPES[outputId];
     if (!def) {
       return { id: outputId, name: outputId, promptTemplates: [], missingPromptTemplates: [] };
@@ -250,7 +266,9 @@ function buildOutputsDetailed(outputs = []) {
     const existing = promptTemplates.filter(tpl => {
       const abs = path.resolve(projectRoot, tpl);
       const ok = fs.existsSync(abs);
-      if (!ok) missing.push(tpl);
+      if (!ok) {
+        missing.push(tpl);
+      }
       return ok;
     });
     return {

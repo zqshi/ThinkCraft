@@ -1978,21 +1978,27 @@ body {
 
 /* 报告按钮状态样式 */
 .view-report-btn.generating {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .view-report-btn.error {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(--primary-dark);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
 .view-report-btn.completed {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: var(--primary);
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .share-btn {
@@ -2436,7 +2442,9 @@ body {
 }
 
 #projectIdeaReportModal .markdown-body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 13px;
   padding: 2px 6px;
   border-radius: 6px;
@@ -3866,6 +3874,23 @@ body {
   #reportModal .analysis-card {
     padding: 16px;
     border-radius: 12px;
+  }
+
+  #businessReportModal .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #businessReportModal .modal-footer > div {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  #businessReportModal .modal-footer button {
+    width: 100%;
+    min-height: var(--touch-target-min);
+    font-size: 15px;
   }
 
   #projectIdeaReportModal .analysis-grid {
@@ -5717,7 +5742,8 @@ body {
 }
 
 @keyframes pulse-blue {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
   }
   50% {
@@ -6220,6 +6246,22 @@ body {
   font-weight: 600;
 }
 
+.project-deliverable-checklist.is-locked {
+  opacity: 0.6;
+}
+
+.project-deliverable-checklist.is-locked .project-deliverable-checklist-item {
+  cursor: not-allowed;
+}
+
+.project-deliverable-checklist.is-locked .project-deliverable-checklist-input {
+  pointer-events: none;
+}
+
+.project-deliverable-checklist.is-locked .project-deliverable-checklist-label {
+  color: var(--text-tertiary);
+}
+
 .project-stage-deliverables {
   display: grid;
   gap: 8px;
@@ -6526,14 +6568,14 @@ body {
 
 /* 商业计划书弹窗样式优化 */
 #businessReportModal .modal-content {
-  max-width: 900px;
+  max-width: 1000px;
   max-height: 90vh;
 }
 
 #businessReportModal .modal-body {
-  padding: 24px 32px;
+  padding: 24px;
   overflow-y: auto;
-  max-height: calc(90vh - 180px);
+  max-height: none;
 }
 
 #businessReportModal .report-section {
@@ -6541,11 +6583,12 @@ body {
 }
 
 #businessReportModal .report-section-title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+  border-bottom: none;
+  color: var(--text-primary);
 }
 
 #businessReportModal .chapter-content {
@@ -6560,22 +6603,237 @@ body {
 #businessReportModal .markdown-content h1,
 #businessReportModal .markdown-content h2,
 #businessReportModal .markdown-content h3 {
-  margin-top: 24px;
+  margin-top: 20px;
   margin-bottom: 12px;
 }
 
+#businessReportModal .markdown-content h1,
+#businessReportModal .markdown-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+#businessReportModal .markdown-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
 #businessReportModal .markdown-content p {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text-secondary);
 }
 
 #businessReportModal .markdown-content ul,
 #businessReportModal .markdown-content ol {
-  margin-bottom: 12px;
+  margin: 12px 0;
   padding-left: 24px;
 }
 
+#businessReportModal .markdown-content li {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+#businessReportModal .markdown-content strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#businessReportModal .markdown-content blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+#businessReportModal .markdown-content code {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#businessReportModal .markdown-content pre code {
+  display: block;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+#businessReportModal .markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+#businessReportModal .markdown-content table th,
+#businessReportModal .markdown-content table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+#businessReportModal .markdown-content table th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#businessReportModal .markdown-body h1,
+#businessReportModal .markdown-body h2,
+#businessReportModal .markdown-body h3 {
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+#businessReportModal .markdown-body h1,
+#businessReportModal .markdown-body h2 {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+#businessReportModal .markdown-body h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+#businessReportModal .markdown-body p {
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+#businessReportModal .markdown-body ul,
+#businessReportModal .markdown-body ol {
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+#businessReportModal .markdown-body li {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+#businessReportModal .markdown-body strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#businessReportModal .markdown-body blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+#businessReportModal .markdown-body code {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#businessReportModal .markdown-body pre code {
+  display: block;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+#businessReportModal .markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+#businessReportModal .markdown-body table th,
+#businessReportModal .markdown-body table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+#businessReportModal .markdown-body table th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#businessReportModal .analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+#businessReportModal .analysis-card {
+  background: var(--bg-secondary);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+#businessReportModal .analysis-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#businessReportModal .analysis-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--primary);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+#businessReportModal .analysis-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#businessReportModal .analysis-card-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 /* 移动端优化 */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   #businessReportModal .modal-content {
     max-width: 100%;
     max-height: 100vh;
@@ -6583,7 +6841,32 @@ body {
   }
 
   #businessReportModal .modal-body {
-    padding: 16px 20px;
+    padding: 16px;
+  }
+
+  #businessReportModal .report-section-title {
+    position: sticky;
+    top: -16px;
+    background: white;
+    z-index: 5;
+    border-bottom: 2px solid var(--primary);
+    padding: 12px 0;
+    margin-bottom: 12px;
+    font-size: 16px;
+  }
+
+  #businessReportModal .chapter-content {
+    padding-left: 0;
+  }
+
+  #businessReportModal .analysis-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  #businessReportModal .analysis-card {
+    padding: 16px;
+    border-radius: 12px;
   }
 }
 
@@ -6646,7 +6929,8 @@ body {
 
 /* 可执行阶段的脉冲动画 */
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
   }
   50% {
@@ -6659,11 +6943,11 @@ body {
 }
 
 /* 交付物卡片悬停效果 */
-.stage-card [style*="background: white"][style*="border: 1px solid #e5e7eb"] {
+.stage-card [style*='background: white'][style*='border: 1px solid #e5e7eb'] {
   transition: all 0.2s ease;
 }
 
-.stage-card [style*="background: white"][style*="border: 1px solid #e5e7eb"]:hover {
+.stage-card [style*='background: white'][style*='border: 1px solid #e5e7eb']:hover {
   background: #f9fafb !important;
   border-color: #d1d5db !important;
   transform: translateX(4px);
@@ -6681,7 +6965,7 @@ body {
 }
 
 /* 状态标签动画 */
-.stage-card [style*="border-radius: 20px"] {
+.stage-card [style*='border-radius: 20px'] {
   transition: all 0.2s ease;
 }
 
@@ -6697,7 +6981,8 @@ body {
 
 /* 依赖提示闪烁效果 */
 @keyframes warning-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -6705,7 +6990,7 @@ body {
   }
 }
 
-.stage-card [style*="background: #fef3c7"] {
+.stage-card [style*='background: #fef3c7'] {
   animation: warning-pulse 2s ease-in-out infinite;
 }
 

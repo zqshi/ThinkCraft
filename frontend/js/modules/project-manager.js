@@ -1284,10 +1284,11 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
+    const isSelectionLocked = stage.status !== 'pending' || project?.status === 'in_progress';
     const deliverableChecklistHTML =
       expectedDeliverables.length > 0
         ? `
-      <div class="project-deliverable-checklist">
+      <div class="project-deliverable-checklist ${isSelectionLocked ? 'is-locked' : ''}" ${isSelectionLocked ? 'title="已开始执行，交付物选择已锁定"' : ''}>
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
           ${expectedDeliverables
@@ -1298,7 +1299,7 @@ class ProjectManager {
               const checked = selectedSet.has(id) ? 'checked' : '';
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
@@ -1476,6 +1477,8 @@ class ProjectManager {
       document: { name: '文档', icon: '📄' },
       report: { name: '报告', icon: '📈' },
       plan: { name: '计划', icon: '📝' },
+      'frontend-doc': { name: '前端开发文档', icon: '🧩' },
+      'backend-doc': { name: '后端开发文档', icon: '🧱' },
       'strategy-doc': { name: '战略设计文档', icon: '🎯' },
       'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
       'acceptance-criteria-quality': { name: '验收标准质量检查清单', icon: '✅' },
@@ -1626,6 +1629,10 @@ class ProjectManager {
   toggleStageDeliverable(stageId, encodedId, checked) {
     const id = decodeURIComponent(encodedId || '');
     if (!id) return;
+    const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
+    if (!stage || stage.status !== 'pending' || this.currentProject?.status === 'in_progress') {
+      return;
+    }
     const current = new Set(this.stageDeliverableSelection[stageId] || []);
     if (checked) {
       current.add(id);
@@ -1759,10 +1766,11 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
+    const isSelectionLocked = stage.status !== 'pending' || project?.status === 'in_progress';
     const deliverableChecklistHTML =
       expectedDeliverables.length > 0
         ? `
-      <div class="project-deliverable-checklist">
+      <div class="project-deliverable-checklist ${isSelectionLocked ? 'is-locked' : ''}" ${isSelectionLocked ? 'title="已开始执行，交付物选择已锁定"' : ''}>
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
           ${expectedDeliverables
@@ -1773,7 +1781,7 @@ class ProjectManager {
               const checked = selectedSet.has(id) ? 'checked' : '';
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
