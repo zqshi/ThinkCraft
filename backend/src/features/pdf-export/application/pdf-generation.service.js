@@ -356,13 +356,16 @@ export class PdfGenerationService {
   }
 
   buildBusinessPlanHtmlContent(chapters, title) {
-    const escapeHtml = value => String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const escapeHtml = value =>
+      String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 
     const normalizeMarkdownForPdfHtml = value => {
-      if (!value) return '';
+      if (!value) {
+        return '';
+      }
       const lines = String(value).split(/\r?\n/);
       const normalized = lines.map(line => {
         if (line.includes('|') || line.includes('\t')) {
@@ -370,24 +373,27 @@ export class PdfGenerationService {
         }
         let text = line;
         text = text.replace(/\s*(#{1,6})\s+/g, '\n$1 ');
-        text = text.replace(/\s*(\d+[\.\、])\s+/g, '\n$1 ');
+        text = text.replace(/\s*(\d+[.、])\s+/g, '\n$1 ');
         text = text.replace(/\s*([一二三四五六七八九十]+、)\s+/g, '\n$1 ');
         text = text.replace(/\s*(第[一二三四五六七八九十]+[章节篇部分])\s*/g, '\n$1 ');
-        text = text.replace(/\s*(行动建议\s*\d+[\.\、]?)\s*/g, '\n$1 ');
-        text = text.replace(/\s*(关键结论\s*\d+[\.\、]?)\s*/g, '\n$1 ');
+        text = text.replace(/\s*(行动建议\s*\d+[.、]?)\s*/g, '\n$1 ');
+        text = text.replace(/\s*(关键结论\s*\d+[.、]?)\s*/g, '\n$1 ');
         text = text.replace(/\s*([*-])\s+/g, '\n- ');
-        text = text.replace(/([。！？；:：\?])\s*(#{1,6}\s+)/g, '$1\n$2');
-        text = text.replace(/([。！？；:：\?])\s*(\d+[\.\、])/g, '$1\n$2');
-        text = text.replace(/([。！？；:：\?])\s*([一二三四五六七八九十]+、)/g, '$1\n$2');
-        text = text.replace(/([。！？；:：\?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g, '$1\n$2');
-        text = text.replace(/([。！？；:：\?])\s*(行动建议\s*\d+[\.\、])/g, '$1\n$2');
-        text = text.replace(/([。！？；:：\?])\s*(关键结论\s*\d+[\.\、])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：?])\s*(#{1,6}\s+)/g, '$1\n$2');
+        text = text.replace(/([。！？；:：?])\s*(\d+[.、])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：?])\s*([一二三四五六七八九十]+、)/g, '$1\n$2');
+        text = text.replace(
+          /([。！？；:：?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g,
+          '$1\n$2'
+        );
+        text = text.replace(/([。！？；:：?])\s*(行动建议\s*\d+[.、])/g, '$1\n$2');
+        text = text.replace(/([。！？；:：?])\s*(关键结论\s*\d+[.、])/g, '$1\n$2');
         return text;
       });
       return normalized.join('\n');
     };
 
-    const renderInline = (value) => {
+    const renderInline = value => {
       let text = String(value || '');
       text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
@@ -395,9 +401,11 @@ export class PdfGenerationService {
       return text;
     };
 
-    const renderMarkdown = (value) => {
+    const renderMarkdown = value => {
       const raw = String(value || '');
-      if (!raw) return '';
+      if (!raw) {
+        return '';
+      }
       const normalized = normalizeMarkdownForPdfHtml(raw);
       const escaped = escapeHtml(normalized);
       const segments = escaped.split(/```/g);
@@ -473,7 +481,9 @@ export class PdfGenerationService {
       return htmlParts.join('');
     };
 
-    const chapterHtml = chapters.map((chapter, index) => `
+    const chapterHtml = chapters
+      .map(
+        (chapter, index) => `
       <div class="chapter">
         <h1>${renderInline(escapeHtml(chapter.title || `章节 ${index + 1}`))}</h1>
         <div class="chapter-meta">
@@ -483,7 +493,9 @@ export class PdfGenerationService {
           ${renderMarkdown(chapter.content || '')}
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
 
     return `
 <!DOCTYPE html>
@@ -512,14 +524,18 @@ export class PdfGenerationService {
   }
 
   normalizeMarkdownForPdfText(markdown) {
-    if (!markdown) return '';
+    if (!markdown) {
+      return '';
+    }
     const lines = String(markdown).split(/\r?\n/);
     const output = [];
     let inCode = false;
 
     const isSeparatorLine = line => {
       const normalized = line.replace(/\t/g, '|').replace(/\s+/g, '');
-      if (!normalized.includes('-')) return false;
+      if (!normalized.includes('-')) {
+        return false;
+      }
       return /^\|?[:\-|]+\|?$/.test(normalized);
     };
 
@@ -540,7 +556,10 @@ export class PdfGenerationService {
 
       let text = line;
       if (/\t/.test(text) && !/\|/.test(text)) {
-        const cells = text.split('\t').map(cell => cell.trim()).filter(Boolean);
+        const cells = text
+          .split('\t')
+          .map(cell => cell.trim())
+          .filter(Boolean);
         if (cells.length) {
           output.push(cells.join(' | '));
           continue;
@@ -579,20 +598,23 @@ export class PdfGenerationService {
    */
   buildReportHtmlContent(reportData, title) {
     const chapters = reportData.chapters || {};
-    const escapeHtml = value => String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    const renderInline = (value) => {
+    const escapeHtml = value =>
+      String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const renderInline = value => {
       let text = String(value || '');
       text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
       text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
       return text;
     };
-    const renderMarkdown = (value) => {
+    const renderMarkdown = value => {
       const raw = String(value || '');
-      if (!raw) return '';
+      if (!raw) {
+        return '';
+      }
       const escaped = escapeHtml(raw);
       const segments = escaped.split(/```/g);
       const htmlParts = segments.map((segment, idx) => {
@@ -666,10 +688,16 @@ export class PdfGenerationService {
       });
       return htmlParts.join('');
     };
-    const getChapterFallbackContent = (chapter) => {
-      if (!chapter) return '';
-      if (typeof chapter === 'string') return chapter;
-      if (typeof chapter.content === 'string') return chapter.content;
+    const getChapterFallbackContent = chapter => {
+      if (!chapter) {
+        return '';
+      }
+      if (typeof chapter === 'string') {
+        return chapter;
+      }
+      if (typeof chapter.content === 'string') {
+        return chapter.content;
+      }
       return '';
     };
 
@@ -778,7 +806,9 @@ export class PdfGenerationService {
     </div>
 
     <!-- 核心概要 -->
-    ${reportData.initialIdea || reportData.problem || reportData.solution ? `
+    ${
+      reportData.initialIdea || reportData.problem || reportData.solution
+        ? `
     <div class="summary-box">
         <h3>核心概要</h3>
         ${reportData.initialIdea ? `<p><strong>初始创意：</strong>${renderMarkdown(reportData.initialIdea)}</p>` : ''}
@@ -786,7 +816,9 @@ export class PdfGenerationService {
         ${reportData.solution ? `<p><strong>独特价值：</strong>${renderMarkdown(reportData.solution)}</p>` : ''}
         ${reportData.targetUser ? `<p><strong>目标用户：</strong>${renderMarkdown(reportData.targetUser)}</p>` : ''}
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 `;
 
     // 第1章：创意定义与演化
@@ -796,14 +828,22 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch1.title || '创意定义与演化'))}</h1>
-        ${ch1.originalIdea ? `
+        ${
+          ch1.originalIdea
+            ? `
         <h2>原始创意</h2>
         ${renderMarkdown(ch1.originalIdea)}
-        ` : ''}
-        ${ch1.evolution ? `
+        `
+            : ''
+        }
+        ${
+          ch1.evolution
+            ? `
         <h2>演化过程</h2>
         ${renderMarkdown(ch1.evolution)}
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
           if (ch1.originalIdea || ch1.evolution) {
             hasContent = true;
@@ -826,22 +866,38 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch2.title || '核心洞察与根本假设'))}</h1>
-        ${ch2.surfaceNeed ? `
+        ${
+          ch2.surfaceNeed
+            ? `
         <h2>表层需求</h2>
         ${renderMarkdown(ch2.surfaceNeed)}
-        ` : ''}
-        ${ch2.deepMotivation ? `
+        `
+            : ''
+        }
+        ${
+          ch2.deepMotivation
+            ? `
         <h2>深层动力</h2>
         ${renderMarkdown(ch2.deepMotivation)}
-        ` : ''}
-        ${ch2.assumptions && ch2.assumptions.length > 0 ? `
+        `
+            : ''
+        }
+        ${
+          ch2.assumptions && ch2.assumptions.length > 0
+            ? `
         <h2>根本假设</h2>
         <ul>
             ${ch2.assumptions.map(a => `<li>${renderInline(escapeHtml(a))}</li>`).join('')}
         </ul>
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
-          if (ch2.surfaceNeed || ch2.deepMotivation || (ch2.assumptions && ch2.assumptions.length > 0)) {
+          if (
+            ch2.surfaceNeed ||
+            ch2.deepMotivation ||
+            (ch2.assumptions && ch2.assumptions.length > 0)
+          ) {
             hasContent = true;
           }
           const fallback = getChapterFallbackContent(ch2);
@@ -862,24 +918,40 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch3.title || '边界条件与应用场景'))}</h1>
-        ${ch3.idealScenario ? `
+        ${
+          ch3.idealScenario
+            ? `
         <h2>理想应用场景</h2>
         ${renderMarkdown(ch3.idealScenario)}
-        ` : ''}
-        ${ch3.limitations && ch3.limitations.length > 0 ? `
+        `
+            : ''
+        }
+        ${
+          ch3.limitations && ch3.limitations.length > 0
+            ? `
         <h2>限制条件</h2>
         <ul>
             ${ch3.limitations.map(l => `<li>${renderInline(escapeHtml(l))}</li>`).join('')}
         </ul>
-        ` : ''}
-        ${ch3.prerequisites ? `
+        `
+            : ''
+        }
+        ${
+          ch3.prerequisites
+            ? `
         <h2>前置要求</h2>
         ${ch3.prerequisites.technical ? `<p><strong>技术基础：</strong>${renderMarkdown(ch3.prerequisites.technical)}</p>` : ''}
         ${ch3.prerequisites.resources ? `<p><strong>资源要求：</strong>${renderMarkdown(ch3.prerequisites.resources)}</p>` : ''}
         ${ch3.prerequisites.partnerships ? `<p><strong>合作基础：</strong>${renderMarkdown(ch3.prerequisites.partnerships)}</p>` : ''}
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
-          if (ch3.idealScenario || (ch3.limitations && ch3.limitations.length > 0) || ch3.prerequisites) {
+          if (
+            ch3.idealScenario ||
+            (ch3.limitations && ch3.limitations.length > 0) ||
+            ch3.prerequisites
+          ) {
             hasContent = true;
           }
           const fallback = getChapterFallbackContent(ch3);
@@ -900,24 +972,40 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch4.title || '可行性分析与关键挑战'))}</h1>
-        ${ch4.stages && ch4.stages.length > 0 ? `
+        ${
+          ch4.stages && ch4.stages.length > 0
+            ? `
         <h2>实施阶段</h2>
-        ${ch4.stages.map(stage => `
+        ${ch4.stages
+          .map(
+            stage => `
         <div class="stage-item">
             <h4>${renderInline(escapeHtml(stage.stage || '阶段'))}</h4>
             ${stage.goal ? `<p><strong>目标：</strong>${renderMarkdown(stage.goal)}</p>` : ''}
             ${stage.tasks ? `<p><strong>关键任务：</strong>${renderMarkdown(stage.tasks)}</p>` : ''}
         </div>
-        `).join('')}
-        ` : ''}
-        ${ch4.biggestRisk ? `
+        `
+          )
+          .join('')}
+        `
+            : ''
+        }
+        ${
+          ch4.biggestRisk
+            ? `
         <h2>最大风险</h2>
         ${renderMarkdown(ch4.biggestRisk)}
-        ` : ''}
-        ${ch4.mitigation ? `
+        `
+            : ''
+        }
+        ${
+          ch4.mitigation
+            ? `
         <h2>预防措施</h2>
         ${renderMarkdown(ch4.mitigation)}
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
           if ((ch4.stages && ch4.stages.length > 0) || ch4.biggestRisk || ch4.mitigation) {
             hasContent = true;
@@ -940,25 +1028,40 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch5.title || '思维盲点与待探索问题'))}</h1>
-        ${ch5.blindSpots && ch5.blindSpots.length > 0 ? `
+        ${
+          ch5.blindSpots && ch5.blindSpots.length > 0
+            ? `
         <h2>思维盲点</h2>
         <ul>
             ${ch5.blindSpots.map(b => `<li>${renderInline(escapeHtml(b))}</li>`).join('')}
         </ul>
-        ` : ''}
-        ${ch5.keyQuestions && ch5.keyQuestions.length > 0 ? `
+        `
+            : ''
+        }
+        ${
+          ch5.keyQuestions && ch5.keyQuestions.length > 0
+            ? `
         <h2>关键问题</h2>
-        ${ch5.keyQuestions.map(q => `
+        ${ch5.keyQuestions
+          .map(
+            q => `
         <div class="question-item">
             ${q.category ? `<strong>${renderInline(escapeHtml(q.category))}：</strong>` : ''}
             ${q.question ? `<p>${renderMarkdown(q.question)}</p>` : ''}
             ${q.validation ? `<p style="color: #7f8c8d; font-size: 14px;">验证方法：${renderMarkdown(q.validation)}</p>` : ''}
             ${q.why ? `<p style="color: #7f8c8d; font-size: 14px;">为什么重要：${renderMarkdown(q.why)}</p>` : ''}
         </div>
-        `).join('')}
-        ` : ''}
+        `
+          )
+          .join('')}
+        `
+            : ''
+        }
         ${(() => {
-          if ((ch5.blindSpots && ch5.blindSpots.length > 0) || (ch5.keyQuestions && ch5.keyQuestions.length > 0)) {
+          if (
+            (ch5.blindSpots && ch5.blindSpots.length > 0) ||
+            (ch5.keyQuestions && ch5.keyQuestions.length > 0)
+          ) {
             hasContent = true;
           }
           const fallback = getChapterFallbackContent(ch5);
@@ -979,30 +1082,44 @@ export class PdfGenerationService {
       html += `
     <div class="chapter">
         <h1>${renderInline(escapeHtml(ch6.title || '下一步行动建议'))}</h1>
-        ${ch6.immediateActions && ch6.immediateActions.length > 0 ? `
+        ${
+          ch6.immediateActions && ch6.immediateActions.length > 0
+            ? `
         <div class="action-list">
             <h2>立即行动</h2>
             <ol>
                 ${ch6.immediateActions.map(a => `<li>${renderInline(escapeHtml(a))}</li>`).join('')}
             </ol>
         </div>
-        ` : ''}
-        ${ch6.validationMethods && ch6.validationMethods.length > 0 ? `
+        `
+            : ''
+        }
+        ${
+          ch6.validationMethods && ch6.validationMethods.length > 0
+            ? `
         <h2>验证方法</h2>
         <ul>
             ${ch6.validationMethods.map(v => `<li>${renderInline(escapeHtml(v))}</li>`).join('')}
         </ul>
-        ` : ''}
-        ${ch6.successMetrics && ch6.successMetrics.length > 0 ? `
+        `
+            : ''
+        }
+        ${
+          ch6.successMetrics && ch6.successMetrics.length > 0
+            ? `
         <h2>成功指标</h2>
         <ul>
             ${ch6.successMetrics.map(m => `<li>${renderInline(escapeHtml(m))}</li>`).join('')}
         </ul>
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
-          if ((ch6.immediateActions && ch6.immediateActions.length > 0) ||
-              (ch6.validationMethods && ch6.validationMethods.length > 0) ||
-              (ch6.successMetrics && ch6.successMetrics.length > 0)) {
+          if (
+            (ch6.immediateActions && ch6.immediateActions.length > 0) ||
+            (ch6.validationMethods && ch6.validationMethods.length > 0) ||
+            (ch6.successMetrics && ch6.successMetrics.length > 0)
+          ) {
             hasContent = true;
           }
           const fallback = getChapterFallbackContent(ch6);

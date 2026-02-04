@@ -2,7 +2,6 @@
  * PDF Export 控制器
  */
 import fs from 'fs';
-import path from 'path';
 import { PdfExportUseCase } from '../application/pdf-export.use-case.js';
 import PDFDocument from 'pdfkit';
 import { ExportInMemoryRepository } from '../infrastructure/export-inmemory.repository.js';
@@ -138,7 +137,7 @@ export class PdfExportController {
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
 
-      fileStream.on('error', (error) => {
+      fileStream.on('error', error => {
         logger.error('[PDF Export] 文件流错误:', error);
         if (!res.headersSent) {
           fail(res, '文件下载失败', 500);
@@ -168,19 +167,29 @@ export class PdfExportController {
           ideaTitle || '创意分析报告'
         );
 
-        if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')) {
+        if (
+          !pdfBuffer ||
+          !Buffer.isBuffer(pdfBuffer) ||
+          !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')
+        ) {
           throw new Error('PDF生成失败：输出内容无效');
         }
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`
+        );
         res.setHeader('Content-Length', pdfBuffer.length);
         res.send(pdfBuffer);
       } catch (puppeteerError) {
         // 兼容无浏览器环境，降级为pdfkit文本PDF
         const doc = new PDFDocument({ autoFirstPage: true });
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(ideaTitle || '创意分析报告')}.pdf"`
+        );
         doc.pipe(res);
 
         const cjkFont = this.resolveCjkFontPath();
@@ -226,34 +235,49 @@ export class PdfExportController {
           title || (type === 'proposal' ? '产品立项材料' : '商业计划书')
         );
 
-        if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')) {
+        if (
+          !pdfBuffer ||
+          !Buffer.isBuffer(pdfBuffer) ||
+          !pdfBuffer.slice(0, 8).toString('ascii').includes('%PDF-')
+        ) {
           throw new Error('PDF生成失败：输出内容无效');
         }
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`
+        );
         res.setHeader('Content-Length', pdfBuffer.length);
         res.send(pdfBuffer);
       } catch (puppeteerError) {
         const doc = new PDFDocument({ autoFirstPage: true });
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(title || '商业计划书')}.pdf"`
+        );
         doc.pipe(res);
 
         const cjkFont = this.resolveCjkFontPath();
         if (cjkFont) {
           doc.font(cjkFont);
         }
-        doc.fontSize(20).text(title || (type === 'proposal' ? '产品立项材料' : '商业计划书'), { align: 'center' });
+        doc
+          .fontSize(20)
+          .text(title || (type === 'proposal' ? '产品立项材料' : '商业计划书'), {
+            align: 'center'
+          });
         doc.moveDown();
 
         chapters.forEach((chapter, idx) => {
           doc.addPage();
           doc.fontSize(16).text(chapter.title || `章节 ${idx + 1}`);
           doc.moveDown(0.5);
-          const cleanedContent = this.pdfExportUseCase.pdfGenerationService.normalizeMarkdownForPdfText(
-            chapter.content || ''
-          );
+          const cleanedContent =
+            this.pdfExportUseCase.pdfGenerationService.normalizeMarkdownForPdfText(
+              chapter.content || ''
+            );
           doc.fontSize(10).text(cleanedContent);
         });
 

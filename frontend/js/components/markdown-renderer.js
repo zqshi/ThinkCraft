@@ -116,60 +116,54 @@ class MarkdownRenderer {
         return line;
       }
       let updated = line;
-      const punctuationBreak = /([。！？；:：\?])\s*/g;
+      updated = updated.replace(/([。！？；:：?])\s*(\d+[.、])/g, '$1\n$2');
+      updated = updated.replace(/([。！？；:：?])\s*([一二三四五六七八九十]+、)/g, '$1\n$2');
       updated = updated.replace(
-        /([。！？；:：\?])\s*(\d+[\.\、])/g,
+        /([。！？；:：?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g,
         '$1\n$2'
       );
-      updated = updated.replace(
-        /([。！？；:：\?])\s*([一二三四五六七八九十]+、)/g,
-        '$1\n$2'
-      );
-      updated = updated.replace(
-        /([。！？；:：\?])\s*(第[一二三四五六七八九十]+[章节篇部分])/g,
-        '$1\n$2'
-      );
-      updated = updated.replace(
-        /([。！？；:：\?])\s*(行动建议\s*\d+[\.\、])/g,
-        '$1\n$2'
-      );
-      updated = updated.replace(
-        /([。！？；:：\?])\s*(关键结论\s*\d+[\.\、])/g,
-        '$1\n$2'
-      );
+      updated = updated.replace(/([。！？；:：?])\s*(行动建议\s*\d+[.、])/g, '$1\n$2');
+      updated = updated.replace(/([。！？；:：?])\s*(关键结论\s*\d+[.、])/g, '$1\n$2');
       return updated;
     };
 
-    const normalizedText = text
-      .split('\n')
-      .map(injectLineBreaks)
-      .join('\n');
+    const normalizedText = text.split('\n').map(injectLineBreaks).join('\n');
 
     const lines = normalizedText.split('\n');
     const result = [];
     let inCodeBlock = false;
-    let lastWasEmpty = false;  // 跟踪上一行是否为空
-    let consecutiveEmptyCount = 0;  // 连续空行计数
+    let lastWasEmpty = false; // 跟踪上一行是否为空
+    let consecutiveEmptyCount = 0; // 连续空行计数
 
     const isSectionHeader = line => {
-      return /^(第[一二三四五六七八九十]+[章节篇部分]|[一二三四五六七八九十]+、|\d+、|\d+[\.．)]|\([一二三四五六七八九十]+\)|（[一二三四五六七八九十]+）)/.test(
+      return /^(第[一二三四五六七八九十]+[章节篇部分]|[一二三四五六七八九十]+、|\d+、|\d+[.．)]|\([一二三四五六七八九十]+\)|（[一二三四五六七八九十]+）)/.test(
         line
       );
     };
 
     const isTableLine = line => {
       const trimmed = line.trim();
-      if (!trimmed) return false;
-      if (/^\|.*\|$/.test(trimmed)) return true;
-      if (/\t/.test(trimmed) && trimmed.split('\t').length >= 2) return true;
+      if (!trimmed) {
+        return false;
+      }
+      if (/^\|.*\|$/.test(trimmed)) {
+        return true;
+      }
+      if (/\t/.test(trimmed) && trimmed.split('\t').length >= 2) {
+        return true;
+      }
       return /^\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?$/.test(trimmed);
     };
 
     const isBlockLine = line => {
       const trimmed = line.trim();
-      if (isSectionHeader(trimmed)) return true;
-      if (isTableLine(trimmed)) return true;
-      return /^(#{1,6}\s|>|\* |\-\s|•\s|\d+\.\s)/.test(trimmed);
+      if (isSectionHeader(trimmed)) {
+        return true;
+      }
+      if (isTableLine(trimmed)) {
+        return true;
+      }
+      return /^(#{1,6}\s|>|\* |-\s|•\s|\d+\.\s)/.test(trimmed);
     };
 
     for (const line of lines) {
@@ -268,7 +262,7 @@ class MarkdownRenderer {
       const line = lines[i];
 
       // 检测无序列表
-      const ulMatch = line.match(/^[\*\-•]\s+(.+)$/);
+      const ulMatch = line.match(/^[-*•]\s+(.+)$/);
       // 检测有序列表
       const olMatch = line.match(/^\d+\.\s+(.+)$/);
 
@@ -371,15 +365,24 @@ class MarkdownRenderer {
     let index = 0;
 
     const toPipeRow = row => {
-      const cells = row.split('\t').map(cell => cell.trim()).filter(Boolean);
-      if (!cells.length) return row;
+      const cells = row
+        .split('\t')
+        .map(cell => cell.trim())
+        .filter(Boolean);
+      if (!cells.length) {
+        return row;
+      }
       return `| ${cells.join(' | ')} |`;
     };
 
     const isSeparatorLine = row => {
-      if (!row) return false;
+      if (!row) {
+        return false;
+      }
       const normalized = row.replace(/\t/g, '|').replace(/\s+/g, '');
-      if (!normalized.includes('-')) return false;
+      if (!normalized.includes('-')) {
+        return false;
+      }
       return /^\|?[:\-|]+\|?$/.test(normalized);
     };
 
@@ -387,8 +390,12 @@ class MarkdownRenderer {
 
     const splitRow = row => {
       const cells = row.split('|').map(cell => cell.trim());
-      if (cells.length && cells[0] === '') cells.shift();
-      if (cells.length && cells[cells.length - 1] === '') cells.pop();
+      if (cells.length && cells[0] === '') {
+        cells.shift();
+      }
+      if (cells.length && cells[cells.length - 1] === '') {
+        cells.pop();
+      }
       return cells;
     };
 
@@ -412,12 +419,16 @@ class MarkdownRenderer {
 
         while (index < lines.length) {
           const rawRow = lines[index];
-          if (!rawRow || rawRow.trim() === '') break;
+          if (!rawRow || rawRow.trim() === '') {
+            break;
+          }
           if (/^\s*#{1,6}\s+/.test(rawRow) || /^\s*\|\s*#{1,6}\s+/.test(rawRow)) {
             break;
           }
           const row = /\t/.test(rawRow) && !/\|/.test(rawRow) ? toPipeRow(rawRow) : rawRow;
-          if (!/\|/.test(row)) break;
+          if (!/\|/.test(row)) {
+            break;
+          }
           if (isSeparatorLine(row)) {
             index += 1;
             continue;
