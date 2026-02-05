@@ -349,7 +349,8 @@ class WorkflowExecutor {
       }
       const projectManager = this.projectManager || window.projectManager;
       const isOffline =
-        typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine')
+        typeof navigator !== 'undefined' &&
+        Object.prototype.hasOwnProperty.call(navigator, 'onLine')
           ? navigator.onLine === false
           : false;
 
@@ -521,11 +522,7 @@ class WorkflowExecutor {
         throw new Error('未提供访问令牌');
       }
     }
-    const {
-      timeoutMs = 2 * 60 * 1000,
-      retry = 2,
-      retryDelay = 1500
-    } = options;
+    const { timeoutMs = 2 * 60 * 1000, retry = 2, retryDelay = 1500 } = options;
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
     let lastError = null;
 
@@ -588,7 +585,8 @@ class WorkflowExecutor {
           }
         }
 
-        const retryable = response.status >= 500 || response.status === 408 || response.status === 429;
+        const retryable =
+          response.status >= 500 || response.status === 408 || response.status === 429;
         lastError = new Error(errorMessage);
         if (attempt < retry && retryable) {
           await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
@@ -839,6 +837,11 @@ class WorkflowExecutor {
       const stages = project.workflow?.stages || [];
       const currentStage = stages.find(s => s.id === stageId);
 
+      if (currentStage && currentStage.executingArtifactTypes?.length) {
+        currentStage.executingArtifactTypes = [];
+        await this.storageManager.saveProject(project);
+      }
+
       if (currentStage && currentStage.dependencies?.length > 0) {
         const unmetDependencies = [];
         for (const depId of currentStage.dependencies) {
@@ -917,6 +920,11 @@ class WorkflowExecutor {
       if (projectManager?.currentProjectId === projectId) {
         const updatedProject = await this.storageManager.getProject(projectId);
         if (updatedProject) {
+          const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
+          if (stage && stage.executingArtifactTypes) {
+            stage.executingArtifactTypes = [];
+            await this.storageManager.saveProject(updatedProject);
+          }
           projectManager.refreshProjectPanel(updatedProject);
         }
       }
@@ -934,6 +942,18 @@ class WorkflowExecutor {
 
       // 恢复阶段状态为pending
       await this.updateProjectStageStatus(projectId, stageId, 'pending');
+      const projectManager = this.projectManager || window.projectManager;
+      if (projectManager?.currentProjectId === projectId) {
+        const updatedProject = await this.storageManager.getProject(projectId);
+        if (updatedProject) {
+          const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
+          if (stage && stage.executingArtifactTypes) {
+            stage.executingArtifactTypes = [];
+            await this.storageManager.saveProject(updatedProject);
+          }
+          projectManager.refreshProjectPanel(updatedProject);
+        }
+      }
     }
   }
 

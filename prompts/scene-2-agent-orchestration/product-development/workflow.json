@@ -86,7 +86,14 @@
           "tasks": ["完成后端实现与接口交付", "输出后端开发文档"]
         }
       ],
-      "outputs": ["code", "api-doc", "component-lib", "frontend-doc", "backend-doc"]
+      "outputs": [
+        "frontend-code",
+        "backend-code",
+        "api-doc",
+        "component-lib",
+        "frontend-doc",
+        "backend-doc"
+      ]
     },
     {
       "phase_id": "testing",

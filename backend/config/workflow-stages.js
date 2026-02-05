@@ -58,7 +58,14 @@ export const DEFAULT_WORKFLOW_STAGES = [
     name: '开发实现',
     description: '前后端开发、功能实现、代码编写',
     recommendedAgents: ['frontend-developer', 'backend-developer'],
-    artifactTypes: ['code', 'api-doc', 'component-lib', 'frontend-doc', 'backend-doc'],
+    artifactTypes: [
+      'frontend-code',
+      'backend-code',
+      'api-doc',
+      'component-lib',
+      'frontend-doc',
+      'backend-doc'
+    ],
     estimatedDuration: 7,
     icon: '💻',
     color: '#4facfe'
@@ -136,7 +143,7 @@ export const ARTIFACT_TYPES = {
     description: '完整的产品需求文档，包含功能、流程、原型等',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.requirement-design-doc.md'
+      'prompts/agents/product/product-manager/templates/product-manager-agent.requirement-design-doc.md'
     ]
   },
   'research-analysis-doc': {
@@ -144,21 +151,23 @@ export const ARTIFACT_TYPES = {
     description: '市场分析与竞品调研报告（含数据来源）',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.research-analysis-doc.md'
+      'prompts/agents/product/product-manager/templates/product-manager-agent.research-analysis-doc.md'
     ]
   },
   'user-story': {
     name: '用户故事',
     description: '以用户视角描述的功能需求',
     extension: 'md',
-    promptTemplates: ['prompts/agents/product/product-manager/product-manager-agent.user-story.md']
+    promptTemplates: [
+      'prompts/agents/product/product-manager/templates/product-manager-agent.user-story.md'
+    ]
   },
   'feature-list': {
     name: '功能清单',
     description: '产品功能列表和优先级',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.feature-list.md'
+      'prompts/agents/product/product-manager/templates/product-manager-agent.feature-list.md'
     ]
   },
 
@@ -168,9 +177,7 @@ export const ARTIFACT_TYPES = {
     description: '战略设计与关键假设文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/strategy/strategy-designer/strategy-designer.md',
-      'prompts/agents/strategy/strategy-designer/strategy-designer.analysis-doc.md',
-      'prompts/agents/strategy/strategy-designer/strategy-designer.strategy-doc.md'
+      'prompts/agents/strategy/strategy-designer/templates/strategy-designer.strategy-doc.md'
     ]
   },
   'core-prompt-design': {
@@ -178,32 +185,33 @@ export const ARTIFACT_TYPES = {
     description: '核心引导逻辑与Prompt设计说明',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.core-prompt-design.md'
+      'prompts/agents/product/product-manager/templates/product-manager-agent.core-prompt-design.md'
     ]
   },
 
   // 产品设计阶段
   'ui-design': {
-    name: 'UI设计稿',
-    description: '界面设计稿和视觉规范',
+    name: 'UI设计方案',
+    description: '界面设计方案与视觉/体验规范',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/ui-ux/ui-design/ui-design-agent.design-doc-traditional.md',
-      'prompts/agents/ui-ux/ui-ux-designer-agent.design-doc-traditional.md'
+      'prompts/agents/ui-ux/ui-ux-designer/templates/ui-ux-designer-agent.design-doc-traditional.md'
     ]
   },
   prototype: {
     name: '交互原型',
     description: '可交互的产品原型',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ui-ux/prototype/prototype-agent.design-doc-traditional.md']
+    promptTemplates: [
+      'prompts/agents/ui-ux/prototype/templates/prototype-agent.design-doc-traditional.md'
+    ]
   },
   'design-spec': {
     name: '设计规范',
     description: 'UI组件库和设计规范文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/ui-ux/design-spec/design-spec-agent.design-doc-traditional.md'
+      'prompts/agents/ui-ux/design-spec/templates/design-spec-agent.design-doc-traditional.md'
     ]
   },
 
@@ -212,29 +220,40 @@ export const ARTIFACT_TYPES = {
     name: '架构设计文档',
     description: '系统架构、模块划分、技术选型',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/tech-lead/tech-lead-agent.architecture-doc.md']
+    promptTemplates: [
+      'prompts/agents/engineering/tech-lead/templates/tech-lead-agent.architecture-doc.md'
+    ]
   },
   'api-spec': {
     name: 'API接口规范',
     description: 'RESTful API接口文档',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/tech-lead/tech-lead-agent.api-spec.md']
+    promptTemplates: ['prompts/agents/engineering/tech-lead/templates/tech-lead-agent.api-spec.md']
   },
   'tech-stack': {
     name: '技术栈选型',
     description: '前后端技术栈和工具链',
     extension: 'md',
-    promptTemplates: ['prompts/agents/engineering/tech-lead/tech-lead-agent.tech-stack.md']
+    promptTemplates: [
+      'prompts/agents/engineering/tech-lead/templates/tech-lead-agent.tech-stack.md'
+    ]
   },
 
   // 开发实现阶段
-  code: {
-    name: '源代码',
-    description: '完整的源代码实现',
+  'frontend-code': {
+    name: '前端源代码',
+    description: '前端源代码实现',
     extension: 'zip',
     promptTemplates: [
-      'prompts/agents/engineering/frontend-developer/frontend-developer-agent.code.md',
-      'prompts/agents/engineering/backend-developer/backend-developer-agent.code.md'
+      'prompts/agents/engineering/frontend-developer/templates/frontend-developer-agent.code.md'
+    ]
+  },
+  'backend-code': {
+    name: '后端源代码',
+    description: '后端源代码实现',
+    extension: 'zip',
+    promptTemplates: [
+      'prompts/agents/engineering/backend-developer/templates/backend-developer-agent.code.md'
     ]
   },
   'api-doc': {
@@ -242,7 +261,7 @@ export const ARTIFACT_TYPES = {
     description: '接口使用文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/engineering/backend-developer/backend-developer-agent.api-doc.md'
+      'prompts/agents/engineering/backend-developer/templates/backend-developer-agent.api-doc.md'
     ]
   },
   'component-lib': {
@@ -250,7 +269,7 @@ export const ARTIFACT_TYPES = {
     description: '前端组件库文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/engineering/frontend-developer/frontend-developer-agent.frontend-doc.md'
+      'prompts/agents/engineering/frontend-developer/templates/frontend-developer-agent.frontend-doc.md'
     ]
   },
   'frontend-doc': {
@@ -258,7 +277,7 @@ export const ARTIFACT_TYPES = {
     description: '前端实现说明与交付文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/engineering/frontend-developer/frontend-developer-agent.frontend-doc.md'
+      'prompts/agents/engineering/frontend-developer/templates/frontend-developer-agent.frontend-doc.md'
     ]
   },
   'backend-doc': {
@@ -266,7 +285,7 @@ export const ARTIFACT_TYPES = {
     description: '后端实现说明与交付文档',
     extension: 'md',
     promptTemplates: [
-      'prompts/agents/engineering/backend-developer/backend-developer-agent.code.md'
+      'prompts/agents/engineering/backend-developer/templates/backend-developer-agent.code.md'
     ]
   },
 
@@ -275,19 +294,24 @@ export const ARTIFACT_TYPES = {
     name: '测试报告',
     description: '功能测试和性能测试报告',
     extension: 'md',
-    promptTemplates: ['prompts/agents/quality/qa-engineer/qa-engineer-agent.test-plan.md']
+    promptTemplates: [
+      'prompts/agents/engineering/backend-developer/templates/backend-developer-agent.test-plan.md',
+      'prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.test-plan.md'
+    ]
   },
   'bug-list': {
     name: 'Bug清单',
     description: '已知问题和修复记录',
     extension: 'md',
-    promptTemplates: ['prompts/agents/quality/qa-engineer/qa-engineer-agent.bug-list.md']
+    promptTemplates: ['prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.bug-list.md']
   },
   'performance-report': {
     name: '性能测试报告',
     description: '系统性能指标和优化建议',
     extension: 'md',
-    promptTemplates: ['prompts/agents/quality/qa-engineer/qa-engineer-agent.performance-report.md']
+    promptTemplates: [
+      'prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.performance-report.md'
+    ]
   },
 
   // 部署上线阶段
@@ -295,19 +319,19 @@ export const ARTIFACT_TYPES = {
     name: '部署文档',
     description: '部署步骤和环境配置',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/devops/devops.deploy-plan.md']
+    promptTemplates: ['prompts/agents/ops/devops/templates/devops.deploy-plan.md']
   },
   'env-config': {
     name: '环境配置',
     description: '生产环境配置文件',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/devops/devops.env-config.md']
+    promptTemplates: ['prompts/agents/ops/devops/templates/devops.env-config.md']
   },
   'release-notes': {
     name: '发布说明',
     description: '版本更新说明',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/devops/devops.release-notes.md']
+    promptTemplates: ['prompts/agents/ops/devops/templates/devops.release-notes.md']
   },
 
   // 运营推广阶段
@@ -315,19 +339,21 @@ export const ARTIFACT_TYPES = {
     name: '营销推广方案',
     description: '市场推广策略和执行计划',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/marketing/marketing-agent.marketing-plan.md']
+    promptTemplates: ['prompts/agents/ops/marketing/templates/marketing-agent.marketing-plan.md']
   },
   'growth-strategy': {
     name: '增长策略',
     description: '用户增长和留存策略',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/marketing/marketing-agent.growth-strategy.md']
+    promptTemplates: ['prompts/agents/ops/marketing/templates/marketing-agent.growth-strategy.md']
   },
   'analytics-report': {
     name: '数据分析报告',
     description: '用户行为和产品数据分析',
     extension: 'md',
-    promptTemplates: ['prompts/agents/ops/operations/operations-agent.analytics-report.md']
+    promptTemplates: [
+      'prompts/agents/ops/operations/templates/operations-agent.analytics-report.md'
+    ]
   }
 };
 
@@ -340,7 +366,9 @@ export const ARTIFACT_TYPES = {
 export const AGENT_PROMPT_MAP = {
   'strategy-design': {
     name: '战略设计师',
-    persona: ['prompts/agents/strategy/strategy-designer/strategy-designer.md'],
+    persona: [
+      'prompts/agents/strategy/strategy-designer/templates/strategy-designer.strategy-doc.md'
+    ],
     deliverables: ['strategy-doc'],
     stageHint: { id: 'strategy', name: '战略设计', description: '战略设计与关键假设' }
   },
@@ -371,13 +399,13 @@ export const AGENT_PROMPT_MAP = {
   'frontend-developer': {
     name: '前端开发',
     persona: [],
-    deliverables: ['code', 'component-lib', 'frontend-doc'],
+    deliverables: ['frontend-code', 'component-lib', 'frontend-doc'],
     stageHint: { id: 'development', name: '开发实现', description: '前后端开发实现' }
   },
   'backend-developer': {
     name: '后端开发',
     persona: [],
-    deliverables: ['code', 'api-doc', 'backend-doc'],
+    deliverables: ['backend-code', 'api-doc', 'backend-doc'],
     stageHint: { id: 'development', name: '开发实现', description: '前后端开发实现' }
   },
   'qa-engineer': {

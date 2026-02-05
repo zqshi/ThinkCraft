@@ -1,0 +1,218 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-02-05",
+  "agents": [
+    {
+      "id": "strategy-designer",
+      "name": "战略设计师 Agent",
+      "domain": "strategy",
+      "path": "prompts/agents/strategy/strategy-designer/strategy-designer-agent.md",
+      "templates": [
+        {
+          "id": "strategy-doc",
+          "path": "prompts/agents/strategy/strategy-designer/templates/strategy-designer.strategy-doc.md"
+        }
+      ]
+    },
+    {
+      "id": "product-manager",
+      "name": "产品经理 Agent",
+      "domain": "product",
+      "path": "prompts/agents/product/product-manager/product-manager-agent.md",
+      "templates": [
+        {
+          "id": "core-prompt-design",
+          "path": "prompts/agents/product/product-manager/templates/product-manager-agent.core-prompt-design.md"
+        },
+        {
+          "id": "requirement-design-doc",
+          "path": "prompts/agents/product/product-manager/templates/product-manager-agent.requirement-design-doc.md"
+        },
+        {
+          "id": "feature-list",
+          "path": "prompts/agents/product/product-manager/templates/product-manager-agent.feature-list.md"
+        },
+        {
+          "id": "research-analysis-doc",
+          "path": "prompts/agents/product/product-manager/templates/product-manager-agent.research-analysis-doc.md"
+        },
+        {
+          "id": "user-story",
+          "path": "prompts/agents/product/product-manager/templates/product-manager-agent.user-story.md"
+        }
+      ]
+    },
+    {
+      "id": "backend-developer",
+      "name": "后端开发 Agent",
+      "domain": "engineering",
+      "path": "prompts/agents/engineering/backend-developer/backend-developer-agent.md",
+      "templates": [
+        {
+          "id": "api-doc",
+          "path": "prompts/agents/engineering/backend-developer/templates/backend-developer-agent.api-doc.md"
+        },
+        {
+          "id": "code",
+          "path": "prompts/agents/engineering/backend-developer/templates/backend-developer-agent.code.md"
+        },
+        {
+          "id": "test-plan",
+          "path": "prompts/agents/engineering/backend-developer/templates/backend-developer-agent.test-plan.md"
+        }
+      ]
+    },
+    {
+      "id": "frontend-developer",
+      "name": "前端开发 Agent",
+      "domain": "engineering",
+      "path": "prompts/agents/engineering/frontend-developer/frontend-developer-agent.md",
+      "templates": [
+        {
+          "id": "code",
+          "path": "prompts/agents/engineering/frontend-developer/templates/frontend-developer-agent.code.md"
+        },
+        {
+          "id": "frontend-doc",
+          "path": "prompts/agents/engineering/frontend-developer/templates/frontend-developer-agent.frontend-doc.md"
+        }
+      ]
+    },
+    {
+      "id": "tech-lead",
+      "name": "技术负责人 Agent",
+      "domain": "engineering",
+      "path": "prompts/agents/engineering/tech-lead/tech-lead-agent.md",
+      "templates": [
+        {
+          "id": "architecture-doc",
+          "path": "prompts/agents/engineering/tech-lead/templates/tech-lead-agent.architecture-doc.md"
+        },
+        {
+          "id": "api-spec",
+          "path": "prompts/agents/engineering/tech-lead/templates/tech-lead-agent.api-spec.md"
+        },
+        {
+          "id": "tech-stack",
+          "path": "prompts/agents/engineering/tech-lead/templates/tech-lead-agent.tech-stack.md"
+        }
+      ]
+    },
+    {
+      "id": "marketing",
+      "name": "市场营销 Agent",
+      "domain": "ops",
+      "path": "prompts/agents/ops/marketing/marketing-agent.md",
+      "templates": [
+        {
+          "id": "growth-strategy",
+          "path": "prompts/agents/ops/marketing/templates/marketing-agent.growth-strategy.md"
+        },
+        {
+          "id": "marketing-plan",
+          "path": "prompts/agents/ops/marketing/templates/marketing-agent.marketing-plan.md"
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "name": "运营 Agent",
+      "domain": "ops",
+      "path": "prompts/agents/ops/operations/operations-agent.md",
+      "templates": [
+        {
+          "id": "analytics-report",
+          "path": "prompts/agents/ops/operations/templates/operations-agent.analytics-report.md"
+        }
+      ]
+    },
+    {
+      "id": "devops",
+      "name": "DevOps Agent",
+      "domain": "ops",
+      "path": "prompts/agents/ops/devops/devops-agent.md",
+      "templates": [
+        {
+          "id": "release-notes",
+          "path": "prompts/agents/ops/devops/templates/devops.release-notes.md"
+        },
+        {
+          "id": "deploy-plan",
+          "path": "prompts/agents/ops/devops/templates/devops.deploy-plan.md"
+        },
+        {
+          "id": "env-config",
+          "path": "prompts/agents/ops/devops/templates/devops.env-config.md"
+        }
+      ]
+    },
+    {
+      "id": "qa-engineer",
+      "name": "QA工程师 Agent",
+      "domain": "quality",
+      "path": "prompts/agents/quality/qa-engineer/qa-engineer-agent.md",
+      "templates": [
+        {
+          "id": "test-plan",
+          "path": "prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.test-plan.md"
+        },
+        {
+          "id": "bug-list",
+          "path": "prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.bug-list.md"
+        },
+        {
+          "id": "performance-report",
+          "path": "prompts/agents/quality/qa-engineer/templates/qa-engineer-agent.performance-report.md"
+        }
+      ]
+    },
+    {
+      "id": "prototype",
+      "name": "原型设计 Agent",
+      "domain": "ui-ux",
+      "path": "prompts/agents/ui-ux/prototype/prototype-agent.md",
+      "templates": [
+        {
+          "id": "design-doc-traditional",
+          "path": "prompts/agents/ui-ux/prototype/templates/prototype-agent.design-doc-traditional.md"
+        }
+      ]
+    },
+    {
+      "id": "design-spec",
+      "name": "设计规范 Agent",
+      "domain": "ui-ux",
+      "path": "prompts/agents/ui-ux/design-spec/design-spec-agent.md",
+      "templates": [
+        {
+          "id": "design-doc-traditional",
+          "path": "prompts/agents/ui-ux/design-spec/templates/design-spec-agent.design-doc-traditional.md"
+        }
+      ]
+    },
+    {
+      "id": "ui-design",
+      "name": "视觉UI设计 Agent",
+      "domain": "ui-ux",
+      "path": "prompts/agents/ui-ux/ui-design/ui-design-agent.md",
+      "templates": [
+        {
+          "id": "design-doc-traditional",
+          "path": "prompts/agents/ui-ux/ui-ux-designer/templates/ui-ux-designer-agent.design-doc-traditional.md"
+        }
+      ]
+    },
+    {
+      "id": "ui-ux-designer",
+      "name": "UI/UX设计师 Agent",
+      "domain": "ui-ux",
+      "path": "prompts/agents/ui-ux/ui-ux-designer-agent.md",
+      "templates": [
+        {
+          "id": "design-doc-traditional",
+          "path": "prompts/agents/ui-ux/ui-ux-designer/templates/ui-ux-designer-agent.design-doc-traditional.md"
+        }
+      ]
+    }
+  ]
+}

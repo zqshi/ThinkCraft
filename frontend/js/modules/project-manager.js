@@ -18,6 +18,8 @@ var logger = window.createLogger ? window.createLogger('ProjectManager') : conso
 class ProjectManager {
   constructor() {
     this.projects = [];
+    this.projectsLoaded = false;
+    this.projectsLoadPromise = null;
     this.currentProject = null;
     this.currentProjectId = null;
     this.memberModalProjectId = null;
@@ -273,28 +275,57 @@ class ProjectManager {
   async init() {
     try {
       await this.loadProjects();
+      const container = document.getElementById('projectListContainer');
+      if (container) {
+        this.renderProjectList('projectListContainer');
+      }
     } catch (error) {}
   }
 
   /**
    * 加载所有项目（从本地存储）
    */
-  async loadProjects() {
-    try {
-      const allProjects = await this.storageManager.getAllProjects();
+  async loadProjects(options = {}) {
+    const { force = false } = options;
 
-      // 过滤掉已删除的项目
-      this.projects = allProjects.filter(project => project.status !== 'deleted');
-
-      // 更新全局状态
-      if (window.setProjects) {
-        window.setProjects(this.projects);
-      }
-
-      return this.projects;
-    } catch (error) {
-      return [];
+    if (!this.storageManager && window.storageManager) {
+      this.storageManager = window.storageManager;
     }
+
+    if (!this.storageManager) {
+      return this.projects;
+    }
+
+    if (!force && this.projectsLoaded) {
+      return this.projects;
+    }
+
+    if (this.projectsLoadPromise) {
+      return this.projectsLoadPromise;
+    }
+
+    this.projectsLoadPromise = (async () => {
+      try {
+        const allProjects = await this.storageManager.getAllProjects();
+
+        // 过滤掉已删除的项目
+        this.projects = allProjects.filter(project => project.status !== 'deleted');
+        this.projectsLoaded = true;
+
+        // 更新全局状态
+        if (window.setProjects) {
+          window.setProjects(this.projects);
+        }
+
+        return this.projects;
+      } catch (error) {
+        return this.projects;
+      } finally {
+        this.projectsLoadPromise = null;
+      }
+    })();
+
+    return this.projectsLoadPromise;
   }
 
   buildKnowledgeFromArtifacts(projectId, artifacts) {
@@ -972,6 +1003,16 @@ class ProjectManager {
     const container = document.getElementById(containerId);
     if (!container) {
       return;
+    }
+
+    if (
+      !this.projectsLoaded &&
+      !this.projectsLoadPromise &&
+      (this.storageManager || window.storageManager)
+    ) {
+      this.loadProjects()
+        .then(() => this.renderProjectList(containerId))
+        .catch(() => {});
     }
 
     const visibleProjects = this.projects.filter(project => project.status !== 'deleted');
@@ -1742,8 +1783,16 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const allowSupplementSelection = stage.status === 'completed';
-    const showSupplementAction = stage.status !== 'pending';
+    const hasArtifacts = Array.isArray(stage?.artifacts) && stage.artifacts.length > 0;
+    const missingSelected = this.getMissingSelectedDeliverables(
+      stage,
+      definition,
+      selectedDeliverables
+    );
+    const hasMissingSelected = missingSelected.length > 0;
+    const allowSupplementSelection = stage.status === 'completed' || hasArtifacts;
+    const showSupplementAction = hasMissingSelected;
+    const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
     const isSelectionLocked =
       (stage.status !== 'pending' && !allowSupplementSelection) ||
       (project?.status === 'in_progress' && !allowSupplementSelection);
@@ -1790,7 +1839,7 @@ class ProjectManager {
         ${
           showSupplementAction
             ? `<div style="margin-top: 6px; width: 100%;">
-                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${allowSupplementSelection ? '' : 'disabled title="阶段完成后可追加生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
+                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
                </div>`
             : ''
         }
@@ -1811,19 +1860,24 @@ class ProjectManager {
          </div>`
         : '';
 
+    const stageStatusLabel =
+      stage.status === 'pending' && hasArtifacts
+        ? '已生成'
+        : this.getStageStatusLabel(stage.status || 'pending');
+
     container.innerHTML = `
         <div class="project-stage-split">
             <div class="project-stage-left">
                 <div class="project-stage-meta-row">
                     <div>
                         <div class="project-stage-title">${stage.name || stage.id}</div>
-                        <div class="project-stage-sub">状态：${this.getStageStatusLabel(stage.status || 'pending')}</div>
+                        <div class="project-stage-sub">状态：${stageStatusLabel}</div>
                         ${dependencyHTML}
                         ${agentsHTML}
                         ${outputsHTML}
                         ${missingHTML}
                         ${deliverableChecklistHTML}
-                        ${stage.status !== 'pending' ? deliverableStatusHTML : ''}
+                        ${stage.status !== 'pending' || hasArtifacts ? deliverableStatusHTML : ''}
                     </div>
                     ${actionHTML}
                 </div>
@@ -1863,7 +1917,12 @@ class ProjectManager {
       }
     }
 
+    const hasArtifacts = Array.isArray(stage?.artifacts) && stage.artifacts.length > 0;
+
     if (stage.status === 'pending') {
+      if (hasArtifacts) {
+        return `<button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">查看交付物</button>`;
+      }
       if (project?.status === 'in_progress') {
         return `<button class="btn-secondary" disabled>执行中...</button>`;
       }
@@ -1965,6 +2024,8 @@ class ProjectManager {
       'design-spec': { name: '设计规范', icon: '📐' },
       prototype: { name: '交互原型', icon: '🖼️' },
       code: { name: '代码', icon: '💻' },
+      'frontend-code': { name: '前端源代码', icon: '💻' },
+      'backend-code': { name: '后端源代码', icon: '🖥️' },
       'component-lib': { name: '组件库', icon: '🧩' },
       'api-doc': { name: 'API文档', icon: '📡' },
       'test-report': { name: '测试报告', icon: '📊' },
@@ -2062,8 +2123,14 @@ class ProjectManager {
 
   getDeliverableStatusItems(stage, expectedDeliverables = [], selectedDeliverables = []) {
     const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
+    const hasArtifacts = artifacts.length > 0;
     const selectedSet = new Set((selectedDeliverables || []).filter(Boolean));
     const hasExplicitSelection = selectedSet.size > 0;
+    const executingKeys = new Set(
+      (stage?.executingArtifactTypes || [])
+        .map(val => this.normalizeDeliverableKey(val))
+        .filter(Boolean)
+    );
 
     return expectedDeliverables.map(item => {
       const id = item.id || item.key || item.label || '';
@@ -2075,8 +2142,15 @@ class ProjectManager {
         status = 'generated';
       } else if (!selected) {
         status = 'unselected';
+      } else if (stage.status === 'pending' && hasArtifacts) {
+        status = 'missing';
       } else if (stage.status === 'active' || stage.status === 'in_progress') {
-        status = 'generating';
+        if (executingKeys.size === 0) {
+          status = 'generating';
+        } else {
+          const itemKey = this.normalizeDeliverableKey(id);
+          status = itemKey && executingKeys.has(itemKey) ? 'generating' : 'missing';
+        }
       } else if (stage.status === 'completed') {
         status = 'missing';
       }
@@ -2135,9 +2209,9 @@ class ProjectManager {
           ${progress.selectedItems
             .map(item => {
               const statusLabel = statusMap[item.status] || statusMap.pending;
-              const regenBtn =
-                item.status === 'generated' && stage.status === 'completed'
-                  ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.regenerateStageDeliverable('${projectId}', '${stage.id}', '${item.artifact?.id || ''}')" style="padding: 4px 8px; font-size: 11px;">重新生成</button>`
+              const retryBtn =
+                item.status === 'missing'
+                  ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.retryStageDeliverable('${projectId}', '${stage.id}', '${this.escapeHtml(item.id)}')" style="padding: 4px 8px; font-size: 11px;">重试</button>`
                   : '';
               return `
               <div class="project-deliverable-status-item status-${item.status}">
@@ -2147,7 +2221,7 @@ class ProjectManager {
                 </div>
                 <div class="project-deliverable-status-actions">
                   <span class="project-deliverable-status-pill">${statusLabel}</span>
-                  ${regenBtn}
+                  ${retryBtn}
                 </div>
               </div>
             `;
@@ -2219,6 +2293,41 @@ class ProjectManager {
     const updated = await this.getProject(projectId).catch(() => null);
     if (updated) {
       this.refreshProjectPanel(updated);
+    }
+  }
+
+  async retryStageDeliverable(projectId, stageId, deliverableType) {
+    if (!deliverableType) {
+      window.modalManager?.alert('交付物类型缺失，无法重试', 'warning');
+      return;
+    }
+    if (!window.workflowExecutor) {
+      window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      return;
+    }
+    if (this.isRetryingDeliverable) {
+      window.modalManager?.alert('正在重试生成，请稍后', 'info');
+      return;
+    }
+    this.isRetryingDeliverable = true;
+    const project = this.currentProject || (await this.getProject(projectId).catch(() => null));
+    const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+    if (stage) {
+      stage.executingArtifactTypes = [deliverableType];
+      await this.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
+    }
+    try {
+      await window.workflowExecutor.startStage(projectId, stageId, {
+        selectedArtifactTypes: [deliverableType],
+        mergeArtifacts: true,
+        silent: true
+      });
+      const updated = await this.getProject(projectId).catch(() => null);
+      if (updated) {
+        this.refreshProjectPanel(updated);
+      }
+    } finally {
+      this.isRetryingDeliverable = false;
     }
   }
 
@@ -2427,7 +2536,11 @@ class ProjectManager {
    */
   renderStageDetailSection(project, stage) {
     const definition = window.workflowExecutor?.getStageDefinition(stage.id, stage);
-    const statusText = this.getStageStatusLabel(stage.status || 'pending');
+    const hasArtifacts = Array.isArray(stage?.artifacts) && stage.artifacts.length > 0;
+    const statusText =
+      stage.status === 'pending' && hasArtifacts
+        ? '已生成'
+        : this.getStageStatusLabel(stage.status || 'pending');
     const statusColor =
       {
         pending: '#9ca3af',
@@ -2471,8 +2584,15 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const allowSupplementSelection = stage.status === 'completed';
-    const showSupplementAction = stage.status !== 'pending';
+    const missingSelected = this.getMissingSelectedDeliverables(
+      stage,
+      definition,
+      selectedDeliverables
+    );
+    const hasMissingSelected = missingSelected.length > 0;
+    const allowSupplementSelection = stage.status === 'completed' || hasArtifacts;
+    const showSupplementAction = hasMissingSelected;
+    const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
     const isSelectionLocked = stage.status !== 'pending' && !allowSupplementSelection;
     const deliverableChecklistHTML =
       expectedDeliverables.length > 0
@@ -2500,7 +2620,7 @@ class ProjectManager {
         ${
           showSupplementAction
             ? `<div style="margin-top: 6px; width: 100%;">
-                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${allowSupplementSelection ? '' : 'disabled title="阶段完成后可追加生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
+                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
                </div>`
             : ''
         }
@@ -2537,7 +2657,11 @@ class ProjectManager {
     `
         : '';
 
-    const displayArtifacts = this.getDisplayArtifacts(stage)
+    const displayArtifacts = (Array.isArray(stage?.artifacts) ? stage.artifacts : [])
+      .map(artifact => ({
+        ...artifact,
+        type: artifact.type || 'document'
+      }))
       .slice()
       .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
     // 渲染实际交付物（已生成交付物）
@@ -2554,10 +2678,6 @@ class ProjectManager {
             .map(artifact => {
               const icon = this.getArtifactIcon(artifact.type);
               const typeLabel = this.getArtifactTypeLabel(artifact);
-              const regenBtn =
-                stage.status === 'completed'
-                  ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.regenerateStageDeliverable('${project.id}', '${stage.id}', '${artifact.id}')" style="padding: 4px 8px; font-size: 11px;">重新生成</button>`
-                  : '';
               return `
               <div class="workflow-stage-artifact-card"
                    onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifact.id}')">
@@ -2566,7 +2686,6 @@ class ProjectManager {
                   <div class="workflow-stage-artifact-name">${this.escapeHtml(artifact.name || artifact.fileName || '未命名')}</div>
                   <div class="workflow-stage-artifact-type">${typeLabel}</div>
                 </div>
-                ${regenBtn}
               </div>
             `;
             })
@@ -2585,33 +2704,41 @@ class ProjectManager {
     // 操作按钮
     let actionsHTML = '';
     if (stage.status === 'pending') {
-      const dependencies = stage.dependencies || [];
-      const unmetDependencies = [];
-      if (dependencies.length > 0) {
-        const stages = project.workflow?.stages || [];
-        for (const depId of dependencies) {
-          const depStage = stages.find(s => s.id === depId);
-          if (depStage && depStage.status !== 'completed') {
-            unmetDependencies.push(depStage.name);
+      if (hasArtifacts) {
+        actionsHTML = `
+          <button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">
+            查看交付物
+          </button>
+        `;
+      } else {
+        const dependencies = stage.dependencies || [];
+        const unmetDependencies = [];
+        if (dependencies.length > 0) {
+          const stages = project.workflow?.stages || [];
+          for (const depId of dependencies) {
+            const depStage = stages.find(s => s.id === depId);
+            if (depStage && depStage.status !== 'completed') {
+              unmetDependencies.push(depStage.name);
+            }
           }
         }
-      }
 
-      const isBlocked = unmetDependencies.length > 0;
-      const workflowReady = Boolean(window.workflowExecutor);
+        const isBlocked = unmetDependencies.length > 0;
+        const workflowReady = Boolean(window.workflowExecutor);
 
-      if (isBlocked) {
-        actionsHTML = `
+        if (isBlocked) {
+          actionsHTML = `
           <button class="btn-secondary" disabled title="依赖阶段未完成：${unmetDependencies.join('、')}" style="opacity: 0.5;">
             🔒 依赖未满足
           </button>
         `;
-      } else if (workflowReady) {
-        actionsHTML = `
+        } else if (workflowReady) {
+          actionsHTML = `
           <button class="btn-primary" onclick="projectManager.startStageWithSelection('${project.id}', '${stage.id}', true)">
             ▶️ 开始执行
           </button>
         `;
+        }
       }
     } else if (stage.status === 'completed') {
       // 已完成阶段不显示按钮，用户可以直接点击交付物卡片查看详情
@@ -2644,8 +2771,8 @@ class ProjectManager {
           ${agentsHTML}
           ${repairNoteHTML}
           ${deliverableChecklistHTML}
-          ${stage.status === 'pending' ? expectedArtifactsHTML : ''}
-          ${stage.status !== 'pending' ? deliverableStatusHTML : ''}
+          ${stage.status === 'pending' && !hasArtifacts ? expectedArtifactsHTML : ''}
+          ${stage.status !== 'pending' || hasArtifacts ? deliverableStatusHTML : ''}
           ${actualArtifactsHTML}
         </div>
         ${actionsHTML ? `<div class="workflow-stage-detail-actions">${actionsHTML}</div>` : ''}
@@ -2814,10 +2941,6 @@ class ProjectManager {
   }
 
   getDisplayArtifacts(stage) {
-    const docArtifacts = this.getDocArtifacts(stage);
-    if (docArtifacts.length > 0) {
-      return docArtifacts;
-    }
     const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
     return artifacts.map(artifact => ({
       ...artifact,
@@ -6111,6 +6234,8 @@ class ProjectManager {
       }
     } else if (
       artifact.type === 'code' ||
+      artifact.type === 'frontend-code' ||
+      artifact.type === 'backend-code' ||
       artifact.type === 'component-lib' ||
       artifact.type === 'api-doc'
     ) {
@@ -6338,7 +6463,12 @@ class ProjectManager {
     `;
 
     // 如果有代码高亮库，应用高亮
-    if (window.Prism && artifact.type === 'code') {
+    if (
+      window.Prism &&
+      (artifact.type === 'code' ||
+        artifact.type === 'frontend-code' ||
+        artifact.type === 'backend-code')
+    ) {
       setTimeout(() => {
         window.Prism.highlightAll();
       }, 100);
