@@ -636,7 +636,6 @@ Change Log: 创建UI设计方案专门Agent
 ### 质量检查
 
 - 使用[使用者故事质量检查清单](../checklists/user-story-quality.md)
-- 使用[验收标准质量检查清单](../checklists/acceptance-criteria-quality.md)
 
 ### 后续流程
 

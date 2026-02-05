@@ -347,6 +347,11 @@ class WorkflowExecutor {
       if (!project || !project.workflow || !project.workflow.stages) {
         return;
       }
+      const projectManager = this.projectManager || window.projectManager;
+      const isOffline =
+        typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine')
+          ? navigator.onLine === false
+          : false;
 
       const applyStageUpdate = targetStage => {
         if (!targetStage) {
@@ -391,17 +396,21 @@ class WorkflowExecutor {
       await this.storageManager.saveProject(project);
 
       // 同步到后端，避免刷新后状态回退
-      if (this.projectManager?.updateProject) {
-        this.projectManager
-          .updateProject(
+      if (projectManager?.updateProject) {
+        try {
+          await projectManager.updateProject(
             projectId,
             {
               workflow: project.workflow,
               collaborationSuggestion: project.collaborationSuggestion
             },
-            { allowFallback: true }
-          )
-          .catch(() => {});
+            { allowFallback: isOffline, forceRemote: true }
+          );
+        } catch (error) {
+          if (window.ErrorHandler?.showToast) {
+            window.ErrorHandler.showToast('阶段状态未能保存到服务器', 'error');
+          }
+        }
       }
 
       // 更新全局状态
@@ -412,8 +421,8 @@ class WorkflowExecutor {
         });
       }
 
-      if (this.projectManager?.currentProjectId === projectId) {
-        this.projectManager.refreshProjectPanel(project);
+      if (projectManager?.currentProjectId === projectId) {
+        projectManager.refreshProjectPanel(project);
       }
     } catch (error) {}
   }
@@ -505,67 +514,103 @@ class WorkflowExecutor {
     });
   }
 
-  async executeStageRequest(projectId, stageId, context) {
+  async executeStageRequest(projectId, stageId, context, options = {}) {
     if (window.requireAuth) {
       const ok = await window.requireAuth({ redirect: true, prompt: true });
       if (!ok) {
         throw new Error('未提供访问令牌');
       }
     }
+    const {
+      timeoutMs = 2 * 60 * 1000,
+      retry = 2,
+      retryDelay = 1500
+    } = options;
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
-    const controller = new AbortController();
-    const timeoutMs = 10 * 60 * 1000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    let response;
-    try {
-      console.info('[WorkflowExecutor] execute-stage request', {
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= retry; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      let response;
+      try {
+        if (attempt > 0) {
+          console.warn('[WorkflowExecutor] execute-stage retry', {
+            projectId,
+            stageId,
+            attempt: attempt + 1,
+            max: retry + 1
+          });
+        } else {
+          console.info('[WorkflowExecutor] execute-stage request', {
+            projectId,
+            stageId,
+            hasContext: Boolean(context && Object.keys(context).length > 0)
+          });
+        }
+        response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
+          body: JSON.stringify({ stageId, context }),
+          signal: controller.signal
+        });
+      } catch (error) {
+        lastError = error;
+        const isTimeout = error.name === 'AbortError';
+        const isNetwork = error instanceof TypeError;
+        if (attempt < retry && (isTimeout || isNetwork)) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          continue;
+        }
+        if (isTimeout) {
+          throw new Error(`阶段执行超时，请稍后重试（已重试 ${attempt} 次）`);
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('未授权，请重新登录');
+        }
+        let errorMessage = '阶段执行失败';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch (e) {
+          const text = await response.text();
+          if (text) {
+            errorMessage = text;
+          }
+        }
+
+        const retryable = response.status >= 500 || response.status === 408 || response.status === 429;
+        lastError = new Error(errorMessage);
+        if (attempt < retry && retryable) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          continue;
+        }
+        if (attempt > 0) {
+          throw new Error(`${errorMessage}（已重试 ${attempt} 次）`);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.info('[WorkflowExecutor] execute-stage response', {
         projectId,
         stageId,
-        hasContext: Boolean(context && Object.keys(context).length > 0)
+        code: result?.code,
+        artifactCount: Array.isArray(result?.data?.artifacts) ? result.data.artifacts.length : 0
       });
-      response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-        },
-        body: JSON.stringify({ stageId, context }),
-        signal: controller.signal
-      });
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('阶段执行超时，请稍后重试');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
+      return result.data;
     }
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('未授权，请重新登录');
-      }
-      let errorMessage = '阶段执行失败';
-      try {
-        const error = await response.json();
-        errorMessage = error.error || errorMessage;
-      } catch (e) {
-        const text = await response.text();
-        if (text) {
-          errorMessage = text;
-        }
-      }
-      throw new Error(errorMessage);
-    }
-
-    const result = await response.json();
-    console.info('[WorkflowExecutor] execute-stage response', {
-      projectId,
-      stageId,
-      code: result?.code,
-      artifactCount: Array.isArray(result?.data?.artifacts) ? result.data.artifacts.length : 0
-    });
-    return result.data;
+    throw lastError || new Error('阶段执行失败');
   }
 
   /**
@@ -868,10 +913,11 @@ class WorkflowExecutor {
       }
 
       // 强制刷新项目面板
-      if (this.projectManager?.currentProjectId === projectId) {
+      const projectManager = this.projectManager || window.projectManager;
+      if (projectManager?.currentProjectId === projectId) {
         const updatedProject = await this.storageManager.getProject(projectId);
         if (updatedProject) {
-          this.projectManager.refreshProjectPanel(updatedProject);
+          projectManager.refreshProjectPanel(updatedProject);
         }
       }
     } catch (error) {

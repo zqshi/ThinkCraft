@@ -25,7 +25,6 @@ export const DEFAULT_WORKFLOW_STAGES = [
     artifactTypes: [
       'research-analysis-doc',
       'prd',
-      'acceptance-criteria-quality',
       'user-story',
       'feature-list',
       'core-prompt-design'
@@ -146,14 +145,6 @@ export const ARTIFACT_TYPES = {
     extension: 'md',
     promptTemplates: [
       'prompts/agents/product/product-manager/product-manager-agent.research-analysis-doc.md'
-    ]
-  },
-  'acceptance-criteria-quality': {
-    name: '验收标准质量检查清单',
-    description: '验收标准质量检查与改进建议',
-    extension: 'md',
-    promptTemplates: [
-      'prompts/agents/product/product-manager/product-manager-agent.acceptance-criteria-quality.md'
     ]
   },
   'user-story': {
@@ -359,7 +350,6 @@ export const AGENT_PROMPT_MAP = {
     deliverables: [
       'research-analysis-doc',
       'prd',
-      'acceptance-criteria-quality',
       'user-story',
       'feature-list',
       'core-prompt-design'

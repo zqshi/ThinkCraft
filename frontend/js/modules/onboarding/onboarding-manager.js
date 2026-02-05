@@ -17,10 +17,38 @@ class OnboardingManager {
     this.onboardingContext = {
       mockProject: null,
       mockPanelShown: false,
-      cleanup: []
+      cleanup: [],
+      tempTeamTab: null,
+      forceMockProject: false
     };
     this.currentStep = 0;
     this.steps = [];
+  }
+
+  /**
+   * 判断项目面板是否展示真实项目（非示例）
+   */
+  isRealProjectPanel() {
+    const panel = document.getElementById('projectPanel');
+    const body = document.getElementById('projectPanelBody');
+    const title = document.getElementById('projectPanelTitle');
+    if (!panel || !body || !title) {
+      return false;
+    }
+    if (panel.style.display === 'none') {
+      return false;
+    }
+    if (!title.textContent || title.textContent === '示例项目详情' || title.textContent === '示例项目：用户洞察平台') {
+      return false;
+    }
+    const bodyText = body.textContent || '';
+    if (!bodyText.trim()) {
+      return false;
+    }
+    if (bodyText.includes('用户洞察平台') || bodyText.includes('阶段示例')) {
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -65,6 +93,7 @@ class OnboardingManager {
     this.overlay = document.getElementById('onboardingOverlay');
     this.highlight = document.getElementById('onboardingHighlight');
     this.tooltip = document.getElementById('onboardingTooltip');
+    this.chipEl = document.getElementById('onboardingChip');
     this.titleEl = document.getElementById('onboardingTitle');
     this.descEl = document.getElementById('onboardingDesc');
     this.stepEl = document.getElementById('onboardingStep');
@@ -116,7 +145,9 @@ class OnboardingManager {
         title: '切换项目空间',
         desc: '点击这里进入项目空间查看你的项目。',
         target: '#teamTab',
+        section: '项目空间',
         onEnter: () => {
+          this.ensureTeamTabVisibleForOnboarding();
           if (typeof switchSidebarTab === 'function') {
             switchSidebarTab('team');
           }
@@ -126,9 +157,17 @@ class OnboardingManager {
         title: '查看项目面板',
         desc: '点击项目卡片查看项目详情与流程面板。',
         target: '.project-card',
+        section: '项目空间',
         onEnter: () => {
+          this.ensureTeamTabVisibleForOnboarding();
           if (typeof switchSidebarTab === 'function') {
             switchSidebarTab('team');
+          }
+          if (!this.hasRealProjects()) {
+            this.onboardingContext.forceMockProject = true;
+            this.onboardingContext.mockProject = this.ensureMockProjectCard();
+          } else {
+            this.onboardingContext.forceMockProject = false;
           }
         }
       },
@@ -136,23 +175,97 @@ class OnboardingManager {
         title: '项目详情面板',
         desc: '这里展示项目概览、流程阶段与交付物。',
         target: '#projectPanel',
+        section: '项目空间',
         onEnter: () => {
+          this.ensureTeamTabVisibleForOnboarding();
           if (typeof switchSidebarTab === 'function') {
             switchSidebarTab('team');
           }
-          setTimeout(() => {
-            if (this.onboardingContext.mockProject) {
+          const openProjectPanel = (retry = 0) => {
+            const hasReal = this.hasRealProjects();
+            if (!hasReal || this.onboardingContext.forceMockProject) {
+              this.onboardingContext.forceMockProject = true;
+              if (!this.onboardingContext.mockProject) {
+                this.onboardingContext.mockProject = this.ensureMockProjectCard();
+              }
               this.showMockProjectPanel();
               return;
             }
-            const firstCard = document.querySelector('.project-card');
-            if (firstCard && typeof window.projectManager?.openProject === 'function') {
-              window.projectManager.openProject(firstCard.dataset.projectId);
+
+            const realCard = this.getRealProjectCard();
+            if (realCard && typeof window.projectManager?.openProject === 'function') {
+              this.onboardingContext.mockProject = null;
+              this.cleanupMockContent();
+              window.projectManager.openProject(realCard.dataset.projectId);
+              setTimeout(() => {
+                if (!this.isRealProjectPanel() && retry < 5) {
+                  openProjectPanel(retry + 1);
+                }
+              }, 200);
+              return;
             }
-          }, 100);
+
+            if (retry < 5) {
+              setTimeout(() => openProjectPanel(retry + 1), 200);
+              return;
+            }
+
+            this.onboardingContext.forceMockProject = true;
+            this.onboardingContext.mockProject = this.ensureMockProjectCard();
+            this.showMockProjectPanel();
+          };
+          setTimeout(() => openProjectPanel(), 100);
         }
       }
     ];
+  }
+
+  /**
+   * 确保项目空间 Tab 在引导中可见
+   */
+  ensureTeamTabVisibleForOnboarding() {
+    const teamTab = document.getElementById('teamTab');
+    const sidebarTabs = document.querySelector('.sidebar-tabs');
+    if (!teamTab) {
+      return;
+    }
+    const rect = teamTab.getBoundingClientRect();
+    const isHidden = teamTab.style.display === 'none' || rect.width === 0 || rect.height === 0;
+    if (!isHidden) {
+      return;
+    }
+    const prevDisplay = teamTab.style.display;
+    const prevSidebarActive = sidebarTabs ? sidebarTabs.classList.contains('active') : null;
+    teamTab.style.display = 'flex';
+    if (sidebarTabs) {
+      sidebarTabs.classList.add('active');
+    }
+    const cleanup = () => {
+      teamTab.style.display = prevDisplay;
+      if (sidebarTabs && prevSidebarActive === false) {
+        sidebarTabs.classList.remove('active');
+      }
+    };
+    this.onboardingContext.cleanup.push(cleanup);
+  }
+
+  /**
+   * 是否存在真实项目
+   */
+  hasRealProjects() {
+    if (window.projectManager?.projects) {
+      return window.projectManager.projects.some(project => project.status !== 'deleted');
+    }
+    return Boolean(this.getRealProjectCard());
+  }
+
+  /**
+   * 获取真实项目卡片
+   */
+  getRealProjectCard() {
+    return document.querySelector(
+      '.project-card:not(.onboarding-mock)[data-project-id]:not([data-project-id="onboarding-mock-project"])'
+    );
   }
 
   /**
@@ -271,26 +384,162 @@ class OnboardingManager {
 
     panel.style.display = 'block';
     if (title) {
-      title.textContent = '示例项目详情';
+      title.textContent = '示例项目：用户洞察平台';
     }
     body.innerHTML = `
-      <div style="padding: 16px;">
-        <div style="border-radius: 12px; padding: 16px; background: #f8fafc; border: 1px solid var(--border); margin-bottom: 16px;">
-          <div style="font-weight: 600; margin-bottom: 8px;">示例：用户洞察平台</div>
-          <div style="font-size: 13px; color: var(--text-secondary);">这里会展示项目概览、进度与成员情况，流程阶段由协同模式推荐动态生成。</div>
+      <div class="project-panel-hero">
+        <div class="project-panel-badges">
+          <span class="project-pill status-planning">规划中</span>
+          <span class="project-pill">产品研发</span>
+          <span class="project-pill">进度 25%</span>
+          <span class="project-pill" style="background: #eef2ff; color: #4338ca;">引导示例</span>
         </div>
-        <div style="display: grid; gap: 12px;">
-          <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
-            <div style="font-size: 13px; color: var(--text-secondary);">已完成 · 交付物 2</div>
+        <div class="project-panel-meta">
+          <span>更新时间 刚刚</span>
+          <span>成员 3</span>
+          <span>创意 2</span>
+          <span>待完成 3</span>
+        </div>
+        <div class="project-panel-hero-actions">
+          <button class="btn-secondary">更换创意</button>
+          <button class="btn-secondary">预览入口</button>
+        </div>
+      </div>
+      <div class="project-panel-layout">
+        <div class="project-panel-section project-panel-card">
+          <div class="project-panel-section-title">项目概览</div>
+          <div class="project-panel-summary">
+            <div>
+              <div class="project-panel-summary-label">成员</div>
+              <div class="project-panel-summary-value">3</div>
+            </div>
+            <div>
+              <div class="project-panel-summary-label">创意</div>
+              <div class="project-panel-summary-value">2</div>
+            </div>
+            <div>
+              <div class="project-panel-summary-label">阶段</div>
+              <div class="project-panel-summary-value">4</div>
+            </div>
+            <div>
+              <div class="project-panel-summary-label">进度</div>
+              <div class="project-panel-summary-value">25%</div>
+            </div>
           </div>
-          <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
-            <div style="font-size: 13px; color: var(--text-secondary);">进行中 · 交付物 1</div>
+          <div class="project-panel-quick-actions">
+            <button class="btn-secondary">协同模式</button>
           </div>
-          <div style="border-radius: 10px; padding: 12px; border: 1px solid var(--border); background: white;">
-            <div style="font-weight: 600; margin-bottom: 6px;">阶段示例｜以协同模式为准</div>
-            <div style="font-size: 13px; color: var(--text-secondary);">待开始 · 交付物 0</div>
+        </div>
+        <div class="project-panel-section project-panel-card project-panel-span-2">
+          <div class="project-panel-section-title">流程阶段</div>
+          <div class="project-workflow-steps">
+            <div class="workflow-step status-completed selected" data-stage-id="mock-stage-1">
+              <div class="workflow-step-icon">
+                <span>🔎</span>
+                <span class="workflow-step-status">✅</span>
+              </div>
+              <div class="workflow-step-title">需求洞察</div>
+              <div class="workflow-step-connector"></div>
+            </div>
+            <div class="workflow-step status-active" data-stage-id="mock-stage-2">
+              <div class="workflow-step-icon">
+                <span>🧭</span>
+                <span class="workflow-step-status">⚡</span>
+              </div>
+              <div class="workflow-step-title">方案设计</div>
+              <div class="workflow-step-connector"></div>
+            </div>
+            <div class="workflow-step status-pending" data-stage-id="mock-stage-3">
+              <div class="workflow-step-icon">
+                <span>🧪</span>
+                <span class="workflow-step-status">⏸️</span>
+              </div>
+              <div class="workflow-step-title">验证迭代</div>
+              <div class="workflow-step-connector"></div>
+            </div>
+            <div class="workflow-step status-pending" data-stage-id="mock-stage-4">
+              <div class="workflow-step-icon">
+                <span>🚀</span>
+                <span class="workflow-step-status">⏸️</span>
+              </div>
+              <div class="workflow-step-title">交付上线</div>
+              <div class="workflow-step-connector"></div>
+            </div>
+          </div>
+          <div class="workflow-stage-detail active" data-stage-id="mock-stage-1">
+            <div class="workflow-stage-detail-header">
+              <div class="workflow-stage-detail-title">
+                <span style="font-size: 36px;">🔎</span>
+                <div>
+                  <h3>需求洞察</h3>
+                  <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">
+                    提炼目标用户与关键问题，明确真实需求。
+                  </p>
+                </div>
+              </div>
+              <div class="workflow-stage-detail-badge" style="background: #10b981;">
+                已完成
+              </div>
+            </div>
+            <div class="workflow-stage-detail-content">
+              <div class="workflow-stage-artifacts">
+                <div class="workflow-stage-artifacts-title">
+                  <span>📦</span>
+                  <span>已生成交付物 (2)</span>
+                </div>
+                <div class="workflow-stage-artifacts-grid">
+                  <div class="workflow-stage-artifact-card" style="opacity: 0.8; cursor: default;">
+                    <span class="workflow-stage-artifact-icon">📄</span>
+                    <div class="workflow-stage-artifact-info">
+                      <div class="workflow-stage-artifact-name">用户画像</div>
+                      <div class="workflow-stage-artifact-type">示例交付物</div>
+                    </div>
+                  </div>
+                  <div class="workflow-stage-artifact-card" style="opacity: 0.8; cursor: default;">
+                    <span class="workflow-stage-artifact-icon">📄</span>
+                    <div class="workflow-stage-artifact-info">
+                      <div class="workflow-stage-artifact-name">需求清单</div>
+                      <div class="workflow-stage-artifact-type">示例交付物</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="project-panel-section project-panel-card project-panel-span-2">
+          <div class="project-panel-section-title">项目成员</div>
+          <div class="project-panel-list agent-market-grid">
+            <div class="agent-card">
+              <div class="agent-card-header">
+                <div class="agent-card-avatar">PM</div>
+                <div class="agent-card-title">产品负责人</div>
+              </div>
+              <div class="agent-card-desc">规划方向与关键目标</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-card-header">
+                <div class="agent-card-avatar">UX</div>
+                <div class="agent-card-title">体验设计师</div>
+              </div>
+              <div class="agent-card-desc">输出交互与视觉方案</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-card-header">
+                <div class="agent-card-avatar">ENG</div>
+                <div class="agent-card-title">研发工程师</div>
+              </div>
+              <div class="agent-card-desc">推进交付与验证</div>
+            </div>
+          </div>
+        </div>
+        <div class="project-panel-section project-panel-card project-panel-span-2">
+          <div class="project-panel-section-title">创意详情</div>
+          <div class="project-panel-list">
+            <div class="project-idea-card">
+              <div class="project-idea-title">示例：用户洞察平台</div>
+              <div class="project-idea-desc">整合访谈与数据分析，快速识别真实需求与机会。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -359,8 +608,11 @@ class OnboardingManager {
 
     if (panel && body && title) {
       // 检查是否是示例内容（标题或内容包含示例文本）
-      const hasMockTitle = title.textContent === '示例项目详情';
+      const hasMockTitle = title.textContent === '示例项目详情' ||
+                           title.textContent === '示例项目：用户洞察平台';
       const hasMockBody = body.innerHTML.includes('用户洞察平台') ||
+                          body.innerHTML.includes('引导示例') ||
+                          body.innerHTML.includes('阶段示例') ||
                           body.innerHTML.includes('需求澄清') ||
                           body.innerHTML.includes('方案设计');
 
@@ -469,6 +721,17 @@ class OnboardingManager {
     this.titleEl.textContent = step.title;
     this.descEl.textContent = step.desc;
     this.stepEl.textContent = `${this.currentStep + 1} / ${this.steps.length}`;
+    if (this.chipEl) {
+      const section = step.section || '引导';
+      this.chipEl.textContent = `${section} · ${this.currentStep + 1}/${this.steps.length}`;
+      this.chipEl.style.display = 'inline-flex';
+    }
+
+    if (step.section) {
+      this.overlay.setAttribute('data-onboarding-section', step.section);
+    } else {
+      this.overlay.removeAttribute('data-onboarding-section');
+    }
 
     this.btnPrev.disabled = this.currentStep === 0;
     this.btnNext.textContent = this.currentStep === this.steps.length - 1 ? '完成' : '下一步';

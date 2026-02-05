@@ -136,6 +136,12 @@ export class UpdateProjectRequestDTO {
         throw new Error('collaborationSuggestion 必须是对象或null');
       }
     }
+
+    if (this.updates.workflow !== undefined) {
+      if (this.updates.workflow !== null && typeof this.updates.workflow !== 'object') {
+        throw new Error('workflow 必须是对象或null');
+      }
+    }
   }
 }
 

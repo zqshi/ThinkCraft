@@ -26,7 +26,6 @@ class ProjectManager {
     this.stageArtifactState = {};
     this.stageDeliverableSelection = {};
     this.stageDeliverableSelectionByProject = this.loadStageDeliverableSelectionStore();
-    this.stageSupplementSelection = {};
     this.artifactPollingTimer = null;
     this.artifactPollingProjectId = null;
     this.artifactPollingInFlight = false;
@@ -1743,7 +1742,11 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const isSelectionLocked = stage.status !== 'pending' || project?.status === 'in_progress';
+    const allowSupplementSelection = stage.status === 'completed';
+    const showSupplementAction = stage.status !== 'pending';
+    const isSelectionLocked =
+      (stage.status !== 'pending' && !allowSupplementSelection) ||
+      (project?.status === 'in_progress' && !allowSupplementSelection);
     const deliverableChecklistHTML =
       expectedDeliverables.length > 0
         ? `
@@ -1756,6 +1759,8 @@ class ProjectManager {
               const encodedId = encodeURIComponent(id);
               const label = this.escapeHtml(item.label || item.id || id);
               const checked = selectedSet.has(id) ? 'checked' : '';
+              const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
+              const disableBecauseGenerated = Boolean(artifact);
               const templates = Array.isArray(item.promptTemplates) ? item.promptTemplates : [];
               const missingTemplates = Array.isArray(item.missingPromptTemplates)
                 ? item.missingPromptTemplates
@@ -1774,7 +1779,7 @@ class ProjectManager {
                   : '';
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
                 ${meta}
               </label>
@@ -1782,16 +1787,17 @@ class ProjectManager {
             })
             .join('')}
         </div>
+        ${
+          showSupplementAction
+            ? `<div style="margin-top: 6px; width: 100%;">
+                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${allowSupplementSelection ? '' : 'disabled title="阶段完成后可追加生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
+               </div>`
+            : ''
+        }
       </div>
     `
         : '';
     const deliverableStatusHTML = this.renderDeliverableStatusPanel(
-      stage,
-      expectedDeliverables,
-      selectedDeliverables,
-      project.id
-    );
-    const supplementDeliverablesHTML = this.renderSupplementDeliverables(
       stage,
       expectedDeliverables,
       selectedDeliverables,
@@ -1818,7 +1824,6 @@ class ProjectManager {
                         ${missingHTML}
                         ${deliverableChecklistHTML}
                         ${stage.status !== 'pending' ? deliverableStatusHTML : ''}
-                        ${supplementDeliverablesHTML}
                     </div>
                     ${actionHTML}
                 </div>
@@ -1971,7 +1976,6 @@ class ProjectManager {
       'backend-doc': { name: '后端开发文档', icon: '🧱' },
       'strategy-doc': { name: '战略设计文档', icon: '🎯' },
       'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
-      'acceptance-criteria-quality': { name: '验收标准质量检查清单', icon: '✅' },
       'ui-design': { name: 'UI设计方案', icon: '🎨' },
       'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
       'marketing-plan': { name: '运营推广方案', icon: '📈' },
@@ -2082,11 +2086,13 @@ class ProjectManager {
 
   getDeliverableProgressSummary(stage, expectedDeliverables = [], selectedDeliverables = []) {
     const items = this.getDeliverableStatusItems(stage, expectedDeliverables, selectedDeliverables);
-    const selectedCount = items.filter(item => item.selected).length;
-    const generatedCount = items.filter(item => item.status === 'generated').length;
-    const generatingCount = items.filter(item => item.status === 'generating').length;
+    const selectedItems = items.filter(item => item.selected);
+    const selectedCount = selectedItems.length;
+    const generatedCount = selectedItems.filter(item => item.status === 'generated').length;
+    const generatingCount = selectedItems.filter(item => item.status === 'generating').length;
     return {
       items,
+      selectedItems,
       selectedCount,
       generatedCount,
       generatingCount,
@@ -2126,7 +2132,7 @@ class ProjectManager {
           <div class="project-deliverable-progress-bar" style="width: ${progressPercent}%;"></div>
         </div>
         <div class="project-deliverable-status-list">
-          ${progress.items
+          ${progress.selectedItems
             .map(item => {
               const statusLabel = statusMap[item.status] || statusMap.pending;
               const regenBtn =
@@ -2152,80 +2158,46 @@ class ProjectManager {
     `;
   }
 
-  renderSupplementDeliverables(stage, expectedDeliverables, selectedDeliverables, projectId) {
-    if (
-      stage.status !== 'completed' ||
-      !expectedDeliverables ||
-      expectedDeliverables.length === 0
-    ) {
-      return '';
-    }
-    const selectedSet = new Set((selectedDeliverables || []).filter(Boolean));
-    const hasExplicitSelection = selectedSet.size > 0;
-    const unselectedItems = expectedDeliverables.filter(item => {
-      const id = item.id || item.key;
-      return hasExplicitSelection ? !selectedSet.has(id) : false;
-    });
-    if (unselectedItems.length === 0) {
-      return '';
-    }
-    const picked = new Set(this.stageSupplementSelection[stage.id] || []);
-    return `
-      <div class="project-deliverable-supplement">
-        <div class="project-deliverable-supplement-title">追加生成未勾选交付物</div>
-        <div class="project-deliverable-supplement-list">
-          ${unselectedItems
-            .map((item, index) => {
-              const id = item.id || item.key || `deliverable-${index}`;
-              const encodedId = encodeURIComponent(id);
-              const label = this.escapeHtml(item.label || item.id || id);
-              const checked = picked.has(id) ? 'checked' : '';
-              return `
-              <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} onchange="projectManager.toggleStageSupplementDeliverable('${stage.id}', '${encodedId}', this.checked)">
-                <span class="project-deliverable-checklist-label">${label}</span>
-              </label>
-            `;
-            })
-            .join('')}
-        </div>
-        <button class="btn-secondary project-deliverable-supplement-action" onclick="projectManager.generateAdditionalDeliverables('${projectId}', '${stage.id}')">
-          追加生成
-        </button>
-      </div>
-    `;
-  }
-
-  toggleStageSupplementDeliverable(stageId, encodedId, checked) {
-    const id = decodeURIComponent(encodedId || '');
-    if (!id) return;
-    const current = new Set(this.stageSupplementSelection[stageId] || []);
-    if (checked) {
-      current.add(id);
-    } else {
-      current.delete(id);
-    }
-    this.stageSupplementSelection[stageId] = Array.from(current);
-  }
-
   async generateAdditionalDeliverables(projectId, stageId) {
-    const selected = this.stageSupplementSelection[stageId] || [];
+    const project = this.currentProject || (await this.getProject(projectId).catch(() => null));
+    const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+    if (!stage) {
+      window.modalManager?.alert('未找到阶段信息', 'warning');
+      return;
+    }
     if (!window.workflowExecutor) {
       window.modalManager?.alert('工作流执行器未就绪', 'warning');
       return;
     }
+    const expected = this.getExpectedDeliverables(stage, null);
+    const selected = this.getStageSelectedDeliverables(stageId, expected);
     if (!selected.length) {
-      window.modalManager?.alert('请先勾选需要补充生成的交付物', 'info');
+      window.modalManager?.alert('请先勾选需要输出的交付物', 'info');
       return;
     }
+    const selectedSet = new Set(selected);
+    const selectedItems = expected.filter(item => selectedSet.has(item.id || item.key));
+    const missingItems = selectedItems.filter(
+      item => !this.findArtifactForDeliverable(stage.artifacts || [], item)
+    );
+    const missingIds = missingItems.map(item => item.id || item.key).filter(Boolean);
+    if (!missingIds.length) {
+      window.modalManager?.alert('已选交付物均已生成', 'info');
+      return;
+    }
+    stage.selectedDeliverables = selected;
+    try {
+      await this.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
+    } catch (error) {
+      logger.warn('[ProjectManager] 保存交付物选择失败，继续追加生成', error);
+    }
     await window.workflowExecutor.startStage(projectId, stageId, {
-      selectedArtifactTypes: selected,
+      selectedArtifactTypes: missingIds,
       mergeArtifacts: true
     });
-    this.stageSupplementSelection[stageId] = [];
-    const project = await this.getProject(projectId).catch(() => null);
-    if (project) {
-      this.refreshProjectPanel(project);
+    const updated = await this.getProject(projectId).catch(() => null);
+    if (updated) {
+      this.refreshProjectPanel(updated);
     }
   }
 
@@ -2349,7 +2321,12 @@ class ProjectManager {
     const id = decodeURIComponent(encodedId || '');
     if (!id) return;
     const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
-    if (!stage || stage.status !== 'pending' || this.currentProject?.status === 'in_progress') {
+    const allowSupplementSelection = stage?.status === 'completed';
+    if (
+      !stage ||
+      (stage.status !== 'pending' && !allowSupplementSelection) ||
+      (this.currentProject?.status === 'in_progress' && !allowSupplementSelection)
+    ) {
       return;
     }
     const current = new Set(this.stageDeliverableSelection[stageId] || []);
@@ -2359,10 +2336,12 @@ class ProjectManager {
       current.delete(id);
     }
     this.stageDeliverableSelection[stageId] = Array.from(current);
+    stage.selectedDeliverables = Array.from(current);
     if (this.currentProjectId) {
       this.stageDeliverableSelectionByProject[this.currentProjectId] =
         this.stageDeliverableSelection;
       this.persistStageDeliverableSelectionStore();
+      this.storageManager?.saveProject?.(this.currentProject).catch(() => {});
     }
   }
 
@@ -2492,7 +2471,9 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const isSelectionLocked = stage.status !== 'pending' || project?.status === 'in_progress';
+    const allowSupplementSelection = stage.status === 'completed';
+    const showSupplementAction = stage.status !== 'pending';
+    const isSelectionLocked = stage.status !== 'pending' && !allowSupplementSelection;
     const deliverableChecklistHTML =
       expectedDeliverables.length > 0
         ? `
@@ -2505,15 +2486,24 @@ class ProjectManager {
               const encodedId = encodeURIComponent(id);
               const label = this.escapeHtml(item.label || item.id || id);
               const checked = selectedSet.has(id) ? 'checked' : '';
+              const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
+              const disableBecauseGenerated = Boolean(artifact);
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
             })
             .join('')}
         </div>
+        ${
+          showSupplementAction
+            ? `<div style="margin-top: 6px; width: 100%;">
+                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${allowSupplementSelection ? '' : 'disabled title="阶段完成后可追加生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
+               </div>`
+            : ''
+        }
       </div>
     `
         : '';
@@ -2585,44 +2575,7 @@ class ProjectManager {
       </div>
     `
         : '';
-    const missingWithReason = this.getMissingDeliverablesWithReason(
-      stage,
-      expectedDeliverables,
-      selectedDeliverables
-    );
-    const missingArtifactsHTML =
-      missingWithReason.length > 0
-        ? `
-      <div class="workflow-stage-artifacts">
-        <div class="workflow-stage-artifacts-title">
-          <span>⚠️</span>
-          <span>本次未生成的交付物 (${missingWithReason.length})</span>
-        </div>
-        <div class="workflow-stage-artifacts-grid">
-          ${missingWithReason
-            .map(
-              item => `
-            <div class="workflow-stage-artifact-card" style="opacity: 0.7; cursor: default;">
-              <span class="workflow-stage-artifact-icon">📄</span>
-              <div class="workflow-stage-artifact-info">
-                <div class="workflow-stage-artifact-name">${this.escapeHtml(item.label)}</div>
-                <div class="workflow-stage-artifact-type">${this.escapeHtml(item.reason)}</div>
-              </div>
-            </div>
-          `
-            )
-            .join('')}
-        </div>
-      </div>
-        `
-        : '';
     const deliverableStatusHTML = this.renderDeliverableStatusPanel(
-      stage,
-      expectedDeliverables,
-      selectedDeliverables,
-      project.id
-    );
-    const supplementDeliverablesHTML = this.renderSupplementDeliverables(
       stage,
       expectedDeliverables,
       selectedDeliverables,
@@ -2694,8 +2647,6 @@ class ProjectManager {
           ${stage.status === 'pending' ? expectedArtifactsHTML : ''}
           ${stage.status !== 'pending' ? deliverableStatusHTML : ''}
           ${actualArtifactsHTML}
-          ${stage.status === 'completed' ? missingArtifactsHTML : ''}
-          ${supplementDeliverablesHTML}
         </div>
         ${actionsHTML ? `<div class="workflow-stage-detail-actions">${actionsHTML}</div>` : ''}
       </div>
@@ -5053,7 +5004,6 @@ class ProjectManager {
       this.currentProjectId = projectId;
       this.currentProject = project;
       this.stageDeliverableSelection = this.stageDeliverableSelectionByProject[projectId] || {};
-      this.stageSupplementSelection = {};
 
       // 更新全局状态
       if (window.setCurrentProject) {

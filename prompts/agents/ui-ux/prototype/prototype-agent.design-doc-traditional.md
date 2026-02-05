@@ -731,7 +731,6 @@ Change Log: 创建交互原型专门Agent
 ### 质量检查
 
 - 使用[用户故事质量检查清单](../checklists/user-story-quality.md)
-- 使用[验收标准质量检查清单](../checklists/acceptance-criteria-quality.md)
 
 ### 后续流程
 

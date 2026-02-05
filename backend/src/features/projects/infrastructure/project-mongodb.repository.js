@@ -131,6 +131,24 @@ export class ProjectMongoRepository {
         return { ...workflow, stages: [] };
       };
       data.workflow = normalizeWorkflow(data.workflow);
+      if (data.workflow) {
+        data.workflow = JSON.parse(JSON.stringify(data.workflow));
+        const stagesValue = data.workflow.stages;
+        if (Array.isArray(stagesValue)) {
+          data.workflow.stages = stagesValue;
+        } else if (stagesValue && typeof stagesValue === 'object') {
+          data.workflow.stages =
+            stagesValue.id || stagesValue.name || stagesValue.status
+              ? [stagesValue]
+              : Object.values(stagesValue);
+        } else {
+          data.workflow.stages = [];
+        }
+        if (!Array.isArray(data.workflow.stages)) {
+          logger.warn('[ProjectMongoRepository] workflow.stages仍非数组，已重置为空数组');
+          data.workflow.stages = [];
+        }
+      }
 
       console.log(
         '[DEBUG] save - project status:',
@@ -140,7 +158,8 @@ export class ProjectMongoRepository {
       console.log('[DEBUG] save - data._id:', data._id);
 
       // 使用 updateOne 而不是 findByIdAndUpdate，因为我们使用自定义字符串 ID
-      await ProjectModel.updateOne({ _id: data._id }, data, { upsert: true });
+      const { _id, ...updateData } = data;
+      await ProjectModel.collection.updateOne({ _id }, { $set: updateData }, { upsert: true });
 
       // 发布领域事件
       const events = project.getDomainEvents();
@@ -328,9 +347,12 @@ export class ProjectMongoRepository {
 
     let workflow = null;
     if (doc.workflow) {
-      const stages = Array.isArray(doc.workflow.stages)
-        ? doc.workflow.stages
-        : Object.values(doc.workflow.stages || {});
+      const rawStages = doc.workflow.stages;
+      const stages = Array.isArray(rawStages)
+        ? rawStages
+        : rawStages && typeof rawStages === 'object' && (rawStages.id || rawStages.name || rawStages.status)
+          ? [rawStages]
+          : Object.values(rawStages || {});
       workflow = Workflow.fromJSON({
         ...doc.workflow,
         stages
@@ -368,7 +390,11 @@ export class ProjectMongoRepository {
       if (!stages) {
         return [];
       }
-      const list = Array.isArray(stages) ? stages : Object.values(stages);
+      const list = Array.isArray(stages)
+        ? stages
+        : stages && typeof stages === 'object' && (stages.id || stages.name || stages.status)
+          ? [stages]
+          : Object.values(stages);
       return list.filter(Boolean).map((stage, index) => ({
         id: stage.id || stage.stageId || `stage-${index + 1}`,
         name: stage.name || `阶段${index + 1}`,
@@ -391,9 +417,10 @@ export class ProjectMongoRepository {
       }));
     };
 
+    const normalizedStages = json.workflow ? normalizeStages(json.workflow.stages) : [];
     const workflow = json.workflow
       ? {
-          stages: normalizeStages(json.workflow.stages),
+          stages: normalizedStages,
           currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
           isCustomized: Boolean(
             json.workflow.isCustomized !== undefined
@@ -403,8 +430,13 @@ export class ProjectMongoRepository {
         }
       : null;
 
+    if (workflow && !Array.isArray(workflow.stages)) {
+      workflow.stages = workflow.stages ? [workflow.stages] : [];
+    }
+
+    const idValue = json.id?.value || json.id;
     return {
-      _id: json.id,
+      _id: idValue,
       ideaId: json.ideaId,
       userId: json.userId,
       name: json.name,

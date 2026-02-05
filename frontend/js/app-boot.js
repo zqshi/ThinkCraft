@@ -272,8 +272,11 @@ if (window.deviceDetector?.initialized) {
 // ==================== Service Worker注册 ====================
 if ('serviceWorker' in navigator) {
     const isLocalDev =
-        window.location.hostname === 'localhost' &&
-        (window.location.port === '8000' || window.location.port === '8001');
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+        (window.location.port === '5173' ||
+            window.location.port === '3000' ||
+            window.location.port === '8000' ||
+            window.location.port === '8001');
 
     if (isLocalDev) {
         window.addEventListener('load', async () => {

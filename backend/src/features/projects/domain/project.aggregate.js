@@ -122,6 +122,10 @@ export class Project extends AggregateRoot {
         : [];
     }
 
+    if (updates.workflow !== undefined) {
+      this._workflow = updates.workflow ? Workflow.fromJSON(updates.workflow) : null;
+    }
+
     this.updateTimestamp();
 
     // 添加项目更新事件

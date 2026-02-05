@@ -36,7 +36,6 @@
       "outputs": [
         "research-analysis-doc",
         "prd",
-        "acceptance-criteria-quality",
         "user-story",
         "feature-list",
         "core-prompt-design"

@@ -7,13 +7,14 @@ echo "🚀 启动 ThinkCraft 开发环境..."
 echo ""
 
 # 准备日志/运行目录
-LOG_DIR="logs"
-RUN_DIR="run"
+ROOT_DIR="$(pwd)"
+LOG_DIR="${ROOT_DIR}/logs"
+RUN_DIR="${ROOT_DIR}/run"
 mkdir -p "$LOG_DIR" "$RUN_DIR"
 
 # 日志轮转（避免日志无限增长）
-if [ -x scripts/rotate-logs.sh ]; then
-  LOG_DIR="$LOG_DIR" scripts/rotate-logs.sh 5242880 3
+if [ -x "${ROOT_DIR}/scripts/rotate-logs.sh" ]; then
+  LOG_DIR="$LOG_DIR" "${ROOT_DIR}/scripts/rotate-logs.sh" 5242880 3
 fi
 
 # 停止旧进程
@@ -31,17 +32,16 @@ echo "   PID: $CSS_PID"
 
 # 启动后端（后台）
 echo "🔧 启动后端服务..."
-cd backend && npm run dev > "../${LOG_DIR}/backend.log" 2>&1 &
+(cd "${ROOT_DIR}/backend" && npm run dev > "${LOG_DIR}/backend.log" 2>&1) &
 BACKEND_PID=$!
-echo $BACKEND_PID > "../${RUN_DIR}/backend.pid"
-cd ..
+echo $BACKEND_PID > "${RUN_DIR}/backend.pid"
 echo "   PID: $BACKEND_PID"
 
 # 启动前端（后台）
 echo "🎨 启动前端服务..."
-npm run dev > "$LOG_DIR/frontend.log" 2>&1 &
+(cd "${ROOT_DIR}" && npm run dev > "${LOG_DIR}/frontend.log" 2>&1) &
 FRONTEND_PID=$!
-echo $FRONTEND_PID > "$RUN_DIR/frontend.pid"
+echo $FRONTEND_PID > "${RUN_DIR}/frontend.pid"
 echo "   PID: $FRONTEND_PID"
 
 # 等待服务启动
@@ -55,19 +55,19 @@ echo "📊 服务状态："
 if lsof -ti:3000 > /dev/null 2>&1; then
   echo "   ✅ 后端: http://localhost:3000"
 else
-  echo "   ❌ 后端启动失败，查看 ${LOG_DIR}/backend.log"
+echo "   ❌ 后端启动失败，查看 ${LOG_DIR}/backend.log"
 fi
 
 if lsof -ti:5173 > /dev/null 2>&1; then
   echo "   ✅ 前端: http://localhost:5173"
 else
-  echo "   ❌ 前端启动失败，查看 ${LOG_DIR}/frontend.log"
+echo "   ❌ 前端启动失败，查看 ${LOG_DIR}/frontend.log"
 fi
 
 if ps -p $CSS_PID > /dev/null 2>&1; then
   echo "   ✅ CSS同步: 运行中"
 else
-  echo "   ❌ CSS同步失败，查看 ${LOG_DIR}/css-sync.log"
+echo "   ❌ CSS同步失败，查看 ${LOG_DIR}/css-sync.log"
 fi
 
 echo ""
