@@ -8,11 +8,7 @@ import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import {
-  DEFAULT_WORKFLOW_STAGES,
-  ARTIFACT_TYPES,
-  AGENT_PROMPT_MAP
-} from '../../../../config/workflow-stages.js';
+import { ARTIFACT_TYPES, AGENT_PROMPT_MAP } from '../../../../config/workflow-stages.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -160,7 +156,6 @@ router.get('/health', (req, res) => {
 router.get('/workflow-config/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    let config = null;
     try {
       const workflowPath = path.join(
         __dirname,
@@ -169,13 +164,15 @@ router.get('/workflow-config/:category', async (req, res) => {
         'workflow.json'
       );
       const content = await fsPromises.readFile(workflowPath, 'utf-8');
-      config = JSON.parse(content);
-    } catch (error) {
-      // 配置缺失时回退到默认工作流
-      console.warn('加载workflow.json失败，使用默认工作流配置:', error.message);
-    }
+      const config = JSON.parse(content);
 
-    if (config?.phases?.length) {
+      if (!config?.phases?.length) {
+        return res.status(400).json({
+          code: -1,
+          message: 'workflow.json 缺少 phases 配置'
+        });
+      }
+
       // 转换为前端需要的格式
       const stages = config.phases.map((phase, index) => ({
         id: phase.phase_id,
@@ -196,7 +193,7 @@ router.get('/workflow-config/:category', async (req, res) => {
         order: index + 1
       }));
 
-      res.json({
+      return res.json({
         code: 0,
         message: 'success',
         data: {
@@ -206,38 +203,14 @@ router.get('/workflow-config/:category', async (req, res) => {
           stages
         }
       });
-      return;
+    } catch (error) {
+      console.error('加载workflow.json失败:', error);
+      return res.status(500).json({
+        code: -1,
+        message: '加载workflow.json失败，请检查配置文件是否存在且合法',
+        error: error.message
+      });
     }
-
-    const stages = DEFAULT_WORKFLOW_STAGES.map((stage, index) => ({
-      id: stage.id,
-      name: stage.name,
-      description: stage.description || '',
-      agents: stage.recommendedAgents || [],
-      agentRoles: (stage.recommendedAgents || []).map(agentId => ({
-        id: agentId,
-        role: stage.name,
-        tasks: []
-      })),
-      dependencies: index > 0 ? [DEFAULT_WORKFLOW_STAGES[index - 1].id] : [],
-      outputs: stage.artifactTypes || [],
-      outputsDetailed: buildOutputsDetailed(
-        stage.artifactTypes || [],
-        stage.recommendedAgents || []
-      ),
-      order: index + 1
-    }));
-
-    res.json({
-      code: 0,
-      message: 'success',
-      data: {
-        workflowId: category,
-        workflowName: '默认产品开发流程',
-        description: '使用内置默认工作流配置',
-        stages
-      }
-    });
   } catch (error) {
     console.error('加载工作流配置失败:', error);
     res.status(500).json({

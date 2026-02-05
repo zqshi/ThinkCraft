@@ -269,6 +269,13 @@ class MessageHandler {
                 await saveCurrentChat();
             }
 
+            if (window.chatManager?.requestAutoTitle) {
+                window.chatManager.requestAutoTitle(chatId, {
+                    reason: 'first_reply',
+                    messages: Array.isArray(state.messages) ? [...state.messages] : []
+                });
+            }
+
             // 同步AI消息到后端
             if (chatId && window.apiClient?.post) {
                 window.apiClient.post('/api/chat/send-message', {

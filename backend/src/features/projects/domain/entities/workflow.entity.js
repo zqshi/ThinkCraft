@@ -284,14 +284,30 @@ class WorkflowStage extends Entity {
     if (!json) {
       return null;
     }
-    const fallbackStage = DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === json.id);
-    const fallbackOutputs = Array.isArray(fallbackStage?.artifactTypes)
-      ? fallbackStage.artifactTypes
-      : [];
-    const outputs = Array.isArray(json.outputs) ? json.outputs : fallbackOutputs;
-    const outputsDetailed = Array.isArray(json.outputsDetailed)
-      ? json.outputsDetailed
-      : buildOutputsDetailed(outputs);
+    const resolveFallbackOutputs = stageId => {
+      if (stageId === 'strategy-requirement') {
+        const strategy = DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === 'strategy');
+        const requirement = DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === 'requirement');
+        return Array.from(
+          new Set([
+            ...(Array.isArray(strategy?.artifactTypes) ? strategy.artifactTypes : []),
+            ...(Array.isArray(requirement?.artifactTypes) ? requirement.artifactTypes : [])
+          ])
+        );
+      }
+      const fallbackStage = DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === stageId);
+      return Array.isArray(fallbackStage?.artifactTypes) ? fallbackStage.artifactTypes : [];
+    };
+
+    const fallbackOutputs = resolveFallbackOutputs(json.id);
+    let outputs = Array.isArray(json.outputs) ? json.outputs : fallbackOutputs;
+    if (!outputs || outputs.length === 0) {
+      outputs = fallbackOutputs;
+    }
+    const outputsDetailed =
+      Array.isArray(json.outputsDetailed) && json.outputsDetailed.length > 0
+        ? json.outputsDetailed
+        : buildOutputsDetailed(outputs);
     const stage = new WorkflowStage(
       json.id,
       json.name,

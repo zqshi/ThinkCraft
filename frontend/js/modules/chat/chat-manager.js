@@ -15,6 +15,10 @@
 class ChatManager {
     constructor() {
         this.state = window.state;
+        this.autoTitleCooldownMs = 30000;
+        this.autoTitleInFlight = new Set();
+        this.autoTitleLastAt = new Map();
+        this.autoTitleLastMessageCount = new Map();
     }
 
     isReportLikeContent(content) {
@@ -43,6 +47,126 @@ class ChatManager {
         const mobileInput = document.getElementById('mobileTextInput');
         const activeInput = mobileInput && mobileInput.offsetParent !== null ? mobileInput : desktopInput;
         return activeInput ? activeInput.value : '';
+    }
+
+    normalizeAutoTitle(rawTitle) {
+        if (!rawTitle || typeof rawTitle !== 'string') return '';
+        let title = rawTitle.trim();
+        title = title.replace(/^["'“”]+|["'“”]+$/g, '');
+        title = title.replace(/\s+/g, ' ');
+        title = title.replace(/[。！？!?]+$/g, '');
+        if (title.length > 30) {
+            title = title.slice(0, 30).trim();
+        }
+        return title;
+    }
+
+    buildFallbackTitle(messages) {
+        const firstUser = messages.find(m => m && m.role === 'user' && typeof m.content === 'string');
+        if (!firstUser) return '';
+        let title = firstUser.content.trim().slice(0, 30);
+        if (firstUser.content.length > 30) {
+            title += '...';
+        }
+        return title;
+    }
+
+    async applyAutoTitle(chatId, title) {
+        if (!title) return;
+        const targetId = String(chatId);
+        const index = this.state.chats.findIndex(c => String(c.id) === targetId);
+        if (index === -1) return;
+        const current = this.state.chats[index];
+        if (current.titleEdited) return;
+        if (current.title === title) return;
+
+        const updated = {
+            ...current,
+            title,
+            titleEdited: false,
+            updatedAt: new Date().toISOString()
+        };
+        this.state.chats[index] = updated;
+
+        if (window.storageManager) {
+            await window.storageManager.saveChat(updated);
+        }
+
+        if (window.apiClient?.put) {
+            window.apiClient.put(`/api/chat/${chatId}`, {
+                title,
+                titleEdited: false
+            }).catch(() => {});
+        }
+
+        if (window.chatList?.loadChats) {
+            window.chatList.loadChats({ preferLocal: true });
+        } else if (typeof loadChats === 'function') {
+            loadChats({ preferLocal: true });
+        }
+    }
+
+    async requestAutoTitle(chatId, options = {}) {
+        const { reason = 'unknown', messages = null } = options;
+        if (!chatId) return;
+        const targetId = String(chatId);
+        if (this.autoTitleInFlight.has(targetId)) return;
+
+        const lastAt = this.autoTitleLastAt.get(targetId);
+        if (lastAt && Date.now() - lastAt < this.autoTitleCooldownMs) return;
+
+        let chat = this.state.chats.find(c => String(c.id) === targetId);
+        if (!chat && window.storageManager?.getChat) {
+            chat = await window.storageManager.getChat(targetId).catch(() => null);
+        }
+        if (!chat || chat.titleEdited) return;
+
+        const sourceMessages = Array.isArray(messages)
+            ? messages
+            : (String(this.state.currentChat) === targetId ? this.state.messages : chat.messages);
+        const normalizedMessages = (sourceMessages || [])
+            .filter(m => m && typeof m.content === 'string')
+            .map(m => ({
+                role: m.role || m.sender || 'user',
+                content: m.content
+            }));
+        const userMessageCount = normalizedMessages.filter(m => m.role === 'user').length;
+        if (normalizedMessages.length < 2 || userMessageCount === 0) return;
+
+        const lastMessageCount = this.autoTitleLastMessageCount.get(targetId);
+        if (lastMessageCount && lastMessageCount >= normalizedMessages.length) return;
+
+        this.autoTitleInFlight.add(targetId);
+        try {
+            const payloadMessages = normalizedMessages.slice(-10);
+            if (window.apiClient?.post) {
+                const response = await window.apiClient.post(`/api/chat/${chatId}/auto-title`, {
+                    messages: payloadMessages,
+                    reason
+                });
+                const title = this.normalizeAutoTitle(response?.data?.title || response?.data?.content);
+                if (title) {
+                    await this.applyAutoTitle(chatId, title);
+                    this.autoTitleLastMessageCount.set(targetId, normalizedMessages.length);
+                    return;
+                }
+            }
+
+            const fallback = this.normalizeAutoTitle(this.buildFallbackTitle(payloadMessages));
+            if (fallback) {
+                await this.applyAutoTitle(chatId, fallback);
+                this.autoTitleLastMessageCount.set(targetId, normalizedMessages.length);
+            }
+        } catch (error) {
+            const fallback = this.normalizeAutoTitle(this.buildFallbackTitle(normalizedMessages));
+            if (fallback) {
+                await this.applyAutoTitle(chatId, fallback);
+                this.autoTitleLastMessageCount.set(targetId, normalizedMessages.length);
+            }
+        } finally {
+            this.autoTitleInFlight.delete(targetId);
+            this.autoTitleLastAt.set(targetId, Date.now());
+        }
     }
 
     applyInputDraft(chatId) {
@@ -215,6 +339,14 @@ class ChatManager {
         }
 
         if (!chat) return;
+
+        const currentChatId = this.state.currentChat;
+        if (currentChatId && String(currentChatId) !== String(chatId)) {
+            this.requestAutoTitle(currentChatId, {
+                reason: 'switch_chat',
+                messages: Array.isArray(this.state.messages) ? [...this.state.messages] : []
+            });
+        }
 
         // 🔧 保存当前输入草稿（切换前）
         if (window.stateManager?.setInputDraft) {

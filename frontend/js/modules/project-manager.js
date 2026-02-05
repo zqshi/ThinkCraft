@@ -41,6 +41,44 @@ class ProjectManager {
     this.storageManager = window.storageManager;
     this.stageDetailPanel = null; // 阶段详情面板
     this.stageDetailOverlay = null; // 遮罩层
+    this.artifactTypeDefs = {
+      prd: { name: '产品需求文档', icon: '📋' },
+      'user-story': { name: '用户故事', icon: '👤' },
+      'feature-list': { name: '功能清单', icon: '📝' },
+      design: { name: '设计稿', icon: '🎨' },
+      'design-spec': { name: '设计规范', icon: '📐' },
+      prototype: { name: '交互原型', icon: '🖼️' },
+      code: { name: '代码', icon: '💻' },
+      'frontend-code': { name: '前端源代码', icon: '💻' },
+      'backend-code': { name: '后端源代码', icon: '🖥️' },
+      'component-lib': { name: '组件库', icon: '🧩' },
+      'api-doc': { name: 'API文档', icon: '📡' },
+      'test-report': { name: '测试报告', icon: '📊' },
+      'deployment-guide': { name: '部署指南', icon: '🚀' },
+      document: { name: '文档', icon: '📄' },
+      report: { name: '报告', icon: '📈' },
+      plan: { name: '计划', icon: '📝' },
+      'frontend-doc': { name: '前端开发文档', icon: '🧩' },
+      'backend-doc': { name: '后端开发文档', icon: '🧱' },
+      'strategy-doc': { name: '战略设计文档', icon: '🎯' },
+      'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
+      'ui-design': { name: 'UI设计方案', icon: '🎨' },
+      'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
+      'marketing-plan': { name: '运营推广方案', icon: '📈' },
+      'deploy-doc': { name: '部署文档', icon: '🚀' },
+      'api-spec': { name: 'API接口规范', icon: '📡' },
+      'tech-stack': { name: '技术栈选型', icon: '🧩' },
+      'core-prompt-design': { name: '核心引导逻辑Prompt设计', icon: '🧠' },
+      'growth-strategy': { name: '增长策略', icon: '📈' },
+      'analytics-report': { name: '数据分析报告', icon: '📊' },
+      'env-config': { name: '环境配置', icon: '🧩' },
+      'release-notes': { name: '发布说明', icon: '📝' },
+      'bug-list': { name: '缺陷清单', icon: '🐞' },
+      'performance-report': { name: '性能报告', icon: '📊' },
+      preview: { name: '可交互预览', icon: '🖥️' },
+      'ui-preview': { name: 'UI预览', icon: '🖼️' },
+      image: { name: '图片', icon: '🖼️' }
+    };
   }
 
   getAuthToken() {
@@ -1431,6 +1469,11 @@ class ProjectManager {
     const sortedStages = collaborationExecuted
       ? this.sortStagesByDependencies(effectiveStages)
       : effectiveStages;
+    const lastStage = sortedStages[sortedStages.length - 1] || null;
+    const deploymentStage = sortedStages.find(stage => stage.id === 'deployment');
+    const canShowPreviewEntry =
+      Boolean(lastStage && lastStage.status === 'completed') &&
+      (!deploymentStage || deploymentStage.status === 'completed');
 
     title.textContent = project.name;
 
@@ -1449,7 +1492,7 @@ class ProjectManager {
                     </div>
                     <div class="project-panel-hero-actions">
                         <button class="btn-secondary" onclick="projectManager.showReplaceIdeaDialog('${project.id}')">更换创意</button>
-                        ${shouldRenderWorkflow ? `<button class="btn-secondary" onclick="projectManager.openPreviewPanel('${project.id}')">预览入口</button>` : ''}
+                        ${shouldRenderWorkflow && canShowPreviewEntry ? `<button class="btn-secondary" onclick="projectManager.openPreviewEntry('${project.id}')">预览入口</button>` : ''}
                     </div>
                 </div>
             <div class="project-panel-layout">
@@ -1784,14 +1827,16 @@ class ProjectManager {
     const selectedDeliverables = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
     const hasArtifacts = Array.isArray(stage?.artifacts) && stage.artifacts.length > 0;
-    const missingSelected = this.getMissingSelectedDeliverables(
-      stage,
-      definition,
-      selectedDeliverables
-    );
-    const hasMissingSelected = missingSelected.length > 0;
-    const allowSupplementSelection = stage.status === 'completed' || hasArtifacts;
-    const showSupplementAction = hasMissingSelected;
+    const allowSupplementSelection =
+      stage.status === 'completed' ||
+      stage.status === 'active' ||
+      stage.status === 'in_progress' ||
+      hasArtifacts ||
+      (Array.isArray(stage.executingArtifactTypes) && stage.executingArtifactTypes.length > 0);
+    const missingDeliverables = this.getMissingDeliverables(stage, definition);
+    const showSupplementAction =
+      (stage.status === 'active' || stage.status === 'in_progress') &&
+      missingDeliverables.length > 0;
     const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
     const isSelectionLocked =
       (stage.status !== 'pending' && !allowSupplementSelection) ||
@@ -1810,6 +1855,12 @@ class ProjectManager {
               const checked = selectedSet.has(id) ? 'checked' : '';
               const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
               const disableBecauseGenerated = Boolean(artifact);
+              const supplementingTypes = new Set(
+                (stage?.supplementingDeliverableTypes || [])
+                  .map(value => this.normalizeDeliverableKey(value))
+                  .filter(Boolean)
+              );
+              const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
               const templates = Array.isArray(item.promptTemplates) ? item.promptTemplates : [];
               const missingTemplates = Array.isArray(item.missingPromptTemplates)
                 ? item.missingPromptTemplates
@@ -1828,7 +1879,7 @@ class ProjectManager {
                   : '';
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
                 ${meta}
               </label>
@@ -1839,7 +1890,7 @@ class ProjectManager {
         ${
           showSupplementAction
             ? `<div style="margin-top: 6px; width: 100%;">
-                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
+                 <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再执行"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加执行</button>
                </div>`
             : ''
         }
@@ -1852,7 +1903,6 @@ class ProjectManager {
       selectedDeliverables,
       project.id
     );
-    const missingDeliverables = this.getMissingDeliverables(stage, definition);
     const missingHTML =
       missingDeliverables.length > 0
         ? `<div style="margin-top: 8px; font-size: 12px; color: #b45309;">
@@ -2016,36 +2066,28 @@ class ProjectManager {
    * @returns {Object|null} 交付物类型定义
    */
   getArtifactTypeDefinition(artifactType) {
-    const artifactDefs = {
-      prd: { name: '产品需求文档', icon: '📋' },
-      'user-story': { name: '用户故事', icon: '👤' },
-      'feature-list': { name: '功能清单', icon: '📝' },
-      design: { name: '设计稿', icon: '🎨' },
-      'design-spec': { name: '设计规范', icon: '📐' },
-      prototype: { name: '交互原型', icon: '🖼️' },
-      code: { name: '代码', icon: '💻' },
-      'frontend-code': { name: '前端源代码', icon: '💻' },
-      'backend-code': { name: '后端源代码', icon: '🖥️' },
-      'component-lib': { name: '组件库', icon: '🧩' },
-      'api-doc': { name: 'API文档', icon: '📡' },
-      'test-report': { name: '测试报告', icon: '📊' },
-      'deployment-guide': { name: '部署指南', icon: '🚀' },
-      document: { name: '文档', icon: '📄' },
-      report: { name: '报告', icon: '📈' },
-      plan: { name: '计划', icon: '📝' },
-      'frontend-doc': { name: '前端开发文档', icon: '🧩' },
-      'backend-doc': { name: '后端开发文档', icon: '🧱' },
-      'strategy-doc': { name: '战略设计文档', icon: '🎯' },
-      'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
-      'ui-design': { name: 'UI设计方案', icon: '🎨' },
-      'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
-      'marketing-plan': { name: '运营推广方案', icon: '📈' },
-      'deploy-doc': { name: '部署文档', icon: '🚀' },
-      preview: { name: '可交互预览', icon: '🖥️' },
-      'ui-preview': { name: 'UI预览', icon: '🖼️' },
-      image: { name: '图片', icon: '🖼️' }
-    };
-    return artifactDefs[artifactType] || { name: artifactType, icon: '📄' };
+    return this.artifactTypeDefs[artifactType] || { name: artifactType, icon: '📄' };
+  }
+
+  normalizeArtifactTypeId(value) {
+    if (!value || typeof value !== 'string') {
+      return '';
+    }
+    const raw = value.trim();
+    if (!raw) return '';
+    if (this.artifactTypeDefs[raw]) {
+      return raw;
+    }
+    const normalized = this.normalizeDeliverableKey(raw);
+    for (const [id, def] of Object.entries(this.artifactTypeDefs)) {
+      if (this.normalizeDeliverableKey(id) === normalized) {
+        return id;
+      }
+      if (def?.name && this.normalizeDeliverableKey(def.name) === normalized) {
+        return id;
+      }
+    }
+    return '';
   }
 
   getExpectedDeliverables(stage, definition) {
@@ -2062,20 +2104,22 @@ class ProjectManager {
     }
     return expected.map(item => {
       if (typeof item === 'string') {
-        const def = this.getArtifactTypeDefinition(item);
+        const resolvedId = this.normalizeArtifactTypeId(item) || item;
+        const def = this.getArtifactTypeDefinition(resolvedId);
         return {
-          id: item,
-          key: this.normalizeDeliverableKey(item),
-          label: def?.name || item,
+          id: resolvedId,
+          key: this.normalizeDeliverableKey(resolvedId),
+          label: def?.name || resolvedId,
           promptTemplates: [],
           missingPromptTemplates: []
         };
       }
-      const id = item?.id || item?.type || item?.name || '';
-      const label = item?.name || item?.id || item?.type || '未命名交付物';
+      const idRaw = item?.id || item?.type || item?.key || item?.name || '';
+      const resolvedId = this.normalizeArtifactTypeId(idRaw) || this.normalizeArtifactTypeId(item?.name) || idRaw;
+      const label = item?.name || item?.label || item?.id || item?.type || '未命名交付物';
       return {
-        id,
-        key: this.normalizeDeliverableKey(id),
+        id: resolvedId,
+        key: this.normalizeDeliverableKey(resolvedId || idRaw),
         label,
         promptTemplates: Array.isArray(item?.promptTemplates) ? item.promptTemplates : [],
         missingPromptTemplates: Array.isArray(item?.missingPromptTemplates)
@@ -2083,6 +2127,66 @@ class ProjectManager {
           : []
       };
     });
+  }
+
+  resolveSelectedArtifactTypes(stage, expectedDeliverables = [], selectedIds = []) {
+    const artifactTypes = Array.isArray(stage?.artifactTypes) ? stage.artifactTypes : [];
+    if (artifactTypes.length === 0) {
+      const resolved = (selectedIds || [])
+        .map(value => this.normalizeArtifactTypeId(value))
+        .filter(Boolean);
+      if (resolved.length > 0) {
+        return Array.from(new Set(resolved));
+      }
+    }
+
+    const normalizedMap = new Map();
+    artifactTypes.forEach(type => {
+      const normalized = this.normalizeDeliverableKey(type);
+      if (normalized) {
+        normalizedMap.set(normalized, type);
+      }
+      const def = this.getArtifactTypeDefinition(type);
+      if (def?.name) {
+        const defKey = this.normalizeDeliverableKey(def.name);
+        if (defKey && !normalizedMap.has(defKey)) {
+          normalizedMap.set(defKey, type);
+        }
+      }
+    });
+
+    const selectedKeys = new Set(
+      (selectedIds || []).map(value => this.normalizeDeliverableKey(value)).filter(Boolean)
+    );
+
+    const resolved = [];
+    const pushResolved = value => {
+      const normalizedId = this.normalizeArtifactTypeId(value);
+      if (normalizedId) {
+        resolved.push(normalizedId);
+        return;
+      }
+      const key = this.normalizeDeliverableKey(value);
+      if (key && normalizedMap.has(key)) {
+        resolved.push(normalizedMap.get(key));
+      }
+    };
+
+    expectedDeliverables.forEach(item => {
+      const keys = [item?.id, item?.key, item?.label].filter(Boolean);
+      const matchesSelected = keys.some(key => selectedKeys.has(this.normalizeDeliverableKey(key)));
+      if (!matchesSelected) return;
+      keys.forEach(pushResolved);
+    });
+
+    if (resolved.length === 0) {
+      selectedKeys.forEach(key => {
+        const type = normalizedMap.get(key);
+        if (type) resolved.push(type);
+      });
+    }
+
+    return Array.from(new Set(resolved));
   }
 
   normalizeDeliverableKey(value) {
@@ -2249,29 +2353,47 @@ class ProjectManager {
       window.modalManager?.alert('请先勾选需要输出的交付物', 'info');
       return;
     }
-    const selectedSet = new Set(selected);
-    const selectedItems = expected.filter(item => selectedSet.has(item.id || item.key));
-    const missingItems = selectedItems.filter(
-      item => !this.findArtifactForDeliverable(stage.artifacts || [], item)
+    const resolvedArtifactTypes = this.resolveSelectedArtifactTypes(stage, expected, selected);
+    if (resolvedArtifactTypes.length === 0 && Array.isArray(stage?.artifactTypes) && stage.artifactTypes.length > 0) {
+      window.modalManager?.alert('未选择有效的交付物类型', 'warning');
+      return;
+    }
+    const existingTypes = new Set(
+      (stage.artifacts || [])
+        .map(artifact => this.normalizeDeliverableKey(artifact?.type))
+        .filter(Boolean)
     );
-    const missingIds = missingItems.map(item => item.id || item.key).filter(Boolean);
-    if (!missingIds.length) {
+    const missingTypes = resolvedArtifactTypes.filter(
+      type => !existingTypes.has(this.normalizeDeliverableKey(type))
+    );
+    if (!missingTypes.length) {
       window.modalManager?.alert('已选交付物均已生成', 'info');
       return;
     }
     stage.selectedDeliverables = selected;
+    stage.supplementingDeliverableTypes = missingTypes;
     try {
       await this.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
+      this.refreshProjectPanel(project);
     } catch (error) {
       logger.warn('[ProjectManager] 保存交付物选择失败，继续追加生成', error);
     }
-    await window.workflowExecutor.startStage(projectId, stageId, {
-      selectedArtifactTypes: missingIds,
-      mergeArtifacts: true
-    });
-    const updated = await this.getProject(projectId).catch(() => null);
-    if (updated) {
-      this.refreshProjectPanel(updated);
+    try {
+      await window.workflowExecutor.startStage(projectId, stageId, {
+        selectedArtifactTypes: missingTypes,
+        mergeArtifacts: true,
+        queueWhileExecuting: true
+      });
+    } finally {
+      const updated = await this.getProject(projectId).catch(() => null);
+      if (updated) {
+        const nextStage = updated.workflow?.stages?.find(s => s.id === stageId);
+        if (nextStage?.supplementingDeliverableTypes) {
+          delete nextStage.supplementingDeliverableTypes;
+          await this.updateProject(projectId, { workflow: updated.workflow }, { allowFallback: true }).catch(() => {});
+        }
+        this.refreshProjectPanel(updated);
+      }
     }
   }
 
@@ -2313,14 +2435,25 @@ class ProjectManager {
     const project = this.currentProject || (await this.getProject(projectId).catch(() => null));
     const stage = project?.workflow?.stages?.find(s => s.id === stageId);
     if (stage) {
-      stage.executingArtifactTypes = [deliverableType];
+      const expected = this.getExpectedDeliverables(stage, null);
+      const resolved = this.resolveSelectedArtifactTypes(stage, expected, [deliverableType]);
+      const artifactType = resolved[0] || deliverableType;
+      stage.executingArtifactTypes = [artifactType];
       await this.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
     }
     try {
+      const expected = stage ? this.getExpectedDeliverables(stage, null) : [];
+      const resolved = this.resolveSelectedArtifactTypes(stage, expected, [deliverableType]);
+      const artifactType = resolved[0] || deliverableType;
+      if (!artifactType && Array.isArray(stage?.artifactTypes) && stage.artifactTypes.length > 0) {
+        window.modalManager?.alert('未选择有效的交付物类型', 'warning');
+        return;
+      }
       await window.workflowExecutor.startStage(projectId, stageId, {
-        selectedArtifactTypes: [deliverableType],
+        selectedArtifactTypes: [artifactType],
         mergeArtifacts: true,
-        silent: true
+        silent: true,
+        queueWhileExecuting: true
       });
       const updated = await this.getProject(projectId).catch(() => null);
       if (updated) {
@@ -2430,7 +2563,12 @@ class ProjectManager {
     const id = decodeURIComponent(encodedId || '');
     if (!id) return;
     const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
-    const allowSupplementSelection = stage?.status === 'completed';
+    const allowSupplementSelection =
+      stage?.status === 'completed' ||
+      stage?.status === 'active' ||
+      stage?.status === 'in_progress' ||
+      (Array.isArray(stage?.artifacts) && stage.artifacts.length > 0) ||
+      (Array.isArray(stage?.executingArtifactTypes) && stage.executingArtifactTypes.length > 0);
     if (
       !stage ||
       (stage.status !== 'pending' && !allowSupplementSelection) ||
@@ -2462,6 +2600,10 @@ class ProjectManager {
     const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
     const definition = window.workflowExecutor?.getStageDefinition(stageId, stage);
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
+    if (expectedDeliverables.length === 0) {
+      window.modalManager?.alert('该阶段未配置可执行交付物，请先检查阶段配置', 'warning');
+      return;
+    }
     const selected = this.getStageSelectedDeliverables(stageId, expectedDeliverables);
     if (expectedDeliverables.length > 0 && selected.length === 0) {
       const msg = '请先勾选需要输出的交付物';
@@ -2472,8 +2614,18 @@ class ProjectManager {
       }
       return;
     }
+    const resolvedArtifactTypes = this.resolveSelectedArtifactTypes(
+      stage,
+      expectedDeliverables,
+      selected
+    );
+    if (resolvedArtifactTypes.length === 0 && selected.length > 0) {
+      window.modalManager?.alert('未选择有效的交付物类型', 'warning');
+      return;
+    }
     await window.workflowExecutor.startStage(projectId, stageId, {
-      selectedArtifactTypes: selected
+      selectedArtifactTypes: resolvedArtifactTypes.length > 0 ? resolvedArtifactTypes : selected,
+      queueWhileExecuting: true
     });
     if (reopen) {
       setTimeout(() => this.openProject(projectId), 2000);
@@ -2584,14 +2736,14 @@ class ProjectManager {
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     const selectedDeliverables = this.getStageSelectedDeliverables(stage.id, expectedDeliverables);
     const selectedSet = new Set(selectedDeliverables);
-    const missingSelected = this.getMissingSelectedDeliverables(
-      stage,
-      definition,
-      selectedDeliverables
-    );
-    const hasMissingSelected = missingSelected.length > 0;
-    const allowSupplementSelection = stage.status === 'completed' || hasArtifacts;
-    const showSupplementAction = hasMissingSelected;
+    const allowSupplementSelection =
+      stage.status === 'completed' ||
+      stage.status === 'active' ||
+      stage.status === 'in_progress' ||
+      hasArtifacts ||
+      (Array.isArray(stage.executingArtifactTypes) && stage.executingArtifactTypes.length > 0);
+    const missingDeliverables = this.getMissingDeliverables(stage, definition);
+    const showSupplementAction = missingDeliverables.length > 0;
     const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
     const isSelectionLocked = stage.status !== 'pending' && !allowSupplementSelection;
     const deliverableChecklistHTML =
@@ -2608,9 +2760,15 @@ class ProjectManager {
               const checked = selectedSet.has(id) ? 'checked' : '';
               const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
               const disableBecauseGenerated = Boolean(artifact);
+              const supplementingTypes = new Set(
+                (stage?.supplementingDeliverableTypes || [])
+                  .map(value => this.normalizeDeliverableKey(value))
+                  .filter(Boolean)
+              );
+              const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
               return `
               <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
@@ -2993,6 +3151,161 @@ class ProjectManager {
       return;
     }
     window.modalManager?.alert('已记录补充意见', 'success');
+  }
+
+  extractHtmlFromContent(content = '') {
+    const text = String(content || '');
+    if (!text.trim()) return '';
+    if (/<html[\s>]/i.test(text) || /<!doctype html>/i.test(text)) {
+      return text;
+    }
+    const fenced = text.match(/```html([\s\S]*?)```/i);
+    if (fenced && fenced[1]) {
+      return fenced[1].trim();
+    }
+    const body = text.match(/<body[\s>][\s\S]*<\/body>/i);
+    if (body && body[0]) {
+      return `<!doctype html>\n<html>\n${body[0]}\n</html>`;
+    }
+    return '';
+  }
+
+  findPreviewArtifact(project) {
+    const stages = project?.workflow?.stages || [];
+    for (const stage of stages) {
+      const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
+      const found = artifacts.find(item =>
+        ['preview', 'ui-preview'].includes(String(item?.type || '').toLowerCase())
+      );
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  async buildPreviewArtifact(project) {
+    const stages = project?.workflow?.stages || [];
+    const candidates = [];
+    stages.forEach(stage => {
+      (stage.artifacts || []).forEach(artifact => {
+        if (!artifact) return;
+        candidates.push({ stageId: stage.id, artifact });
+      });
+    });
+
+    const preferTypes = [
+      'preview',
+      'ui-preview',
+      'prototype',
+      'frontend-code',
+      'ui-design'
+    ];
+    candidates.sort((a, b) => {
+      const typeA = String(a.artifact.type || '').toLowerCase();
+      const typeB = String(b.artifact.type || '').toLowerCase();
+      const idxA = preferTypes.indexOf(typeA);
+      const idxB = preferTypes.indexOf(typeB);
+      const rankA = idxA === -1 ? preferTypes.length : idxA;
+      const rankB = idxB === -1 ? preferTypes.length : idxB;
+      return rankA - rankB;
+    });
+
+    let source = null;
+    for (const item of candidates) {
+      const artifact = item.artifact;
+      const previewUrl = artifact.previewUrl || artifact.url || '';
+      if (previewUrl) {
+        source = { stageId: item.stageId, artifact, html: '' };
+        break;
+      }
+      const html = this.extractHtmlFromContent(artifact.content || '');
+      if (html) {
+        source = { stageId: item.stageId, artifact, html };
+        break;
+      }
+    }
+    if (!source) {
+      return null;
+    }
+
+    const targetStageId =
+      stages.find(stage => stage.id === 'deployment')?.id ||
+      stages[stages.length - 1]?.id ||
+      source.stageId;
+    const now = Date.now();
+    const newArtifact = {
+      id: `preview-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      projectId: project.id,
+      stageId: targetStageId,
+      type: 'preview',
+      name: '可预览界面',
+      content: source.html || '',
+      previewUrl: source.artifact.previewUrl || source.artifact.url || '',
+      source: 'derived',
+      createdAt: now
+    };
+
+    const stage = stages.find(s => s.id === targetStageId);
+    if (stage) {
+      stage.artifacts = this.mergeArtifacts(stage.artifacts || [], [newArtifact]);
+    }
+    await this.storageManager?.saveArtifacts?.([newArtifact]).catch(() => {});
+    await this.updateProject(
+      project.id,
+      { workflow: project.workflow },
+      { allowFallback: true }
+    );
+
+    return newArtifact;
+  }
+
+  async openPreviewEntry(projectId) {
+    let project = this.currentProject;
+    if (!project || (projectId && project.id !== projectId)) {
+      project = await this.getProject(projectId);
+      if (!project) {
+        return;
+      }
+      this.currentProject = project;
+      this.currentProjectId = project.id;
+    }
+
+    let artifact = this.findPreviewArtifact(project);
+    if (!artifact) {
+      if (window.modalManager) {
+        window.modalManager.alert('正在构建预览，请稍候...', 'info');
+      }
+      artifact = await this.buildPreviewArtifact(project);
+      if (window.modalManager) {
+        window.modalManager.close();
+      }
+    }
+
+    if (!artifact) {
+      window.modalManager?.alert('未找到可预览的前端界面内容', 'warning');
+      return;
+    }
+
+    if (artifact.previewUrl || artifact.url) {
+      window.open(artifact.previewUrl || artifact.url, '_blank');
+      return;
+    }
+
+    const html = this.extractHtmlFromContent(artifact.content || '');
+    if (!html) {
+      window.modalManager?.alert('预览内容为空或非HTML，无法打开预览', 'warning');
+      return;
+    }
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      window.modalManager?.alert('浏览器拦截了新标签页，请允许弹出窗口', 'warning');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
   }
 
   async openPreviewPanel(projectId, artifactId = null) {

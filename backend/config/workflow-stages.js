@@ -103,6 +103,8 @@ export const DEFAULT_WORKFLOW_STAGES = [
 ];
 
 const STAGE_ID_ALIASES = {
+  'strategy_requirement': 'strategy-requirement',
+  'strategy+requirement': 'strategy-requirement',
   'strategy-validation': 'strategy',
   'strategy-review': 'strategy',
   'strategy-plan': 'strategy',
@@ -131,6 +133,54 @@ export function normalizeStageId(stageId) {
   }
   const normalized = String(stageId).trim();
   return STAGE_ID_ALIASES[normalized] || normalized;
+}
+
+const COMPOSITE_STAGE_DEFS = {
+  'strategy-requirement': {
+    name: '战略与需求',
+    description: '战略建模与需求分析',
+    parts: ['strategy', 'requirement'],
+    icon: '🎯',
+    color: '#6366f1'
+  }
+};
+
+function buildCompositeStage(stageId) {
+  const config = COMPOSITE_STAGE_DEFS[stageId];
+  if (!config) {
+    return null;
+  }
+  const parts = (config.parts || [])
+    .map(id => DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === id))
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+  const recommendedAgents = Array.from(
+    new Set(parts.flatMap(stage => stage.recommendedAgents || []).filter(Boolean))
+  );
+  const artifactTypes = Array.from(
+    new Set(parts.flatMap(stage => stage.artifactTypes || []).filter(Boolean))
+  );
+  const estimatedDuration = parts.reduce(
+    (sum, stage) => sum + (Number(stage.estimatedDuration) || 0),
+    0
+  );
+  return {
+    id: stageId,
+    name: config.name || stageId,
+    description:
+      config.description ||
+      parts
+        .map(stage => stage.description)
+        .filter(Boolean)
+        .join(' / '),
+    recommendedAgents,
+    artifactTypes,
+    estimatedDuration,
+    icon: config.icon || parts[0]?.icon,
+    color: config.color || parts[0]?.color
+  };
 }
 
 /**
@@ -441,6 +491,9 @@ export const AGENT_PROMPT_MAP = {
  */
 export function getStageById(stageId) {
   const normalized = normalizeStageId(stageId);
+  if (COMPOSITE_STAGE_DEFS[normalized]) {
+    return buildCompositeStage(normalized);
+  }
   return DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === normalized) || null;
 }
 

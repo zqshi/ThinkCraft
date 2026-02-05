@@ -53,6 +53,30 @@ const handleError = (res, error) => {
   });
 };
 
+const normalizeAutoTitle = (rawTitle) => {
+  if (!rawTitle || typeof rawTitle !== 'string') return '';
+  let title = rawTitle.trim();
+  title = title.replace(/^["'“”]+|["'“”]+$/g, '');
+  title = title.replace(/\s+/g, ' ');
+  title = title.replace(/[。！？!?]+$/g, '');
+  if (title.length > 30) {
+    title = title.slice(0, 30).trim();
+  }
+  return title;
+};
+
+const buildTitlePrompt = (messages) => {
+  const roleMap = {
+    user: '用户',
+    assistant: '助手',
+    system: '系统'
+  };
+  const transcript = messages
+    .map(msg => `${roleMap[msg.role] || '用户'}：${msg.content}`)
+    .join('\n');
+  return `你是对话标题生成助手。\n\n任务：根据对话内容生成一个简洁、准确的中文标题。\n\n要求：\n1. 不超过20个汉字\n2. 不要使用引号\n3. 不要添加编号或前缀\n4. 避免过度概括，突出关键主题\n\n对话内容：\n${transcript}\n\n请只输出标题本身：`;
+};
+
 /**
  * @route   POST /api/chat/create
  * @desc    创建新的聊天会话
@@ -230,6 +254,87 @@ router.put(
         code: 0,
         data: result,
         message: '聊天更新成功'
+      });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * @route   POST /api/chat/:chatId/auto-title
+ * @desc    自动生成聊天标题
+ * @access  Public
+ */
+router.post(
+  '/:chatId/auto-title',
+  [
+    param('chatId').isString().notEmpty().withMessage('聊天ID不能为空'),
+    body('messages').optional().isArray().withMessage('messages必须是数组'),
+    body('reason').optional().isString().isLength({ max: 50 }).withMessage('reason长度不能超过50')
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      const { chatId } = req.params;
+      const chat = await chatUseCase.getChat(chatId, req.user?.userId);
+
+      if (!chat) {
+        return res.status(404).json({ code: -1, error: '聊天不存在' });
+      }
+
+      if (chat.titleEdited) {
+        return res.json({
+          code: 0,
+          data: {
+            title: chat.title,
+            skipped: true,
+            reason: 'titleEdited'
+          }
+        });
+      }
+
+      const bodyMessages = Array.isArray(req.body.messages) ? req.body.messages : [];
+      const sourceMessages = bodyMessages.length > 0 ? bodyMessages : chat.messages || [];
+      const normalizedMessages = sourceMessages
+        .filter(msg => msg && typeof msg.content === 'string')
+        .map(msg => ({
+          role: msg.role || msg.sender || 'user',
+          content: String(msg.content).slice(0, 2000)
+        }))
+        .slice(-10);
+
+      if (normalizedMessages.length === 0) {
+        return res.status(400).json({ code: -1, error: '对话内容为空' });
+      }
+
+      const systemPrompt = '你是对话标题生成助手，只输出最终标题。';
+      const userPrompt = buildTitlePrompt(normalizedMessages);
+
+      const { callDeepSeekAPI } = await import('../../../infrastructure/ai/deepseek-client.js');
+      const result = await callDeepSeekAPI([{ role: 'user', content: userPrompt }], systemPrompt, {
+        timeout: 20000,
+        temperature: 0.2
+      });
+
+      const title = normalizeAutoTitle(result?.content);
+      if (!title) {
+        return res.status(500).json({ code: -1, error: '标题生成失败' });
+      }
+
+      if (title === chat.title) {
+        return res.json({ code: 0, data: { title } });
+      }
+
+      const updated = await chatUseCase.updateChat(
+        chatId,
+        new UpdateChatDTO({ title, titleEdited: false }),
+        req.user?.userId
+      );
+
+      return res.json({
+        code: 0,
+        data: { title: updated.title, updatedAt: updated.updatedAt }
       });
     } catch (error) {
       handleError(res, error);

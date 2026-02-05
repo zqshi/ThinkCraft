@@ -12,6 +12,7 @@ var logger = window.createLogger ? window.createLogger('UIController') : console
 class UIController {
     constructor() {
         this.state = window.state;
+        this.activeTab = null;
     }
 
     /**
@@ -29,6 +30,21 @@ class UIController {
      * @param {string} tab - 标签页名称
      */
     switchSidebarTab(tab) {
+        const previousTab =
+            this.activeTab ||
+            document.querySelector('.sidebar-tab.active')?.getAttribute('data-tab') ||
+            null;
+
+        if (previousTab === 'chats' && tab !== 'chats') {
+            const currentChatId = this.state?.currentChat;
+            if (currentChatId && window.chatManager?.requestAutoTitle) {
+                window.chatManager.requestAutoTitle(currentChatId, {
+                    reason: 'switch_tab',
+                    messages: Array.isArray(this.state?.messages) ? [...this.state.messages] : []
+                });
+            }
+        }
+
         const tabs = document.querySelectorAll('.sidebar-tab');
         const views = document.querySelectorAll('.sidebar-view');
 
@@ -40,6 +56,8 @@ class UIController {
 
         if (activeTab) activeTab.classList.add('active');
         if (activeView) activeView.style.display = 'block';
+
+        this.activeTab = tab;
 
         // 切换到项目空间时，渲染项目列表
         if (tab === 'team' && window.projectManager && window.projectManager.renderProjectList) {

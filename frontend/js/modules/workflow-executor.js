@@ -21,6 +21,8 @@ class WorkflowExecutor {
     // 当前执行状态
     this.currentExecution = null;
     this.isExecuting = false;
+    this.stageQueues = new Map();
+    this.stageQueueRunning = new Set();
   }
 
   mergeArtifacts(existing = [], incoming = []) {
@@ -54,6 +56,8 @@ class WorkflowExecutor {
     if (!stageId) return stageId;
     const normalized = String(stageId).trim();
     const aliases = {
+      'strategy_requirement': 'strategy-requirement',
+      'strategy+requirement': 'strategy-requirement',
       'strategy-validation': 'strategy',
       'strategy-review': 'strategy',
       'strategy-plan': 'strategy',
@@ -233,6 +237,61 @@ class WorkflowExecutor {
       this.isExecuting = false;
       this.currentExecution = null;
     }
+  }
+
+  enqueueStageExecution(projectId, stageId, context, options = {}) {
+    const key = `${projectId}::${stageId}`;
+    if (!this.stageQueues.has(key)) {
+      this.stageQueues.set(key, []);
+    }
+    const queue = this.stageQueues.get(key);
+    queue.push({
+      projectId,
+      stageId,
+      context,
+      options
+    });
+    this.processStageQueue(key).catch(error => {
+      console.warn('[WorkflowExecutor] processStageQueue failed', error);
+    });
+  }
+
+  async processStageQueue(key) {
+    if (this.stageQueueRunning.has(key)) {
+      return;
+    }
+    this.stageQueueRunning.add(key);
+    const queue = this.stageQueues.get(key);
+    while (queue && queue.length > 0) {
+      if (this.isExecuting) {
+        await new Promise(resolve => setTimeout(resolve, 600));
+        continue;
+      }
+      const task = queue.shift();
+      if (!task) {
+        continue;
+      }
+      try {
+        await this.executeStageWithOptions(
+          task.projectId,
+          task.stageId,
+          task.context,
+          task.options
+        );
+      } catch (error) {
+        if (!task.options?.silent) {
+          if (window.modalManager) {
+            window.modalManager.alert(`执行失败: ${error.message}`, 'error');
+          } else {
+            alert(`执行失败: ${error.message}`);
+          }
+        }
+      }
+    }
+    if (queue && queue.length === 0) {
+      this.stageQueues.delete(key);
+    }
+    this.stageQueueRunning.delete(key);
   }
 
   /**
@@ -522,7 +581,7 @@ class WorkflowExecutor {
         throw new Error('未提供访问令牌');
       }
     }
-    const { timeoutMs = 2 * 60 * 1000, retry = 2, retryDelay = 1500 } = options;
+    const { timeoutMs = 2 * 60 * 1000, retry = 0, retryDelay = 1500 } = options;
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
     let lastError = null;
 
@@ -618,6 +677,13 @@ class WorkflowExecutor {
    */
   getStageDefinition(stageId, fallback = {}) {
     const stageDefinitions = {
+      'strategy-requirement': {
+        id: 'strategy-requirement',
+        name: '战略与需求',
+        description: '战略建模与需求分析',
+        icon: '🎯',
+        color: '#6366f1'
+      },
       strategy: {
         id: 'strategy',
         name: '战略设计',
@@ -823,19 +889,38 @@ class WorkflowExecutor {
    */
   async startStage(projectId, stageId, options = {}) {
     try {
-      if (this.isExecuting) {
-        if (window.modalManager) {
-          window.modalManager.alert('当前正在执行任务，请稍后再试', 'warning');
-        } else {
-          alert('当前正在执行任务，请稍后再试');
-        }
-        return;
-      }
-
       // 【新增】检查依赖阶段是否完成
       const project = await this.storageManager.getProject(projectId);
       const stages = project.workflow?.stages || [];
       const currentStage = stages.find(s => s.id === stageId);
+
+      const resolveStageOutputs = () => {
+        if (!currentStage) {
+          return [];
+        }
+        let outputs = Array.isArray(currentStage.outputs) ? currentStage.outputs : [];
+        if (outputs.length === 0 && stageId === 'strategy-requirement') {
+          const strategy = stages.find(s => s.id === 'strategy');
+          const requirement = stages.find(s => s.id === 'requirement');
+          outputs = Array.from(
+            new Set([
+              ...(Array.isArray(strategy?.outputs) ? strategy.outputs : []),
+              ...(Array.isArray(requirement?.outputs) ? requirement.outputs : [])
+            ])
+          );
+        }
+        return outputs.filter(Boolean);
+      };
+
+      const stageOutputs = resolveStageOutputs();
+      if (stageOutputs.length === 0) {
+        if (window.modalManager) {
+          window.modalManager.alert('该阶段未配置可执行交付物，请先检查阶段配置', 'warning');
+        } else {
+          alert('该阶段未配置可执行交付物，请先检查阶段配置');
+        }
+        return;
+      }
 
       if (currentStage && currentStage.executingArtifactTypes?.length) {
         currentStage.executingArtifactTypes = [];
@@ -864,11 +949,6 @@ class WorkflowExecutor {
         }
       }
 
-      // 显示执行提示
-      if (!options.silent && window.modalManager) {
-        window.modalManager.alert('正在执行阶段任务，请稍候...', 'info');
-      }
-
       // 获取创意对话内容作为上下文
       const chat = await this.storageManager.getChat(project.ideaId);
       const conversation = chat
@@ -878,6 +958,35 @@ class WorkflowExecutor {
       const selectedArtifactTypes = Array.isArray(options.selectedArtifactTypes)
         ? options.selectedArtifactTypes
         : [];
+
+      if (this.isExecuting) {
+        if (options.queueWhileExecuting) {
+          this.enqueueStageExecution(
+            projectId,
+            stageId,
+            {
+              CONVERSATION: conversation,
+              selectedArtifactTypes
+            },
+            options
+          );
+          if (window.modalManager) {
+            window.modalManager.alert('当前有任务执行中，已加入队列', 'info');
+          }
+          return;
+        }
+        if (window.modalManager) {
+          window.modalManager.alert('当前正在执行任务，请稍后再试', 'warning');
+        } else {
+          alert('当前正在执行任务，请稍后再试');
+        }
+        return;
+      }
+
+      // 显示执行提示
+      if (!options.silent && window.modalManager) {
+        window.modalManager.alert('正在执行阶段任务，请稍候...', 'info');
+      }
       // 执行阶段（executeStage内部会自动更新状态为active，然后completed）
       const result = await this.executeStageWithOptions(
         projectId,
@@ -897,7 +1006,12 @@ class WorkflowExecutor {
 
       // 显示成功提示
       if (!options.silent) {
-        if (window.modalManager) {
+        if (window.toast?.success) {
+          window.toast.success(
+            `阶段执行完成！生成了 ${result.artifacts.length} 个交付物`,
+            3000
+          );
+        } else if (window.modalManager) {
           window.modalManager.close();
           window.modalManager.alert(
             `阶段执行完成！<br><br>生成了 ${result.artifacts.length} 个交付物<br>消耗 ${result.totalTokens} tokens`,
@@ -929,15 +1043,17 @@ class WorkflowExecutor {
         }
       }
     } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.close();
+      }
       if (!options.silent) {
-        if (window.modalManager) {
-          window.modalManager.close();
+        if (window.toast?.error) {
+          window.toast.error(`执行失败: ${error.message}`, 4000);
+        } else if (window.modalManager) {
           window.modalManager.alert('执行失败: ' + error.message, 'error');
         } else {
           alert('执行失败: ' + error.message);
         }
-      } else if (window.modalManager) {
-        window.modalManager.close();
       }
 
       // 恢复阶段状态为pending
