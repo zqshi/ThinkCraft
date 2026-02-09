@@ -39,6 +39,9 @@ Thumbs.db
 dist/
 build/
 
+# Project artifacts
+projects/
+
 # Temporary files
 tmp/
 temp/

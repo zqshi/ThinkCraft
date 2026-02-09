@@ -6,6 +6,7 @@ import express from 'express';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
+import { spawn } from 'child_process';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import {
   getStageById,
@@ -14,6 +15,14 @@ import {
   AGENT_PROMPT_MAP
 } from '../../../../config/workflow-stages.js';
 import { projectRepository } from '../../../features/projects/infrastructure/index.js';
+import {
+  buildArtifactFileUrl,
+  ensureProjectWorkspace,
+  ensureDevScaffold,
+  materializeArtifactFile,
+  resolveRepoRoot,
+  updateArtifactsIndex
+} from '../../../features/projects/infrastructure/project-files.js';
 
 const router = express.Router();
 
@@ -52,6 +61,10 @@ function buildRoleTemplateMapping() {
       deliverables
     };
   });
+}
+
+function shouldInlinePreview(artifactType) {
+  return ['prototype', 'preview', 'ui-preview'].includes(artifactType);
 }
 
 function normalizeOutputToTypeId(output) {
@@ -119,6 +132,534 @@ async function loadPromptFromTemplates(artifactType, context = {}) {
   return contents.join('\n\n');
 }
 
+function trimLog(text, maxChars = 20000) {
+  const value = String(text || '');
+  if (value.length <= maxChars) {
+    return value;
+  }
+  return value.slice(value.length - maxChars);
+}
+
+async function runCommand(command, options = {}) {
+  const { cwd, env, timeoutMs = 20 * 60 * 1000, maxLogChars = 20000 } = options;
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const child = spawn(command, {
+      cwd,
+      env: { ...process.env, ...(env || {}) },
+      shell: true
+    });
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      const durationMs = Date.now() - start;
+      resolve({
+        ok: false,
+        code: null,
+        signal: 'SIGKILL',
+        stdout: trimLog(stdout, maxLogChars),
+        stderr: trimLog(stderr, maxLogChars),
+        durationMs
+      });
+    }, timeoutMs);
+
+    child.stdout?.on('data', chunk => {
+      stdout += chunk.toString();
+      if (stdout.length > maxLogChars) {
+        stdout = trimLog(stdout, maxLogChars);
+      }
+    });
+    child.stderr?.on('data', chunk => {
+      stderr += chunk.toString();
+      if (stderr.length > maxLogChars) {
+        stderr = trimLog(stderr, maxLogChars);
+      }
+    });
+    child.on('error', error => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', code => {
+      clearTimeout(timer);
+      const durationMs = Date.now() - start;
+      resolve({
+        ok: code === 0,
+        code,
+        signal: null,
+        stdout: trimLog(stdout, maxLogChars),
+        stderr: trimLog(stderr, maxLogChars),
+        durationMs
+      });
+    });
+  });
+}
+
+function buildExecutionArtifact({
+  projectId,
+  stageId,
+  artifactType,
+  content,
+  agentType,
+  meta = {}
+}) {
+  return {
+    id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    projectId,
+    stageId,
+    type: artifactType,
+    name: getArtifactName(artifactType),
+    content,
+    agentName: getAgentName(agentType),
+    source: 'execution',
+    createdAt: Date.now(),
+    tokens: 0,
+    meta
+  };
+}
+
+function formatCommandSection(label, result) {
+  const status = result.ok ? 'SUCCESS' : 'FAILED';
+  const duration = `${Math.round(result.durationMs / 1000)}s`;
+  const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
+  return [
+    `## ${label}`,
+    `- 状态: ${status}`,
+    `- 耗时: ${duration}`,
+    '',
+    '```',
+    trimLog(output, 20000),
+    '```'
+  ].join('\n');
+}
+
+function extractFailureLines(logText, maxLines = 200) {
+  const lines = String(logText || '').split('\n');
+  const hits = lines.filter(line =>
+    /(^|\s)(FAIL|FAILURE|Error:|✕|●)\b/.test(line)
+  );
+  const unique = Array.from(new Set(hits));
+  return unique.slice(0, maxLines);
+}
+
+function redactEnvContent(envText) {
+  const lines = String(envText || '').split('\n');
+  return lines
+    .map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
+        return line;
+      }
+      const [key] = trimmed.split('=');
+      return `${key}=***`;
+    })
+    .join('\n');
+}
+
+function shouldSkipTreeEntry(name) {
+  const skip = new Set(['node_modules', '.git', 'dist', 'build', '.DS_Store']);
+  return skip.has(name);
+}
+
+async function buildFileTree(rootDir, currentDir, depth, maxDepth) {
+  const entries = await fsPromises.readdir(currentDir, { withFileTypes: true });
+  const result = [];
+  for (const entry of entries) {
+    if (shouldSkipTreeEntry(entry.name)) {
+      continue;
+    }
+    const fullPath = path.join(currentDir, entry.name);
+    const relativePath = path.relative(rootDir, fullPath);
+    if (entry.isDirectory()) {
+      const children =
+        depth < maxDepth ? await buildFileTree(rootDir, fullPath, depth + 1, maxDepth) : [];
+      result.push({
+        name: entry.name,
+        type: 'directory',
+        path: relativePath,
+        children
+      });
+    } else {
+      let size = 0;
+      try {
+        const stat = await fsPromises.stat(fullPath);
+        size = stat.size;
+      } catch (error) {
+        size = 0;
+      }
+      result.push({
+        name: entry.name,
+        type: 'file',
+        path: relativePath,
+        size
+      });
+    }
+  }
+  return result;
+}
+
+async function buildZipBundle(projectRoot, bundlePath) {
+  const metaDir = path.join(projectRoot, 'meta');
+  await fsPromises.mkdir(metaDir, { recursive: true });
+  const scriptPath = path.join(metaDir, 'zip_bundle.py');
+  const script = [
+    'import os, zipfile',
+    "root = os.path.abspath(os.path.dirname(__file__))",
+    "project = os.path.abspath(os.path.join(root, '..'))",
+    `bundle = os.path.abspath(r'''${bundlePath}''')`,
+    "excludes = set(['node_modules', '.git', 'dist', 'build', '.DS_Store'])",
+    'def should_skip(path_parts):',
+    '    return any(part in excludes for part in path_parts)',
+    "with zipfile.ZipFile(bundle, 'w', zipfile.ZIP_DEFLATED) as zf:",
+    '    for current_root, dirs, files in os.walk(project):',
+    '        rel_dir = os.path.relpath(current_root, project)',
+    "        if rel_dir == '.':",
+    '            rel_dir = ""',
+    '        parts = [p for p in rel_dir.split(os.sep) if p]',
+    '        if should_skip(parts):',
+    '            continue',
+    '        dirs[:] = [d for d in dirs if d not in excludes]',
+    '        for fname in files:',
+    '            if fname in excludes:',
+    '                continue',
+    '            rel_path = os.path.normpath(os.path.join(rel_dir, fname))',
+    "            if rel_path.startswith('meta' + os.sep):",
+    '                pass',
+    '            full_path = os.path.join(current_root, fname)',
+    '            if should_skip(full_path.split(os.sep)):',
+    '                continue',
+    '            zf.write(full_path, rel_path)',
+    'print(bundle)'
+  ].join('\\n');
+  await fsPromises.writeFile(scriptPath, script, 'utf-8');
+  const result = await runCommand(`python3 \"${scriptPath}\"`, {
+    cwd: projectRoot,
+    timeoutMs: 10 * 60 * 1000
+  });
+  if (!result.ok) {
+    const output = [result.stdout, result.stderr].filter(Boolean).join('\\n');
+    throw new Error(`zip 生成失败\\n${output}`);
+  }
+  return bundlePath;
+}
+
+async function executeTestingStage({
+  projectId,
+  stageId,
+  effectiveArtifactTypes
+}) {
+  const repoRoot = resolveRepoRoot();
+  const results = [];
+  const rootTest = await runCommand('npm test', {
+    cwd: repoRoot,
+    timeoutMs: 30 * 60 * 1000
+  });
+  results.push({ label: 'Root npm test', result: rootTest });
+
+  const backendPkg = path.join(repoRoot, 'backend', 'package.json');
+  if (fs.existsSync(backendPkg)) {
+    const backendTest = await runCommand('npm test', {
+      cwd: path.join(repoRoot, 'backend'),
+      timeoutMs: 30 * 60 * 1000
+    });
+    results.push({ label: 'Backend npm test', result: backendTest });
+  }
+
+  const failed = results.find(item => !item.result.ok);
+  if (failed) {
+    const output = [failed.result.stdout, failed.result.stderr].filter(Boolean).join('\n');
+    const tail = trimLog(output, 4000);
+    const err = new Error(`测试命令失败: ${failed.label}\n\n${tail}`);
+    err.status = 500;
+    throw err;
+  }
+
+  const sections = results.map(item => formatCommandSection(item.label, item.result));
+  const totalDurationMs = results.reduce((sum, item) => sum + item.result.durationMs, 0);
+  const nowIso = new Date().toISOString();
+  const combinedLogs = results
+    .map(item => [item.result.stdout, item.result.stderr].filter(Boolean).join('\n'))
+    .join('\n');
+
+  const artifacts = [];
+  if (effectiveArtifactTypes.includes('test-report')) {
+    const content = [
+      '# 测试报告（真实执行）',
+      '',
+      `- 项目: ${projectId}`,
+      `- 执行时间: ${nowIso}`,
+      `- 总耗时: ${Math.round(totalDurationMs / 1000)}s`,
+      '',
+      ...sections
+    ].join('\n');
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'test-report',
+        content,
+        agentType: 'qa-engineer',
+        meta: { durationMs: totalDurationMs }
+      })
+    );
+  }
+
+  if (effectiveArtifactTypes.includes('bug-list')) {
+    const failures = extractFailureLines(combinedLogs);
+    const content = [
+      '# Bug 清单（基于真实测试日志）',
+      '',
+      failures.length === 0
+        ? '未检测到失败用例或错误日志。'
+        : failures.map((line, idx) => `${idx + 1}. ${line}`).join('\n')
+    ].join('\n');
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'bug-list',
+        content,
+        agentType: 'qa-engineer'
+      })
+    );
+  }
+
+  if (effectiveArtifactTypes.includes('performance-report')) {
+    const perfScript = path.join(repoRoot, 'scripts', 'performance-test-simple.sh');
+    let perfContent = '# 性能测试报告（真实执行）\n\n未执行性能测试。';
+    if (fs.existsSync(perfScript)) {
+      const perfResult = await runCommand('bash scripts/performance-test-simple.sh', {
+        cwd: repoRoot,
+        timeoutMs: 15 * 60 * 1000
+      });
+      perfContent = [
+        '# 性能测试报告（真实执行）',
+        '',
+        formatCommandSection('Performance test (simple)', perfResult)
+      ].join('\n');
+    }
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'performance-report',
+        content: perfContent,
+        agentType: 'qa-engineer'
+      })
+    );
+  }
+
+  return artifacts;
+}
+
+async function executeDevelopmentStageActions({ projectId, projectRoot }) {
+  const results = [];
+  const frontendDir = path.join(projectRoot, 'frontend');
+  const backendDir = path.join(projectRoot, 'backend');
+
+  const frontendPkg = path.join(frontendDir, 'package.json');
+  if (fs.existsSync(frontendPkg)) {
+    const frontendNodeModules = path.join(frontendDir, 'node_modules');
+    if (!fs.existsSync(frontendNodeModules)) {
+      const installResult = await runCommand('npm install', {
+        cwd: frontendDir,
+        timeoutMs: 15 * 60 * 1000
+      });
+      results.push({ label: 'Frontend npm install', result: installResult });
+    }
+
+    try {
+      const pkg = JSON.parse(await fsPromises.readFile(frontendPkg, 'utf-8'));
+      if (pkg?.scripts?.build) {
+        const buildResult = await runCommand('npm run build', {
+          cwd: frontendDir,
+          timeoutMs: 15 * 60 * 1000
+        });
+        results.push({ label: 'Frontend npm run build', result: buildResult });
+      }
+      if (pkg?.scripts?.dev) {
+        const devResult = await runCommand('npm run dev', {
+          cwd: frontendDir,
+          timeoutMs: 30 * 1000
+        });
+        results.push({
+          label: 'Frontend npm run dev (30s)',
+          result: devResult
+        });
+      }
+    } catch (error) {
+      results.push({
+        label: 'Frontend build skipped',
+        result: { ok: false, stdout: '', stderr: 'package.json 解析失败', durationMs: 0 }
+      });
+    }
+  }
+
+  const backendPkg = path.join(backendDir, 'package.json');
+  if (fs.existsSync(backendPkg)) {
+    const backendNodeModules = path.join(backendDir, 'node_modules');
+    if (!fs.existsSync(backendNodeModules)) {
+      const installResult = await runCommand('npm install', {
+        cwd: backendDir,
+        timeoutMs: 15 * 60 * 1000
+      });
+      results.push({ label: 'Backend npm install', result: installResult });
+    }
+    try {
+      const pkg = JSON.parse(await fsPromises.readFile(backendPkg, 'utf-8'));
+      if (pkg?.scripts?.dev) {
+        const devResult = await runCommand('npm run dev', {
+          cwd: backendDir,
+          timeoutMs: 30 * 1000
+        });
+        results.push({
+          label: 'Backend npm run dev (30s)',
+          result: devResult
+        });
+      }
+    } catch (error) {
+      results.push({
+        label: 'Backend dev skipped',
+        result: { ok: false, stdout: '', stderr: 'package.json 解析失败', durationMs: 0 }
+      });
+    }
+  }
+
+  if (results.length === 0) {
+    return [];
+  }
+
+  const nowIso = new Date().toISOString();
+  const content = [
+    '# 开发阶段动作日志（真实执行）',
+    '',
+    `- 项目: ${projectId}`,
+    `- 执行时间: ${nowIso}`,
+    '',
+    ...results.map(item => formatCommandSection(item.label, item.result))
+  ].join('\n');
+
+  const artifact = {
+    id: `artifact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    projectId,
+    stageId: 'development',
+    type: 'report',
+    name: 'Development Actions Log',
+    content,
+    agentName: 'devops',
+    source: 'execution',
+    createdAt: Date.now(),
+    tokens: 0
+  };
+
+  return [artifact];
+}
+
+async function executeDeploymentStage({
+  projectId,
+  stageId,
+  effectiveArtifactTypes
+}) {
+  const repoRoot = resolveRepoRoot();
+  const envFile =
+    process.env.PROD_ENV_FILE || path.join(repoRoot, 'backend', '.env.production');
+  if (!fs.existsSync(envFile)) {
+    const err = new Error(`部署环境文件不存在: ${envFile}`);
+    err.status = 400;
+    throw err;
+  }
+
+  const deployResult = await runCommand(`bash scripts/start-prod.sh "${envFile}"`, {
+    cwd: repoRoot,
+    timeoutMs: 30 * 60 * 1000
+  });
+  if (!deployResult.ok) {
+    const output = [deployResult.stdout, deployResult.stderr].filter(Boolean).join('\n');
+    const tail = trimLog(output, 4000);
+    const err = new Error(`部署命令失败\n\n${tail}`);
+    err.status = 500;
+    throw err;
+  }
+
+  const statusResult = await runCommand('docker compose ps', {
+    cwd: repoRoot,
+    timeoutMs: 60 * 1000
+  });
+  const nowIso = new Date().toISOString();
+  const artifacts = [];
+
+  if (effectiveArtifactTypes.includes('deploy-doc')) {
+    const content = [
+      '# 部署文档（真实执行）',
+      '',
+      `- 项目: ${projectId}`,
+      `- 执行时间: ${nowIso}`,
+      '',
+      formatCommandSection('Deploy command', deployResult),
+      '',
+      formatCommandSection('Service status', statusResult)
+    ].join('\n');
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'deploy-doc',
+        content,
+        agentType: 'devops'
+      })
+    );
+  }
+
+  if (effectiveArtifactTypes.includes('env-config')) {
+    const envText = await fsPromises.readFile(envFile, 'utf-8');
+    const content = [
+      '# 环境配置（脱敏）',
+      '',
+      `来源: ${envFile}`,
+      '',
+      '```',
+      redactEnvContent(envText),
+      '```'
+    ].join('\n');
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'env-config',
+        content,
+        agentType: 'devops'
+      })
+    );
+  }
+
+  if (effectiveArtifactTypes.includes('release-notes')) {
+    const gitResult = await runCommand('git log -1 --pretty=format:%H', {
+      cwd: repoRoot,
+      timeoutMs: 30 * 1000
+    });
+    const commit = gitResult.ok ? gitResult.stdout.trim() : 'unknown';
+    const content = [
+      '# 发布说明（真实执行）',
+      '',
+      `- 提交: ${commit || 'unknown'}`,
+      `- 时间: ${nowIso}`,
+      '',
+      '本次发布为自动化部署生成。'
+    ].join('\n');
+    artifacts.push(
+      buildExecutionArtifact({
+        projectId,
+        stageId,
+        artifactType: 'release-notes',
+        content,
+        agentType: 'devops'
+      })
+    );
+  }
+
+  return artifacts;
+}
+
 /**
  * 执行单个阶段任务
  * @param {String} projectId - 项目ID
@@ -166,11 +707,23 @@ function getStageArtifactsFromProject(project, stageId) {
   return Array.isArray(stage.artifacts) ? stage.artifacts : [];
 }
 
-function normalizeArtifactsForResponse(stageId, artifactsList = []) {
-  return (artifactsList || []).map(artifact => ({
-    ...artifact,
-    stageId: artifact?.stageId || stageId
-  }));
+function normalizeArtifactsForResponse(projectId, stageId, artifactsList = []) {
+  return (artifactsList || []).map(artifact => {
+    const downloadUrl =
+      artifact?.downloadUrl ||
+      (artifact?.relativePath ? buildArtifactFileUrl(projectId, artifact.id) : undefined);
+    const previewUrl =
+      artifact?.previewUrl ||
+      (shouldInlinePreview(artifact?.type) && artifact?.relativePath
+        ? buildArtifactFileUrl(projectId, artifact.id, { inline: true })
+        : undefined);
+    return {
+      ...artifact,
+      stageId: artifact?.stageId || stageId,
+      downloadUrl,
+      previewUrl
+    };
+  });
 }
 
 function resolveProjectStageIds(project, stageId) {
@@ -293,6 +846,12 @@ async function persistGeneratedArtifact(project, normalizedStageId, artifact) {
 async function executeStage(projectId, stageId, context = {}) {
   const normalizedStageId = normalizeStageId(stageId);
   const project = await loadProject(projectId);
+  const workspace = await ensureProjectWorkspace(project);
+  if (!project.artifactRoot && workspace.artifactRoot) {
+    project.update({ artifactRoot: workspace.artifactRoot });
+    await projectRepository.save(project);
+  }
+  const preGeneratedArtifacts = [];
   let stage = ensureStageDefinition(normalizedStageId);
   if (!stage) {
     const projectStage =
@@ -334,6 +893,103 @@ async function executeStage(projectId, stageId, context = {}) {
     throw err;
   }
 
+  if (normalizedStageId === 'testing') {
+    const generatedArtifacts = await executeTestingStage({
+      projectId,
+      stageId: normalizedStageId,
+      effectiveArtifactTypes
+    });
+    const materialized = [];
+    for (const artifact of generatedArtifacts) {
+      const withFile = await materializeArtifactFile({
+        project,
+        stageId: normalizedStageId,
+        artifact
+      });
+      const withUrls = {
+        ...withFile,
+        downloadUrl: buildArtifactFileUrl(projectId, withFile.id),
+        previewUrl: shouldInlinePreview(withFile.type)
+          ? buildArtifactFileUrl(projectId, withFile.id, { inline: true })
+          : withFile.previewUrl
+      };
+      await updateArtifactsIndex(project, withUrls);
+      const targetStageId = resolveTargetStageIdForArtifact(
+        project,
+        normalizedStageId,
+        withUrls.type
+      );
+      removeExistingArtifactsByType(project, targetStageId, withUrls.type);
+      await persistGeneratedArtifact(project, normalizedStageId, withUrls);
+      materialized.push(withUrls);
+    }
+    return materialized;
+  }
+
+  if (normalizedStageId === 'deployment') {
+    const generatedArtifacts = await executeDeploymentStage({
+      projectId,
+      stageId: normalizedStageId,
+      effectiveArtifactTypes
+    });
+    const materialized = [];
+    for (const artifact of generatedArtifacts) {
+      const withFile = await materializeArtifactFile({
+        project,
+        stageId: normalizedStageId,
+        artifact
+      });
+      const withUrls = {
+        ...withFile,
+        downloadUrl: buildArtifactFileUrl(projectId, withFile.id),
+        previewUrl: shouldInlinePreview(withFile.type)
+          ? buildArtifactFileUrl(projectId, withFile.id, { inline: true })
+          : withFile.previewUrl
+      };
+      await updateArtifactsIndex(project, withUrls);
+      const targetStageId = resolveTargetStageIdForArtifact(
+        project,
+        normalizedStageId,
+        withUrls.type
+      );
+      removeExistingArtifactsByType(project, targetStageId, withUrls.type);
+      await persistGeneratedArtifact(project, normalizedStageId, withUrls);
+      materialized.push(withUrls);
+    }
+    return materialized;
+  }
+
+  if (normalizedStageId === 'development') {
+    try {
+      await ensureDevScaffold(workspace.projectRoot);
+    } catch (error) {
+      console.warn('[Workflow] 初始化开发脚手架失败:', error);
+    }
+    try {
+      const actionArtifacts = await executeDevelopmentStageActions({
+        projectId,
+        projectRoot: workspace.projectRoot
+      });
+      for (const artifact of actionArtifacts) {
+        const withFile = await materializeArtifactFile({
+          project,
+          stageId: normalizedStageId,
+          artifact
+        });
+        const withUrls = {
+          ...withFile,
+          downloadUrl: buildArtifactFileUrl(projectId, withFile.id),
+          previewUrl: buildArtifactFileUrl(projectId, withFile.id, { inline: true })
+        };
+        await updateArtifactsIndex(project, withUrls);
+        await persistGeneratedArtifact(project, normalizedStageId, withUrls);
+        preGeneratedArtifacts.push(withUrls);
+      }
+    } catch (error) {
+      console.warn('[Workflow] 开发阶段动作执行失败:', error);
+    }
+  }
+
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey || apiKey === 'sk-your-api-key-here') {
     const err = new Error('DEEPSEEK_API_KEY 未配置或无效，请在后端 .env 中设置');
@@ -342,7 +998,7 @@ async function executeStage(projectId, stageId, context = {}) {
   }
 
   // 创建交付物
-  const generatedArtifacts = [];
+  const generatedArtifacts = [...preGeneratedArtifacts];
 
   for (const artifactType of effectiveArtifactTypes) {
     const prompt = await loadPromptFromTemplates(artifactType, context);
@@ -382,8 +1038,21 @@ async function executeStage(projectId, stageId, context = {}) {
       artifactType
     );
     removeExistingArtifactsByType(project, targetStageId, artifactType);
-    generatedArtifacts.push(artifact);
-    await persistGeneratedArtifact(project, normalizedStageId, artifact);
+    const withFile = await materializeArtifactFile({
+      project,
+      stageId: normalizedStageId,
+      artifact
+    });
+    const withUrls = {
+      ...withFile,
+      downloadUrl: buildArtifactFileUrl(projectId, withFile.id),
+      previewUrl: shouldInlinePreview(withFile.type)
+        ? buildArtifactFileUrl(projectId, withFile.id, { inline: true })
+        : withFile.previewUrl
+    };
+    await updateArtifactsIndex(project, withUrls);
+    generatedArtifacts.push(withUrls);
+    await persistGeneratedArtifact(project, normalizedStageId, withUrls);
 
     if (effectiveArtifactTypes.length > 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -410,7 +1079,11 @@ function getArtifactName(artifactType) {
     'strategy-doc': '战略设计文档',
     'core-prompt-design': '核心引导逻辑Prompt设计',
     'test-report': '测试报告',
+    'bug-list': 'Bug清单',
+    'performance-report': '性能测试报告',
     'deploy-doc': '部署文档',
+    'env-config': '环境配置',
+    'release-notes': '发布说明',
     'marketing-plan': '运营推广方案'
   };
   return typeMap[artifactType] || artifactType;
@@ -552,6 +1225,7 @@ router.get('/:projectId/stages/:stageId/artifacts', async (req, res, next) => {
     const project = await loadProject(projectId);
     const stageIdsForProject = resolveProjectStageIds(project, normalizedStageId);
     const stageArtifacts = normalizeArtifactsForResponse(
+      projectId,
       normalizedStageId,
       stageIdsForProject.flatMap(id => getStageArtifactsFromProject(project, id))
     );
@@ -582,7 +1256,7 @@ router.get('/:projectId/artifacts', async (req, res, next) => {
 
     const allArtifacts = [];
     for (const [stageId, artifactsList] of stageArtifacts.entries()) {
-      allArtifacts.push(...normalizeArtifactsForResponse(stageId, artifactsList));
+      allArtifacts.push(...normalizeArtifactsForResponse(projectId, stageId, artifactsList));
     }
 
     res.json({
@@ -592,6 +1266,204 @@ router.get('/:projectId/artifacts', async (req, res, next) => {
         artifacts: allArtifacts
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/workflow/:projectId/artifacts/tree
+ * 获取项目产物文件树
+ */
+router.get('/:projectId/artifacts/tree', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const maxDepth = Number(req.query.depth || 4);
+    const project = await loadProject(projectId);
+    const workspace = await ensureProjectWorkspace(project);
+    const tree = await buildFileTree(
+      workspace.projectRoot,
+      workspace.projectRoot,
+      0,
+      Number.isFinite(maxDepth) ? Math.max(1, maxDepth) : 4
+    );
+
+    res.json({
+      code: 0,
+      data: {
+        root: path.relative(resolveRepoRoot(), workspace.projectRoot),
+        tree
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/workflow/:projectId/artifacts/bundle
+ * 下载产物打包文件
+ */
+router.get('/:projectId/artifacts/bundle', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const fresh = req.query.fresh === '1';
+    const format = String(req.query.format || 'zip').toLowerCase();
+    const project = await loadProject(projectId);
+    const workspace = await ensureProjectWorkspace(project);
+    const bundleExt = format === 'zip' ? 'zip' : 'tar.gz';
+    const bundlePath = path.join(workspace.projectRoot, 'meta', `artifacts.${bundleExt}`);
+    const bundleExists = fs.existsSync(bundlePath);
+
+    if (!bundleExists || fresh) {
+      if (format === 'zip') {
+        try {
+          await buildZipBundle(workspace.projectRoot, bundlePath);
+        } catch (error) {
+          console.warn('[Workflow] zip 打包失败，尝试 tar 兜底:', error);
+          const fallbackPath = path.join(workspace.projectRoot, 'meta', 'artifacts.tar.gz');
+          const result = await runCommand(
+            'tar --exclude=node_modules --exclude=.git --exclude=dist --exclude=build -czf meta/artifacts.tar.gz .',
+            {
+              cwd: workspace.projectRoot,
+              timeoutMs: 10 * 60 * 1000
+            }
+          );
+          if (!result.ok) {
+            const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
+            return res.status(500).json({
+              code: -1,
+              error: `产物打包失败\\n${error.message}\\n${output}`
+            });
+          }
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=\"${projectId}-artifacts.tar.gz\"`
+          );
+          return res.sendFile(fallbackPath);
+        }
+      } else {
+        const cmd =
+          'tar --exclude=node_modules --exclude=.git --exclude=dist --exclude=build -czf meta/artifacts.tar.gz .';
+        const result = await runCommand(cmd, {
+          cwd: workspace.projectRoot,
+          timeoutMs: 10 * 60 * 1000
+        });
+        if (!result.ok) {
+          const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
+          return res.status(500).json({
+            code: -1,
+            error: `产物打包失败\\n${output}`
+          });
+        }
+      }
+    }
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=\"${projectId}-artifacts.${bundleExt}\"`
+    );
+    res.sendFile(bundlePath);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/workflow/:projectId/artifacts/:artifactId/file
+ * 下载/预览交付物文件
+ */
+router.get('/:projectId/artifacts/:artifactId/file', async (req, res, next) => {
+  try {
+    const { projectId, artifactId } = req.params;
+    const inline = req.query.inline === '1';
+    const project = await loadProject(projectId);
+    const workflow = project.workflow;
+    if (!workflow) {
+      return res.status(404).json({
+        code: -1,
+        error: '项目不存在'
+      });
+    }
+
+    let target = null;
+    for (const stage of workflow.stages || []) {
+      const artifact = stage?.artifacts?.find(a => a.id === artifactId);
+      if (artifact) {
+        target = artifact;
+        break;
+      }
+    }
+
+    if (!target || !target.relativePath) {
+      return res.status(404).json({
+        code: -1,
+        error: '交付物文件不存在'
+      });
+    }
+
+    const repoRoot = resolveRepoRoot();
+    const filePath = path.resolve(repoRoot, target.relativePath);
+    const safeRoot = path.resolve(repoRoot) + path.sep;
+    if (!filePath.startsWith(safeRoot)) {
+      return res.status(400).json({
+        code: -1,
+        error: '非法文件路径'
+      });
+    }
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        code: -1,
+        error: '文件不存在'
+      });
+    }
+
+    const fileName = target.fileName || path.basename(filePath);
+    res.setHeader(
+      'Content-Disposition',
+      `${inline ? 'inline' : 'attachment'}; filename=\"${fileName}\"`
+    );
+    res.sendFile(filePath);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/workflow/:projectId/files/download
+ * 下载项目内文件
+ */
+router.get('/:projectId/files/download', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const relativePath = String(req.query.path || '');
+    if (!relativePath) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少文件路径'
+      });
+    }
+    const project = await loadProject(projectId);
+    const workspace = await ensureProjectWorkspace(project);
+    const filePath = path.resolve(workspace.projectRoot, relativePath);
+    const safeRoot = path.resolve(workspace.projectRoot) + path.sep;
+    if (!filePath.startsWith(safeRoot)) {
+      return res.status(400).json({
+        code: -1,
+        error: '非法文件路径'
+      });
+    }
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        code: -1,
+        error: '文件不存在'
+      });
+    }
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=\"${path.basename(filePath)}\"`
+    );
+    res.sendFile(filePath);
   } catch (error) {
     next(error);
   }
@@ -614,9 +1486,12 @@ router.delete('/:projectId/artifacts/:artifactId', async (req, res, next) => {
     }
 
     let deleted = false;
+    let removedArtifact = null;
     const stages = workflow.stages || [];
     for (const stage of stages) {
-      if (stage?.artifacts?.some(a => a.id === artifactId)) {
+      const found = stage?.artifacts?.find(a => a.id === artifactId);
+      if (found) {
+        removedArtifact = found;
         deleted = workflow.removeArtifact(stage.id, artifactId);
         break;
       }
@@ -630,6 +1505,18 @@ router.delete('/:projectId/artifacts/:artifactId', async (req, res, next) => {
     }
 
     await projectRepository.save(project);
+
+    if (removedArtifact?.relativePath) {
+      try {
+        const repoRoot = resolveRepoRoot();
+        const filePath = path.resolve(repoRoot, removedArtifact.relativePath);
+        if (fs.existsSync(filePath)) {
+          await fsPromises.unlink(filePath);
+        }
+      } catch (error) {
+        console.warn('[Workflow] 删除交付物文件失败:', error);
+      }
+    }
 
     res.json({
       code: 0,

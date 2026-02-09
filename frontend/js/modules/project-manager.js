@@ -1518,6 +1518,7 @@ class ProjectManager {
                     </div>
                     <div class="project-panel-hero-actions">
                         <button class="btn-secondary" onclick="projectManager.showReplaceIdeaDialog('${project.id}')">更换创意</button>
+                        <button class="btn-secondary" onclick="projectManager.downloadProjectBundle('${project.id}')">产物包</button>
                         ${shouldRenderWorkflow && canShowPreviewEntry ? `<button class="btn-secondary" onclick="projectManager.openPreviewEntry('${project.id}')">预览入口</button>` : ''}
                     </div>
                 </div>
@@ -3401,7 +3402,8 @@ class ProjectManager {
   /**
    * 关闭项目右侧面板
    */
-  closeProjectPanel() {
+  closeProjectPanel(options = {}) {
+    const { preserveProject = false, keepChatHidden = false } = options;
     const panel = document.getElementById('projectPanel');
     const body = document.getElementById('projectPanelBody');
     const mainContent = document.querySelector('.main-content');
@@ -3417,14 +3419,16 @@ class ProjectManager {
     if (mainContent) {
       mainContent.classList.remove('project-panel-open');
     }
-    if (chatContainer) {
+    if (!keepChatHidden && chatContainer) {
       chatContainer.style.display = 'flex';
     }
 
-    this.currentProjectId = null;
-    this.currentProject = null;
-    this.stopArtifactPolling();
-    this.updateProjectSelection(null);
+    if (!preserveProject) {
+      this.currentProjectId = null;
+      this.currentProject = null;
+      this.stopArtifactPolling();
+      this.updateProjectSelection(null);
+    }
   }
 
   /**
@@ -4786,6 +4790,7 @@ class ProjectManager {
 
       await this.storageManager.saveKnowledge({
         projectId,
+        chatId: normalizedIdeaId,
         scope: 'project',
         type: 'idea',
         title: chat.title || '创意摘要',
@@ -5455,29 +5460,39 @@ class ProjectManager {
   async openProject(projectId) {
     try {
       const backendHealthy = await this.checkBackendHealth();
+      let project = null;
       if (!backendHealthy) {
-        const msg =
-          this.lastHealthError === 'unauthorized' ? '请先登录后再试' : '服务异常，稍候再试';
-        if (window.modalManager) {
-          window.modalManager.alert(msg, 'warning');
-        } else {
-          alert(msg);
+        project = await this.getProject(projectId, {
+          requireRemote: false,
+          allowLocalFallback: true,
+          keepLocalOnMissing: true
+        }).catch(() => null);
+        if (!project) {
+          const msg =
+            this.lastHealthError === 'unauthorized' ? '请先登录后再试' : '服务异常，稍候再试';
+          if (window.modalManager) {
+            window.modalManager.alert(msg, 'warning');
+          } else {
+            alert(msg);
+          }
+          return;
         }
-        return;
-      }
-
-      // 获取项目详情（优先远端，不可用时允许本地兜底）
-      const project = await this.getProject(projectId, {
-        requireRemote: true,
-        allowLocalFallback: true,
-        keepLocalOnMissing: true
-      });
-      if (!project) {
-        throw new Error('项目不存在');
+      } else {
+        // 获取项目详情（优先远端，不可用时允许本地兜底）
+        project = await this.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: true,
+          keepLocalOnMissing: true
+        });
+        if (!project) {
+          throw new Error('项目不存在');
+        }
       }
 
       await this.hydrateProjectStageOutputs(project);
-      await this.syncWorkflowArtifactsFromServer(project);
+      if (backendHealthy) {
+        await this.syncWorkflowArtifactsFromServer(project);
+      }
 
       this.currentProjectId = projectId;
       this.currentProject = project;
@@ -6188,9 +6203,9 @@ class ProjectManager {
       </button>
       <div class="main-title">📁 ${project.name}</div>
       <div class="header-actions">
-        <button class="icon-btn" onclick="window.showKnowledgeBase && window.showKnowledgeBase('project', '${project.id}')" title="项目知识库">
+        <button class="icon-btn" onclick="window.openProjectFiles && window.openProjectFiles('${project.id}')" title="项目文件树">
           <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
           </svg>
         </button>
         <button class="icon-btn" onclick="window.projectManager.editProjectInfo('${project.id}')" title="编辑项目">
@@ -6790,6 +6805,14 @@ class ProjectManager {
         }
       </div>
     `;
+    const filePathMeta = artifact.relativePath
+      ? `
+          <div class="stage-detail-meta-item">
+            <span class="label">文件:</span>
+            <span class="value">${this.escapeHtml(artifact.relativePath)}</span>
+          </div>
+        `
+      : '';
 
     this.stageDetailPanel.innerHTML = `
       <div class="stage-detail-header">
@@ -6809,6 +6832,7 @@ class ProjectManager {
             <span class="label">类型:</span>
             <span class="value">${typeLabel}</span>
           </div>
+          ${filePathMeta}
         </div>
       </div>
       <div class="stage-detail-body">
@@ -6919,6 +6943,113 @@ class ProjectManager {
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('下载失败：' + error.message, 'error');
       }
+    }
+  }
+
+  renderProjectFileTree(nodes = [], depth = 0) {
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      return '';
+    }
+    const indent = depth * 16;
+    return nodes
+      .map(node => {
+        if (node.type === 'directory') {
+          const children = this.renderProjectFileTree(node.children || [], depth + 1);
+          return `
+            <div style="margin-left: ${indent}px; font-weight: 600;">📁 ${this.escapeHtml(node.name)}</div>
+            ${children}
+          `;
+        }
+        const sizeLabel =
+          typeof node.size === 'number' ? ` (${this.formatFileSize(node.size)})` : '';
+        return `<div style="margin-left: ${indent}px; cursor: pointer;" onclick="projectManager.downloadProjectFile('${this.escapeHtml(node.path)}')">📄 ${this.escapeHtml(node.name)}${sizeLabel}</div>`;
+      })
+      .join('');
+  }
+
+  async showProjectFiles(projectId) {
+    try {
+      const response = await this.fetchWithAuth(
+        `${this.apiUrl}/api/workflow/${projectId}/artifacts/tree`,
+        { method: 'GET' }
+      );
+      if (!response.ok) {
+        throw new Error('文件树加载失败');
+      }
+      const result = await response.json();
+      const tree = result?.data?.tree || [];
+      const root = result?.data?.root || '';
+      const treeHTML = this.renderProjectFileTree(tree);
+      const contentHTML = `
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">根目录: ${this.escapeHtml(root)}</div>
+        <div class="project-panel-list" style="max-height: 360px; overflow: auto;">
+          ${treeHTML || '<div class="project-panel-empty">暂无文件</div>'}
+        </div>
+      `;
+      if (window.modalManager?.showCustomModal) {
+        window.modalManager.showCustomModal('📂 项目文件树', contentHTML, 'projectFileTree');
+      } else {
+        alert('项目文件树\\n\\n' + root);
+      }
+    } catch (error) {
+      logger.error('[ProjectManager] 加载文件树失败:', error);
+      window.modalManager?.alert?.('加载文件树失败', 'warning');
+    }
+  }
+
+  async downloadProjectBundle(projectId) {
+    try {
+      const url = `${this.apiUrl}/api/workflow/${projectId}/artifacts/bundle?format=zip`;
+      const response = await this.fetchWithAuth(url, { method: 'GET' });
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const data = await response.json();
+          detail = data?.error || '';
+        } catch (error) {
+          detail = '';
+        }
+        throw new Error(detail || '下载产物包失败');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      link.download = match?.[1] || `${projectId}-artifacts.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      logger.error('[ProjectManager] 下载产物包失败:', error);
+      window.modalManager?.alert?.('下载产物包失败', 'warning');
+    }
+  }
+
+  async downloadProjectFile(relativePath) {
+    try {
+      if (!this.currentProjectId) {
+        throw new Error('未选择项目');
+      }
+      const url = `${this.apiUrl}/api/workflow/${this.currentProjectId}/files/download?path=${encodeURIComponent(relativePath)}`;
+      const response = await this.fetchWithAuth(url, { method: 'GET' });
+      if (!response.ok) {
+        throw new Error('下载文件失败');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = relativePath.split('/').pop() || 'file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      logger.error('[ProjectManager] 下载文件失败:', error);
+      window.modalManager?.alert?.('下载文件失败', 'warning');
     }
   }
 

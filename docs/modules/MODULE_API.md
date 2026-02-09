@@ -189,6 +189,36 @@ window.generateShareLink(); // 自动懒加载并调用
 
 ---
 
+## 工作流交付物文件
+
+**下载/预览真实文件**:
+```
+GET /api/workflow/:projectId/artifacts/:artifactId/file
+```
+
+**参数说明**:
+- `inline=1`：在浏览器内预览（如 HTML/Markdown）
+
+**说明**:
+- 返回的 artifact 数据包含 `relativePath`、`fileName`、`downloadUrl`
+
+**获取文件树**:
+```
+GET /api/workflow/:projectId/artifacts/tree
+```
+
+**下载产物包**:
+```
+GET /api/workflow/:projectId/artifacts/bundle
+```
+
+**下载项目内文件**:
+```
+GET /api/workflow/:projectId/files/download?path=<relativePath>
+```
+
+---
+
 ## Agent协作系统
 
 ### AgentCollaboration (modules/agent-collaboration.js)
@@ -260,6 +290,11 @@ await window.projectManager.updateProject(projectId, updates);
 ```javascript
 window.createNewProject(); // 自动懒加载并调用
 ```
+
+**产物落地说明**:
+- 项目创建后会在项目根路径下生成真实文件夹：`projects/<projectId>__<slug>/`
+- 交付物会同步落地为真实文件，并在返回的 artifact 中提供 `relativePath`、`fileName`、`downloadUrl`
+- 开发阶段自动初始化 `frontend/` 与 `backend/` 脚手架（含最小可运行文件与 `package.json`）
 
 ---
 

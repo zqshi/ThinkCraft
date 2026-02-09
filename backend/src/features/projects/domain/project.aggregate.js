@@ -26,7 +26,8 @@ export class Project extends AggregateRoot {
     assignedAgents = [],
     collaborationSuggestion = null,
     collaborationExecuted = false,
-    missingRecommendedAgents = []
+    missingRecommendedAgents = [],
+    artifactRoot = null
   ) {
     super(id);
     this._userId = userId;
@@ -40,6 +41,7 @@ export class Project extends AggregateRoot {
     this._collaborationSuggestion = collaborationSuggestion;
     this._collaborationExecuted = collaborationExecuted;
     this._missingRecommendedAgents = missingRecommendedAgents;
+    this._artifactRoot = artifactRoot;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
@@ -72,7 +74,8 @@ export class Project extends AggregateRoot {
       [],
       null,
       false,
-      []
+      [],
+      null
     );
 
     // 添加项目创建事件
@@ -120,6 +123,10 @@ export class Project extends AggregateRoot {
       this._missingRecommendedAgents = Array.isArray(updates.missingRecommendedAgents)
         ? updates.missingRecommendedAgents
         : [];
+    }
+
+    if (updates.artifactRoot !== undefined) {
+      this._artifactRoot = updates.artifactRoot;
     }
 
     if (updates.workflow !== undefined) {
@@ -211,6 +218,9 @@ export class Project extends AggregateRoot {
   get missingRecommendedAgents() {
     return this._missingRecommendedAgents;
   }
+  get artifactRoot() {
+    return this._artifactRoot;
+  }
 
   toJSON() {
     return {
@@ -225,7 +235,8 @@ export class Project extends AggregateRoot {
       assignedAgents: this._assignedAgents,
       collaborationSuggestion: this._collaborationSuggestion,
       collaborationExecuted: this._collaborationExecuted,
-      missingRecommendedAgents: this._missingRecommendedAgents
+      missingRecommendedAgents: this._missingRecommendedAgents,
+      artifactRoot: this._artifactRoot
     };
   }
 }

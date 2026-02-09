@@ -3,6 +3,7 @@
  * 处理跨聚合根的业务逻辑
  */
 import { Project } from './project.aggregate.js';
+import { ensureProjectWorkspace } from '../infrastructure/project-files.js';
 
 export class ProjectService {
   constructor(projectRepository) {
@@ -21,6 +22,17 @@ export class ProjectService {
 
     // 创建项目
     const project = Project.create(ideaId, name, mode, userId);
+
+    // 初始化项目文件空间
+    try {
+      const { artifactRoot } = await ensureProjectWorkspace(project);
+      if (!project.artifactRoot && artifactRoot) {
+        project.update({ artifactRoot });
+      }
+    } catch (error) {
+      // 不阻塞项目创建，但记录问题
+      console.warn('[ProjectService] 初始化项目文件空间失败:', error);
+    }
 
     // 保存项目
     await this.projectRepository.save(project);

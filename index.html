@@ -274,14 +274,11 @@
                 <div class="project-panel-header">
                     <div class="project-panel-title" id="projectPanelTitle">项目详情</div>
                     <div class="project-panel-header-actions">
-                        <!-- 知识库入口已暂时屏蔽，后续按需开放 -->
-                        <!--
-                        <button class="icon-btn" onclick="projectManager.openProjectKnowledgePanel()" title="项目知识库">
+                        <button class="icon-btn" onclick="window.openProjectFiles && window.openProjectFiles(projectManager.currentProjectId)" title="项目文件树">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                             </svg>
                         </button>
-                        -->
                         <button class="icon-btn" onclick="projectManager.editCurrentProjectName()" title="编辑项目">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
@@ -304,16 +301,29 @@
                     <!-- 左侧：组织树 -->
                     <div class="knowledge-sidebar">
                         <div class="knowledge-org-switcher">
+                            <button data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
                             <button class="active" data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
                             <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
                             <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
                         </div>
                         <div id="knowledgeOrgTree" class="knowledge-org-tree"></div>
+                        <div id="fileTree" class="knowledge-org-tree" style="display: none;"></div>
                     </div>
 
                     <!-- 右侧：知识列表 -->
                     <div class="knowledge-main">
-                        <div class="knowledge-toolbar">
+                        <div class="knowledge-panel-top">
+                            <div class="knowledge-panel-title">知识库</div>
+                            <button class="icon-btn" onclick="closeKnowledgePanel({ showProjectPanel: true })" title="关闭知识库">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="knowledge-tabs">
+                            <button data-tab="files" onclick="switchKnowledgeTab('files')">文件树</button>
+                        </div>
+                        <div class="knowledge-toolbar" id="knowledgeToolbar">
                             <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
                             <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
                                 <option value="">所有类型</option>
@@ -339,6 +349,21 @@
                             <div class="empty-title">暂无知识沉淀</div>
                             <div class="empty-subtitle">创建第一个知识条目</div>
                             <button class="btn-primary" onclick="createKnowledge()" style="margin-top: 16px;">新建知识</button>
+                        </div>
+                        <div id="filePanel" style="display: none;">
+                            <div class="knowledge-toolbar" id="fileToolbar">
+                                <input type="text" id="fileSearch" placeholder="搜索文件..." oninput="onFileSearch(this.value)">
+                                <button class="btn-secondary" onclick="refreshFileTree()">刷新</button>
+                            </div>
+                            <div class="file-view">
+                                <div id="fileList" class="file-list"></div>
+                                <div id="filePreview" class="file-preview">
+                                    <div class="empty-state">
+                                        <div class="empty-title">选择一个文件预览</div>
+                                        <div class="empty-subtitle">支持 Markdown、代码、图片、HTML</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

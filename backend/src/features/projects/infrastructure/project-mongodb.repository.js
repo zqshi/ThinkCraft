@@ -373,7 +373,8 @@ export class ProjectMongoRepository {
       doc.assignedAgents || [],
       doc.collaborationSuggestion || null,
       Boolean(doc.collaborationExecuted),
-      doc.missingRecommendedAgents || []
+      doc.missingRecommendedAgents || [],
+      doc.artifactRoot || null
     );
 
     // 设置时间戳

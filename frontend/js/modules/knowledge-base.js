@@ -16,6 +16,10 @@
 class KnowledgeBase {
     constructor() {
         this.state = window.state;
+        this.fileTree = [];
+        this.fileList = [];
+        this.selectedFilePath = null;
+        this.eventsBound = false;
     }
 
     /**
@@ -31,9 +35,9 @@ class KnowledgeBase {
      * 支持全局模式和项目模式。
      */
     async showKnowledgeBase(mode = 'global', projectId = null) {
-        // 关闭项目面板
+        // 关闭项目面板（保留当前项目，避免切回对话）
         if (window.projectManager) {
-            window.projectManager.closeProjectPanel();
+            window.projectManager.closeProjectPanel({ preserveProject: true, keepChatHidden: true });
         }
 
         // 设置视图模式
@@ -60,6 +64,169 @@ class KnowledgeBase {
         if (chatContainer) chatContainer.style.display = 'none';
         knowledgePanel.style.display = 'flex';
         if (inputContainer) inputContainer.style.display = 'none';
+
+        this.ensureKnowledgePanelInteractive();
+        this.closeBlockingLayers();
+        this.detectBlockingLayers();
+        setTimeout(() => {
+            this.closeBlockingLayers();
+            this.detectBlockingLayers();
+        }, 0);
+
+        this.finishOnboardingIfActive();
+
+        this.bindKnowledgeEvents();
+        console.log('[KnowledgeBase] showKnowledgeBase ready', {
+            mode,
+            projectId,
+            knowledgePanel: Boolean(knowledgePanel),
+            display: knowledgePanel?.style?.display
+        });
+        this.switchKnowledgeTab('files');
+    }
+
+    finishOnboardingIfActive() {
+        const overlay = document.getElementById('onboardingOverlay');
+        const isOverlayActive =
+            overlay &&
+            (overlay.style.display === 'block' ||
+             overlay.style.display === 'flex' ||
+             overlay.classList.contains('active'));
+        if (isOverlayActive && window.onboardingManager?.finish) {
+            console.warn('[KnowledgeBase] finish onboarding to unblock UI');
+            window.onboardingManager.finish();
+        }
+
+        if (typeof closeSettings === 'function') {
+            closeSettings();
+        } else if (typeof closeBottomSettings === 'function') {
+            closeBottomSettings();
+        }
+    }
+
+    ensureKnowledgePanelInteractive() {
+        const knowledgePanel = document.getElementById('knowledgePanel');
+        if (!knowledgePanel) return;
+        knowledgePanel.style.zIndex = '12';
+        knowledgePanel.style.pointerEvents = 'auto';
+        knowledgePanel.dataset.kbReady = '1';
+        const content = knowledgePanel.querySelector('.knowledge-panel-content');
+        if (content) {
+            content.style.pointerEvents = 'auto';
+        }
+    }
+
+    closeBlockingLayers() {
+        const overlays = [
+            '.stage-detail-panel-overlay',
+            '.stage-detail-panel',
+            '.onboarding-overlay',
+            '.bottom-sheet',
+            '.bottom-sheet-overlay',
+            '.modal.active'
+        ];
+
+        overlays.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                el.classList.remove('open');
+                el.classList.remove('active');
+                el.style.display = 'none';
+                el.style.pointerEvents = 'none';
+                if (selector === '.onboarding-overlay' || selector === '.bottom-sheet-overlay') {
+                    el.remove();
+                }
+            });
+        });
+    }
+
+    detectBlockingLayers() {
+        const candidates = [
+            { selector: '.stage-detail-panel-overlay.open', label: 'stage-detail-panel-overlay' },
+            { selector: '.stage-detail-panel.open', label: 'stage-detail-panel' },
+            { selector: '.onboarding-overlay', label: 'onboarding-overlay' },
+            { selector: '.bottom-sheet.active', label: 'bottom-sheet' },
+            { selector: '.bottom-sheet-overlay', label: 'bottom-sheet-overlay' },
+            { selector: '.modal.active', label: 'modal' }
+        ];
+
+        const found = candidates
+            .filter(item => document.querySelector(item.selector))
+            .map(item => item.label);
+
+        if (found.length > 0) {
+            console.warn('[KnowledgeBase] blocking layers detected:', found);
+        }
+    }
+
+    bindKnowledgeEvents() {
+        if (this.eventsBound) return;
+        this.eventsBound = true;
+
+        console.log('[KnowledgeBase] bindKnowledgeEvents');
+
+        document.addEventListener('click', event => {
+            const panel = event.target.closest('#knowledgePanel');
+            if (!panel) return;
+
+            console.log('[KnowledgeBase] click', {
+                target: event.target?.tagName,
+                className: event.target?.className,
+                knowledgeId: event.target.closest('[data-knowledge-id]')?.dataset?.knowledgeId || null,
+                projectId: event.target.closest('[data-project-id]')?.dataset?.projectId || null,
+                action: event.target.closest('[data-action]')?.dataset?.action || null
+            });
+
+            const actionEl = event.target.closest('[data-action]');
+            if (actionEl) {
+                const action = actionEl.dataset.action;
+                if (action === 'toggle-org') {
+                    const groupId = actionEl.dataset.groupId;
+                    if (groupId) {
+                        if (window.toggleOrgGroup) {
+                            window.toggleOrgGroup(groupId);
+                        }
+                    }
+                    return;
+                }
+                if (action === 'filter-tag') {
+                    const tag = actionEl.dataset.tag;
+                    if (tag) {
+                        if (window.filterByTag) {
+                            window.filterByTag(tag);
+                        }
+                    }
+                    return;
+                }
+            }
+
+            const knowledgeItem = event.target.closest('[data-knowledge-id]');
+            if (knowledgeItem) {
+                const knowledgeId = knowledgeItem.dataset.knowledgeId;
+                if (knowledgeId) {
+                    console.log('[KnowledgeBase] viewKnowledge', knowledgeId);
+                    this.viewKnowledge(knowledgeId);
+                }
+                return;
+            }
+
+            const projectHeader = event.target.closest('[data-project-id]');
+            if (projectHeader) {
+                const projectId = projectHeader.dataset.projectId;
+                if (projectId) {
+                    console.log('[KnowledgeBase] openProjectFromKnowledge', projectId);
+                    this.openProjectFromKnowledge(projectId);
+                }
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                const panel = document.getElementById('knowledgePanel');
+                if (panel && panel.style.display !== 'none') {
+                    this.closeKnowledgePanel({ animated: true });
+                }
+            }
+        });
     }
 
     /**
@@ -68,11 +235,40 @@ class KnowledgeBase {
      * @description
      * 隐藏知识库面板，显示聊天界面。
      */
-    closeKnowledgePanel() {
-        document.getElementById('knowledgePanel').style.display = 'none';
-        document.getElementById('chatContainer').style.display = 'flex';
+    closeKnowledgePanel(options = {}) {
+        const { animated = false, showProjectPanel = false } = options;
+        const panel = document.getElementById('knowledgePanel');
+        if (!panel) {
+            return;
+        }
+        if (animated) {
+            panel.classList.add('closing');
+            setTimeout(() => {
+                panel.classList.remove('closing');
+                panel.style.display = 'none';
+            }, 250);
+        } else {
+            panel.style.display = 'none';
+        }
+        const chatContainer = document.getElementById('chatContainer');
+        if (chatContainer) {
+            chatContainer.style.display = 'flex';
+        }
         const inputContainer = document.getElementById('inputContainer');
         if (inputContainer) inputContainer.style.display = 'block';
+
+        if (showProjectPanel && window.projectManager) {
+            const project =
+                window.projectManager.currentProject ||
+                (window.projectManager.currentProjectId
+                    ? window.projectManager.getProject?.(window.projectManager.currentProjectId)
+                    : null);
+            Promise.resolve(project).then(resolved => {
+                if (resolved) {
+                    window.projectManager.renderProjectPanel(resolved);
+                }
+            });
+        }
     }
 
     /**
@@ -122,6 +318,279 @@ class KnowledgeBase {
         } catch (error) {
             alert('加载知识库失败: ' + error.message);
         }
+    }
+
+    switchKnowledgeTab(tab) {
+        const tabs = document.querySelectorAll('.knowledge-tabs button');
+        tabs.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tab);
+        });
+        const knowledgeToolbar = document.getElementById('knowledgeToolbar');
+        const fileToolbar = document.getElementById('fileToolbar');
+        const knowledgeList = document.getElementById('knowledgeList');
+        const knowledgeEmpty = document.getElementById('knowledgeEmpty');
+        const filePanel = document.getElementById('filePanel');
+        const knowledgeTree = document.getElementById('knowledgeOrgTree');
+        const fileTree = document.getElementById('fileTree');
+        const orgSwitcher = document.querySelector('.knowledge-org-switcher');
+
+        if (tab === 'files') {
+            if (knowledgeToolbar) knowledgeToolbar.style.display = 'none';
+            if (fileToolbar) fileToolbar.style.display = 'flex';
+            if (knowledgeList) knowledgeList.style.display = 'none';
+            if (knowledgeEmpty) knowledgeEmpty.style.display = 'none';
+            if (filePanel) filePanel.style.display = 'block';
+            if (orgSwitcher) orgSwitcher.style.display = 'none';
+            if (knowledgeTree) knowledgeTree.style.display = 'none';
+            if (fileTree) fileTree.style.display = 'block';
+            this.loadFileTree();
+        } else {
+            if (knowledgeToolbar) knowledgeToolbar.style.display = 'flex';
+            if (fileToolbar) fileToolbar.style.display = 'none';
+            if (filePanel) filePanel.style.display = 'none';
+            if (orgSwitcher) orgSwitcher.style.display = 'flex';
+            if (knowledgeTree) knowledgeTree.style.display = 'block';
+            if (fileTree) fileTree.style.display = 'none';
+            this.renderKnowledgeList();
+        }
+    }
+
+    async loadFileTree() {
+        const projectId = window.stateManager?.state?.knowledge?.currentProjectId;
+        const treeContainer = document.getElementById('fileTree');
+        if (!projectId) {
+            if (treeContainer) {
+                treeContainer.innerHTML = '<div class="knowledge-empty">请选择项目查看文件树</div>';
+            }
+            return;
+        }
+        try {
+            const response = await this.fetchWithAuth(
+                `${window.projectManager?.apiUrl || ''}/api/workflow/${projectId}/artifacts/tree`,
+                { method: 'GET' }
+            );
+            if (!response.ok) {
+                throw new Error('文件树加载失败');
+            }
+            const result = await response.json();
+            this.fileTree = result?.data?.tree || [];
+            this.renderFileTree();
+            this.renderFileList(this.fileTree);
+        } catch (error) {
+            if (treeContainer) {
+                treeContainer.innerHTML = '<div class="knowledge-empty">加载文件树失败</div>';
+            }
+        }
+    }
+
+    renderFileTree() {
+        const container = document.getElementById('fileTree');
+        if (!container) return;
+        const html = this.renderFileTreeNodes(this.fileTree, 0);
+        container.innerHTML = html || '<div class="knowledge-empty">暂无文件</div>';
+    }
+
+    renderFileTreeNodes(nodes, depth) {
+        if (!Array.isArray(nodes) || nodes.length === 0) {
+            return '';
+        }
+        const indent = depth * 12;
+        return nodes
+            .map(node => {
+                if (node.type === 'directory') {
+                    const children = this.renderFileTreeNodes(node.children || [], depth + 1);
+                    return `
+                        <div class="org-item" style="margin-left: ${indent}px;" onclick="selectFileTreeNode('${this.escapeHtml(node.path)}','directory')">
+                            📁 ${this.escapeHtml(node.name)}
+                        </div>
+                        ${children}
+                    `;
+                }
+                return `
+                    <div class="org-item" style="margin-left: ${indent}px;" onclick="selectFileTreeNode('${this.escapeHtml(node.path)}','file')">
+                        📄 ${this.escapeHtml(node.name)}
+                    </div>
+                `;
+            })
+            .join('');
+    }
+
+    renderFileList(nodes) {
+        const list = this.flattenFiles(nodes);
+        this.fileList = list;
+        const container = document.getElementById('fileList');
+        if (!container) return;
+        container.innerHTML = list
+            .map(item => `
+                <div class="file-item ${this.selectedFilePath === item.path ? 'active' : ''}" onclick="previewFile('${this.escapeHtml(item.path)}')">
+                    <span>${this.escapeHtml(item.name)}</span>
+                    <span style="font-size: 12px; opacity: 0.7;">${this.formatFileSize(item.size || 0)}</span>
+                </div>
+            `)
+            .join('');
+    }
+
+    flattenFiles(nodes, collected = []) {
+        (nodes || []).forEach(node => {
+            if (node.type === 'file') {
+                collected.push(node);
+            } else if (node.type === 'directory') {
+                this.flattenFiles(node.children || [], collected);
+            }
+        });
+        return collected;
+    }
+
+    async previewFile(path) {
+        this.selectedFilePath = path;
+        this.renderFileList(this.fileTree);
+        const preview = document.getElementById('filePreview');
+        if (!preview) return;
+        preview.innerHTML = '<div class="empty-state"><div class="empty-title">加载预览...</div></div>';
+        try {
+            const projectId = window.stateManager?.state?.knowledge?.currentProjectId;
+            const url = `${window.projectManager?.apiUrl || ''}/api/workflow/${projectId}/files/download?path=${encodeURIComponent(path)}`;
+            const response = await this.fetchWithAuth(url, { method: 'GET' });
+            if (!response.ok) {
+                throw new Error('预览失败');
+            }
+            const ext = (path.split('.').pop() || '').toLowerCase();
+            if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                preview.innerHTML = `<img src="${blobUrl}" style="max-width: 100%; border-radius: 8px;" />`;
+                return;
+            }
+            if (['html', 'htm'].includes(ext)) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                preview.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 480px; border: none;"></iframe>`;
+                return;
+            }
+            const text = await response.text();
+            if (['md', 'markdown'].includes(ext) && window.markdownRenderer) {
+                const rendered = window.markdownRenderer.render(text);
+                preview.innerHTML = `<div class="markdown-content">${rendered}</div>`;
+            } else if (this.isCodeExtension(ext)) {
+                const lang = this.mapCodeLanguage(ext);
+                preview.innerHTML = `<pre><code class="language-${lang}">${this.escapeHtml(text)}</code></pre>`;
+                if (window.Prism) {
+                    setTimeout(() => window.Prism.highlightAll(), 50);
+                }
+            } else {
+                preview.innerHTML = `<pre>${this.escapeHtml(text)}</pre>`;
+            }
+        } catch (error) {
+            preview.innerHTML = '<div class="empty-state"><div class="empty-title">预览失败</div></div>';
+        }
+    }
+
+    onFileSearch(keyword) {
+        const term = String(keyword || '').toLowerCase();
+        const filtered = this.fileList.filter(item => item.name.toLowerCase().includes(term));
+        const container = document.getElementById('fileList');
+        if (!container) return;
+        container.innerHTML = filtered
+            .map(item => `
+                <div class="file-item ${this.selectedFilePath === item.path ? 'active' : ''}" onclick="previewFile('${this.escapeHtml(item.path)}')">
+                    <span>${this.escapeHtml(item.name)}</span>
+                    <span style="font-size: 12px; opacity: 0.7;">${this.formatFileSize(item.size || 0)}</span>
+                </div>
+            `)
+            .join('');
+    }
+
+    async refreshFileTree() {
+        await this.loadFileTree();
+    }
+
+    async selectFileTreeNode(path) {
+        const node = this.findNodeByPath(this.fileTree, path);
+        if (!node) {
+            return;
+        }
+        if (node.type === 'directory') {
+            this.renderFileList(node.children || []);
+            return;
+        }
+        await this.previewFile(path);
+    }
+
+    async fetchWithAuth(url, options = {}) {
+        if (window.projectManager?.fetchWithAuth) {
+            return window.projectManager.fetchWithAuth(url, options);
+        }
+        return fetch(url, options);
+    }
+
+    formatFileSize(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    findNodeByPath(nodes, path) {
+        if (!Array.isArray(nodes)) {
+            return null;
+        }
+        for (const node of nodes) {
+            if (node.path === path) {
+                return node;
+            }
+            if (node.type === 'directory') {
+                const hit = this.findNodeByPath(node.children || [], path);
+                if (hit) return hit;
+            }
+        }
+        return null;
+    }
+
+    escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    isCodeExtension(ext) {
+        return [
+            'js',
+            'ts',
+            'jsx',
+            'tsx',
+            'json',
+            'css',
+            'scss',
+            'less',
+            'html',
+            'htm',
+            'yaml',
+            'yml',
+            'sh',
+            'bash',
+            'py',
+            'java',
+            'go',
+            'rs'
+        ].includes(ext);
+    }
+
+    mapCodeLanguage(ext) {
+        const map = {
+            js: 'javascript',
+            jsx: 'javascript',
+            ts: 'typescript',
+            tsx: 'typescript',
+            py: 'python',
+            sh: 'bash',
+            bash: 'bash',
+            yml: 'yaml'
+        };
+        return map[ext] || ext || 'text';
     }
 
     /**
@@ -198,7 +667,7 @@ class KnowledgeBase {
         emptyState.style.display = 'none';
 
         listContainer.innerHTML = items.map(item => `
-            <div class="knowledge-card" onclick="viewKnowledge('${item.id}')">
+            <div class="knowledge-card" data-knowledge-id="${item.id}">
                 <div class="knowledge-card-header">
                     <div class="knowledge-icon" style="background: ${this.getTypeColor(item.type)}">
                         ${item.icon || '📘'}
@@ -272,12 +741,12 @@ class KnowledgeBase {
         if (grouped.global && grouped.global.length > 0) {
             html.push(`
                 <div class="org-group">
-                    <div class="org-group-header" onclick="toggleOrgGroup('global')">
+                    <div class="org-group-header" data-action="toggle-org" data-group-id="global">
                         <span>🌍 全局知识库 (${grouped.global.length})</span>
                     </div>
                     <div class="org-group-content" id="org-global">
                         ${grouped.global.map(item => `
-                            <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                            <div class="org-item" data-knowledge-id="${item.id}">
                                 ${item.icon} ${item.title}
                             </div>
                         `).join('')}
@@ -294,12 +763,13 @@ class KnowledgeBase {
 
             html.push(`
                 <div class="org-group">
-                    <div class="org-group-header" onclick="toggleOrgGroup('${projectId}')">
+                    <div class="org-group-header" data-project-id="${projectId}">
                         <span>📁 ${projectName} (${projectItems.length})</span>
+                        <button class="btn-secondary org-group-toggle" data-action="toggle-org" data-group-id="${projectId}" style="margin-left: auto; padding: 2px 8px; font-size: 11px;">展开</button>
                     </div>
                     <div class="org-group-content" id="org-${projectId}">
                         ${projectItems.map(item => `
-                            <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                            <div class="org-item" data-knowledge-id="${item.id}">
                                 ${item.icon} ${item.title}
                             </div>
                         `).join('')}
@@ -335,12 +805,12 @@ class KnowledgeBase {
 
             html.push(`
                 <div class="org-group">
-                    <div class="org-group-header" onclick="toggleOrgGroup('type-${type}')">
+                    <div class="org-group-header" data-action="toggle-org" data-group-id="type-${type}">
                         <span>${typeInfo.icon} ${typeInfo.label} (${typeItems.length})</span>
                     </div>
                     <div class="org-group-content" id="org-type-${type}">
                         ${typeItems.map(item => `
-                            <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                            <div class="org-item" data-knowledge-id="${item.id}">
                                 ${item.icon} ${item.title}
                             </div>
                         `).join('')}
@@ -389,12 +859,12 @@ class KnowledgeBase {
 
             html.push(`
                 <div class="org-group">
-                    <div class="org-group-header" onclick="toggleOrgGroup('time-${key}')">
+                    <div class="org-group-header" data-action="toggle-org" data-group-id="time-${key}">
                         <span>📅 ${timeline.label} (${timeline.items.length})</span>
                     </div>
                     <div class="org-group-content" id="org-time-${key}">
                         ${timeline.items.map(item => `
-                            <div class="org-item" onclick="selectKnowledge('${item.id}')">
+                            <div class="org-item" data-knowledge-id="${item.id}">
                                 ${item.icon} ${item.title}
                             </div>
                         `).join('')}
@@ -425,7 +895,7 @@ class KnowledgeBase {
             const count = stats.byTag[tag];
             return `
                 <div class="org-group">
-                    <div class="org-group-header" onclick="filterByTag('${tag}')">
+                    <div class="org-group-header" data-action="filter-tag" data-tag="${tag}">
                         <span>🏷️ ${tag} (${count})</span>
                     </div>
                 </div>
@@ -449,6 +919,19 @@ class KnowledgeBase {
         const item = await window.storageManager.getKnowledge(id);
         if (!item) {
             alert('知识不存在');
+            return;
+        }
+
+        if (!item.chatId && item.type === 'idea' && item.projectId && window.storageManager?.getProject) {
+            const project = await window.storageManager.getProject(item.projectId).catch(() => null);
+            if (project?.ideaId) {
+                item.chatId = project.ideaId;
+                await window.storageManager.saveKnowledge(item);
+            }
+        }
+
+        if (item.chatId) {
+            await this.openChatFromKnowledge(item.chatId);
             return;
         }
 
@@ -498,6 +981,59 @@ class KnowledgeBase {
                 modal.remove();
             }
         });
+    }
+
+    async openChatFromKnowledge(chatId) {
+        if (!chatId) {
+            return;
+        }
+        try {
+            console.debug('[KnowledgeBase] openChatFromKnowledge', chatId);
+            this.closeKnowledgePanel();
+            if (typeof window.switchSidebarTab === 'function') {
+                window.switchSidebarTab('chats');
+            }
+            if (window.chatManager?.ensureChatDom) {
+                window.chatManager.ensureChatDom();
+            }
+            if (window.chatList?.loadChats) {
+                await window.chatList.loadChats({ preferLocal: true });
+            }
+            if (window.chatList?.loadChatById) {
+                await window.chatList.loadChatById(chatId);
+                return;
+            }
+            if (window.chatManager?.loadChat) {
+                await window.chatManager.loadChat(chatId);
+            }
+        } catch (error) {
+            console.warn('[KnowledgeBase] 打开对话失败:', error);
+        }
+    }
+
+    async openProjectFromKnowledge(projectId) {
+        if (!projectId) {
+            return;
+        }
+        try {
+            console.debug('[KnowledgeBase] openProjectFromKnowledge', projectId);
+            this.closeKnowledgePanel({ animated: true });
+            if (typeof window.switchSidebarTab === 'function') {
+                window.switchSidebarTab('team');
+            }
+            if (!window.projectManager && window.moduleLazyLoader?.load) {
+                await window.moduleLazyLoader.load('projectManager');
+            }
+            if (window.projectManager?.init && !window.projectManager.projectsLoaded) {
+                await window.projectManager.init();
+            }
+            // 等待滑出动画结束再打开项目面板，避免被知识库遮挡
+            setTimeout(() => {
+                window.projectManager?.openProject?.(projectId);
+            }, 260);
+        } catch (error) {
+            console.warn('[KnowledgeBase] 打开项目失败:', error);
+        }
     }
 
     /**
@@ -776,8 +1312,8 @@ function showKnowledgeBase(mode, projectId) {
     return window.knowledgeBase.showKnowledgeBase(mode, projectId);
 }
 
-function closeKnowledgePanel() {
-    window.knowledgeBase.closeKnowledgePanel();
+function closeKnowledgePanel(options = {}) {
+    window.knowledgeBase.closeKnowledgePanel(options);
 }
 
 function closeKnowledgeBase() {
@@ -841,4 +1377,45 @@ window.saveNewKnowledge = saveNewKnowledge;
 window.viewKnowledge = viewKnowledge;
 window.toggleOrgGroup = toggleOrgGroup;
 window.selectKnowledge = selectKnowledge;
+
+function switchKnowledgeTab(tab) {
+    return window.knowledgeBase.switchKnowledgeTab(tab);
+}
+
+function refreshFileTree() {
+    return window.knowledgeBase.refreshFileTree();
+}
+
+function onFileSearch(keyword) {
+    return window.knowledgeBase.onFileSearch(keyword);
+}
+
+function previewFile(path) {
+    return window.knowledgeBase.previewFile(path);
+}
+
+function selectFileTreeNode(path) {
+    return window.knowledgeBase.selectFileTreeNode(path);
+}
+
+function openProjectFiles(projectId) {
+    if (window.showKnowledgeBase) {
+        window.showKnowledgeBase('project', projectId);
+        setTimeout(() => {
+            window.switchKnowledgeTab('files');
+        }, 0);
+    }
+}
+
+function openProjectFromKnowledge(projectId) {
+    return window.knowledgeBase?.openProjectFromKnowledge?.(projectId);
+}
+
+window.switchKnowledgeTab = switchKnowledgeTab;
+window.refreshFileTree = refreshFileTree;
+window.onFileSearch = onFileSearch;
+window.previewFile = previewFile;
+window.selectFileTreeNode = selectFileTreeNode;
+window.openProjectFiles = openProjectFiles;
+window.openProjectFromKnowledge = openProjectFromKnowledge;
 window.filterByTag = filterByTag;

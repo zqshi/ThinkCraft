@@ -28,7 +28,12 @@ const WorkflowStageSchema = new mongoose.Schema(
         agentName: String,
         source: String,
         tokens: Number,
-        createdAt: Date
+        createdAt: Date,
+        fileName: String,
+        relativePath: String,
+        fileSize: Number,
+        downloadUrl: String,
+        previewUrl: String
       }
     ],
     startedAt: Date,
@@ -67,6 +72,7 @@ const ProjectSchema = new mongoose.Schema(
     collaborationSuggestion: { type: mongoose.Schema.Types.Mixed, default: null },
     collaborationExecuted: { type: Boolean, default: false },
     missingRecommendedAgents: { type: [String], default: [] },
+    artifactRoot: { type: String, default: null },
     status: {
       type: String,
       required: true,

@@ -14,6 +14,10 @@ class ChatList {
    * 开始新对话
    */
   async startNewChat() {
+    if (window.chatManager?.ensureChatDom) {
+      window.chatManager.ensureChatDom();
+    }
+
     // ⭐ 静默保存当前对话（无需确认弹窗）
     if (state.messages.length > 0 && state.settings.saveHistory) {
       if (typeof saveCurrentChat === 'function') {
@@ -40,9 +44,13 @@ class ChatList {
     state.autoScrollLocked = false;
 
     // 清空UI
-    document.getElementById('emptyState').style.display = 'flex';
-    document.getElementById('messageList').style.display = 'none';
-    document.getElementById('messageList').innerHTML = '';
+    const emptyState = document.getElementById('emptyState');
+    const messageList = document.getElementById('messageList');
+    if (emptyState) emptyState.style.display = 'flex';
+    if (messageList) {
+      messageList.style.display = 'none';
+      messageList.innerHTML = '';
+    }
 
     // 智能检测：如果侧边栏处于覆盖模式（移动端），自动关闭并显示对话窗口
     const sidebar = document.getElementById('sidebar');

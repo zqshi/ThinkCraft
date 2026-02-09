@@ -158,6 +158,7 @@ export class ProjectResponseDTO {
     this.collaborationSuggestion = project.collaborationSuggestion;
     this.collaborationExecuted = project.collaborationExecuted;
     this.missingRecommendedAgents = project.missingRecommendedAgents;
+    this.artifactRoot = project.artifactRoot || null;
     this.createdAt = project.createdAt;
     this.updatedAt = project.updatedAt;
 

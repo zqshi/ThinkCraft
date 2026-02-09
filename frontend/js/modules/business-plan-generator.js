@@ -6,7 +6,7 @@
 /* global normalizeChatId */
 
 // 创建日志实例（避免脚本被重复加载时报错）
-const logger =
+var logger =
   window.__businessPlanLogger ||
   (window.__businessPlanLogger = window.createLogger
     ? window.createLogger('BusinessPlan')

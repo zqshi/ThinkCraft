@@ -52,6 +52,25 @@ class ChatManager {
     return activeInput ? activeInput.value : '';
   }
 
+  ensureChatDom() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    const hasEmptyState = Boolean(document.getElementById('emptyState'));
+    const hasMessageList = Boolean(document.getElementById('messageList'));
+    if (hasEmptyState && hasMessageList) return;
+
+    chatContainer.innerHTML = `
+      <div class="empty-state" id="emptyState">
+        <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+        <div class="empty-title">苏格拉底式思维引导</div>
+        <div class="empty-subtitle">通过深度提问，帮助你理清创意思路、发现盲点、形成结构化洞察</div>
+      </div>
+      <div id="messageList" style="display: none;"></div>
+    `;
+  }
+
   normalizeAutoTitle(rawTitle) {
     if (!rawTitle || typeof rawTitle !== 'string') return '';
     let title = rawTitle.trim();
@@ -364,6 +383,23 @@ class ChatManager {
       }
     }
 
+    if (!chat && window.storageManager?.getChat) {
+      try {
+        const localChat = await window.storageManager.getChat(chatId);
+        if (localChat) {
+          chat = localChat;
+          const existingIndex = this.state.chats.findIndex(c => String(c.id) === String(chatId));
+          if (existingIndex !== -1) {
+            this.state.chats[existingIndex] = localChat;
+          } else {
+            this.state.chats.unshift(localChat);
+          }
+        }
+      } catch (error) {
+        console.warn('[ChatManager] 加载本地对话失败:', error);
+      }
+    }
+
     if (!chat) return;
 
     const currentChatId = this.state.currentChat;
@@ -414,14 +450,10 @@ class ChatManager {
         if (!stateEntry) continue;
         const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
         const nextData = stateEntry.data ?? existing?.data ?? null;
-        const nextStatus = stateEntry.status ?? existing?.status;
+        let nextStatus = stateEntry.status ?? existing?.status;
         if (nextStatus === 'completed' && !nextData) {
-          console.warn('[ChatManager] 跳过写入完成状态但缺少数据的报告', {
-            chatId: chat.id,
-            type,
-            status: nextStatus
-          });
-          continue;
+          // 修正异常状态：完成但无数据 -> 回退为 pending
+          nextStatus = 'pending';
         }
         await window.storageManager.saveReport({
           id: existing?.id,
@@ -429,9 +461,12 @@ class ChatManager {
           chatId: chat.id,
           data: nextData,
           status: nextStatus,
-          progress: stateEntry.progress ?? existing?.progress,
-          startTime: stateEntry.startTime ?? existing?.startTime,
-          endTime: stateEntry.endTime ?? existing?.endTime,
+          progress:
+            nextStatus === 'pending'
+              ? { current: 0, total: 0, currentAgent: null, percentage: 0 }
+              : stateEntry.progress ?? existing?.progress,
+          startTime: nextStatus === 'pending' ? null : stateEntry.startTime ?? existing?.startTime,
+          endTime: nextStatus === 'pending' ? null : stateEntry.endTime ?? existing?.endTime,
           error: stateEntry.error ?? existing?.error ?? null,
           selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
         });
@@ -466,10 +501,17 @@ class ChatManager {
       }
     }
 
+    // 确保聊天容器基础结构存在
+    this.ensureChatDom();
+
     // 清空并重新渲染消息列表
     const messageList = document.getElementById('messageList');
+    const emptyState = document.getElementById('emptyState');
+    if (!messageList || !emptyState) {
+      return;
+    }
     messageList.innerHTML = '';
-    document.getElementById('emptyState').style.display = 'none';
+    emptyState.style.display = 'none';
     messageList.style.display = 'block';
 
     // 渲染所有消息
