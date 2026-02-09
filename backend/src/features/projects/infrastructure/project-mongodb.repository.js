@@ -150,12 +150,12 @@ export class ProjectMongoRepository {
         }
       }
 
-      console.log(
-        '[DEBUG] save - project status:',
+      logger.debug(
+        '[ProjectMongoRepository] save - project status:',
         project.status?.value || project._status?.value
       );
-      console.log('[DEBUG] save - data.status:', data.status);
-      console.log('[DEBUG] save - data._id:', data._id);
+      logger.debug('[ProjectMongoRepository] save - data.status:', data.status);
+      logger.debug('[ProjectMongoRepository] save - data._id:', data._id);
 
       // 使用 updateOne 而不是 findByIdAndUpdate，因为我们使用自定义字符串 ID
       const { _id, ...updateData } = data;
@@ -350,7 +350,9 @@ export class ProjectMongoRepository {
       const rawStages = doc.workflow.stages;
       const stages = Array.isArray(rawStages)
         ? rawStages
-        : rawStages && typeof rawStages === 'object' && (rawStages.id || rawStages.name || rawStages.status)
+        : rawStages &&
+            typeof rawStages === 'object' &&
+            (rawStages.id || rawStages.name || rawStages.status)
           ? [rawStages]
           : Object.values(rawStages || {});
       workflow = Workflow.fromJSON({

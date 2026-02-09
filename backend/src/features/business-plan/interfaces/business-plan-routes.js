@@ -5,6 +5,7 @@
 import express from 'express';
 import { callDeepSeekAPI, getCostStats } from '../../../../config/deepseek.js';
 import promptLoader from '../../../utils/prompt-loader.js';
+import { callDeepResearchService } from '../../../infrastructure/ai/deep-research-http-client.js';
 
 const router = express.Router();
 
@@ -14,44 +15,44 @@ let PROPOSAL_PROMPTS = {};
 
 // 初始化提示词
 async function initializePrompts() {
-    try {
-        CHAPTER_PROMPTS = await promptLoader.loadBusinessPlanChapters();
-        PROPOSAL_PROMPTS = await promptLoader.loadProposalChapters();
-        console.log('✅ Business plan prompts loaded successfully');
-        console.log('✅ Proposal prompts loaded successfully');
-    } catch (error) {
-        console.error('❌ Failed to load prompts:', error.message);
-        throw error;
-    }
+  try {
+    CHAPTER_PROMPTS = await promptLoader.loadBusinessPlanChapters();
+    PROPOSAL_PROMPTS = await promptLoader.loadProposalChapters();
+    console.log('✅ Business plan prompts loaded successfully');
+    console.log('✅ Proposal prompts loaded successfully');
+  } catch (error) {
+    console.error('❌ Failed to load prompts:', error.message);
+    throw error;
+  }
 }
 
 // 启动时加载提示词
 try {
-    await initializePrompts();
+  await initializePrompts();
 } catch (error) {
-    console.error('❌ Failed to initialize business plan prompts:', error.message);
+  console.error('❌ Failed to initialize business plan prompts:', error.message);
 }
 
 // Agent信息（用于前端显示）
 const CHAPTER_AGENTS = {
-    'executive-summary': { name: '综合分析师', emoji: '🤖', estimatedTime: 30 },
-    'market-analysis': { name: '市场分析师', emoji: '📊', estimatedTime: 45 },
-    'solution': { name: '产品专家', emoji: '💡', estimatedTime: 40 },
-    'business-model': { name: '商业顾问', emoji: '💰', estimatedTime: 35 },
-    'competitive-landscape': { name: '竞争分析师', emoji: '⚔️', estimatedTime: 40 },
-    'marketing-strategy': { name: '营销专家', emoji: '📈', estimatedTime: 35 },
-    'team-structure': { name: '组织顾问', emoji: '👥', estimatedTime: 30 },
-    'financial-projection': { name: '财务分析师', emoji: '💵', estimatedTime: 50 },
-    'risk-assessment': { name: '风险专家', emoji: '⚠️', estimatedTime: 35 },
-    'implementation-plan': { name: '项目经理', emoji: '📋', estimatedTime: 40 },
-    'appendix': { name: '文档专家', emoji: '📎', estimatedTime: 25 },
-    'project-summary': { name: '产品经理', emoji: '📋', estimatedTime: 25 },
-    'problem-insight': { name: '用户研究专家', emoji: '🔍', estimatedTime: 35 },
-    'product-solution': { name: '产品设计专家', emoji: '💡', estimatedTime: 40 },
-    'implementation-path': { name: '项目管理专家', emoji: '🛤️', estimatedTime: 35 },
-    'competitive-analysis': { name: '竞品分析专家', emoji: '⚔️', estimatedTime: 30 },
-    'budget-planning': { name: '财务规划专家', emoji: '💰', estimatedTime: 30 },
-    'risk-control': { name: '风险管理专家', emoji: '⚠️', estimatedTime: 25 }
+  'executive-summary': { name: '综合分析师', emoji: '🤖', estimatedTime: 30 },
+  'market-analysis': { name: '市场分析师', emoji: '📊', estimatedTime: 45 },
+  solution: { name: '产品专家', emoji: '💡', estimatedTime: 40 },
+  'business-model': { name: '商业顾问', emoji: '💰', estimatedTime: 35 },
+  'competitive-landscape': { name: '竞争分析师', emoji: '⚔️', estimatedTime: 40 },
+  'marketing-strategy': { name: '营销专家', emoji: '📈', estimatedTime: 35 },
+  'team-structure': { name: '组织顾问', emoji: '👥', estimatedTime: 30 },
+  'financial-projection': { name: '财务分析师', emoji: '💵', estimatedTime: 50 },
+  'risk-assessment': { name: '风险专家', emoji: '⚠️', estimatedTime: 35 },
+  'implementation-plan': { name: '项目经理', emoji: '📋', estimatedTime: 40 },
+  appendix: { name: '文档专家', emoji: '📎', estimatedTime: 25 },
+  'project-summary': { name: '产品经理', emoji: '📋', estimatedTime: 25 },
+  'problem-insight': { name: '用户研究专家', emoji: '🔍', estimatedTime: 35 },
+  'product-solution': { name: '产品设计专家', emoji: '💡', estimatedTime: 40 },
+  'implementation-path': { name: '项目管理专家', emoji: '🛤️', estimatedTime: 35 },
+  'competitive-analysis': { name: '竞品分析专家', emoji: '⚔️', estimatedTime: 30 },
+  'budget-planning': { name: '财务规划专家', emoji: '💰', estimatedTime: 30 },
+  'risk-control': { name: '风险管理专家', emoji: '⚠️', estimatedTime: 25 }
 };
 
 /**
@@ -60,104 +61,210 @@ const CHAPTER_AGENTS = {
  * @returns {String} 格式化后的字符串
  */
 function formatConversation(conversationHistory) {
-    return conversationHistory
-        .map(msg => `${msg.role === 'user' ? '用户' : 'AI助手'}: ${msg.content}`)
-        .join('\n\n');
+  return conversationHistory
+    .map(msg => `${msg.role === 'user' ? '用户' : 'AI助手'}: ${msg.content}`)
+    .join('\n\n');
 }
 
 /**
- * 生成单个章节
+ * 生成单个章节（主入口）
+ * @param {String} chapterId - 章节ID
+ * @param {Array} conversationHistory - 对话历史
+ * @param {String} type - 类型：'business' 或 'proposal'
+ * @param {Boolean} useDeepResearch - 是否使用深度研究模式
+ * @param {String} researchDepth - 研究深度（shallow/medium/deep）
+ * @returns {Promise<Object>} { chapterId, content, agent, tokens }
+ */
+async function generateSingleChapter(
+  chapterId,
+  conversationHistory,
+  type = 'business',
+  useDeepResearch = false,
+  researchDepth = 'medium'
+) {
+  console.log(
+    `[生成章节] 开始生成章节: ${chapterId}, 模式: ${useDeepResearch ? '深度研究' : '快速生成'}`
+  );
+
+  // 如果启用深度研究，调用DeepResearch服务
+  if (useDeepResearch) {
+    return await generateWithDeepResearch(chapterId, conversationHistory, type, researchDepth);
+  }
+
+  // 否则使用现有的DeepSeek逻辑
+  return await generateWithDeepSeek(chapterId, conversationHistory, type);
+}
+
+/**
+ * 使用DeepSeek快速生成章节
  * @param {String} chapterId - 章节ID
  * @param {Array} conversationHistory - 对话历史
  * @param {String} type - 类型：'business' 或 'proposal'
  * @returns {Promise<Object>} { chapterId, content, agent, tokens }
  */
-async function generateSingleChapter(chapterId, conversationHistory, type = 'business') {
-    console.log(`[生成章节] 开始生成章节: ${chapterId}, 对话历史长度: ${conversationHistory.length}`);
+async function generateWithDeepSeek(chapterId, conversationHistory, type = 'business') {
+  console.log(
+    `[DeepSeek生成] 开始生成章节: ${chapterId}, 对话历史长度: ${conversationHistory.length}`
+  );
 
-    // 打印对话历史的前2条和后2条，用于调试
-    if (conversationHistory.length > 0) {
-    console.log('[生成章节] 对话历史示例（前2条）:', conversationHistory.slice(0, 2).map(msg => ({ role: msg.role, length: String(msg.content || '').length })));
+  // 打印对话历史的前2条和后2条，用于调试
+  if (conversationHistory.length > 0) {
+    console.log(
+      '[DeepSeek生成] 对话历史示例（前2条）:',
+      conversationHistory
+        .slice(0, 2)
+        .map(msg => ({ role: msg.role, length: String(msg.content || '').length }))
+    );
     if (conversationHistory.length > 2) {
-        console.log('[生成章节] 对话历史示例（后2条）:', conversationHistory.slice(-2).map(msg => ({ role: msg.role, length: String(msg.content || '').length })));
+      console.log(
+        '[DeepSeek生成] 对话历史示例（后2条）:',
+        conversationHistory
+          .slice(-2)
+          .map(msg => ({ role: msg.role, length: String(msg.content || '').length }))
+      );
     }
+  }
+
+  // 根据类型选择提示词
+  const prompts = type === 'proposal' ? PROPOSAL_PROMPTS : CHAPTER_PROMPTS;
+  let promptTemplate = prompts[chapterId];
+
+  // 如果旧方式没有找到，尝试使用新的章节模板加载方式
+  if (!promptTemplate) {
+    try {
+      const docType = type === 'proposal' ? 'proposal' : 'business-plan';
+      promptTemplate = await promptLoader.loadChapterTemplate(docType, chapterId);
+    } catch (error) {
+      throw new Error(`未知的章节ID: ${chapterId} (类型: ${type})`);
     }
+  }
 
-    // 根据类型选择提示词
-    const prompts = type === 'proposal' ? PROPOSAL_PROMPTS : CHAPTER_PROMPTS;
-    let promptTemplate = prompts[chapterId];
+  const agent = CHAPTER_AGENTS[chapterId];
+  const conversation = formatConversation(conversationHistory);
 
-    // 如果旧方式没有找到，尝试使用新的章节模板加载方式
-    if (!promptTemplate) {
-        try {
-            const docType = type === 'proposal' ? 'proposal' : 'business-plan';
-            promptTemplate = await promptLoader.loadChapterTemplate(docType, chapterId);
-        } catch (error) {
-            throw new Error(`未知的章节ID: ${chapterId} (类型: ${type})`);
-        }
-    }
+  // 如果模板中包含 {CONVERSATION} 占位符，则替换
+  // 如果不包含，则在模板末尾添加对话历史
+  let prompt;
+  if (promptTemplate.includes('{CONVERSATION}')) {
+    prompt = promptTemplate.replace('{CONVERSATION}', conversation);
+    console.log('[DeepSeek生成] 使用 {CONVERSATION} 占位符替换对话历史');
+  } else {
+    prompt = `${promptTemplate}\n\n**对话历史**：\n\`\`\`\n${conversation}\n\`\`\`\n\n请严格基于以上对话历史进行分析，不要使用mock数据或虚构信息。如果信息不足，请明确说明。`;
+    console.log('[DeepSeek生成] 在模板末尾添加对话历史');
+  }
 
-    const agent = CHAPTER_AGENTS[chapterId];
-    const conversation = formatConversation(conversationHistory);
+  // 打印最终提示词的长度和前500字符
+  console.log('[DeepSeek生成] 最终提示词长度:', prompt.length);
+  console.log('[DeepSeek生成] 最终提示词预览（前500字符）:', prompt.substring(0, 500));
+  console.log(
+    '[DeepSeek生成] 最终提示词预览（后500字符）:',
+    prompt.substring(Math.max(0, prompt.length - 500))
+  );
 
-    // 如果模板中包含 {CONVERSATION} 占位符，则替换
-    // 如果不包含，则在模板末尾添加对话历史
-    let prompt;
-    if (promptTemplate.includes('{CONVERSATION}')) {
-        prompt = promptTemplate.replace('{CONVERSATION}', conversation);
-        console.log('[生成章节] 使用 {CONVERSATION} 占位符替换对话历史');
-    } else {
-        prompt = `${promptTemplate}\n\n**对话历史**：\n\`\`\`\n${conversation}\n\`\`\`\n\n请严格基于以上对话历史进行分析，不要使用mock数据或虚构信息。如果信息不足，请明确说明。`;
-        console.log('[生成章节] 在模板末尾添加对话历史');
-    }
+  // 调用DeepSeek API
+  console.log('[DeepSeek生成] 开始调用 DeepSeek API...');
+  const result = await callDeepSeekAPI([{ role: 'user', content: prompt }], null, {
+    max_tokens: 1500, // 章节内容较长
+    temperature: 0.7,
+    timeout: 120000
+  });
 
-    // 打印最终提示词的长度和前500字符
-    console.log('[生成章节] 最终提示词长度:', prompt.length);
-    console.log('[生成章节] 最终提示词预览（前500字符）:', prompt.substring(0, 500));
-    console.log('[生成章节] 最终提示词预览（后500字符）:', prompt.substring(Math.max(0, prompt.length - 500)));
+  console.log('[DeepSeek生成] DeepSeek API 调用成功', {
+    chapterId,
+    contentLength: result.content.length,
+    tokens: result.usage.total_tokens,
+    contentPreview: result.content.substring(0, 200)
+  });
 
-    // 调用DeepSeek API
-    console.log('[生成章节] 开始调用 DeepSeek API...');
-    const result = await callDeepSeekAPI(
-        [{ role: 'user', content: prompt }],
-        null,
-        {
-            max_tokens: 1500, // 章节内容较长
-            temperature: 0.7,
-            timeout: 120000
-        }
+  // 🔧 清理和验证内容，防止JSON解析错误
+  let cleanedContent = result.content;
+  try {
+    // 移除控制字符
+    cleanedContent = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+
+    // 确保内容不包含未转义的特殊字符
+    cleanedContent = cleanedContent.trim();
+
+    console.log('[DeepSeek生成] 内容已清理，长度:', cleanedContent.length);
+  } catch (cleanError) {
+    console.warn('[DeepSeek生成] 内容清理失败:', cleanError.message);
+    // 继续使用原始内容
+  }
+
+  return {
+    chapterId,
+    content: cleanedContent,
+    agent: agent.name,
+    emoji: agent.emoji,
+    tokens: result.usage.total_tokens,
+    timestamp: Date.now(),
+    mode: 'fast' // 标记生成模式
+  };
+}
+
+/**
+ * 使用DeepResearch深度研究生成章节（占位符，阶段三实现）
+ * @param {String} chapterId - 章节ID
+ * @param {Array} conversationHistory - 对话历史
+ * @param {String} type - 类型：'business' 或 'proposal'
+ * @returns {Promise<Object>} { chapterId, content, agent, tokens }
+ */
+/**
+ * 使用DeepResearch深度研究生成章节
+ * @param {String} chapterId - 章节ID
+ * @param {Array} conversationHistory - 对话历史
+ * @param {String} type - 类型：'business' 或 'proposal'
+ * @param {String} researchDepth - 研究深度（shallow/medium/deep）
+ * @returns {Promise<Object>} { chapterId, content, agent, tokens }
+ */
+async function generateWithDeepResearch(
+  chapterId,
+  conversationHistory,
+  type = 'business',
+  researchDepth = 'medium'
+) {
+  console.log(`[DeepResearch生成] 开始生成章节: ${chapterId}, 深度: ${researchDepth}`);
+
+  // 获取章节对应的agent信息
+  const agent = CHAPTER_AGENTS[chapterId] || {
+    name: '深度研究专家',
+    emoji: '🔬'
+  };
+
+  try {
+    // 调用Python微服务
+    const result = await callDeepResearchService(
+      chapterId,
+      conversationHistory,
+      type,
+      researchDepth
     );
 
-    console.log('[生成章节] DeepSeek API 调用成功', {
-        chapterId,
-        contentLength: result.content.length,
-        tokens: result.usage.total_tokens,
-        contentPreview: result.content.substring(0, 200)
+    console.log('[DeepResearch生成] 生成成功:', {
+      chapterId,
+      contentLength: result.content.length,
+      sources: result.sources?.length || 0,
+      confidence: result.confidence
     });
 
-    // 🔧 清理和验证内容，防止JSON解析错误
-    let cleanedContent = result.content;
-    try {
-        // 移除控制字符
-        cleanedContent = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-
-        // 确保内容不包含未转义的特殊字符
-        cleanedContent = cleanedContent.trim();
-
-        console.log('[生成章节] 内容已清理，长度:', cleanedContent.length);
-    } catch (cleanError) {
-        console.warn('[生成章节] 内容清理失败:', cleanError.message);
-        // 继续使用原始内容
-    }
-
     return {
-        chapterId,
-        content: cleanedContent,
-        agent: agent.name,
-        emoji: agent.emoji,
-        tokens: result.usage.total_tokens,
-        timestamp: Date.now()
+      chapterId: result.chapterId,
+      content: result.content,
+      sources: result.sources || [],
+      confidence: result.confidence || 0.8,
+      agent: agent.name,
+      emoji: agent.emoji,
+      tokens: result.tokens || 0,
+      timestamp: Date.now(),
+      mode: 'deep', // 标记为深度研究模式
+      depth: result.depth,
+      iterations: result.iterations
     };
+  } catch (error) {
+    console.error('[DeepResearch生成] 生成失败:', error.message);
+    // 直接抛出错误，由前端处理降级逻辑
+    throw error;
+  }
 }
 
 /**
@@ -165,34 +272,46 @@ async function generateSingleChapter(chapterId, conversationHistory, type = 'bus
  * 生成单个章节
  */
 router.post('/generate-chapter', async (req, res, next) => {
-    try {
-        const { chapterId, conversationHistory, type = 'business' } = req.body;
+  try {
+    const {
+      chapterId,
+      conversationHistory,
+      type = 'business',
+      useDeepResearch = false, // 新增：深度研究标志
+      researchDepth = 'medium' // 新增：研究深度
+    } = req.body;
 
-        // 参数验证
-        if (!chapterId) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少必要参数: chapterId'
-            });
-        }
-
-        if (!conversationHistory || !Array.isArray(conversationHistory)) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的对话历史'
-            });
-        }
-
-        const result = await generateSingleChapter(chapterId, conversationHistory, type);
-
-        res.json({
-            code: 0,
-            data: result
-        });
-
-    } catch (error) {
-        next(error);
+    // 参数验证
+    if (!chapterId) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少必要参数: chapterId'
+      });
     }
+
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的对话历史'
+      });
+    }
+
+    // 根据深度研究标志选择生成方式
+    const result = await generateSingleChapter(
+      chapterId,
+      conversationHistory,
+      type,
+      useDeepResearch, // 传递深度研究标志
+      researchDepth // 传递研究深度
+    );
+
+    res.json({
+      code: 0,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -200,65 +319,60 @@ router.post('/generate-chapter', async (req, res, next) => {
  * 使用完整文档提示词生成商业计划书（支持动态章节注入）
  */
 router.post('/generate-full', async (req, res, next) => {
-    try {
-        const { chapterIds, conversationHistory, type = 'business' } = req.body;
+  try {
+    const { chapterIds, conversationHistory, type = 'business' } = req.body;
 
-        // 参数验证
-        if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的章节ID列表'
-            });
-        }
-
-        if (!conversationHistory || !Array.isArray(conversationHistory)) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的对话历史'
-            });
-        }
-
-        const startTime = Date.now();
-
-        // 构建带章节注入的完整文档提示词
-        const docType = type === 'proposal' ? 'proposal' : 'business-plan';
-        const { systemPrompt, prompt, metadata } = await promptLoader.buildPromptWithChapters(
-            docType,
-            chapterIds,
-            conversationHistory
-        );
-
-        // 调用DeepSeek API生成完整文档
-        const result = await callDeepSeekAPI(
-            [{ role: 'user', content: prompt }],
-            systemPrompt,
-            {
-                max_tokens: 8000,
-                temperature: 0.7,
-                timeout: 180000
-            }
-        );
-
-        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-        const costStats = getCostStats();
-
-        res.json({
-            code: 0,
-            data: {
-                document: result.content,
-                format: 'markdown',
-                mode: 'full-document',
-                selectedChapters: chapterIds,
-                metadata,
-                tokens: result.usage.total_tokens,
-                duration: parseFloat(duration),
-                costStats
-            }
-        });
-
-    } catch (error) {
-        next(error);
+    // 参数验证
+    if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的章节ID列表'
+      });
     }
+
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的对话历史'
+      });
+    }
+
+    const startTime = Date.now();
+
+    // 构建带章节注入的完整文档提示词
+    const docType = type === 'proposal' ? 'proposal' : 'business-plan';
+    const { systemPrompt, prompt, metadata } = await promptLoader.buildPromptWithChapters(
+      docType,
+      chapterIds,
+      conversationHistory
+    );
+
+    // 调用DeepSeek API生成完整文档
+    const result = await callDeepSeekAPI([{ role: 'user', content: prompt }], systemPrompt, {
+      max_tokens: 8000,
+      temperature: 0.7,
+      timeout: 180000
+    });
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const costStats = getCostStats();
+
+    res.json({
+      code: 0,
+      data: {
+        document: result.content,
+        format: 'markdown',
+        mode: 'full-document',
+        selectedChapters: chapterIds,
+        metadata,
+        tokens: result.usage.total_tokens,
+        duration: parseFloat(duration),
+        costStats
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -266,49 +380,48 @@ router.post('/generate-full', async (req, res, next) => {
  * 批量生成章节（并行）
  */
 router.post('/generate-batch', async (req, res, next) => {
-    try {
-        const { chapterIds, conversationHistory, type = 'business' } = req.body;
+  try {
+    const { chapterIds, conversationHistory, type = 'business' } = req.body;
 
-        // 参数验证
-        if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的章节ID列表'
-            });
-        }
-
-        if (!conversationHistory || !Array.isArray(conversationHistory)) {
-            return res.status(400).json({
-                code: -1,
-                error: '缺少或无效的对话历史'
-            });
-        }
-
-        // 并行生成所有章节
-        const startTime = Date.now();
-        const promises = chapterIds.map(id => generateSingleChapter(id, conversationHistory, type));
-        const chapters = await Promise.all(promises);
-        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-        // 计算总token使用量
-        const totalTokens = chapters.reduce((sum, ch) => sum + ch.tokens, 0);
-
-        // 获取成本统计
-        const costStats = getCostStats();
-
-        res.json({
-            code: 0,
-            data: {
-                chapters,
-                totalTokens,
-                duration: parseFloat(duration),
-                costStats
-            }
-        });
-
-    } catch (error) {
-        next(error);
+    // 参数验证
+    if (!chapterIds || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的章节ID列表'
+      });
     }
+
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({
+        code: -1,
+        error: '缺少或无效的对话历史'
+      });
+    }
+
+    // 并行生成所有章节
+    const startTime = Date.now();
+    const promises = chapterIds.map(id => generateSingleChapter(id, conversationHistory, type));
+    const chapters = await Promise.all(promises);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // 计算总token使用量
+    const totalTokens = chapters.reduce((sum, ch) => sum + ch.tokens, 0);
+
+    // 获取成本统计
+    const costStats = getCostStats();
+
+    res.json({
+      code: 0,
+      data: {
+        chapters,
+        totalTokens,
+        duration: parseFloat(duration),
+        costStats
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -316,15 +429,15 @@ router.post('/generate-batch', async (req, res, next) => {
  * 获取所有可用章节列表
  */
 router.get('/chapters', (req, res) => {
-    const chapters = Object.keys(CHAPTER_PROMPTS).map(id => ({
-        id,
-        ...CHAPTER_AGENTS[id]
-    }));
+  const chapters = Object.keys(CHAPTER_PROMPTS).map(id => ({
+    id,
+    ...CHAPTER_AGENTS[id]
+  }));
 
-    res.json({
-        code: 0,
-        data: { chapters }
-    });
+  res.json({
+    code: 0,
+    data: { chapters }
+  });
 });
 
 /**
@@ -332,11 +445,11 @@ router.get('/chapters', (req, res) => {
  * 获取成本统计
  */
 router.get('/cost-stats', (req, res) => {
-    const stats = getCostStats();
-    res.json({
-        code: 0,
-        data: stats
-    });
+  const stats = getCostStats();
+  res.json({
+    code: 0,
+    data: stats
+  });
 });
 
 export default router;

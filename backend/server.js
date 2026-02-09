@@ -172,7 +172,13 @@ app.use('/api/prompts', promptRouter);
 
 // API 认证保护（除公开接口外）
 app.use('/api', (req, res, next) => {
-  const publicPrefixes = ['/auth', '/verification', '/health'];
+  const publicPrefixes = ['/auth', '/verification', '/health', '/prompts'];
+
+  // 开发环境：商业计划书接口也公开（方便测试）
+  if (isDevelopment) {
+    publicPrefixes.push('/business-plan');
+  }
+
   if (publicPrefixes.some(prefix => req.path.startsWith(prefix))) {
     return next();
   }

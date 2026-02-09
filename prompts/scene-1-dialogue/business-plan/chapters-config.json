@@ -16,8 +16,8 @@
     },
     {
       "id": "market-analysis",
-      "name": "市场分析",
-      "required": false,
+      "name": "市场与行业分析",
+      "required": true,
       "template_file": "chapters/market-analysis.md",
       "agent": {
         "name": "市场分析师",
@@ -27,8 +27,8 @@
     },
     {
       "id": "solution",
-      "name": "解决方案",
-      "required": false,
+      "name": "产品与服务",
+      "required": true,
       "template_file": "chapters/solution.md",
       "agent": {
         "name": "产品专家",
@@ -39,7 +39,7 @@
     {
       "id": "business-model",
       "name": "商业模式",
-      "required": false,
+      "required": true,
       "template_file": "chapters/business-model.md",
       "agent": {
         "name": "商业顾问",
@@ -49,8 +49,8 @@
     },
     {
       "id": "competitive-landscape",
-      "name": "竞争格局",
-      "required": false,
+      "name": "竞争与战略",
+      "required": true,
       "template_file": "chapters/competitive-landscape.md",
       "agent": {
         "name": "竞争分析师",
@@ -60,8 +60,8 @@
     },
     {
       "id": "marketing-strategy",
-      "name": "营销策略",
-      "required": false,
+      "name": "营销与销售策略",
+      "required": true,
       "template_file": "chapters/marketing-strategy.md",
       "agent": {
         "name": "营销专家",
@@ -71,8 +71,8 @@
     },
     {
       "id": "team-structure",
-      "name": "团队结构",
-      "required": false,
+      "name": "团队介绍",
+      "required": true,
       "template_file": "chapters/team-structure.md",
       "agent": {
         "name": "组织顾问",
@@ -82,8 +82,8 @@
     },
     {
       "id": "financial-projection",
-      "name": "财务预测",
-      "required": false,
+      "name": "财务预测与融资需求",
+      "required": true,
       "template_file": "chapters/financial-projection.md",
       "agent": {
         "name": "财务分析师",
@@ -93,35 +93,13 @@
     },
     {
       "id": "risk-assessment",
-      "name": "风险评估",
-      "required": false,
+      "name": "风险分析与附录",
+      "required": true,
       "template_file": "chapters/risk-assessment.md",
       "agent": {
         "name": "风险专家",
         "emoji": "⚠️",
         "estimated_time": 35
-      }
-    },
-    {
-      "id": "implementation-plan",
-      "name": "实施计划",
-      "required": false,
-      "template_file": "chapters/implementation-plan.md",
-      "agent": {
-        "name": "项目经理",
-        "emoji": "📋",
-        "estimated_time": 40
-      }
-    },
-    {
-      "id": "appendix",
-      "name": "附录",
-      "required": false,
-      "template_file": "chapters/appendix.md",
-      "agent": {
-        "name": "文档专家",
-        "emoji": "📎",
-        "estimated_time": 25
       }
     }
   ],
@@ -129,15 +107,12 @@
     "executive-summary",
     "market-analysis",
     "solution",
-    "business-model"
-  ],
-  "default_optional_chapters": [
+    "business-model",
     "competitive-landscape",
     "marketing-strategy",
     "team-structure",
     "financial-projection",
-    "risk-assessment",
-    "implementation-plan",
-    "appendix"
-  ]
+    "risk-assessment"
+  ],
+  "default_optional_chapters": []
 }

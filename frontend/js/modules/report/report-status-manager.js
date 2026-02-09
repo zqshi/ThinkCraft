@@ -1,5 +1,10 @@
 /* global normalizeChatId */
 
+// 创建日志实例
+const reportStatusLogger = window.createLogger
+  ? window.createLogger('ReportStatusManager')
+  : console;
+
 /**
  * 报告状态管理器
  *
@@ -327,7 +332,9 @@ class ReportStatusManager {
    * @param {String} newStatus - 新状态
    */
   onReportStatusChange(chatId, type, newStatus) {
-    console.log(`[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`);
+    reportStatusLogger.info(
+      `[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`
+    );
     this.clearCache(chatId, type);
   }
 

@@ -6,7 +6,7 @@
 /* global normalizeChatId */
 
 // 创建日志实例（避免脚本被重复加载时报错）
-var logger =
+const logger =
   window.__businessPlanLogger ||
   (window.__businessPlanLogger = window.createLogger
     ? window.createLogger('BusinessPlan')
@@ -28,53 +28,50 @@ class BusinessPlanGenerator {
           {
             id: 'executive-summary',
             title: '执行摘要',
-            desc: '业务概述、市场机会、解决方案、商业模式'
+            desc: '痛点与方案、市场机会、核心亮点、融资需求'
           },
           {
             id: 'market-analysis',
-            title: '市场分析',
-            desc: '市场规模、目标用户、痛点分析、市场趋势'
+            title: '市场与行业分析',
+            desc: 'TAM/SAM/SOM、趋势驱动、用户画像、产业链'
           },
-          { id: 'solution', title: '解决方案', desc: '产品定位、核心功能、技术方案、差异化优势' },
+          {
+            id: 'solution',
+            title: '产品与服务',
+            desc: '价值主张、功能与技术、进展、壁垒'
+          },
           {
             id: 'business-model',
             title: '商业模式',
-            desc: '收入模式、定价策略、成本结构、盈利预测'
-          }
-        ],
-        optional: [
+            desc: '收入来源、定价策略、成本结构、规模化路径'
+          },
           {
             id: 'competitive-landscape',
-            title: '竞争格局',
-            desc: '竞争对手分析、差异化策略、进入壁垒'
+            title: '竞争与战略',
+            desc: '竞品分析、优势矩阵、战略选择、壁垒'
           },
           {
             id: 'marketing-strategy',
-            title: '市场策略',
-            desc: '客户获取、营销渠道、品牌定位、增长策略'
+            title: '营销与销售策略',
+            desc: '进入策略、渠道增长、销售流程、合作伙伴'
           },
           {
             id: 'team-structure',
-            title: '团队架构',
-            desc: '核心团队、组织架构、人才需求、股权激励'
+            title: '团队介绍',
+            desc: '核心成员、股权/激励、顾问与缺口'
           },
           {
             id: 'financial-projection',
-            title: '财务预测',
-            desc: '收入预测、成本预算、现金流、融资需求'
+            title: '财务预测与融资需求',
+            desc: '财务预测、关键假设、融资需求与用途'
           },
           {
             id: 'risk-assessment',
-            title: '风险评估',
-            desc: '市场风险、技术风险、运营风险、应对策略'
-          },
-          {
-            id: 'implementation-plan',
-            title: '实施计划',
-            desc: '里程碑规划、产品开发、市场推广、KPI设定'
-          },
-          { id: 'appendix', title: '附录', desc: '术语表、参考资料、补充材料、联系方式' }
-        ]
+            title: '风险分析与附录',
+            desc: '主要风险、应对策略、附录清单'
+          }
+        ],
+        optional: []
       },
       proposal: {
         core: [
@@ -120,10 +117,7 @@ class BusinessPlanGenerator {
     const reportModalChatId = document.getElementById('reportModal')?.dataset?.chatId;
     const activeChatId = document.querySelector('.chat-item.active')?.dataset?.chatId;
     const chatId =
-      window.state?.currentChat ||
-      btn?.dataset?.chatId ||
-      reportModalChatId ||
-      activeChatId;
+      window.state?.currentChat || btn?.dataset?.chatId || reportModalChatId || activeChatId;
     console.log('[按钮点击] 会话ID:', chatId);
 
     // 添加 chatId 有效性验证
@@ -192,6 +186,68 @@ class BusinessPlanGenerator {
         const report = await window.storageManager.getReportByChatIdAndType(normalizedChatId, type);
 
         if (report) {
+          // 🔧 修复旧数据格式：如果 chapters 直接在 report 下而不是在 report.data 下
+          if (!report.data && report.chapters) {
+            console.warn('[检查报告状态] 检测到旧数据格式（chapters），自动修复');
+            report.data = {
+              chapters: report.chapters,
+              selectedChapters: report.selectedChapters,
+              totalTokens: report.totalTokens,
+              costStats: report.costStats,
+              timestamp: report.timestamp || report.endTime
+            };
+            // 保存修复后的数据
+            await window.storageManager.saveReport({
+              id: report.id,
+              type: report.type,
+              chatId: report.chatId,
+              data: report.data,
+              status: report.status || 'completed',
+              progress: report.progress || {
+                current: report.chapters.length,
+                total: report.chapters.length,
+                percentage: 100
+              },
+              selectedChapters: report.selectedChapters || [],
+              startTime: report.startTime,
+              endTime: report.endTime || Date.now(),
+              error: report.error ?? null
+            });
+          }
+
+          // 🔧 修复更旧的数据格式：results 字段
+          if (!report.data && report.results) {
+            console.warn('[检查报告状态] 检测到旧数据格式（results），自动修复');
+            if (Array.isArray(report.results)) {
+              report.data = {
+                chapters: report.results,
+                selectedChapters: report.selectedChapters || [],
+                totalTokens: report.totalTokens,
+                costStats: report.costStats,
+                timestamp: report.timestamp || report.endTime
+              };
+            } else if (typeof report.results === 'object') {
+              report.data = report.results;
+            }
+            // 保存修复后的数据
+            await window.storageManager.saveReport({
+              id: report.id,
+              type: report.type,
+              chatId: report.chatId,
+              data: report.data,
+              status: report.status || 'completed',
+              progress: report.progress || {
+                current: Array.isArray(report.results) ? report.results.length : 0,
+                total: Array.isArray(report.results) ? report.results.length : 0,
+                percentage: 100
+              },
+              selectedChapters: report.selectedChapters || [],
+              startTime: report.startTime,
+              endTime: report.endTime || Date.now(),
+              error: report.error ?? null
+            });
+          }
+
           // 🔧 修复历史数据：已有内容但状态为空/idle，自动标记为 completed
           if ((!report.status || report.status === 'idle') && report.data) {
             const hasDocument =
@@ -331,6 +387,44 @@ class BusinessPlanGenerator {
             }
           }
 
+          // 🔧 最终验证：确保 completed 状态的报告有完整数据
+          if (report.status === 'completed') {
+            const hasDocument =
+              typeof report.data?.document === 'string' && report.data.document.trim().length > 0;
+            const hasChapters =
+              Array.isArray(report.data?.chapters) && report.data.chapters.length > 0;
+            const hasValidData = hasDocument || hasChapters;
+
+            if (!hasValidData) {
+              console.warn('[状态检查] completed 状态但数据无效，重置为 idle', {
+                type: report.type,
+                hasData: Boolean(report.data),
+                dataKeys: report.data ? Object.keys(report.data) : [],
+                hasDocument,
+                hasChapters
+              });
+              // 数据无效，重置为 idle 状态
+              report.status = 'idle';
+              report.endTime = null;
+              report.error = {
+                message: '报告数据不完整，请重新生成',
+                timestamp: Date.now()
+              };
+              await window.storageManager.saveReport({
+                id: report.id,
+                type: report.type,
+                chatId: report.chatId,
+                data: null,
+                status: report.status,
+                progress: null,
+                selectedChapters: null,
+                startTime: null,
+                endTime: null,
+                error: report.error
+              });
+            }
+          }
+
           logger.debug('[状态检查] 从IndexedDB获取状态', {
             type: report.type,
             status: report.status,
@@ -446,22 +540,107 @@ class BusinessPlanGenerator {
    * @param {Object} report - 报告对象
    */
   showCompletedReport(type, report) {
-    logger.debug('[显示报告] 显示已完成报告', { type, hasData: Boolean(report.data) });
+    logger.debug('[显示报告] 显示已完成报告', {
+      type,
+      hasData: Boolean(report.data),
+      reportKeys: report ? Object.keys(report) : [],
+      dataKeys: report?.data ? Object.keys(report.data) : []
+    });
+
+    // 🔧 修复：如果 report.data 不存在，尝试从其他字段构建
+    let reportData = report.data;
+
+    // 情况1: 旧格式 - chapters 直接在 report 下
+    if (!reportData && report.chapters) {
+      console.warn('[显示报告] 检测到旧数据格式（chapters），自动修复');
+      reportData = {
+        chapters: report.chapters,
+        selectedChapters: report.selectedChapters,
+        totalTokens: report.totalTokens,
+        costStats: report.costStats,
+        timestamp: report.timestamp || report.endTime
+      };
+    }
+
+    // 情况2: 更旧的格式 - results 字段
+    if (!reportData && report.results) {
+      console.warn('[显示报告] 检测到旧数据格式（results），自动修复');
+      // results 可能是数组或对象
+      if (Array.isArray(report.results)) {
+        // 如果是空数组，说明没有实际数据
+        if (report.results.length === 0) {
+          logger.warn('[显示报告] results 是空数组，没有实际数据，回到章节选择');
+          if (window.modalManager?.alert) {
+            window.modalManager.alert('报告数据为空，请重新生成', 'warning');
+          } else {
+            alert('报告数据为空，请重新生成');
+          }
+          this.showChapterSelection(type);
+          return;
+        }
+        reportData = {
+          chapters: report.results,
+          selectedChapters: report.selectedChapters || [],
+          totalTokens: report.totalTokens,
+          costStats: report.costStats,
+          timestamp: report.timestamp || report.endTime
+        };
+      } else if (typeof report.results === 'object' && report.results !== null) {
+        // results 是对象，可能包含 document 字段
+        // 检查是否为空对象
+        const hasContent = Object.keys(report.results).length > 0;
+        if (!hasContent) {
+          logger.warn('[显示报告] results 是空对象，没有实际数据，回到章节选择');
+          if (window.modalManager?.alert) {
+            window.modalManager.alert('报告数据为空，请重新生成', 'warning');
+          } else {
+            alert('报告数据为空，请重新生成');
+          }
+          this.showChapterSelection(type);
+          return;
+        }
+        reportData = report.results;
+      }
+    }
+
+    // 🔧 额外检查：如果 reportData 本身是空数组（不应该发生，但防御性编程）
+    if (Array.isArray(reportData) && reportData.length === 0) {
+      logger.warn('[显示报告] reportData 是空数组，回到章节选择');
+      if (window.modalManager?.alert) {
+        window.modalManager.alert('报告数据为空，请重新生成', 'warning');
+      } else {
+        alert('报告数据为空，请重新生成');
+      }
+      this.showChapterSelection(type);
+      return;
+    }
 
     // 检查数据完整性：支持 chapters（新格式）或 document（旧格式）
-    if (!report.data || (!report.data.chapters && !report.data.document)) {
+    if (!reportData || (!reportData.chapters && !reportData.document)) {
       console.error('[显示报告] 报告数据不完整', {
-        hasData: Boolean(report.data),
-        hasChapters: Boolean(report.data?.chapters),
-        hasDocument: Boolean(report.data?.document)
+        hasData: Boolean(reportData),
+        hasChapters: Boolean(reportData?.chapters),
+        hasDocument: Boolean(reportData?.document),
+        reportStructure: report ? JSON.stringify(Object.keys(report)) : 'null',
+        dataStructure: reportData ? JSON.stringify(Object.keys(reportData)) : 'null',
+        hasResults: Boolean(report?.results),
+        resultsType: report?.results ? typeof report.results : 'undefined'
       });
-      alert('报告数据不完整，请重新生成');
+
+      // 提供更详细的错误信息
+      const errorMsg = !reportData ? '报告数据为空，请重新生成' : '报告数据格式不正确，请重新生成';
+      if (window.modalManager?.alert) {
+        window.modalManager.alert(errorMsg, 'warning');
+      } else {
+        alert(errorMsg);
+      }
+      this.showChapterSelection(type);
       return;
     }
 
     // 使用 report-viewer 显示报告
     if (window.reportViewer) {
-      window.reportViewer.viewGeneratedReport(type, report.data);
+      window.reportViewer.viewGeneratedReport(type, reportData);
     } else {
       console.error('[显示报告] reportViewer 未初始化');
       alert('报告查看器未初始化，请刷新页面');
@@ -472,7 +651,7 @@ class BusinessPlanGenerator {
    * 显示章节选择模态框
    * @param {String} type - 'business' | 'proposal'
    */
-  showChapterSelection(type) {
+  async showChapterSelection(type) {
     logger.debug('[章节选择] 显示章节选择弹窗', { type, typeOf: typeof type });
 
     // 验证type参数
@@ -524,6 +703,45 @@ class BusinessPlanGenerator {
 
     // 打开模态框
     window.modalManager.open('chapterSelectionModal');
+
+    // 恢复该 type 上次的深度研究设置
+    let lastUseDeepResearch = false;
+    let lastResearchDepth = 'medium';
+    const normalizedChatId = chatId ? String(chatId) : null;
+
+    try {
+      if (normalizedChatId && window.storageManager?.getReportByChatIdAndType) {
+        const report = await window.storageManager.getReportByChatIdAndType(normalizedChatId, type);
+        if (report) {
+          if (report.useDeepResearch !== undefined) {
+            lastUseDeepResearch = Boolean(report.useDeepResearch);
+          }
+          if (report.researchDepth) {
+            lastResearchDepth = report.researchDepth;
+          }
+        }
+      } else if (this.state?.getGenerationState && normalizedChatId) {
+        const genState = this.state.getGenerationState(normalizedChatId);
+        const typeState = genState?.[type];
+        if (typeState?.useDeepResearch !== undefined) {
+          lastUseDeepResearch = Boolean(typeState.useDeepResearch);
+        }
+        if (typeState?.researchDepth) {
+          lastResearchDepth = typeState.researchDepth;
+        }
+      }
+    } catch (error) {
+      logger.warn('[章节选择] 恢复深度研究设置失败，使用默认值', error);
+    }
+
+    const deepResearchSwitch = document.getElementById('deepResearchSwitch');
+    if (deepResearchSwitch) {
+      deepResearchSwitch.checked = lastUseDeepResearch;
+    }
+    const depthSelect = document.getElementById('deepResearchDepth');
+    if (depthSelect) {
+      depthSelect.value = lastResearchDepth || 'medium';
+    }
   }
 
   /**
@@ -566,15 +784,21 @@ class BusinessPlanGenerator {
       )
       .join('');
 
+    const optionalSection = config.optional.length
+      ? `
+            <div class="chapter-group">
+                <h3>深度分析章节（可选）</h3>
+                ${optionalHTML}
+            </div>
+        `
+      : '';
+
     return `
             <div class="chapter-group">
                 <h3>核心章节（必选）</h3>
                 ${coreHTML}
             </div>
-            <div class="chapter-group">
-                <h3>深度分析章节（可选）</h3>
-                ${optionalHTML}
-            </div>
+            ${optionalSection}
         `;
   }
 
@@ -655,6 +879,12 @@ class BusinessPlanGenerator {
       return;
     }
 
+    // 获取深度研究开关状态
+    const deepResearchSwitch = document.getElementById('deepResearchSwitch');
+    const useDeepResearch = deepResearchSwitch ? deepResearchSwitch.checked : false;
+    const depthSelect = document.getElementById('deepResearchDepth');
+    const researchDepth = depthSelect ? depthSelect.value : 'medium';
+
     // 关闭选择模态框
     window.modalManager.close('chapterSelectionModal');
 
@@ -670,18 +900,29 @@ class BusinessPlanGenerator {
     }
 
     selectedChapters = this.normalizeChapterIdsByType(type, selectedChapters);
-    logger.debug('[开始生成] 报告类型:', type, '选中章节:', selectedChapters);
+    logger.debug(
+      '[开始生成] 报告类型:',
+      type,
+      '选中章节:',
+      selectedChapters,
+      '深度研究:',
+      useDeepResearch,
+      '深度:',
+      researchDepth
+    );
 
-    // 开始生成流程
-    await this.generate(type, selectedChapters);
+    // 开始生成流程（传递深度研究标志）
+    await this.generate(type, selectedChapters, useDeepResearch, researchDepth);
   }
 
   /**
    * 生成商业计划书/产品立项材料
    * @param {String} type - 报告类型
    * @param {Array} chapterIds - 章节ID数组
+   * @param {Boolean} useDeepResearch - 是否使用深度研究模式
+   * @param {String} researchDepth - 研究深度（shallow/medium/deep）
    */
-  async generate(type, chapterIds) {
+  async generate(type, chapterIds, useDeepResearch = false, researchDepth = 'medium') {
     // 获取当前会话ID，用于数据隔离（在 try 块外定义，以便 catch 块可以访问）
     const chatId = window.state?.currentChat || null;
 
@@ -717,7 +958,13 @@ class BusinessPlanGenerator {
         return;
       }
 
-      logger.debug('[生成] 开始生成:', { type, chapterIds, chatId });
+      logger.debug('[生成] 开始生成:', {
+        type,
+        chapterIds,
+        chatId,
+        useDeepResearch,
+        researchDepth
+      });
 
       // 🔧 校验章节ID与报告类型一致，避免错用章节列表导致进度卡住
       chapterIds = this.normalizeChapterIdsByType(type, chapterIds);
@@ -765,6 +1012,8 @@ class BusinessPlanGenerator {
       await this.persistGenerationState(chatId, type, {
         status: 'generating',
         selectedChapters: chapterIds,
+        useDeepResearch, // 保存深度研究标志
+        researchDepth,
         progress: {
           current: 0,
           total: chapterIds.length,
@@ -817,6 +1066,8 @@ class BusinessPlanGenerator {
 
       if (!conversation || conversation.length === 0) {
         console.error('[生成] 缺少对话历史');
+        console.error('[生成] window.state:', window.state);
+        console.error('[生成] window.state.messages:', window.state?.messages);
         throw new Error('缺少对话历史，请先完成至少一轮对话');
       }
 
@@ -825,6 +1076,8 @@ class BusinessPlanGenerator {
         chapterCount: chapterIds.length,
         conversationLength: conversation.length
       });
+
+      console.log('[生成] 对话历史:', conversation); // 添加调试日志
 
       // 打印对话历史的前3条和后3条，用于调试
       if (conversation.length > 0) {
@@ -855,19 +1108,42 @@ class BusinessPlanGenerator {
           this.progressManager.updateProgress(chapterId, 'working');
 
           // 调用API生成章节
-          const response = await this.api.request('/api/business-plan/generate-chapter', {
-            method: 'POST',
-            body: {
-              chapterId,
-              conversationHistory: conversation,
-              type
-            },
-            timeout: 180000,
-            retry: 1
+          console.log('[生成] 准备调用API:', {
+            chapterId,
+            type,
+            useDeepResearch,
+            conversationLength: conversation.length
           });
 
+          let response;
+          try {
+            response = await this.api.request('/api/business-plan/generate-chapter', {
+              method: 'POST',
+              body: {
+                chapterId,
+                conversationHistory: conversation,
+                type,
+                useDeepResearch, // 传递深度研究标志
+                researchDepth
+              },
+              timeout: useDeepResearch ? 600000 : 180000, // 深度研究模式超时10分钟，避免误判
+              retry: 0 // 不在前端重试，由后端统一处理重试逻辑
+            });
+          } catch (apiError) {
+            console.error('[生成] API调用异常:', apiError);
+            throw new Error(`API调用失败: ${apiError.message}`);
+          }
+
           // 验证响应
+          console.log('[生成] API响应:', response); // 添加调试日志
           if (!response || response.code !== 0 || !response.data) {
+            console.error('[生成] 响应验证失败:', {
+              hasResponse: Boolean(response),
+              code: response?.code,
+              hasData: Boolean(response?.data),
+              error: response?.error,
+              fullResponse: response
+            });
             throw new Error(response?.error || '生成失败，请稍后重试');
           }
 
@@ -878,6 +1154,8 @@ class BusinessPlanGenerator {
             content: response.data.content,
             agent: response.data.agent,
             emoji: response.data.emoji,
+            sources: Array.isArray(response.data.sources) ? response.data.sources : [],
+            confidence: response.data.confidence,
             tokens: response.data.tokens,
             timestamp: response.data.timestamp || Date.now()
           };
@@ -903,6 +1181,8 @@ class BusinessPlanGenerator {
           await this.persistGenerationState(chatId, type, {
             status: 'generating',
             selectedChapters: chapterIds,
+            useDeepResearch,
+            researchDepth,
             progress: genState[type].progress,
             startTime: genState[type].startTime,
             endTime: null,
@@ -919,28 +1199,131 @@ class BusinessPlanGenerator {
             `[生成] 进度: ${i + 1}/${chapterIds.length} (${Math.round(((i + 1) / chapterIds.length) * 100)}%)`
           );
         } catch (error) {
-          console.error(`[生成] 章节 ${chapterId} 生成失败:`, error);
+          let failureError = error;
+          console.error(`[生成] 章节 ${chapterId} 生成失败:`, failureError);
+
+          // 检查是否为DeepResearch错误，如果是则询问用户是否降级
+          if (
+            useDeepResearch &&
+            (failureError.message.includes('DeepResearch') ||
+              failureError.message.includes('深度研究'))
+          ) {
+            const shouldFallback = confirm(
+              'DeepResearch服务调用失败。\n\n' +
+                '错误信息：' +
+                failureError.message +
+                '\n\n' +
+                '是否降级到DeepSeek快速模式继续生成？\n\n' +
+                '点击"确定"降级，点击"取消"停止生成'
+            );
+
+            if (shouldFallback) {
+              // 用户同意降级，重新调用当前章节的生成（不使用深度研究）
+              console.log('[生成] 用户同意降级到DeepSeek');
+              try {
+                const response = await this.api.request('/api/business-plan/generate-chapter', {
+                  method: 'POST',
+                  body: {
+                    chapterId,
+                    conversationHistory: conversation,
+                    type,
+                    useDeepResearch: false // 降级到快速模式
+                  },
+                  timeout: 180000,
+                  retry: 0
+                });
+
+                if (!response || response.code !== 0 || !response.data) {
+                  throw new Error(response?.error || '降级生成失败，请稍后重试');
+                }
+
+                const chapter = {
+                  id: chapterId,
+                  chapterId,
+                  title: chapterTitle,
+                  content: response.data.content,
+                  agent: response.data.agent,
+                  emoji: response.data.emoji,
+                  sources: Array.isArray(response.data.sources) ? response.data.sources : [],
+                  confidence: response.data.confidence,
+                  tokens: response.data.tokens,
+                  timestamp: response.data.timestamp || Date.now()
+                };
+
+                if (!chapter.content) {
+                  throw new Error(`章节 ${chapterId} 内容为空`);
+                }
+
+                console.log(`[生成] 章节 ${chapterId} 降级生成成功:`, chapter);
+
+                chapters.push(chapter);
+                totalTokens += response.data.tokens || 0;
+
+                // 更新内存状态（触发 notify）
+                this.state.updateProgress(chatId, type, chapter.agent, i + 1, chapter);
+
+                // 更新UI进度
+                this.progressManager.updateProgress(chapterId, 'completed', chapter);
+
+                // 持久化当前进度
+                const genState = this.state.getGenerationState(chatId);
+                await this.persistGenerationState(chatId, type, {
+                  status: 'generating',
+                  selectedChapters: chapterIds,
+                  useDeepResearch,
+                  researchDepth,
+                  progress: genState[type].progress,
+                  startTime: genState[type].startTime,
+                  endTime: null,
+                  error: null,
+                  data: {
+                    chapters,
+                    selectedChapters: chapterIds,
+                    totalTokens,
+                    timestamp: Date.now()
+                  }
+                });
+
+                console.log(
+                  `[生成] 进度: ${i + 1}/${chapterIds.length} (${Math.round(((i + 1) / chapterIds.length) * 100)}%)`
+                );
+
+                // 降级成功，继续下一个章节
+                continue;
+              } catch (fallbackError) {
+                console.error('[生成] 降级生成失败:', fallbackError);
+                failureError = fallbackError; // 使用降级错误继续后续处理
+              }
+            } else {
+              // 用户拒绝降级，停止生成
+              console.log('[生成] 用户拒绝降级，停止生成');
+              throw new Error('用户拒绝降级，已停止生成');
+            }
+          }
+
           failedChapters.push({
             id: chapterId,
             title: chapterTitle,
-            message: error.message || '生成失败'
+            message: failureError.message || '生成失败'
           });
 
           // 标记章节为错误状态
           this.progressManager.updateProgress(chapterId, 'error');
 
           // 更新 StateManager 错误状态
-          this.state.errorGeneration(chatId, type, error);
+          this.state.errorGeneration(chatId, type, failureError);
 
           // 持久化错误状态
           const genState = this.state.getGenerationState(chatId);
           await this.persistGenerationState(chatId, type, {
             status: 'error',
             selectedChapters: chapterIds,
+            useDeepResearch,
+            researchDepth,
             progress: genState[type].progress,
             startTime: genState[type].startTime,
             endTime: Date.now(),
-            error: error.message,
+            error: failureError.message,
             data: {
               chapters,
               selectedChapters: chapterIds,
@@ -1003,6 +1386,7 @@ class BusinessPlanGenerator {
       await this.persistGenerationState(chatId, type, {
         status: 'completed',
         selectedChapters: chapterIds,
+        researchDepth,
         progress: genState[type].progress,
         startTime: genState[type].startTime,
         endTime: Date.now(),
@@ -1053,6 +1437,7 @@ class BusinessPlanGenerator {
       await this.persistGenerationState(chatId, type, {
         status: 'error',
         selectedChapters: chapterIds,
+        researchDepth,
         progress: genState[type].progress,
         endTime: Date.now(),
         error: {

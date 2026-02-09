@@ -267,7 +267,8 @@ class ReportViewer {
   _tryParseReportDocument(document) {
     if (!document || typeof document !== 'string') return null;
     const trimmed = document.trim();
-    const fencedMatch = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
+    const fencedMatch =
+      trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
     const jsonText = (fencedMatch ? fencedMatch[1] : trimmed).trim();
     if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) return null;
     try {
@@ -307,7 +308,10 @@ class ReportViewer {
       if (headerIndex === -1) return source;
 
       const headerLine = lines[headerIndex];
-      const headerCells = headerLine.split('|').map(cell => cell.trim()).filter(Boolean);
+      const headerCells = headerLine
+        .split('|')
+        .map(cell => cell.trim())
+        .filter(Boolean);
       const colCount = headerCells.length;
       if (colCount < 2) return source;
 
@@ -318,9 +322,12 @@ class ReportViewer {
         return -1;
       })();
 
-      const hasSeparator = nextNonEmptyIndex !== -1
-        && /^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(lines[nextNonEmptyIndex]);
-      const looksBroken = lines.slice(headerIndex + 1, headerIndex + 6).some(line => /\|/.test(line) && !/^\s*\|/.test(line));
+      const hasSeparator =
+        nextNonEmptyIndex !== -1 &&
+        /^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(lines[nextNonEmptyIndex]);
+      const looksBroken = lines
+        .slice(headerIndex + 1, headerIndex + 6)
+        .some(line => /\|/.test(line) && !/^\s*\|/.test(line));
       if (hasSeparator && !looksBroken) return source;
 
       const rowLines = [];
@@ -884,11 +891,22 @@ class ReportViewer {
     };
   }
 
-  _buildExportChaptersFromReportData(reportData) {
+  _buildExportChaptersFromReportData(reportData, type = 'business') {
     if (!reportData) return [];
 
     if (Array.isArray(reportData.chapters) && reportData.chapters.length) {
-      return reportData.chapters.map(ch => ({
+      let chapters = reportData.chapters;
+      const chapterOrder =
+        window.businessPlanGenerator?.chapterConfig?.[type]?.core?.map(c => c.id) || [];
+      const orderMap = new Map(chapterOrder.map((id, idx) => [id, idx]));
+      if (chapterOrder.length) {
+        chapters = [...chapters].sort((a, b) => {
+          const aIdx = orderMap.has(a.chapterId) ? orderMap.get(a.chapterId) : 999;
+          const bIdx = orderMap.has(b.chapterId) ? orderMap.get(b.chapterId) : 999;
+          return aIdx - bIdx;
+        });
+      }
+      return chapters.map(ch => ({
         title: ch.title || ch.chapterId || '章节',
         content: ch.content || ''
       }));
@@ -1005,6 +1023,7 @@ class ReportViewer {
         window.currentReportType = type;
       }
       toggleShareButton(type);
+      window.lastGeneratedReport = report;
 
       // 显示商业计划书/产品立项材料
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
@@ -1079,6 +1098,7 @@ class ReportViewer {
                 `;
 
         document.getElementById('businessReportContent').innerHTML = reportContent;
+        this.applySourcesVisibility();
         openBusinessReportModal();
         return;
       }
@@ -1094,7 +1114,17 @@ class ReportViewer {
           return;
         }
 
-        const chapters = report.chapters;
+        let chapters = report.chapters;
+        const chapterOrder =
+          window.businessPlanGenerator?.chapterConfig?.business?.core?.map(c => c.id) || [];
+        const orderMap = new Map(chapterOrder.map((id, idx) => [id, idx]));
+        chapters = Array.isArray(chapters)
+          ? [...chapters].sort((a, b) => {
+              const aIdx = orderMap.has(a.chapterId) ? orderMap.get(a.chapterId) : 999;
+              const bIdx = orderMap.has(b.chapterId) ? orderMap.get(b.chapterId) : 999;
+              return aIdx - bIdx;
+            })
+          : chapters;
         window.currentGeneratedChapters = chapters.map(ch => ch.chapterId);
         const outlineItems = chapters
           .map((ch, index) => `<li>${index + 1}. ${safeText(ch.title, `章节 ${index + 1}`)}</li>`)
@@ -1120,6 +1150,7 @@ class ReportViewer {
                                     <div class="markdown-content">
                                         ${ch.content ? renderMarkdownContent(ch.content) : '<p style="color: var(--text-secondary);">内容生成中...</p>'}
                                     </div>
+                                    ${this.renderSourcesHTML(ch.sources)}
                                 </div>
                             </div>
                         </div>
@@ -1129,9 +1160,98 @@ class ReportViewer {
                 `;
 
         document.getElementById('businessReportContent').innerHTML = reportContent;
+        this.applySourcesVisibility();
         openBusinessReportModal();
       }
     }
+  }
+
+  renderSourcesHTML(sources) {
+    const list = Array.isArray(sources) ? sources.filter(Boolean) : [];
+    if (list.length === 0) {
+      return '';
+    }
+    const escapeText = (value, fallback = '') => {
+      if (value === undefined || value === null || value === '') {
+        return fallback;
+      }
+      return value;
+    };
+    const items = list
+      .map((s, idx) => {
+        const title = escapeText(s.title || `来源 ${idx + 1}`, `来源 ${idx + 1}`);
+        const url = escapeText(s.url || '', '');
+        const snippet = escapeText(s.snippet || '', '');
+        const urlLine = url
+          ? `<div style="font-size: 12px; color: var(--text-secondary); word-break: break-all;">${url}</div>`
+          : '';
+        const snippetLine = snippet
+          ? `<div style="margin-top: 6px; color: var(--text-secondary);">${snippet}</div>`
+          : '';
+        return `
+          <li style="margin-bottom: 10px;">
+            <div><strong>${title}</strong></div>
+            ${urlLine}
+            ${snippetLine}
+          </li>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="chapter-sources" data-sources-section="true" style="margin-top: 18px;">
+        <div style="font-weight: 600; margin-bottom: 8px;">参考来源</div>
+        <ul style="padding-left: 18px; margin: 0;">
+          ${items}
+        </ul>
+      </div>
+    `;
+  }
+
+  applySourcesVisibility() {
+    const visible = Boolean(window.reportSourcesVisible);
+    const sections = document.querySelectorAll('[data-sources-section="true"]');
+    sections.forEach(section => {
+      section.style.display = visible ? '' : 'none';
+    });
+    const toggle = document.getElementById('reportSourcesToggle');
+    if (toggle) {
+      toggle.checked = visible;
+    }
+  }
+
+  setSourcesVisibility(visible) {
+    window.reportSourcesVisible = Boolean(visible);
+    this.applySourcesVisibility();
+  }
+
+  downloadSources() {
+    const report = window.lastGeneratedReport;
+    if (!report || !Array.isArray(report.chapters)) {
+      window.toast?.error('未找到可导出的引用来源', 3000);
+      return;
+    }
+    const exportData = report.chapters.map(ch => ({
+      chapterId: ch.chapterId,
+      title: ch.title,
+      sources: Array.isArray(ch.sources) ? ch.sources : []
+    }));
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      type: report.type || window.currentReportType || 'business',
+      chapters: exportData
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `ThinkCraft_sources_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    window.toast?.success('✅ 引用来源已下载', 3000);
   }
 
   /**
@@ -1196,7 +1316,7 @@ class ReportViewer {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const chapters = this._buildExportChaptersFromReportData(validation.data);
+      const chapters = this._buildExportChaptersFromReportData(validation.data, reportType);
       if (!chapters.length) {
         window.toast.error('导出失败：未找到可导出的结构化内容', 4000);
         return;
@@ -1269,8 +1389,18 @@ function exportBusinessReport() {
   return window.reportViewer.exportBusinessReport();
 }
 
+function toggleReportSources(visible) {
+  return window.reportViewer.setSourcesVisibility(visible);
+}
+
+function downloadReportSources() {
+  return window.reportViewer.downloadSources();
+}
+
 // 暴露到window对象
 window.viewReport = viewReport;
 window.viewGeneratedReport = viewGeneratedReport;
 window.closeReport = closeReport;
 window.exportBusinessReport = exportBusinessReport;
+window.toggleReportSources = toggleReportSources;
+window.downloadReportSources = downloadReportSources;

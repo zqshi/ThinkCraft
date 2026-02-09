@@ -637,7 +637,15 @@ class ProjectManager {
    */
   async getProject(projectId, options = {}) {
     try {
+      // 🔧 检测引导页的模拟项目，直接返回 null 避免 API 调用
+      if (projectId === 'onboarding-mock-project') {
+        logger.info('[项目管理] 检测到引导模拟项目，跳过 API 调用:', projectId);
+        return null;
+      }
+
       const requireRemote = Boolean(options.requireRemote);
+      const allowLocalFallback = Boolean(options.allowLocalFallback);
+      const keepLocalOnMissing = Boolean(options.keepLocalOnMissing);
       const localProject = this.storageManager?.getProject
         ? await this.storageManager.getProject(projectId).catch(() => null)
         : null;
@@ -656,6 +664,24 @@ class ProjectManager {
       // 从后端获取
       const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects/${projectId}`);
       if (!response.ok) {
+        const status = response.status;
+        if ((status === 403 || status === 404) && !keepLocalOnMissing) {
+          // 清理本地缓存，避免点击后反复报错
+          if (this.storageManager?.deleteProject) {
+            await this.storageManager.deleteProject(projectId);
+          }
+          this.projects = this.projects.filter(p => String(p.id) !== String(projectId));
+          if (window.removeProject) {
+            window.removeProject(projectId);
+          }
+        }
+        if (allowLocalFallback && localProject) {
+          const patchedFallback = await this.ensureProjectWorkflow(localProject);
+          if (patchedFallback !== localProject) {
+            await this.storageManager.saveProject(patchedFallback);
+          }
+          return patchedFallback;
+        }
         throw new Error('项目不存在');
       }
 
@@ -2115,7 +2141,8 @@ class ProjectManager {
         };
       }
       const idRaw = item?.id || item?.type || item?.key || item?.name || '';
-      const resolvedId = this.normalizeArtifactTypeId(idRaw) || this.normalizeArtifactTypeId(item?.name) || idRaw;
+      const resolvedId =
+        this.normalizeArtifactTypeId(idRaw) || this.normalizeArtifactTypeId(item?.name) || idRaw;
       const label = item?.name || item?.label || item?.id || item?.type || '未命名交付物';
       return {
         id: resolvedId,
@@ -2354,7 +2381,11 @@ class ProjectManager {
       return;
     }
     const resolvedArtifactTypes = this.resolveSelectedArtifactTypes(stage, expected, selected);
-    if (resolvedArtifactTypes.length === 0 && Array.isArray(stage?.artifactTypes) && stage.artifactTypes.length > 0) {
+    if (
+      resolvedArtifactTypes.length === 0 &&
+      Array.isArray(stage?.artifactTypes) &&
+      stage.artifactTypes.length > 0
+    ) {
       window.modalManager?.alert('未选择有效的交付物类型', 'warning');
       return;
     }
@@ -2390,7 +2421,11 @@ class ProjectManager {
         const nextStage = updated.workflow?.stages?.find(s => s.id === stageId);
         if (nextStage?.supplementingDeliverableTypes) {
           delete nextStage.supplementingDeliverableTypes;
-          await this.updateProject(projectId, { workflow: updated.workflow }, { allowFallback: true }).catch(() => {});
+          await this.updateProject(
+            projectId,
+            { workflow: updated.workflow },
+            { allowFallback: true }
+          ).catch(() => {});
         }
         this.refreshProjectPanel(updated);
       }
@@ -3194,13 +3229,7 @@ class ProjectManager {
       });
     });
 
-    const preferTypes = [
-      'preview',
-      'ui-preview',
-      'prototype',
-      'frontend-code',
-      'ui-design'
-    ];
+    const preferTypes = ['preview', 'ui-preview', 'prototype', 'frontend-code', 'ui-design'];
     candidates.sort((a, b) => {
       const typeA = String(a.artifact.type || '').toLowerCase();
       const typeB = String(b.artifact.type || '').toLowerCase();
@@ -3251,11 +3280,7 @@ class ProjectManager {
       stage.artifacts = this.mergeArtifacts(stage.artifacts || [], [newArtifact]);
     }
     await this.storageManager?.saveArtifacts?.([newArtifact]).catch(() => {});
-    await this.updateProject(
-      project.id,
-      { workflow: project.workflow },
-      { allowFallback: true }
-    );
+    await this.updateProject(project.id, { workflow: project.workflow }, { allowFallback: true });
 
     return newArtifact;
   }
@@ -4780,29 +4805,42 @@ class ProjectManager {
    */
   async showCreateProjectDialog() {
     try {
-      // 优先从 IndexedDB 获取，避免使用过期的 localStorage 缓存
+      // 🔧 修复：优先从后端API获取对话列表，确保数据一致性
       let chats = [];
-      if (this.storageManager) {
-        chats = await this.storageManager.getAllChats().catch(() => []);
-      }
-      // 如果 IndexedDB 不可用，再尝试从 state 获取
-      if (chats.length === 0) {
-        chats = window.state?.chats ? [...window.state.chats] : [];
-      }
-      // 最后兜底使用 localStorage（可能存在旧缓存）
-      if (chats.length === 0) {
-        const saved = localStorage.getItem('thinkcraft_chats');
-        if (saved) {
-          try {
-            const parsedChats = JSON.parse(saved);
-            if (Array.isArray(parsedChats)) {
-              chats = parsedChats;
-            }
-          } catch (e) {
-            logger.error('Failed to parse chats from localStorage:', e);
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
+
+      // 1. 优先从后端API加载（确保数据是最新且真实存在的）
+      if (authToken && window.apiClient?.get) {
+        try {
+          const response = await window.apiClient.get('/api/chat', { page: 1, pageSize: 100 });
+          if (response?.code === 0 && Array.isArray(response?.data?.chats)) {
+            chats = response.data.chats.map(chat => ({
+              id: chat.id,
+              title: chat.title,
+              updatedAt: chat.updatedAt,
+              status: chat.status
+            }));
+            logger.info('[创建项目] 从后端加载对话列表', { count: chats.length });
           }
+        } catch (error) {
+          logger.warn('[创建项目] 后端加载失败，回退本地缓存', error);
         }
       }
+
+      // 2. 后端失败时，从 IndexedDB 获取
+      if (chats.length === 0 && this.storageManager) {
+        chats = await this.storageManager.getAllChats().catch(() => []);
+        logger.info('[创建项目] 从IndexedDB加载对话列表', { count: chats.length });
+      }
+
+      // 3. 如果 IndexedDB 不可用，再尝试从 state 获取
+      if (chats.length === 0) {
+        chats = window.state?.chats ? [...window.state.chats] : [];
+        logger.info('[创建项目] 从state加载对话列表', { count: chats.length });
+      }
+
+      // 4. 过滤掉已删除的对话
+      chats = chats.filter(chat => chat.status !== 'deleted');
 
       const reports = await this.storageManager.getAllReports().catch(() => []);
       const analysisMap = new Map();
@@ -5428,8 +5466,12 @@ class ProjectManager {
         return;
       }
 
-      // 获取项目详情（仅远端，避免本地缓存兜底）
-      const project = await this.getProject(projectId, { requireRemote: true });
+      // 获取项目详情（优先远端，不可用时允许本地兜底）
+      const project = await this.getProject(projectId, {
+        requireRemote: true,
+        allowLocalFallback: true,
+        keepLocalOnMissing: true
+      });
       if (!project) {
         throw new Error('项目不存在');
       }

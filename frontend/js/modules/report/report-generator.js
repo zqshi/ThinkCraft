@@ -263,6 +263,12 @@ class ReportGenerator {
     // 防止重复请求
     if (this.isGenerating) {
       console.warn('[生成报告] 已有报告正在生成中，跳过重复请求');
+
+      // 给用户友好的提示
+      if (window.showToast) {
+        window.showToast('报告正在生成中，请稍候...', 'info');
+      }
+
       return;
     }
 

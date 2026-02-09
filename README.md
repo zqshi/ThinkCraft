@@ -8,6 +8,7 @@
 - **对话式思维引导**：多轮对话、快速回复、打字机效果、历史记录
 - **项目空间**：对话与项目分区管理
 - **结构化产出**：分析报告、商业计划书章节、PDF导出、分享链接
+- **🆕 深度研究模式**：集成DeepResearch，支持多轮迭代和网络搜索，生成更专业的报告
 - **AI增强模块**：视觉分析、工作流推荐与执行、数字员工
 - **账号体系**：手机号登录（首次登录自动注册）、手机验证码、账号管理
 - **数据持久化**：MongoDB + Redis
@@ -108,6 +109,25 @@ SMS_PROVIDER=aliyun  # 可选: aliyun, tencent
 ```
 
 后端启动后，前端默认请求 `http://localhost:3000`。
+
+#### 启动DeepResearch微服务（可选，用于深度研究模式）
+
+```bash
+# 在新终端中
+cd backend/services/deep-research
+./start.sh
+
+# 或手动启动
+pip install -r requirements.txt
+python app.py
+```
+
+DeepResearch微服务启动后，可以在生成商业计划书时勾选"启用深度研究模式"，使用多轮迭代和网络搜索生成更专业的报告。
+
+详细文档：
+
+- [DeepResearch快速启动](docs/DEEPRESEARCH_QUICKSTART.md)
+- [DeepResearch部署指南](docs/DEEPRESEARCH_DEPLOYMENT.md)
 
 ## 🏗️ 架构说明
 

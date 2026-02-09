@@ -38,6 +38,9 @@ const handleError = (res, error) => {
   if (error.message.includes('不存在')) {
     statusCode = 404;
     errorMessage = error.message;
+  } else if (error.message.includes('无权访问')) {
+    statusCode = 403;
+    errorMessage = error.message;
   } else if (error.message.includes('验证失败')) {
     statusCode = 400;
     errorMessage = error.message;
@@ -53,8 +56,10 @@ const handleError = (res, error) => {
   });
 };
 
-const normalizeAutoTitle = (rawTitle) => {
-  if (!rawTitle || typeof rawTitle !== 'string') return '';
+const normalizeAutoTitle = rawTitle => {
+  if (!rawTitle || typeof rawTitle !== 'string') {
+    return '';
+  }
   let title = rawTitle.trim();
   title = title.replace(/^["'“”]+|["'“”]+$/g, '');
   title = title.replace(/\s+/g, ' ');
@@ -65,7 +70,7 @@ const normalizeAutoTitle = (rawTitle) => {
   return title;
 };
 
-const buildTitlePrompt = (messages) => {
+const buildTitlePrompt = messages => {
   const roleMap = {
     user: '用户',
     assistant: '助手',
@@ -496,7 +501,8 @@ router.get('/stats', async (req, res) => {
 // 保持原有的聊天接口以兼容现有代码
 router.post('/', async (req, res) => {
   try {
-    let { messages, systemPrompt } = req.body;
+    const { messages, systemPrompt: initialSystemPrompt } = req.body;
+    let systemPrompt = initialSystemPrompt;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
