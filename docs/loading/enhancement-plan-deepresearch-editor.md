@@ -61,8 +61,6 @@ operation (依赖: deployment)
 - 通过模板变量（如 `{PRD}`, `{ARCHITECTURE}`）注入到后续阶段的 prompt
 - 前端有依赖检查，阻止跳过依赖阶段
 
-**结论**：✅ 每个后续环节确实依赖前面环节的交付物输出
-
 ### 3. 交付物预览编辑现状
 
 **实现位置**：
@@ -71,13 +69,6 @@ operation (依赖: deployment)
 - `/frontend/js/components/markdown-renderer.js`
 
 **当前功能**：
-
-- ✅ 支持 37 种交付物类型
-- ✅ Markdown 渲染（文档类）
-- ✅ 代码高亮（代码类）
-- ✅ iframe 沙箱预览（预览类）
-- ✅ 图片展示（设计类）
-- ✅ 复制、下载功能
 
 **缺失功能**：
 
@@ -256,11 +247,6 @@ await apiClient.generateBusinessPlan(projectId, {
 
 #### 优势
 
-- ✅ 提升报告专业性（数据验证、引用来源）
-- ✅ 增加内容深度（多轮迭代）
-- ✅ 保留快速模式（向后兼容）
-- ✅ 用户可选（灵活性）
-
 #### 风险
 
 - ⚠️ DeepResearch 可能需要额外 API 费用
@@ -296,12 +282,6 @@ npm install @codemirror/state @codemirror/view @codemirror/commands @codemirror/
 ```
 
 **为什么选 CodeMirror 6 而不是 Monaco？**
-
-- ✅ 体积更小：0.5-1MB vs 3-5MB
-- ✅ 同时支持 Markdown 和代码编辑
-- ✅ 原生 JS，无需框架
-- ✅ MIT 许可证，完全开源可商用
-- ✅ 性能优异，增量解析
 
 **2. 创建编辑器组件**
 
@@ -578,11 +558,6 @@ router.put('/:projectId/artifacts/:artifactId', async (req, res) => {
 
 #### 优势
 
-- ✅ 用户可以修正 AI 生成的内容
-- ✅ 实时预览提升编辑体验
-- ✅ 支持多种文件类型（Markdown、代码）
-- ✅ 保留原始版本（可选）
-
 #### 风险
 
 - ⚠️ CodeMirror 6 学习曲线较陡（但文档完善）
@@ -669,14 +644,8 @@ router.put('/:projectId/artifacts/:artifactId', async (req, res) => {
 
 ### 用户决策
 
-- ✅ **DeepResearch 集成方式**：Python 微服务
-- ✅ **编辑器范围**：MVP 版本（Markdown + 代码，实时预览，保存功能）
-- ✅ **冲突处理**：保留用户编辑（AI 重新生成时跳过已编辑的交付物）
-- ✅ **权限控制**：所有用户可编辑（无权限检查）
-
 ### P0（必须 - 第一阶段）
 
-1. ✅ **验证依赖关系**：已确认系统正确实现，无需开发
 2. 🔨 **交付物编辑器 MVP**：
    - 支持 Markdown 和代码编辑
    - 实时预览（分屏）
@@ -821,13 +790,6 @@ router.put('/:projectId/artifacts/:artifactId', async (req, res) => {
 - [ ] 对比快速模式和深度模式的内容质量
 - [ ] 验证成本统计是否正确
 
-### 依赖关系验证（已完成）
-
-- [x] 创建新项目
-- [x] 尝试跳过依赖阶段（已被阻止）
-- [x] 按顺序执行阶段，验证上下文传递
-- [x] 检查后续阶段的 prompt 包含前序交付物内容
-
 ---
 
 ## 补充说明：商业计划书章节选择机制
@@ -839,7 +801,6 @@ router.put('/:projectId/artifacts/:artifactId', async (req, res) => {
 1. **检查报告状态**（`checkReportStatus`）：
    - 如果报告不存在或状态为 `idle`/`error` → 显示章节选择弹窗
    - 如果报告状态为 `generating` → 显示进度弹窗
-   - 如果报告状态为 `completed` → 显示已完成的报告
 
 2. **章节选择弹窗**（`showChapterSelection`）：
    - 显示核心章节（必选）

@@ -770,13 +770,6 @@ curl -X POST http://localhost:5001/research/business-plan-chapter \
 
 ### P0（第一阶段 - 基础功能）
 
-- [x] 前端UI：添加深度研究开关
-- [x] 前端逻辑：传递深度研究标志，超时时间设置为10分钟
-- [x] 后端API：接收并处理深度研究参数
-- [x] 后端逻辑：重构为`generateWithDeepSeek`和`generateWithDeepResearch`
-- [x] 降级策略：DeepResearch失败时询问用户是否降级（不自动降级）
-- [x] 错误处理：识别服务异常，支持用户手动重试
-
 ### P1（第二阶段 - Python微服务）
 
 - [ ] Python服务：实现Flask应用和DeepResearch客户端
@@ -1645,3 +1638,16 @@ async generate(type, chapterIds, useDeepResearch, researchDepth) {
 2. **成本计算准确性**：不同模型的token计费方式可能不同，需要动态配置
 3. **自定义问题解析**：需要处理用户输入的各种格式，避免解析错误
 4. **进度推送性能**：高频率的进度推送可能影响性能，需要节流处理
+
+---
+
+## 代码级检测未完成项（基于当前实现）
+
+1. WebSocket 实时进度推送/迭代进度（未发现 websocket_handler 或 WS 路由）
+2. 自定义研究问题（前后端请求体与服务未接入该字段）
+3. 置信度徽章与颜色区分（仅返回 confidence，未渲染 UI）
+4. 数据来源相关度评分（sources 无相关度字段与展示）
+5. 来源链接可点击跳转（URL 仅文本展示）
+6. 成本统计与预算控制（仅 DeepSeek 统计，DeepResearch 未接入）
+7. Docker 化部署 Python 微服务（缺少 Dockerfile）
+8. 进度可视化优化（仅章节级进度，无迭代轮次/搜索进度）
