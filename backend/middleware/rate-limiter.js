@@ -1,7 +1,7 @@
 /**
  * 请求频率限制中间件
  */
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // 通用频率限制
 export const generalLimiter = rateLimit({
@@ -34,7 +34,7 @@ export const aiApiLimiter = rateLimit({
     code: -1,
     error: 'AI请求过于频繁，请稍后再试'
   },
-  skip: (req) => {
+  skip: req => {
     // 开发环境不限制
     return process.env.NODE_ENV === 'development';
   }
@@ -58,9 +58,10 @@ export const smsLimiter = rateLimit({
     code: -1,
     error: '验证码请求过于频繁，请稍后再试'
   },
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const phone = req.body?.phone || req.query?.phone || '';
-    return `${req.ip}:${phone}`;
+    const ip = ipKeyGenerator(req);
+    return `${ip}:${phone}`;
   },
   skip: () => process.env.NODE_ENV === 'development',
   standardHeaders: true,

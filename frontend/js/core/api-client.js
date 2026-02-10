@@ -232,8 +232,17 @@ class APIClient {
     localStorage.removeItem('accessToken');
 
     if (typeof window !== 'undefined') {
-      alert('登录已过期，请重新登录');
-      window.location.href = 'login.html';
+      const message = '登录已过期，请重新登录';
+      if (window.showUnifiedConfirm) {
+        window.showUnifiedConfirm(message, () => {
+          window.location.href = 'login.html';
+        });
+      } else {
+        const confirmed = confirm(message);
+        if (confirmed) {
+          window.location.href = 'login.html';
+        }
+      }
     }
   }
 

@@ -23,23 +23,23 @@ lsof -ti:3000,5173 | xargs kill -9 2>/dev/null
 pkill -f "sync-css.js" 2>/dev/null
 sleep 1
 
-# 启动CSS同步（后台）
+# 启动CSS同步（后台，防止脚本退出导致进程被挂起）
 echo "📦 启动CSS自动同步..."
-node scripts/sync-css.js > "$LOG_DIR/css-sync.log" 2>&1 &
+nohup node scripts/sync-css.js > "$LOG_DIR/css-sync.log" 2>&1 &
 CSS_PID=$!
 echo $CSS_PID > "$RUN_DIR/css-sync.pid"
 echo "   PID: $CSS_PID"
 
-# 启动后端（后台）
+# 启动后端（后台，防止脚本退出导致进程被挂起）
 echo "🔧 启动后端服务..."
-(cd "${ROOT_DIR}/backend" && npm run dev > "${LOG_DIR}/backend.log" 2>&1) &
+(cd "${ROOT_DIR}/backend" && nohup npm run dev > "${LOG_DIR}/backend.log" 2>&1) &
 BACKEND_PID=$!
 echo $BACKEND_PID > "${RUN_DIR}/backend.pid"
 echo "   PID: $BACKEND_PID"
 
-# 启动前端（后台）
+# 启动前端（后台，防止脚本退出导致进程被挂起）
 echo "🎨 启动前端服务..."
-(cd "${ROOT_DIR}" && npm run dev > "${LOG_DIR}/frontend.log" 2>&1) &
+(cd "${ROOT_DIR}" && nohup npm run dev > "${LOG_DIR}/frontend.log" 2>&1) &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "${RUN_DIR}/frontend.pid"
 echo "   PID: $FRONTEND_PID"
@@ -82,6 +82,11 @@ echo "🛑 停止服务："
 echo "   kill \$(cat ${RUN_DIR}/frontend.pid ${RUN_DIR}/backend.pid ${RUN_DIR}/css-sync.pid)"
 echo ""
 
-# 打开浏览器
-sleep 1
-open http://localhost:5173
+# 打开浏览器（可通过 AUTO_OPEN=0 禁用）
+AUTO_OPEN=${AUTO_OPEN:-1}
+if [ "$AUTO_OPEN" = "1" ]; then
+  sleep 1
+  if ! open http://localhost:5173 >/dev/null 2>&1; then
+    echo "⚠️  无法自动打开浏览器，请手动访问: http://localhost:5173"
+  fi
+fi

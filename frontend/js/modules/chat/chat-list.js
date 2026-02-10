@@ -109,7 +109,7 @@ class ChatList {
    * 加载对话列表
    */
   async loadChats(options = {}) {
-    const { preferLocal = false } = options;
+    void options;
     // 1. 先清理所有已经portal到body的菜单
     document.querySelectorAll('.chat-item-menu').forEach(menu => {
       if (menu.parentElement === document.body) {
@@ -117,10 +117,8 @@ class ChatList {
       }
     });
 
-    const authToken = window.getAuthToken ? window.getAuthToken() : null;
-
-    // 优先从后端加载对话列表
-    if (!preferLocal && authToken && window.apiClient?.get) {
+    // 始终从后端加载对话列表（不使用本地缓存）
+    if (window.apiClient?.get) {
       try {
         const response = await window.apiClient.get('/api/chat', { page: 1, pageSize: 100 });
         if (response?.code === 0 && Array.isArray(response?.data?.chats)) {
@@ -144,30 +142,15 @@ class ChatList {
             tags: chat.tags || [],
             isPinned: chat.isPinned || false
           }));
-          if (window.storageManager) {
-            for (const chat of state.chats) {
-              await window.storageManager.saveChat(chat);
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('[ChatList] 后端加载失败，回退本地缓存', error);
-      }
-    }
-
-    // 从 IndexedDB 加载对话（后端失败时）
-    if (!state.chats || state.chats.length === 0) {
-      if (window.storageManager) {
-        try {
-          state.chats = await window.storageManager.getAllChats();
-        } catch (error) {
-          console.error('[ChatList] 加载对话失败:', error);
+        } else {
           state.chats = [];
         }
-      } else {
+      } catch (error) {
+        console.warn('[ChatList] 后端加载失败', error);
         state.chats = [];
       }
     }
+    if (!state.chats) state.chats = [];
 
     // 排序：置顶优先，其次按 chat ID + requestID 倒序
     state.chats.sort((a, b) => {
@@ -273,11 +256,6 @@ class ChatList {
       chat.title = newTitle.trim();
       chat.titleEdited = true;
 
-      // 保存到 IndexedDB
-      if (window.storageManager) {
-        await window.storageManager.saveChat(chat);
-      }
-
       if (window.apiClient?.put) {
         try {
           await window.apiClient.put(`/api/chat/${chatId}`, {
@@ -304,11 +282,6 @@ class ChatList {
     if (!chat) return;
 
     chat.isPinned = !chat.isPinned;
-
-    // 保存到 IndexedDB
-    if (window.storageManager) {
-      await window.storageManager.saveChat(chat);
-    }
 
     if (window.apiClient?.put) {
       try {
@@ -400,16 +373,7 @@ class ChatList {
 
     state.chats = state.chats.filter(c => String(c.id) !== String(chatId));
 
-    // 从 IndexedDB 删除
-    if (window.storageManager) {
-      await window.storageManager.deleteChat(chatId);
-    }
-    // 同步更新 localStorage 缓存，避免删除后仍被旧缓存读取
-    try {
-      localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
-    } catch (error) {
-      console.warn('[ChatList] 更新 localStorage 失败:', error);
-    }
+    // 本地缓存已禁用，无需更新 IndexedDB/localStorage
 
     // 如果删除的是当前对话，重置状态
     if (String(state.currentChat) === String(chatId)) {
@@ -444,22 +408,7 @@ class ChatList {
     const chatIds = state.chats.map(c => c.id);
     state.chats = [];
 
-    // 从 IndexedDB 删除所有对话
-    if (window.storageManager) {
-      for (const chatId of chatIds) {
-        await window.storageManager.deleteChat(chatId);
-      }
-    }
-
-    // 清除其他存储
-    localStorage.removeItem('thinkcraft_reports');
-    localStorage.removeItem('thinkcraft_chats');
-    sessionStorage.clear();
-
-    // 清除IndexedDB（如果存在）
-    if (window.storageManager && window.storageManager.clearAll) {
-      window.storageManager.clearAll().catch(() => {});
-    }
+    // 本地缓存已禁用，无需清除 IndexedDB/localStorage
 
     // 重新加载对话列表
     this.loadChats();

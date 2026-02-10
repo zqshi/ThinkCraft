@@ -3551,7 +3551,7 @@ class ProjectManager {
                     <button class="btn-secondary" onclick="projectManager.openIdeaChat('${chat.id}')">查看对话</button>
                     <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'analysis')" ${analysis ? '' : 'disabled'}>分析报告</button>
                     <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'business')" ${business ? '' : 'disabled'}>商业计划书</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')" ${proposal ? '' : 'disabled'}>立项材料</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')">立项材料</button>
                 </div>
             </div>
         `;
@@ -3679,11 +3679,66 @@ class ProjectManager {
         r.type === type
     );
     if (!report) {
-      window.modalManager.alert('暂无报告内容', 'info');
+      if (type === 'proposal') {
+        const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+        const emptyContent = '<div class="project-panel-empty">暂无报告内容</div>';
+        window.modalManager.showCustomModal(typeTitle, emptyContent, 'projectIdeaReportModal');
+      } else {
+        window.modalManager.alert('暂无报告内容', 'info');
+      }
       return;
     }
 
     const data = report.data || {};
+    const hasDocument = typeof data.document === 'string' && data.document.trim().length > 0;
+    const hasChaptersArray = Array.isArray(data.chapters) && data.chapters.length > 0;
+    const hasChaptersObject =
+      data.chapters &&
+      typeof data.chapters === 'object' &&
+      !Array.isArray(data.chapters) &&
+      Object.keys(data.chapters).length > 0;
+    const hasChapterContent = (() => {
+      if (Array.isArray(data.chapters)) {
+        return data.chapters.some(ch => ch && typeof ch.content === 'string' && ch.content.trim());
+      }
+      if (hasChaptersObject) {
+        return Object.values(data.chapters).some(
+          ch => ch && typeof ch.content === 'string' && ch.content.trim()
+        );
+      }
+      return false;
+    })();
+    const ideaTitle = chat?.userData?.idea || chat?.title || '创意项目';
+    const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+    const isMeaningfulDocument = docText => {
+      if (!docText || typeof docText !== 'string') return false;
+      let text = docText;
+      text = text.replace(/```[\s\S]*?```/g, '');
+      text = text.replace(/\r/g, '');
+      const lines = text
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean);
+      const cleanedLines = lines.filter(line => {
+        if (line === typeTitle) return false;
+        if (line === ideaTitle) return false;
+        if (line.includes('本报告由 ThinkCraft AI 自动生成')) return false;
+        return true;
+      });
+      const cleaned = cleanedLines
+        .join(' ')
+        .replace(/[#>*_()`-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return cleaned.length >= 30;
+    };
+    const hasMeaningfulDoc = hasDocument && isMeaningfulDocument(data.document);
+    if (type === 'proposal' && !hasChapterContent && !hasMeaningfulDoc) {
+      const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+      const emptyContent = '<div class="project-panel-empty">暂无报告内容</div>';
+      window.modalManager.showCustomModal(typeTitle, emptyContent, 'projectIdeaReportModal');
+      return;
+    }
     const normalizeMarkdown = text => {
       if (
         window.reportViewer &&
@@ -7016,7 +7071,7 @@ class ProjectManager {
       const link = document.createElement('a');
       link.href = blobUrl;
       const disposition = response.headers.get('Content-Disposition') || '';
-      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      const match = disposition.match(/filename="?([^";]+)"?/i);
       link.download = match?.[1] || `${projectId}-artifacts.zip`;
       document.body.appendChild(link);
       link.click();

@@ -24,6 +24,58 @@ class ReportGenerator {
     this.isGenerating = false; // 防止重复请求
   }
 
+  getReportGenerateEndpoints() {
+    return ['/api/report/generate', '/api/report/reports/generate'];
+  }
+
+  async postReportGenerateWithClient(apiClient, body, options = {}) {
+    const endpoints = this.getReportGenerateEndpoints();
+    let lastError = null;
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.request(endpoint, {
+          method: 'POST',
+          body,
+          timeout: options.timeout,
+          retry: options.retry
+        });
+      } catch (error) {
+        const status = error?.status;
+        if (status === 404) {
+          lastError = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (lastError) {
+      throw lastError;
+    }
+    throw new Error('报告接口不可用');
+  }
+
+  async postReportGenerateWithFetch(apiUrl, body, options = {}) {
+    const endpoints = this.getReportGenerateEndpoints();
+    let lastError = null;
+    for (const endpoint of endpoints) {
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: options.headers || { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: options.signal
+      });
+      if (response.status === 404) {
+        lastError = response;
+        continue;
+      }
+      return response;
+    }
+    if (lastError) {
+      return lastError;
+    }
+    throw new Error('报告接口不可用');
+  }
+
   async persistAnalysisReport(reportData, status = 'completed') {
     if (!window.storageManager || !reportData) {
       return;
@@ -90,9 +142,9 @@ class ReportGenerator {
       window.apiClient = apiClient;
 
       const chatId = normalizeChatId(this.state.currentChat);
-      const data = await apiClient.request('/api/report/generate', {
-        method: 'POST',
-        body: {
+      const data = await this.postReportGenerateWithClient(
+        apiClient,
+        {
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -101,9 +153,11 @@ class ReportGenerator {
           reportKey: this.getAnalysisReportKey(),
           force: false
         },
-        timeout: 180000, // 增加到3分钟
-        retry: 2 // 增加重试次数
-      });
+        {
+          timeout: 180000, // 增加到3分钟
+          retry: 2 // 增加重试次数
+        }
+      );
 
       if (data && data.code !== 0) {
         return;
@@ -159,9 +213,9 @@ class ReportGenerator {
       window.apiClient = apiClient;
 
       const chatId = normalizeChatId(this.state.currentChat);
-      const data = await apiClient.request('/api/report/generate', {
-        method: 'POST',
-        body: {
+      const data = await this.postReportGenerateWithClient(
+        apiClient,
+        {
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -171,9 +225,11 @@ class ReportGenerator {
           force: false,
           cacheOnly: true
         },
-        timeout: 120000,
-        retry: 0
-      });
+        {
+          timeout: 120000,
+          retry: 0
+        }
+      );
 
       if (data && data.code !== 0) {
         return false;
@@ -322,13 +378,9 @@ class ReportGenerator {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const response = await fetch(`${this.state.settings.apiUrl}/api/report/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-        },
-        body: JSON.stringify({
+      const response = await this.postReportGenerateWithFetch(
+        this.state.settings.apiUrl,
+        {
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -336,9 +388,15 @@ class ReportGenerator {
           chatId,
           reportKey: this.getAnalysisReportKey(),
           force: forceRegenerate || false
-        }),
-        signal: this.currentController.signal
-      });
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
+          signal: this.currentController.signal
+        }
+      );
 
       clearTimeout(timeoutId);
       this.currentController = null;

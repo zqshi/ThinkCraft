@@ -42,6 +42,7 @@ import {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -264,10 +265,10 @@ async function startServer() {
     isReady = true;
 
     // 启动HTTP服务器
-    app.listen(PORT, () => {
+    app.listen(PORT, HOST, () => {
       console.log('========================================');
       console.log(`  ThinkCraft 后端服务已启动`);
-      console.log(`  端口: ${PORT}`);
+      console.log(`  地址: http://${HOST}:${PORT}`);
       console.log(`  环境: ${process.env.NODE_ENV || 'development'}`);
       console.log(`  存储类型: ${process.env.DB_TYPE || 'memory'}`);
       console.log(`  前端地址: ${FRONTEND_URL}`);

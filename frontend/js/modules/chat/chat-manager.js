@@ -110,10 +110,6 @@ class ChatManager {
     };
     this.state.chats[index] = updated;
 
-    if (window.storageManager) {
-      await window.storageManager.saveChat(updated);
-    }
-
     if (window.apiClient?.put) {
       window.apiClient
         .put(`/api/chat/${chatId}`, {
@@ -124,9 +120,9 @@ class ChatManager {
     }
 
     if (window.chatList?.loadChats) {
-      window.chatList.loadChats({ preferLocal: true });
+      window.chatList.loadChats();
     } else if (typeof loadChats === 'function') {
-      loadChats({ preferLocal: true });
+      loadChats();
     }
   }
 
@@ -223,6 +219,10 @@ class ChatManager {
    */
   async saveCurrentChat() {
     if (!this.state.settings.saveHistory || this.state.messages.length === 0) return;
+    if (this.state.currentChat === null) {
+      // 后端为唯一数据源时，不在本地生成对话
+      return;
+    }
 
     // 从第一条用户消息提取标题
     let title = '新对话';
@@ -246,26 +246,8 @@ class ChatManager {
     const now = new Date().toISOString();
     let chat;
 
-    // 核心逻辑：区分创建新对话和更新现有对话
-    if (this.state.currentChat === null) {
-      // 场景1：创建新对话
-      const chatId = generateChatId();
-      chat = {
-        id: chatId,
-        title: title,
-        titleEdited: false,
-        messages: [...this.state.messages],
-        userData: { ...this.state.userData },
-        conversationStep: this.state.conversationStep,
-        analysisCompleted: this.state.analysisCompleted,
-        createdAt: now,
-        updatedAt: now
-      };
-
-      this.state.currentChat = chatId; // 设置当前对话ID
-      this.state.chats.unshift(chat);
-    } else {
-      // 场景2：更新现有对话
+    // 核心逻辑：更新现有对话
+    if (this.state.currentChat !== null) {
       const index = this.state.chats.findIndex(
         c => String(c.id) === String(this.state.currentChat)
       );
@@ -298,11 +280,6 @@ class ChatManager {
       }
     }
 
-    // 保存到 IndexedDB
-    if (window.storageManager) {
-      await window.storageManager.saveChat(chat);
-    }
-
     // 刷新对话列表
     if (typeof loadChats === 'function') {
       loadChats();
@@ -323,9 +300,8 @@ class ChatManager {
   async loadChat(chatId) {
     let chat = this.state.chats.find(c => String(c.id) === String(chatId));
 
-    // 如果已登录，优先从后端拉取最新状态
-    const authToken = window.getAuthToken ? window.getAuthToken() : null;
-    if (authToken && window.apiClient?.get) {
+    // 始终从后端拉取最新状态（不使用本地缓存）
+    if (window.apiClient?.get) {
       try {
         const response = await window.apiClient.get(`/api/chat/${chatId}`);
         if (response?.code === 0 && response?.data?.id) {
@@ -358,17 +334,22 @@ class ChatManager {
           } else {
             this.state.chats.unshift(normalizedChat);
           }
-          if (window.storageManager) {
-            await window.storageManager.saveChat(normalizedChat);
-          }
         }
       } catch (error) {
         const status = error?.status;
-        if (status === 403 || status === 404) {
-          // 后端确认无权限或不存在，清理本地缓存，避免重复报错
-          if (window.storageManager?.deleteChat) {
-            await window.storageManager.deleteChat(chatId);
+        if (status === 404) {
+          // 后端不存在，清理本地列表，避免反复报错
+          this.state.chats = this.state.chats.filter(c => String(c.id) !== String(chatId));
+          if (String(this.state.currentChat) === String(chatId)) {
+            this.state.currentChat = null;
+            this.state.messages = [];
           }
+          if (typeof window.loadChats === 'function') {
+            window.loadChats();
+          }
+          return;
+        } else if (status === 403) {
+          // 无权限，清理列表，避免循环报错
           this.state.chats = this.state.chats.filter(c => String(c.id) !== String(chatId));
           if (String(this.state.currentChat) === String(chatId)) {
             this.state.currentChat = null;
@@ -379,24 +360,7 @@ class ChatManager {
           }
           return;
         }
-        console.warn('[ChatManager] 拉取后端会话失败，使用本地缓存', error);
-      }
-    }
-
-    if (!chat && window.storageManager?.getChat) {
-      try {
-        const localChat = await window.storageManager.getChat(chatId);
-        if (localChat) {
-          chat = localChat;
-          const existingIndex = this.state.chats.findIndex(c => String(c.id) === String(chatId));
-          if (existingIndex !== -1) {
-            this.state.chats[existingIndex] = localChat;
-          } else {
-            this.state.chats.unshift(localChat);
-          }
-        }
-      } catch (error) {
-        console.warn('[ChatManager] 加载本地对话失败:', error);
+        console.warn('[ChatManager] 拉取后端会话失败', error);
       }
     }
 
@@ -464,9 +428,10 @@ class ChatManager {
           progress:
             nextStatus === 'pending'
               ? { current: 0, total: 0, currentAgent: null, percentage: 0 }
-              : stateEntry.progress ?? existing?.progress,
-          startTime: nextStatus === 'pending' ? null : stateEntry.startTime ?? existing?.startTime,
-          endTime: nextStatus === 'pending' ? null : stateEntry.endTime ?? existing?.endTime,
+              : (stateEntry.progress ?? existing?.progress),
+          startTime:
+            nextStatus === 'pending' ? null : (stateEntry.startTime ?? existing?.startTime),
+          endTime: nextStatus === 'pending' ? null : (stateEntry.endTime ?? existing?.endTime),
           error: stateEntry.error ?? existing?.error ?? null,
           selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
         });
@@ -496,9 +461,7 @@ class ChatManager {
       this.state.messages = normalizedMessages;
       chat.messages = normalizedMessages;
       chat.analysisCompleted = true;
-      if (window.storageManager) {
-        await window.storageManager.saveChat(chat);
-      }
+      // 本地缓存已禁用，无需保存
     }
 
     // 确保聊天容器基础结构存在
