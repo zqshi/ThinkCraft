@@ -41,11 +41,14 @@ build/
 
 # Project artifacts
 projects/
+DeepResearch/
+backend/services/DeepResearch-repo/
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+__pycache__/
 
 # Debug files
 debug.log
