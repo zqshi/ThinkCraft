@@ -220,10 +220,24 @@ window.projectManagerIdeaFlow = {
   },
 
   hasCompletedAnalysisReport(pm, report) {
-    if (!report || report.type !== 'analysis' || !report.chatId) {
+    if (!report || !report.chatId) {
       return false;
     }
-    if (report.status !== 'completed') {
+    const reportType = String(report.type || '').toLowerCase();
+    const isAnalysisType =
+      reportType === 'analysis' ||
+      reportType === 'analysis-report' ||
+      reportType === 'analysis_report';
+    if (!isAnalysisType) {
+      return false;
+    }
+    const normalizedStatus = String(report.status || '').toLowerCase();
+    const statusCompleted =
+      normalizedStatus === 'completed' ||
+      normalizedStatus === 'success' ||
+      normalizedStatus === 'done' ||
+      normalizedStatus === 'finished';
+    if (!statusCompleted && normalizedStatus) {
       return false;
     }
     const data = report.data || {};
@@ -266,6 +280,18 @@ window.projectManagerIdeaFlow = {
         analysisChatIds.add(pm.normalizeIdeaIdForCompare(report.chatId));
       }
     });
+    chats.forEach(chat => {
+      const reportStateStatus = String(chat?.reportState?.analysis?.status || '').toLowerCase();
+      const chatMarkedCompleted =
+        chat?.analysisCompleted === true ||
+        reportStateStatus === 'completed' ||
+        reportStateStatus === 'success' ||
+        reportStateStatus === 'done' ||
+        reportStateStatus === 'finished';
+      if (chatMarkedCompleted) {
+        analysisChatIds.add(pm.normalizeIdeaIdForCompare(chat.id));
+      }
+    });
     return chats.filter(chat => analysisChatIds.has(pm.normalizeIdeaIdForCompare(chat.id)));
   },
 
@@ -278,6 +304,18 @@ window.projectManagerIdeaFlow = {
     (Array.isArray(reports) ? reports : []).forEach(report => {
       if (pm.hasCompletedAnalysisReport(report)) {
         analysisChatIds.add(pm.normalizeIdeaIdForCompare(report.chatId));
+      }
+    });
+    chats.forEach(chat => {
+      const reportStateStatus = String(chat?.reportState?.analysis?.status || '').toLowerCase();
+      const chatMarkedCompleted =
+        chat?.analysisCompleted === true ||
+        reportStateStatus === 'completed' ||
+        reportStateStatus === 'success' ||
+        reportStateStatus === 'done' ||
+        reportStateStatus === 'finished';
+      if (chatMarkedCompleted) {
+        analysisChatIds.add(pm.normalizeIdeaIdForCompare(chat.id));
       }
     });
     return chats.filter(chat => analysisChatIds.has(pm.normalizeIdeaIdForCompare(chat.id)));
