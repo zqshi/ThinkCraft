@@ -10,7 +10,8 @@ window.projectManagerProjectActions = {
   async deleteProject(pm, projectId) {
     try {
       const projectIdText = String(projectId || '');
-      const isServerId = projectIdText.startsWith('project_') || /^[a-f0-9]{24}$/i.test(projectIdText);
+      const isServerId =
+        projectIdText.startsWith('project_') || /^[a-f0-9]{24}$/i.test(projectIdText);
       projectActionsLogger.debug('[DEBUG] deleteProject - projectId:', projectId);
       projectActionsLogger.debug('[DEBUG] deleteProject - isServerId:', isServerId);
 
@@ -36,7 +37,9 @@ window.projectManagerProjectActions = {
             const error = await response.json();
             message = error.error || message;
             projectActionsLogger.debug('[DEBUG] deleteProject - error response:', error);
-          } catch (parseError) {}
+          } catch (parseError) {
+            // ignore parse error and keep default message
+          }
 
           const localExisting = await pm.storageManager.getProject(projectId);
           if (!localExisting) {
@@ -53,7 +56,9 @@ window.projectManagerProjectActions = {
       await pm.storageManager.deleteProject(projectId);
 
       pm.projects = pm.projects.map(project =>
-        project.id === projectId ? { ...project, status: 'deleted', updatedAt: Date.now() } : project
+        project.id === projectId
+          ? { ...project, status: 'deleted', updatedAt: Date.now() }
+          : project
       );
 
       if (window.updateProject) {
@@ -102,7 +107,7 @@ window.projectManagerProjectActions = {
         pm.renderProjectList('projectListContainer');
         pm.refreshProjectPanel(viewProject);
       })
-      .catch(error => {});
+      .catch(() => {});
   },
 
   openIdeaChat(pm, chatId) {
@@ -111,8 +116,8 @@ window.projectManagerProjectActions = {
     }
     pm.closeProjectPanel();
 
-    if (typeof switchSidebarTab === 'function') {
-      switchSidebarTab('chats');
+    if (typeof window.switchSidebarTab === 'function') {
+      window.switchSidebarTab('chats');
     }
 
     if (typeof window.loadChatFromProject === 'function') {

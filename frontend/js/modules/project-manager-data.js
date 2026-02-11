@@ -2,147 +2,152 @@
  * ProjectManager 数据访问模块
  */
 
+const projectDataLogger = window.createLogger ? window.createLogger('ProjectManagerData') : console;
+
 window.projectManagerData = {
   async createProject(pm, ideaId, name) {
-    try {
-      logger.info('[createProject] 输入参数:', { ideaId, name, ideaIdType: typeof ideaId });
+    projectDataLogger.info('[createProject] 输入参数:', {
+      ideaId,
+      name,
+      ideaIdType: typeof ideaId
+    });
 
-      const normalizedIdeaId = pm.normalizeIdeaId(ideaId);
-      logger.info('[createProject] 规范化后:', { normalizedIdeaId, type: typeof normalizedIdeaId });
+    const normalizedIdeaId = pm.normalizeIdeaId(ideaId);
+    projectDataLogger.info('[createProject] 规范化后:', {
+      normalizedIdeaId,
+      type: typeof normalizedIdeaId
+    });
 
-      if (window.requireAuth) {
-        const ok = await window.requireAuth({ redirect: true, prompt: true });
-        if (!ok) {
-          throw new Error('未提供访问令牌');
-        }
-      } else if (!pm.getAuthToken()) {
-        const message = '请先登录后再创建项目';
-        if (window.modalManager) {
-          window.modalManager.alert(message, 'warning');
-        } else {
-          alert(message);
-        }
-        window.location.href = 'login.html';
+    if (window.requireAuth) {
+      const ok = await window.requireAuth({ redirect: true, prompt: true });
+      if (!ok) {
         throw new Error('未提供访问令牌');
       }
-
-      if (!normalizedIdeaId && normalizedIdeaId !== 0) {
-        throw new Error('创意ID无效');
+    } else if (!pm.getAuthToken()) {
+      const message = '请先登录后再创建项目';
+      if (window.modalManager) {
+        window.modalManager.alert(message, 'warning');
+      } else {
+        alert(message);
       }
-
-      const ideaIdString = String(normalizedIdeaId);
-      logger.info('[createProject] 发送给后端:', { ideaIdString });
-
-      const existing = await pm.storageManager.getProjectByIdeaId(normalizedIdeaId);
-      if (existing) {
-        throw new Error('该创意已创建项目');
-      }
-
-      try {
-        const byIdeaResp = await pm.fetchWithAuth(
-          `${pm.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
-        );
-        if (byIdeaResp.ok) {
-          const byIdeaResult = await byIdeaResp.json();
-          const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
-          if (existingProject?.id) {
-            existingProject.ideaId = String(existingProject.ideaId).trim();
-            await pm.storageManager.saveProject(existingProject);
-            if (!pm.projects.find(p => p.id === existingProject.id)) {
-              pm.projects.unshift(existingProject);
-            }
-            if (window.addProject) {
-              window.addProject(existingProject);
-            }
-            return existingProject;
-          }
-        }
-      } catch (error) {}
-
-      const response = await pm.fetchWithAuth(`${pm.apiUrl}/api/projects`, {
-        method: 'POST',
-        headers: pm.buildAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ ideaId: ideaIdString, name })
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        if (error?.error === '该创意已创建项目') {
-          try {
-            const byIdeaResp = await pm.fetchWithAuth(
-              `${pm.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
-            );
-            if (byIdeaResp.ok) {
-              const byIdeaResult = await byIdeaResp.json();
-              const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
-              if (existingProject?.id) {
-                existingProject.ideaId = String(existingProject.ideaId).trim();
-                await pm.storageManager.saveProject(existingProject);
-                if (!pm.projects.find(p => p.id === existingProject.id)) {
-                  pm.projects.unshift(existingProject);
-                }
-                if (window.addProject) {
-                  window.addProject(existingProject);
-                }
-                return existingProject;
-              }
-            }
-          } catch (fetchError) {}
-        }
-        throw new Error(error.error || '创建项目失败');
-      }
-
-      const result = await response.json();
-      const project = result.data.project;
-
-      project.ideaId = String(project.ideaId).trim();
-
-      await pm.storageManager.saveProject(project);
-      pm.projects.unshift(project);
-
-      if (window.addProject) {
-        window.addProject(project);
-      }
-
-      return project;
-    } catch (error) {
-      throw error;
+      window.location.href = 'login.html';
+      throw new Error('未提供访问令牌');
     }
+
+    if (!normalizedIdeaId && normalizedIdeaId !== 0) {
+      throw new Error('创意ID无效');
+    }
+
+    const ideaIdString = String(normalizedIdeaId);
+    projectDataLogger.info('[createProject] 发送给后端:', { ideaIdString });
+
+    const existing = await pm.storageManager.getProjectByIdeaId(normalizedIdeaId);
+    if (existing) {
+      throw new Error('该创意已创建项目');
+    }
+
+    try {
+      const byIdeaResp = await pm.fetchWithAuth(
+        `${pm.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
+      );
+      if (byIdeaResp.ok) {
+        const byIdeaResult = await byIdeaResp.json();
+        const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
+        if (existingProject?.id) {
+          existingProject.ideaId = String(existingProject.ideaId).trim();
+          await pm.storageManager.saveProject(existingProject);
+          if (!pm.projects.find(p => p.id === existingProject.id)) {
+            pm.projects.unshift(existingProject);
+          }
+          if (window.addProject) {
+            window.addProject(existingProject);
+          }
+          return existingProject;
+        }
+      }
+    } catch (error) {
+      // ignore by-idea lookup failures, continue to create
+    }
+
+    const response = await pm.fetchWithAuth(`${pm.apiUrl}/api/projects`, {
+      method: 'POST',
+      headers: pm.buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ideaId: ideaIdString, name })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      if (error?.error === '该创意已创建项目') {
+        try {
+          const byIdeaResp = await pm.fetchWithAuth(
+            `${pm.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
+          );
+          if (byIdeaResp.ok) {
+            const byIdeaResult = await byIdeaResp.json();
+            const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
+            if (existingProject?.id) {
+              existingProject.ideaId = String(existingProject.ideaId).trim();
+              await pm.storageManager.saveProject(existingProject);
+              if (!pm.projects.find(p => p.id === existingProject.id)) {
+                pm.projects.unshift(existingProject);
+              }
+              if (window.addProject) {
+                window.addProject(existingProject);
+              }
+              return existingProject;
+            }
+          }
+        } catch (fetchError) {
+          // ignore fallback lookup failures and throw create error below
+        }
+      }
+      throw new Error(error.error || '创建项目失败');
+    }
+
+    const result = await response.json();
+    const project = result.data.project;
+
+    project.ideaId = String(project.ideaId).trim();
+
+    await pm.storageManager.saveProject(project);
+    pm.projects.unshift(project);
+
+    if (window.addProject) {
+      window.addProject(project);
+    }
+
+    return project;
   },
 
   async getProject(pm, projectId, options = {}) {
-    try {
-      const requireRemote = Boolean(options.requireRemote);
-      const localProject = pm.storageManager?.getProject
-        ? await pm.storageManager.getProject(projectId).catch(() => null)
-        : null;
-      if (!requireRemote) {
-        const project = localProject;
-        if (project) {
-          const patched = await pm.ensureProjectWorkflow(project);
-          if (patched !== project) {
-            await pm.storageManager.saveProject(patched);
-          }
-          return patched;
+    const requireRemote = Boolean(options.requireRemote);
+    const localProject = pm.storageManager?.getProject
+      ? await pm.storageManager.getProject(projectId).catch(() => null)
+      : null;
+    if (!requireRemote) {
+      const project = localProject;
+      if (project) {
+        const patched = await pm.ensureProjectWorkflow(project);
+        if (patched !== project) {
+          await pm.storageManager.saveProject(patched);
         }
+        return patched;
       }
-
-      const response = await pm.fetchWithAuth(`${pm.apiUrl}/api/projects/${projectId}`);
-      if (!response.ok) {
-        throw new Error('项目不存在');
-      }
-
-      const result = await response.json();
-      const remoteProject = result.data.project;
-      const mergedRemote = pm.mergeExecutionState(remoteProject, localProject);
-      const patchedRemote = await pm.ensureProjectWorkflow(mergedRemote);
-      if (patchedRemote !== remoteProject) {
-        await pm.storageManager.saveProject(patchedRemote);
-      }
-      return patchedRemote;
-    } catch (error) {
-      throw error;
     }
+
+    const response = await pm.fetchWithAuth(`${pm.apiUrl}/api/projects/${projectId}`);
+    if (!response.ok) {
+      throw new Error('项目不存在');
+    }
+
+    const result = await response.json();
+    const remoteProject = result.data.project;
+    const mergedRemote = pm.mergeExecutionState(remoteProject, localProject);
+    const patchedRemote = await pm.ensureProjectWorkflow(mergedRemote);
+    if (patchedRemote !== remoteProject) {
+      await pm.storageManager.saveProject(patchedRemote);
+    }
+    return patchedRemote;
   },
 
   async getProjectByIdeaId(pm, ideaId) {

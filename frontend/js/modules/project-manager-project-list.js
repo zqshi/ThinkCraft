@@ -86,7 +86,8 @@ window.projectManagerProjectList = {
     const hasStageArtifacts = stages.some(
       stage => Array.isArray(stage.artifacts) && stage.artifacts.length > 0
     );
-    const showStageProgress = Boolean(project.collaborationExecuted) || hasStageActivity || hasStageArtifacts;
+    const showStageProgress =
+      Boolean(project.collaborationExecuted) || hasStageActivity || hasStageArtifacts;
     const progress = pm.calculateWorkflowProgress(project.workflow);
     const metaItems = showStageProgress
       ? [`更新 ${timeAgo}`, `阶段 ${stageCount}`, `待完成 ${pendingStages}`]

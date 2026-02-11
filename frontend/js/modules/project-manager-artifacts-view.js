@@ -7,7 +7,8 @@ window.projectManagerArtifactsView = {
     pm.stageTabState[stageId] = tab;
     const artifactId = pm.stageArtifactState[stageId];
     const stage = (pm.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
-    const artifact = (stage?.artifacts || []).find(a => a.id === artifactId) || stage?.artifacts?.[0];
+    const artifact =
+      (stage?.artifacts || []).find(a => a.id === artifactId) || stage?.artifacts?.[0];
     pm.renderDeliverableContent(stageId, artifact, tab);
     const tabs = document.querySelectorAll('.project-deliverable-tab');
     tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -43,7 +44,7 @@ window.projectManagerArtifactsView = {
         container.innerHTML = '<div class="project-panel-empty">预览模块未就绪</div>';
         return;
       }
-      container.innerHTML = `<div id="previewPanelHost" class="preview-panel-host"></div>`;
+      container.innerHTML = '<div id="previewPanelHost" class="preview-panel-host"></div>';
       if (typeof window.previewPanel.attachTo === 'function') {
         window.previewPanel.attachTo('previewPanelHost');
       }

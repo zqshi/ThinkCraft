@@ -52,9 +52,11 @@
       global.modalManager?.alert(`已退回阶段 ${stageId}，请补充意见`, 'warning');
     },
 
-    addStageNote(ctx, stageId) {
+    addStageNote(_ctx, _stageId) {
       const note = prompt('请输入补充意见：');
-      if (!note) return;
+      if (!note) {
+        return;
+      }
       global.modalManager?.alert('已记录补充意见', 'success');
     },
 

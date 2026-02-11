@@ -3,6 +3,10 @@
  * 说明：从 project-manager.js 拆分，保持原业务行为。
  */
 
+const collaborationLogger = window.createLogger
+  ? window.createLogger('ProjectManagerCollaboration')
+  : console;
+
 window.projectManagerCollaboration = {
   async applyWorkflowCategory(pm, projectId, workflowCategory) {
     const project = await pm.getProject(projectId);
@@ -45,12 +49,12 @@ window.projectManagerCollaboration = {
       return;
     }
 
-    logger.info('[应用协作建议] 开始应用', { projectId, suggestion });
+    collaborationLogger.info('[应用协作建议] 开始应用', { projectId, suggestion });
 
     const recommendedAgents = suggestion.recommendedAgents || [];
     const suggestedStages = suggestion.stages || [];
-    logger.info('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
-    logger.info('[应用协作建议] AI建议的阶段:', suggestedStages);
+    collaborationLogger.info('[应用协作建议] 推荐的Agent类型:', recommendedAgents);
+    collaborationLogger.info('[应用协作建议] AI建议的阶段:', suggestedStages);
 
     let adjustedStages = [];
 
@@ -68,32 +72,25 @@ window.projectManagerCollaboration = {
         priority: 'high',
         recommended: true
       }));
-      logger.info('[应用协作建议] 使用AI生成的阶段，数量:', adjustedStages.length);
+      collaborationLogger.info('[应用协作建议] 使用AI生成的阶段，数量:', adjustedStages.length);
     } else {
-      logger.info('[应用协作建议] AI未返回阶段，使用降级方案');
+      collaborationLogger.info('[应用协作建议] AI未返回阶段，使用降级方案');
       const stages = project.workflow?.stages || [];
       adjustedStages = stages
         .map(stage => {
           const stageAgents = stage.agents || [];
           const recommendedForStage = stageAgents.filter(a => recommendedAgents.includes(a));
-          const hasRecommendedAgent = recommendedForStage.length > 0;
-
-          return {
-            ...stage,
-            agents: recommendedForStage,
-            priority: 'high',
-            recommended: true,
-            hasRecommendedAgent
-          };
+          return recommendedForStage.length > 0
+            ? {
+                ...stage,
+                agents: recommendedForStage,
+                priority: 'high',
+                recommended: true
+              }
+            : null;
         })
-        .filter(stage => stage.hasRecommendedAgent)
-        .map((stage, index) => {
-          const { hasRecommendedAgent, ...cleanStage } = stage;
-          return {
-            ...cleanStage,
-            order: index + 1
-          };
-        });
+        .filter(Boolean)
+        .map((stage, index) => ({ ...stage, order: index + 1 }));
     }
 
     const stageIds = new Set(adjustedStages.map(s => s.id));
@@ -103,8 +100,8 @@ window.projectManagerCollaboration = {
       }
     });
 
-    logger.info('[应用协作建议] 最终阶段数量:', adjustedStages.length);
-    logger.info(
+    collaborationLogger.info('[应用协作建议] 最终阶段数量:', adjustedStages.length);
+    collaborationLogger.info(
       '[应用协作建议] 阶段列表:',
       adjustedStages.map(s => ({ id: s.id, name: s.name, agents: s.agents }))
     );
@@ -116,13 +113,13 @@ window.projectManagerCollaboration = {
     }
     const result = await response.json();
     const hiredAgents = result.data?.agents || [];
-    logger.info(
+    collaborationLogger.info(
       '[应用协作建议] 已雇佣的Agent (直接从API):',
       hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name }))
     );
 
     const currentAssignedAgents = project.assignedAgents || [];
-    logger.info('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
+    collaborationLogger.info('[应用协作建议] 当前项目已分配的Agent ID:', currentAssignedAgents);
 
     const recommendedAgentInstances = [];
     const missingAgentTypes = [];
@@ -130,29 +127,31 @@ window.projectManagerCollaboration = {
     for (const agentType of recommendedAgents) {
       const hiredAgent = hiredAgents.find(agent => agent.type === agentType);
       if (hiredAgent) {
-        logger.info('[应用协作建议] 找到匹配的Agent:', {
+        collaborationLogger.info('[应用协作建议] 找到匹配的Agent:', {
           type: agentType,
           id: hiredAgent.id,
           name: hiredAgent.name
         });
         recommendedAgentInstances.push(hiredAgent.id);
       } else {
-        logger.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
+        collaborationLogger.warn('[应用协作建议] 未找到匹配的Agent:', agentType);
         missingAgentTypes.push(agentType);
       }
     }
 
-    logger.info('[应用协作建议] 推荐的Agent实例ID:', recommendedAgentInstances);
-    logger.info('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
+    collaborationLogger.info('[应用协作建议] 推荐的Agent实例ID:', recommendedAgentInstances);
+    collaborationLogger.info('[应用协作建议] 缺失的Agent类型:', missingAgentTypes);
 
-    const mergedAgents = Array.from(new Set([...currentAssignedAgents, ...recommendedAgentInstances]));
-    logger.info('[应用协作建议] 合并后的Agent ID:', mergedAgents);
+    const mergedAgents = Array.from(
+      new Set([...currentAssignedAgents, ...recommendedAgentInstances])
+    );
+    collaborationLogger.info('[应用协作建议] 合并后的Agent ID:', mergedAgents);
 
     let updatedWorkflow = null;
     try {
       updatedWorkflow = await pm.customizeWorkflow(projectId, adjustedStages);
     } catch (error) {
-      logger.warn('[应用协作建议] 工作流远端更新失败，使用本地覆盖:', error);
+      collaborationLogger.warn('[应用协作建议] 工作流远端更新失败，使用本地覆盖:', error);
     }
     project.workflow = updatedWorkflow || { ...project.workflow, stages: adjustedStages };
     await pm.hydrateProjectStageOutputs(project);
@@ -176,7 +175,7 @@ window.projectManagerCollaboration = {
       pm.refreshProjectPanel(pm.currentProject);
     }
 
-    logger.info('[应用协作建议] 应用完成，推荐成员已添加到项目');
+    collaborationLogger.info('[应用协作建议] 应用完成，推荐成员已添加到项目');
   },
 
   sortStagesByDependencies(pm, stages) {

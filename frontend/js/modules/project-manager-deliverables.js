@@ -9,18 +9,26 @@
 
   const api = {
     normalizeDeliverableKey(value) {
-      if (!value || typeof value !== 'string') return '';
+      if (!value || typeof value !== 'string') {
+        return '';
+      }
       return value.trim().toLowerCase();
     },
 
     getExpectedDeliverables(pm, stage, definition) {
-      if (!stage) return [];
+      if (!stage) {
+        return [];
+      }
       const outputsDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
       const outputs = Array.isArray(stage.outputs) ? stage.outputs : [];
       let expected = [];
-      if (outputsDetailed.length > 0) expected = outputsDetailed;
-      else if (outputs.length > 0) expected = outputs;
-      else if (definition?.expectedArtifacts?.length > 0) expected = definition.expectedArtifacts;
+      if (outputsDetailed.length > 0) {
+        expected = outputsDetailed;
+      } else if (outputs.length > 0) {
+        expected = outputs;
+      } else if (definition?.expectedArtifacts?.length > 0) {
+        expected = definition.expectedArtifacts;
+      }
 
       return expected.map(item => {
         if (typeof item === 'string') {
@@ -56,17 +64,23 @@
         const resolved = (selectedIds || [])
           .map(value => pm.normalizeArtifactTypeId(value))
           .filter(Boolean);
-        if (resolved.length > 0) return Array.from(new Set(resolved));
+        if (resolved.length > 0) {
+          return Array.from(new Set(resolved));
+        }
       }
 
       const normalizedMap = new Map();
       artifactTypes.forEach(type => {
         const normalized = api.normalizeDeliverableKey(type);
-        if (normalized) normalizedMap.set(normalized, type);
+        if (normalized) {
+          normalizedMap.set(normalized, type);
+        }
         const def = pm.getArtifactTypeDefinition(type);
         if (def?.name) {
           const defKey = api.normalizeDeliverableKey(def.name);
-          if (defKey && !normalizedMap.has(defKey)) normalizedMap.set(defKey, type);
+          if (defKey && !normalizedMap.has(defKey)) {
+            normalizedMap.set(defKey, type);
+          }
         }
       });
 
@@ -89,15 +103,21 @@
 
       expectedDeliverables.forEach(item => {
         const keys = [item?.id, item?.key, item?.label].filter(Boolean);
-        const matchesSelected = keys.some(key => selectedKeys.has(api.normalizeDeliverableKey(key)));
-        if (!matchesSelected) return;
+        const matchesSelected = keys.some(key =>
+          selectedKeys.has(api.normalizeDeliverableKey(key))
+        );
+        if (!matchesSelected) {
+          return;
+        }
         keys.forEach(pushResolved);
       });
 
       if (resolved.length === 0) {
         selectedKeys.forEach(key => {
           const type = normalizedMap.get(key);
-          if (type) resolved.push(type);
+          if (type) {
+            resolved.push(type);
+          }
         });
       }
 
@@ -108,19 +128,31 @@
       const keys = new Set();
       const pushKey = val => {
         const key = api.normalizeDeliverableKey(val);
-        if (key) keys.add(key);
+        if (key) {
+          keys.add(key);
+        }
       };
       pushKey(deliverable.id);
       pushKey(deliverable.key);
       pushKey(deliverable.label);
 
       for (const artifact of artifacts) {
-        if (!artifact) continue;
+        if (!artifact) {
+          continue;
+        }
         const typeDef = pm.getArtifactTypeDefinition(artifact.type);
-        const artifactKeys = [artifact.type, artifact.name, artifact.fileName, artifact.id, typeDef?.name]
+        const artifactKeys = [
+          artifact.type,
+          artifact.name,
+          artifact.fileName,
+          artifact.id,
+          typeDef?.name
+        ]
           .map(value => api.normalizeDeliverableKey(value))
           .filter(Boolean);
-        if (artifactKeys.some(key => keys.has(key))) return artifact;
+        if (artifactKeys.some(key => keys.has(key))) {
+          return artifact;
+        }
       }
       return null;
     },
@@ -142,22 +174,33 @@
         const selected = hasExplicitSelection ? selectedSet.has(id) : true;
         const artifact = api.findArtifactForDeliverable(pm, artifacts, item);
         let status = 'pending';
-        if (artifact) status = 'generated';
-        else if (!selected) status = 'unselected';
-        else if (stage.status === 'pending' && hasArtifacts) status = 'missing';
-        else if (stage.status === 'active' || stage.status === 'in_progress') {
-          if (executingKeys.size === 0) status = 'generating';
-          else {
+        if (artifact) {
+          status = 'generated';
+        } else if (!selected) {
+          status = 'unselected';
+        } else if (stage.status === 'pending' && hasArtifacts) {
+          status = 'missing';
+        } else if (stage.status === 'active' || stage.status === 'in_progress') {
+          if (executingKeys.size === 0) {
+            status = 'generating';
+          } else {
             const itemKey = api.normalizeDeliverableKey(id);
             status = itemKey && executingKeys.has(itemKey) ? 'generating' : 'missing';
           }
-        } else if (stage.status === 'completed') status = 'missing';
+        } else if (stage.status === 'completed') {
+          status = 'missing';
+        }
         return { id, label, status, selected, artifact };
       });
     },
 
     getDeliverableProgressSummary(pm, stage, expectedDeliverables = [], selectedDeliverables = []) {
-      const items = api.getDeliverableStatusItems(pm, stage, expectedDeliverables, selectedDeliverables);
+      const items = api.getDeliverableStatusItems(
+        pm,
+        stage,
+        expectedDeliverables,
+        selectedDeliverables
+      );
       const selectedItems = items.filter(item => item.selected);
       const selectedCount = selectedItems.length;
       const generatedCount = selectedItems.filter(item => item.status === 'generated').length;
@@ -173,7 +216,9 @@
     },
 
     renderDeliverableStatusPanel(pm, stage, expectedDeliverables, selectedDeliverables, projectId) {
-      if (!expectedDeliverables || expectedDeliverables.length === 0) return '';
+      if (!expectedDeliverables || expectedDeliverables.length === 0) {
+        return '';
+      }
       const progress = api.getDeliverableProgressSummary(
         pm,
         stage,
@@ -228,12 +273,18 @@
     async generateAdditionalDeliverables(pm, projectId, stageId) {
       const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
       const stage = project?.workflow?.stages?.find(s => s.id === stageId);
-      if (!stage) return window.modalManager?.alert('未找到阶段信息', 'warning');
-      if (!window.workflowExecutor) return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      if (!stage) {
+        return window.modalManager?.alert('未找到阶段信息', 'warning');
+      }
+      if (!window.workflowExecutor) {
+        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      }
 
       const expected = api.getExpectedDeliverables(pm, stage, null);
       const selected = api.getStageSelectedDeliverables(pm, stageId, expected);
-      if (!selected.length) return window.modalManager?.alert('请先勾选需要输出的交付物', 'info');
+      if (!selected.length) {
+        return window.modalManager?.alert('请先勾选需要输出的交付物', 'info');
+      }
 
       const resolvedArtifactTypes = api.resolveSelectedArtifactTypes(pm, stage, expected, selected);
       if (
@@ -252,8 +303,12 @@
       const missingTypes = resolvedArtifactTypes.filter(
         type => !existingTypes.has(api.normalizeDeliverableKey(type))
       );
-      if (!api.validateStrategyDocDependency(pm, project, missingTypes)) return;
-      if (!missingTypes.length) return window.modalManager?.alert('已选交付物均已生成', 'info');
+      if (!api.validateStrategyDocDependency(pm, project, missingTypes)) {
+        return;
+      }
+      if (!missingTypes.length) {
+        return window.modalManager?.alert('已选交付物均已生成', 'info');
+      }
 
       stage.selectedDeliverables = selected;
       stage.supplementingDeliverableTypes = missingTypes;
@@ -286,23 +341,36 @@
     },
 
     async regenerateStageDeliverable(pm, projectId, stageId, artifactId) {
-      if (!window.workflowExecutor) return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      if (!window.workflowExecutor) {
+        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      }
       const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
       const stage = project?.workflow?.stages?.find(s => s.id === stageId);
       const artifact = stage?.artifacts?.find(a => a.id === artifactId);
-      if (!artifact) return window.modalManager?.alert('未找到对应交付物', 'warning');
+      if (!artifact) {
+        return window.modalManager?.alert('未找到对应交付物', 'warning');
+      }
       const confirmed = confirm(`确定要重新生成「${artifact.name || artifact.type}」吗？`);
-      if (!confirmed) return;
+      if (!confirmed) {
+        return;
+      }
       await window.workflowExecutor.regenerateArtifact(projectId, stageId, artifact);
       const updated = await pm.getProject(projectId).catch(() => null);
-      if (updated) pm.refreshProjectPanel(updated);
+      if (updated) {
+        pm.refreshProjectPanel(updated);
+      }
     },
 
     async retryStageDeliverable(pm, projectId, stageId, deliverableType) {
-      if (!deliverableType)
+      if (!deliverableType) {
         return window.modalManager?.alert('交付物类型缺失，无法重试', 'warning');
-      if (!window.workflowExecutor) return window.modalManager?.alert('工作流执行器未就绪', 'warning');
-      if (pm.isRetryingDeliverable) return window.modalManager?.alert('正在重试生成，请稍后', 'info');
+      }
+      if (!window.workflowExecutor) {
+        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      }
+      if (pm.isRetryingDeliverable) {
+        return window.modalManager?.alert('正在重试生成，请稍后', 'info');
+      }
 
       pm.isRetryingDeliverable = true;
       const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
@@ -318,8 +386,14 @@
         const expected = stage ? api.getExpectedDeliverables(pm, stage, null) : [];
         const resolved = api.resolveSelectedArtifactTypes(pm, stage, expected, [deliverableType]);
         const artifactType = resolved[0] || deliverableType;
-        if (!api.validateStrategyDocDependency(pm, project, [artifactType])) return;
-        if (!artifactType && Array.isArray(stage?.artifactTypes) && stage.artifactTypes.length > 0) {
+        if (!api.validateStrategyDocDependency(pm, project, [artifactType])) {
+          return;
+        }
+        if (
+          !artifactType &&
+          Array.isArray(stage?.artifactTypes) &&
+          stage.artifactTypes.length > 0
+        ) {
           return window.modalManager?.alert('未选择有效的交付物类型', 'warning');
         }
         await window.workflowExecutor.startStage(projectId, stageId, {
@@ -329,7 +403,9 @@
           queueWhileExecuting: true
         });
         const updated = await pm.getProject(projectId).catch(() => null);
-        if (updated) pm.refreshProjectPanel(updated);
+        if (updated) {
+          pm.refreshProjectPanel(updated);
+        }
       } finally {
         pm.isRetryingDeliverable = false;
       }
@@ -342,15 +418,21 @@
 
     getMissingSelectedDeliverables(pm, stage, definition, selectedIds = []) {
       const expected = api.getExpectedDeliverables(pm, stage, definition);
-      if (expected.length === 0) return [];
+      if (expected.length === 0) {
+        return [];
+      }
       const selectedSet = new Set(selectedIds.filter(Boolean));
       const filteredExpected =
-        selectedSet.size > 0 ? expected.filter(item => selectedSet.has(item.id || item.key)) : expected;
+        selectedSet.size > 0
+          ? expected.filter(item => selectedSet.has(item.id || item.key))
+          : expected;
       return api.getMissingDeliverablesFromExpected(pm, stage, filteredExpected);
     },
 
     getMissingDeliverablesFromExpected(pm, stage, expected = []) {
-      if (!expected || expected.length === 0) return [];
+      if (!expected || expected.length === 0) {
+        return [];
+      }
       const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
       const actualKeys = new Set();
       artifacts.forEach(artifact => {
@@ -358,7 +440,9 @@
         const typeDef = pm.getArtifactTypeDefinition(type);
         [type, artifact?.name, artifact?.fileName, artifact?.id, typeDef?.name].forEach(val => {
           const key = api.normalizeDeliverableKey(val);
-          if (key) actualKeys.add(key);
+          if (key) {
+            actualKeys.add(key);
+          }
         });
       });
       const missing = [];
@@ -380,7 +464,9 @@
     },
 
     getMissingDeliverablesWithReason(pm, stage, expected = [], selectedIds = []) {
-      if (!expected || expected.length === 0) return [];
+      if (!expected || expected.length === 0) {
+        return [];
+      }
       const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
       const actualKeys = new Set();
       artifacts.forEach(artifact => {
@@ -388,7 +474,9 @@
         const typeDef = pm.getArtifactTypeDefinition(type);
         [type, artifact?.name, artifact?.fileName, artifact?.id, typeDef?.name].forEach(val => {
           const key = api.normalizeDeliverableKey(val);
-          if (key) actualKeys.add(key);
+          if (key) {
+            actualKeys.add(key);
+          }
         });
       });
       const selectedSet = new Set((selectedIds || []).filter(Boolean));
@@ -418,9 +506,13 @@
         const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
         for (const artifact of artifacts) {
           const typeKey = api.normalizeDeliverableKey(artifact?.type);
-          if (typeKey === 'prd') return true;
+          if (typeKey === 'prd') {
+            return true;
+          }
           const nameKey = api.normalizeDeliverableKey(artifact?.name);
-          if (nameKey === 'prd' || nameKey === '产品需求文档') return true;
+          if (nameKey === 'prd' || nameKey === '产品需求文档') {
+            return true;
+          }
         }
       }
       return false;
@@ -430,16 +522,22 @@
       const normalized = (selectedArtifactTypes || [])
         .map(type => api.normalizeDeliverableKey(type))
         .filter(Boolean);
-      if (!normalized.includes('strategy-doc')) return true;
+      if (!normalized.includes('strategy-doc')) {
+        return true;
+      }
       const includesPrdThisRun = normalized.includes('prd');
-      if (includesPrdThisRun || api.hasGeneratedPrd(pm, project)) return true;
+      if (includesPrdThisRun || api.hasGeneratedPrd(pm, project)) {
+        return true;
+      }
       window.modalManager?.alert('战略设计文档依赖 PRD，请先生成产品需求文档（PRD）', 'warning');
       return false;
     },
 
     getStageSelectedDeliverables(pm, stageId, expectedDeliverables) {
       const existing = pm.stageDeliverableSelection[stageId];
-      if (Array.isArray(existing) && existing.length > 0) return existing;
+      if (Array.isArray(existing) && existing.length > 0) {
+        return existing;
+      }
       const defaults = expectedDeliverables.map(item => item.id || item.key).filter(Boolean);
       pm.stageDeliverableSelection[stageId] = defaults;
       if (pm.currentProjectId) {
@@ -451,7 +549,9 @@
 
     toggleStageDeliverable(pm, stageId, encodedId, checked) {
       const id = decodeURIComponent(encodedId || '');
-      if (!id) return;
+      if (!id) {
+        return;
+      }
       const stage = (pm.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
       const allowSupplementSelection =
         stage?.status === 'completed' ||
@@ -467,8 +567,11 @@
         return;
       }
       const current = new Set(pm.stageDeliverableSelection[stageId] || []);
-      if (checked) current.add(id);
-      else current.delete(id);
+      if (checked) {
+        current.add(id);
+      } else {
+        current.delete(id);
+      }
 
       pm.stageDeliverableSelection[stageId] = Array.from(current);
       stage.selectedDeliverables = Array.from(current);
@@ -480,7 +583,9 @@
     },
 
     async startStageWithSelection(pm, projectId, stageId, reopen = false) {
-      if (!window.workflowExecutor) return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      if (!window.workflowExecutor) {
+        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      }
       const stage = (pm.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
       const definition = window.workflowExecutor?.getStageDefinition(stageId, stage);
       const expectedDeliverables = api.getExpectedDeliverables(pm, stage, definition);
@@ -490,8 +595,11 @@
       const selected = api.getStageSelectedDeliverables(pm, stageId, expectedDeliverables);
       if (expectedDeliverables.length > 0 && selected.length === 0) {
         const msg = '请先勾选需要输出的交付物';
-        if (window.modalManager) window.modalManager.alert(msg, 'warning');
-        else alert(msg);
+        if (window.modalManager) {
+          window.modalManager.alert(msg, 'warning');
+        } else {
+          alert(msg);
+        }
         return;
       }
       const resolvedArtifactTypes = api.resolveSelectedArtifactTypes(
@@ -503,15 +611,18 @@
       if (resolvedArtifactTypes.length === 0 && selected.length > 0) {
         return window.modalManager?.alert('未选择有效的交付物类型', 'warning');
       }
-      if (!api.validateStrategyDocDependency(pm, pm.currentProject, resolvedArtifactTypes)) return;
+      if (!api.validateStrategyDocDependency(pm, pm.currentProject, resolvedArtifactTypes)) {
+        return;
+      }
       await window.workflowExecutor.startStage(projectId, stageId, {
         selectedArtifactTypes: resolvedArtifactTypes.length > 0 ? resolvedArtifactTypes : selected,
         queueWhileExecuting: true
       });
-      if (reopen) setTimeout(() => pm.openProject(projectId), 2000);
+      if (reopen) {
+        setTimeout(() => pm.openProject(projectId), 2000);
+      }
     }
   };
 
   window.projectManagerDeliverables = api;
 })();
-

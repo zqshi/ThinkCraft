@@ -163,7 +163,9 @@ window.projectManagerSync = {
       }
       const byStage = new Map();
       artifacts.forEach(artifact => {
-        if (!artifact?.stageId) return;
+        if (!artifact?.stageId) {
+          return;
+        }
         if (!byStage.has(artifact.stageId)) {
           byStage.set(artifact.stageId, []);
         }

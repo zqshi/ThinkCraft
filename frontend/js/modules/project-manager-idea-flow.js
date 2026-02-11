@@ -3,6 +3,10 @@
  * 说明：从 project-manager.js 拆分，保持原逻辑与提示文案。
  */
 
+const ideaFlowLogger = window.createLogger
+  ? window.createLogger('ProjectManagerIdeaFlow')
+  : console;
+
 window.projectManagerIdeaFlow = {
   async showReplaceIdeaDialog(pm, projectId) {
     if (!window.modalManager) {
@@ -122,7 +126,9 @@ window.projectManagerIdeaFlow = {
         tags: ['创意引入'],
         createdAt: Date.now()
       });
-    } catch (error) {}
+    } catch (error) {
+      // ignore knowledge write errors
+    }
   },
 
   async showCreateProjectDialog(pm) {
@@ -156,7 +162,7 @@ window.projectManagerIdeaFlow = {
             hint = `· 已被项目"${pm.escapeHtml(projectName || '未命名项目')}"引用`;
           }
 
-          logger.info('[创建项目对话框] 创意:', {
+          ideaFlowLogger.info('[创建项目对话框] 创意:', {
             id: chat.id,
             title: chat.title,
             disabled
@@ -248,7 +254,7 @@ window.projectManagerIdeaFlow = {
             chats = parsedChats;
           }
         } catch (e) {
-          logger.error('Failed to parse chats from localStorage:', e);
+          ideaFlowLogger.error('Failed to parse chats from localStorage:', e);
         }
       }
     }
@@ -291,10 +297,10 @@ window.projectManagerIdeaFlow = {
 
       const ideaId = selectedIdeaInput.value;
 
-      logger.info('[创建项目] 选中的创意ID:', ideaId, '类型:', typeof ideaId);
+      ideaFlowLogger.info('[创建项目] 选中的创意ID:', ideaId, '类型:', typeof ideaId);
 
       if (!ideaId || ideaId.trim() === '') {
-        logger.error('[创建项目] 创意ID为空');
+        ideaFlowLogger.error('[创建项目] 创意ID为空');
         if (window.modalManager) {
           window.modalManager.alert('创意ID无效，请重新选择', 'warning');
         } else {
@@ -304,10 +310,15 @@ window.projectManagerIdeaFlow = {
       }
 
       const normalizedIdeaId = pm.normalizeIdeaId(ideaId);
-      logger.info('[创建项目] 规范化后的ID:', normalizedIdeaId, '类型:', typeof normalizedIdeaId);
+      ideaFlowLogger.info(
+        '[创建项目] 规范化后的ID:',
+        normalizedIdeaId,
+        '类型:',
+        typeof normalizedIdeaId
+      );
 
       if (!normalizedIdeaId) {
-        logger.error('[创建项目] 规范化后的ID为空');
+        ideaFlowLogger.error('[创建项目] 规范化后的ID为空');
         if (window.modalManager) {
           window.modalManager.alert('创意ID格式错误，请重新选择', 'warning');
         } else {
@@ -337,7 +348,7 @@ window.projectManagerIdeaFlow = {
           projectName = `创意${shortId} - 项目`;
         }
       } else {
-        logger.warn('未找到创意对话，使用默认项目名称', { ideaId, normalizedIdeaId });
+        ideaFlowLogger.warn('未找到创意对话，使用默认项目名称', { ideaId, normalizedIdeaId });
       }
 
       if (window.modalManager) {
@@ -346,7 +357,7 @@ window.projectManagerIdeaFlow = {
 
       await pm.createProjectFromIdea(normalizedIdeaId, projectName);
     } catch (error) {
-      logger.error('创建项目失败:', error);
+      ideaFlowLogger.error('创建项目失败:', error);
       if (window.modalManager) {
         window.modalManager.alert('创建项目失败: ' + error.message, 'error');
       } else {
@@ -360,7 +371,9 @@ window.projectManagerIdeaFlow = {
     const workflowCategory = project.workflowCategory || 'product-development';
 
     if (selectedStages && selectedStages.length > 0 && project.workflow) {
-      project.workflow.stages = project.workflow.stages.filter(stage => selectedStages.includes(stage.id));
+      project.workflow.stages = project.workflow.stages.filter(stage =>
+        selectedStages.includes(stage.id)
+      );
       await pm.storageManager.saveProject(project);
     }
 

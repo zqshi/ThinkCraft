@@ -21,7 +21,9 @@ window.projectManagerPanelLifecycle = {
 
   extractHtmlFromContent(pm, content = '') {
     const text = String(content || '');
-    if (!text.trim()) return '';
+    if (!text.trim()) {
+      return '';
+    }
     if (/<html[\s>]/i.test(text) || /<!doctype html>/i.test(text)) {
       return text;
     }
@@ -55,7 +57,9 @@ window.projectManagerPanelLifecycle = {
     const candidates = [];
     stages.forEach(stage => {
       (stage.artifacts || []).forEach(artifact => {
-        if (!artifact) return;
+        if (!artifact) {
+          return;
+        }
         candidates.push({ stageId: stage.id, artifact });
       });
     });

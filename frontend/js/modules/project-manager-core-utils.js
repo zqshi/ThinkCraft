@@ -39,7 +39,9 @@ window.projectManagerCoreUtils = {
       }
     });
     (incoming || []).forEach(item => {
-      if (!item) return;
+      if (!item) {
+        return;
+      }
       if (item.id && byId.has(item.id)) {
         const index = merged.findIndex(entry => entry?.id === item.id);
         if (index >= 0) {

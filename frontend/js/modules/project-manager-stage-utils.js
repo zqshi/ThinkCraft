@@ -15,9 +15,15 @@ window.projectManagerStageUtils = {
   },
 
   calculateStageProgress(pm, stage) {
-    if (!stage) return 0;
-    if (stage.status === 'completed') return 100;
-    if (stage.status === 'pending') return 0;
+    if (!stage) {
+      return 0;
+    }
+    if (stage.status === 'completed') {
+      return 100;
+    }
+    if (stage.status === 'pending') {
+      return 0;
+    }
     if (stage.status === 'active' || stage.status === 'in_progress') {
       const artifacts = stage.artifacts || [];
       if (artifacts.length === 0) {
@@ -54,7 +60,9 @@ window.projectManagerStageUtils = {
       return '';
     }
     const raw = value.trim();
-    if (!raw) return '';
+    if (!raw) {
+      return '';
+    }
     if (pm.artifactTypeDefs[raw]) {
       return raw;
     }

@@ -2,7 +2,9 @@
  * ProjectManager 项目面板内容模块（成员/创意/知识库/报告索引）
  */
 
-const panelLogger = window.createLogger ? window.createLogger('ProjectManagerPanelContent') : console;
+const panelLogger = window.createLogger
+  ? window.createLogger('ProjectManagerPanelContent')
+  : console;
 
 window.projectManagerPanelContent = {
   async renderProjectMembersPanel(pm, project) {
@@ -162,17 +164,30 @@ window.projectManagerPanelContent = {
       const reports = await pm.storageManager.getAllReports();
       const result = {};
       const rankStatus = status => {
-        if (status === 'completed') return 4;
-        if (status === 'generating') return 3;
-        if (status === 'error') return 2;
-        if (status === 'idle') return 1;
+        if (status === 'completed') {
+          return 4;
+        }
+        if (status === 'generating') {
+          return 3;
+        }
+        if (status === 'error') {
+          return 2;
+        }
+        if (status === 'idle') {
+          return 1;
+        }
         return 0;
       };
       const hasData = report => {
-        if (!report?.data) return false;
-        if (typeof report.data.document === 'string' && report.data.document.trim().length > 0)
+        if (!report?.data) {
+          return false;
+        }
+        if (typeof report.data.document === 'string' && report.data.document.trim().length > 0) {
           return true;
-        if (Array.isArray(report.data.chapters) && report.data.chapters.length > 0) return true;
+        }
+        if (Array.isArray(report.data.chapters) && report.data.chapters.length > 0) {
+          return true;
+        }
         return false;
       };
       reports

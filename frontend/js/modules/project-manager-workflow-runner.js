@@ -3,6 +3,10 @@
  * 说明：仅抽离原逻辑，不改业务行为。
  */
 
+const workflowRunnerLogger = window.createLogger
+  ? window.createLogger('ProjectManagerWorkflowRunner')
+  : console;
+
 window.projectManagerWorkflowRunner = {
   ensureProjectPanelStyles(pm) {
     if (pm.projectPanelStyleEnsured) {
@@ -207,7 +211,7 @@ window.projectManagerWorkflowRunner = {
         const isBlocked = stage.status === 'pending' && unmetDependencies.length > 0;
 
         let cardStyle = '';
-        let cardClass = 'stage-card';
+        const cardClass = 'stage-card';
 
         if (stage.status === 'completed') {
           cardStyle = `
@@ -427,7 +431,9 @@ window.projectManagerWorkflowRunner = {
 
       await pm.updateProject(projectId, { status: 'in_progress' }, { allowFallback: true });
 
-      const pendingStages = project.workflow.stages.filter(s => s.status === 'pending').map(s => s.id);
+      const pendingStages = project.workflow.stages
+        .filter(s => s.status === 'pending')
+        .map(s => s.id);
 
       if (pendingStages.length === 0) {
         if (window.modalManager) {
@@ -437,7 +443,9 @@ window.projectManagerWorkflowRunner = {
       }
 
       if (!skipConfirm) {
-        const confirmed = confirm(`将执行 ${pendingStages.length} 个阶段，这可能需要一些时间，是否继续？`);
+        const confirmed = confirm(
+          `将执行 ${pendingStages.length} 个阶段，这可能需要一些时间，是否继续？`
+        );
         if (!confirmed) {
           return;
         }
@@ -455,7 +463,9 @@ window.projectManagerWorkflowRunner = {
       const chat =
         (await pm.storageManager.getChat(ideaId)) ||
         (await pm.storageManager.getChat(project.ideaId));
-      const conversation = chat ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n') : '';
+      const conversation = chat
+        ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
+        : '';
 
       const result = await window.workflowExecutor.executeBatch(
         projectId,
@@ -476,7 +486,9 @@ window.projectManagerWorkflowRunner = {
       );
 
       const refreshedProject = await pm.getProject(projectId);
-      const allCompleted = refreshedProject?.workflow?.stages?.every(stage => stage.status === 'completed');
+      const allCompleted = refreshedProject?.workflow?.stages?.every(
+        stage => stage.status === 'completed'
+      );
       if (allCompleted) {
         await pm.updateProject(projectId, { status: 'completed' }, { allowFallback: true });
       }
@@ -497,13 +509,15 @@ window.projectManagerWorkflowRunner = {
         window.modalManager.close();
         window.modalManager.alert('执行失败: ' + error.message, 'error');
       }
-      await pm.updateProject(projectId, { status: 'active' }, { allowFallback: true }).catch(() => {});
+      await pm
+        .updateProject(projectId, { status: 'active' }, { allowFallback: true })
+        .catch(() => {});
     }
   },
 
   async startWorkflowExecution(pm, projectId) {
-    logger.info('[开始执行] ========== 开始工作流执行 ==========');
-    logger.info('[开始执行] 项目ID:', projectId);
+    workflowRunnerLogger.info('[开始执行] ========== 开始工作流执行 ==========');
+    workflowRunnerLogger.info('[开始执行] 项目ID:', projectId);
 
     try {
       const project = await pm.getProject(projectId);
@@ -511,7 +525,7 @@ window.projectManagerWorkflowRunner = {
         throw new Error('项目不存在');
       }
 
-      logger.info('[开始执行] 项目信息:', {
+      workflowRunnerLogger.info('[开始执行] 项目信息:', {
         name: project.name,
         status: project.status,
         stageCount:
@@ -549,11 +563,11 @@ window.projectManagerWorkflowRunner = {
       );
 
       if (!confirmed) {
-        logger.info('[开始执行] 用户取消执行');
+        workflowRunnerLogger.info('[开始执行] 用户取消执行');
         return;
       }
 
-      logger.info('[开始执行] 用户确认执行，开始调用 executeAllStages');
+      workflowRunnerLogger.info('[开始执行] 用户确认执行，开始调用 executeAllStages');
 
       if (pm.executeAllStages) {
         await pm.executeAllStages(projectId, {
@@ -563,9 +577,9 @@ window.projectManagerWorkflowRunner = {
         throw new Error('executeAllStages 方法不存在');
       }
 
-      logger.info('[开始执行] ========== 工作流执行完成 ==========');
+      workflowRunnerLogger.info('[开始执行] ========== 工作流执行完成 ==========');
     } catch (error) {
-      logger.error('[开始执行] 执行失败:', error);
+      workflowRunnerLogger.error('[开始执行] 执行失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('执行失败：' + error.message, 'error');
       }

@@ -2,6 +2,8 @@
  * ProjectManager 初始化与工作流目录模块
  */
 
+const setupLogger = window.createLogger ? window.createLogger('ProjectManagerSetup') : console;
+
 window.projectManagerSetup = {
   async hydrateProjectStageOutputs(pm, project) {
     if (!project?.workflow?.stages?.length) {
@@ -40,7 +42,9 @@ window.projectManagerSetup = {
           ? Array.from(new Set([...currentOutputs, ...catalogOutputs].filter(Boolean)))
           : currentOutputs;
       const currentDetailed = Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [];
-      const catalogDetailed = Array.isArray(catalogStage.outputsDetailed) ? catalogStage.outputsDetailed : [];
+      const catalogDetailed = Array.isArray(catalogStage.outputsDetailed)
+        ? catalogStage.outputsDetailed
+        : [];
       const mergedMap = new Map();
       currentDetailed.forEach(item => {
         const key = item?.id || item?.type || item?.name;
@@ -50,7 +54,9 @@ window.projectManagerSetup = {
       });
       catalogDetailed.forEach(item => {
         const key = item?.id || item?.type || item?.name;
-        if (!key) return;
+        if (!key) {
+          return;
+        }
         if (!mergedMap.has(key)) {
           mergedMap.set(key, item);
           return;
@@ -96,7 +102,9 @@ window.projectManagerSetup = {
       if (container) {
         pm.renderProjectList('projectListContainer');
       }
-    } catch (error) {}
+    } catch (error) {
+      // ignore init failure and keep UI responsive
+    }
   },
 
   async loadProjects(pm, options = {}) {
@@ -164,7 +172,7 @@ window.projectManagerSetup = {
       }));
   },
 
-  getValidAgentIds(pm) {
+  getValidAgentIds(_pm) {
     const agentMarket = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
     const ids = agentMarket.map(agent => agent.id);
     if (ids.length > 0) {
@@ -173,7 +181,7 @@ window.projectManagerSetup = {
     return new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006']);
   },
 
-  getUserId(pm) {
+  getUserId(_pm) {
     try {
       const raw = sessionStorage.getItem('thinkcraft_user');
       if (raw) {
@@ -183,7 +191,9 @@ window.projectManagerSetup = {
           return String(id);
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      // ignore malformed session payload
+    }
 
     const cached = localStorage.getItem('thinkcraft_user_id');
     if (cached) {
@@ -200,7 +210,9 @@ window.projectManagerSetup = {
     }
 
     try {
-      const response = await pm.fetchWithAuth(`${pm.apiUrl}/api/projects/workflow-config/${category}`);
+      const response = await pm.fetchWithAuth(
+        `${pm.apiUrl}/api/projects/workflow-config/${category}`
+      );
       const result = await response.json();
 
       if (result.code === 0) {
@@ -235,12 +247,12 @@ window.projectManagerSetup = {
       }
       throw new Error(result.message || '加载工作流配置失败');
     } catch (error) {
-      logger.error('加载工作流配置失败:', error);
+      setupLogger.error('加载工作流配置失败:', error);
       throw error;
     }
   },
 
-  getWorkflowCategoryLabel(pm) {
+  getWorkflowCategoryLabel(_pm) {
     return '统一产品开发';
   }
 };

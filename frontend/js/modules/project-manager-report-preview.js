@@ -20,7 +20,9 @@ window.projectManagerReportPreview = {
           item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
         );
       }
-    } catch (error) {}
+    } catch (error) {
+      // ignore chat preload failure, continue with reports lookup
+    }
 
     if (window.state && chat) {
       window.state.currentChat = chat.id;
@@ -470,7 +472,7 @@ window.projectManagerReportPreview = {
     };
 
     const metaHTML =
-      type === 'analysis' ? `<div class="report-meta">项目面板 · 只读预览</div>` : '';
+      type === 'analysis' ? '<div class="report-meta">项目面板 · 只读预览</div>' : '';
     const buildReportHeader = ({ title, subtitle, meta }) => `
       <div class="report-hero">
         <div class="report-hero-title">${safeText(title)}</div>

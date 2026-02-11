@@ -99,15 +99,19 @@ window.projectManagerMembers = {
       recommended = pm.getRecommendedAgentsFromProjectWorkflow(project, stageIdFallback);
     }
 
-    let agentMarket = await pm.getAgentMarketList(project.workflowCategory || 'product-development');
+    let agentMarket = await pm.getAgentMarketList(
+      project.workflowCategory || 'product-development'
+    );
     const hiredAgents = await pm.getUserHiredAgents();
     const hiredIds = project.assignedAgents || [];
     const assignedAgents = hiredAgents.filter(agent => hiredIds.includes(agent.id));
 
-    const missingRecommended = recommended.filter(id => !agentMarket.some(agent => agent.id === id));
+    const missingRecommended = recommended.filter(
+      id => !agentMarket.some(agent => agent.id === id)
+    );
     if (missingRecommended.length > 0) {
       const fallbackAgents = missingRecommended
-        .map(id => pm.buildFallbackAgentFromCatalog(catalog, id, project))
+        .map(id => pm.buildFallbackAgentFromCatalog(catalog, id))
         .filter(Boolean);
       if (fallbackAgents.length > 0) {
         agentMarket = [...fallbackAgents, ...agentMarket];
@@ -116,7 +120,9 @@ window.projectManagerMembers = {
 
     container.innerHTML = agentMarket
       .map(agent => {
-        const isAssigned = assignedAgents.some(item => item.type === agent.id || item.id === agent.id);
+        const isAssigned = assignedAgents.some(
+          item => item.type === agent.id || item.id === agent.id
+        );
         const isRecommended = recommended.includes(agent.id);
         return `
                 <div class="agent-card ${isAssigned ? 'hired' : ''}">
@@ -145,7 +151,7 @@ window.projectManagerMembers = {
       .join('');
   },
 
-  buildFallbackAgentFromCatalog(pm, catalog, agentId, project = null) {
+  buildFallbackAgentFromCatalog(pm, catalog, agentId) {
     if (!catalog || !agentId) {
       if (!agentId) {
         return null;
@@ -297,7 +303,7 @@ window.projectManagerMembers = {
     const agent = hiredAgents.find(item => item.id === agentId);
 
     window.modalManager?.confirm(
-      `确认解雇该数字员工？\n\n解雇后该岗位将不再参与当前项目协作。`,
+      '确认解雇该数字员工？\n\n解雇后该岗位将不再参与当前项目协作。',
       async () => {
         const missingRoles = pm.getMissingRolesAfterRemoval(project, agent);
         if (missingRoles.length > 0) {

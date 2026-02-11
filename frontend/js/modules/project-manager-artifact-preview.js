@@ -3,7 +3,9 @@
  * Keeps behavior while reducing project-manager.js size.
  */
 (function () {
-  const previewLogger = window.createLogger ? window.createLogger('ProjectArtifactPreview') : console;
+  const previewLogger = window.createLogger
+    ? window.createLogger('ProjectArtifactPreview')
+    : console;
 
   const findArtifactById = (project, artifactId) => {
     const stages = project?.workflow?.stages || [];
@@ -77,7 +79,9 @@
     },
 
     async renderArtifactPreviewPanel(pm, project, stage, artifact) {
-      if (!pm.stageDetailPanel) return;
+      if (!pm.stageDetailPanel) {
+        return;
+      }
 
       const icon = pm.getArtifactIcon(artifact.type);
       const typeLabel = pm.getArtifactTypeLabel(artifact);
@@ -112,7 +116,8 @@
           }
           contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-document markdown-content">${renderedContent}</div></div>`;
         } else {
-          contentHTML = '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">📄</div><div>暂无内容</div></div>';
+          contentHTML =
+            '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">📄</div><div>暂无内容</div></div>';
         }
       } else if (
         artifact.type === 'code' ||
@@ -133,7 +138,8 @@
             <pre class="artifact-preview-code"><code class="language-${language}">${pm.escapeHtml(code)}</code></pre>
           </div>`;
         } else {
-          contentHTML = '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">💻</div><div>暂无代码</div></div>';
+          contentHTML =
+            '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">💻</div><div>暂无代码</div></div>';
         }
       } else if (
         artifact.type === 'preview' ||
@@ -147,14 +153,16 @@
         } else if (htmlContent) {
           contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe srcdoc="${pm.escapeHtml(htmlContent)}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
         } else {
-          contentHTML = '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🖥️</div><div>暂无预览内容</div></div>';
+          contentHTML =
+            '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🖥️</div><div>暂无预览内容</div></div>';
         }
       } else if (artifact.type === 'design' || artifact.type === 'image') {
         const imageUrl = artifact.imageUrl || artifact.url || '';
         if (imageUrl) {
           contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-image"><img src="${imageUrl}" alt="${pm.escapeHtml(artifact.name)}" /></div></div>`;
         } else {
-          contentHTML = '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🎨</div><div>暂无设计稿</div></div>';
+          contentHTML =
+            '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🎨</div><div>暂无设计稿</div></div>';
         }
       } else {
         const content = artifact.content || artifact.text || artifact.code || '';
@@ -285,7 +293,9 @@
     },
 
     formatFileSize(bytes) {
-      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+      if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 B';
+      }
       const k = 1024;
       const sizes = ['B', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -295,4 +305,3 @@
 
   window.projectManagerArtifactPreview = api;
 })();
-

@@ -6,7 +6,9 @@
   const compat = {
     createNewProject(pm) {
       const projectName = prompt('请输入项目名称：');
-      if (!projectName || !projectName.trim()) return;
+      if (!projectName || !projectName.trim()) {
+        return;
+      }
 
       const project = {
         id: 'proj_' + Date.now(),
@@ -37,7 +39,9 @@
 
     openProjectLegacy(pm, projectId) {
       const project = window.state?.teamSpace?.projects.find(p => p.id === projectId);
-      if (!project) return;
+      if (!project) {
+        return;
+      }
       if (window.state) {
         window.state.currentProject = projectId;
       }
@@ -51,9 +55,15 @@
       const knowledgePanel = document.getElementById('knowledgePanel');
       const inputContainer = document.getElementById('inputContainer');
 
-      if (chatContainer) chatContainer.style.display = 'flex';
-      if (knowledgePanel) knowledgePanel.style.display = 'none';
-      if (inputContainer) inputContainer.style.display = 'none';
+      if (chatContainer) {
+        chatContainer.style.display = 'flex';
+      }
+      if (knowledgePanel) {
+        knowledgePanel.style.display = 'none';
+      }
+      if (inputContainer) {
+        inputContainer.style.display = 'none';
+      }
 
       const memberCount = project.assignedAgents?.length || 0;
       const ideaCount = project.linkedIdeas?.length || 0;
@@ -62,12 +72,15 @@
 
       let membersHTML = '';
       if (memberCount === 0) {
-        membersHTML = '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
+        membersHTML =
+          '<div style="color: var(--text-tertiary); font-size: 13px;">尚未分配员工</div>';
       } else {
         membersHTML = (project.assignedAgents || [])
           .map(agentId => {
             const agent = agentMarket.find(a => a.id === agentId);
-            if (!agent) return '';
+            if (!agent) {
+              return '';
+            }
             const iconSvg =
               typeof window.getAgentIconSvg === 'function'
                 ? window.getAgentIconSvg(
@@ -101,7 +114,9 @@
         ideasHTML = (project.linkedIdeas || [])
           .map(ideaId => {
             const chat = window.state?.chats?.find(c => c.id === ideaId);
-            if (!chat) return '';
+            if (!chat) {
+              return '';
+            }
             return `
           <div class="project-idea-card" onclick="window.projectManager.loadChatFromProject('${chat.id}')">
             <div class="idea-icon">💡</div>
@@ -205,7 +220,9 @@
 
     removeAgentFromProject(pm, projectId, agentId) {
       const project = window.state?.teamSpace?.projects.find(p => p.id === projectId);
-      if (!project) return;
+      if (!project) {
+        return;
+      }
       const index = (project.assignedAgents || []).indexOf(agentId);
       if (index > -1) {
         project.assignedAgents.splice(index, 1);
@@ -218,7 +235,9 @@
 
     linkIdeaToProject(pm, projectId) {
       const project = window.state?.teamSpace?.projects.find(p => p.id === projectId);
-      if (!project) return;
+      if (!project) {
+        return;
+      }
       const chats = window.state?.chats || [];
       if (chats.length === 0) {
         alert('暂无可关联的创意');
@@ -227,7 +246,9 @@
 
       const options = chats.map((chat, index) => `${index + 1}. ${chat.title}`).join('\n');
       const input = prompt(`请选择要关联的创意（输入序号）：\n\n${options}`);
-      if (!input) return;
+      if (!input) {
+        return;
+      }
 
       const index = parseInt(input, 10) - 1;
       if (index < 0 || index >= chats.length) {
@@ -253,7 +274,9 @@
 
     editProjectInfo(pm, projectId) {
       const project = window.state?.teamSpace?.projects.find(p => p.id === projectId);
-      if (!project) return;
+      if (!project) {
+        return;
+      }
 
       const newName = prompt('请输入新的项目名称：', project.name);
       if (newName && newName.trim() && newName.trim() !== project.name) {
@@ -269,8 +292,12 @@
 
     deleteProjectLegacy(pm, projectId) {
       const project = window.state?.teamSpace?.projects.find(p => p.id === projectId);
-      if (!project) return;
-      if (!confirm(`确定要删除项目"${project.name}"吗？`)) return;
+      if (!project) {
+        return;
+      }
+      if (!confirm(`确定要删除项目"${project.name}"吗？`)) {
+        return;
+      }
 
       const index = window.state.teamSpace.projects.findIndex(p => p.id === projectId);
       if (index > -1) {
@@ -294,4 +321,3 @@
     return window.projectManagerLegacyCompat?.renderProjectDetail?.(window.projectManager, project);
   };
 })();
-
