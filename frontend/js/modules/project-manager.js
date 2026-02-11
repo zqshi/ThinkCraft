@@ -175,7 +175,15 @@ class ProjectManager {
     if (value === null || value === undefined) {
       return '';
     }
-    return String(value).trim();
+    const raw = String(value).trim();
+    if (!raw) {
+      return '';
+    }
+    const dePrefixed = raw.replace(/^(idea-|chat-)/i, '');
+    if (/^\d+$/.test(dePrefixed)) {
+      return String(Number(dePrefixed));
+    }
+    return dePrefixed;
   }
 
   normalizeStageIdForWorkflow(stageId) {

@@ -8,6 +8,30 @@ const ideaFlowLogger = window.createLogger
   : console;
 
 window.projectManagerIdeaFlow = {
+  async getAllChatsForIdeaSelection(pm) {
+    let chats = [];
+    if (pm.storageManager) {
+      chats = await pm.storageManager.getAllChats().catch(() => []);
+    }
+    if (chats.length === 0) {
+      chats = window.state?.chats ? [...window.state.chats] : [];
+    }
+    if (chats.length === 0) {
+      const saved = localStorage.getItem('thinkcraft_chats');
+      if (saved) {
+        try {
+          const parsedChats = JSON.parse(saved);
+          if (Array.isArray(parsedChats)) {
+            chats = parsedChats;
+          }
+        } catch (e) {
+          ideaFlowLogger.error('Failed to parse chats from localStorage:', e);
+        }
+      }
+    }
+    return Array.isArray(chats) ? chats : [];
+  },
+
   async showReplaceIdeaDialog(pm, projectId) {
     if (!window.modalManager) {
       alert('创意更换功能暂不可用');
@@ -19,7 +43,13 @@ window.projectManagerIdeaFlow = {
       return;
     }
 
-    const analyzedChats = await pm.getChatsWithCompletedAnalysis();
+    let analyzedChats = await pm.getChatsWithCompletedAnalysis();
+    if (analyzedChats.length === 0) {
+      analyzedChats = await this.getAllChatsForIdeaSelection(pm);
+      if (analyzedChats.length > 0) {
+        window.modalManager.alert('未识别到分析报告，已回退为显示全部对话', 'info');
+      }
+    }
     const projects = await pm.storageManager.getAllProjects().catch(() => []);
     const activeProjects = projects.filter(p => p.status !== 'deleted');
     const chatIdToProjectName = new Map(
@@ -30,7 +60,7 @@ window.projectManagerIdeaFlow = {
     );
 
     if (analyzedChats.length === 0) {
-      window.modalManager.alert('暂无可用创意，请先在对话中完成创意分析', 'info');
+      window.modalManager.alert('暂无可用创意，请先创建对话', 'info');
       return;
     }
 
@@ -133,7 +163,13 @@ window.projectManagerIdeaFlow = {
 
   async showCreateProjectDialog(pm) {
     try {
-      const chats = await pm.getChatsWithCompletedAnalysis();
+      let chats = await pm.getChatsWithCompletedAnalysis();
+      if (chats.length === 0) {
+        chats = await this.getAllChatsForIdeaSelection(pm);
+        if (chats.length > 0) {
+          window.modalManager?.alert('未识别到分析报告，已回退为显示全部对话', 'info');
+        }
+      }
 
       const projects = await pm.storageManager.getAllProjects().catch(() => []);
       const activeProjects = projects.filter(p => p.status !== 'deleted');
