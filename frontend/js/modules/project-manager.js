@@ -388,184 +388,6 @@ class ProjectManager {
     return window.projectManagerStageUtils?.normalizeArtifactTypeId?.(this, value) || '';
   }
 
-  getExpectedDeliverables(stage, definition) {
-    return (
-      window.projectManagerDeliverables?.getExpectedDeliverables?.(this, stage, definition) || []
-    );
-  }
-
-  resolveSelectedArtifactTypes(stage, expectedDeliverables = [], selectedIds = []) {
-    return (
-      window.projectManagerDeliverables?.resolveSelectedArtifactTypes?.(
-        this,
-        stage,
-        expectedDeliverables,
-        selectedIds
-      ) || []
-    );
-  }
-
-  normalizeDeliverableKey(value) {
-    return window.projectManagerDeliverables?.normalizeDeliverableKey?.(value) || '';
-  }
-
-  findArtifactForDeliverable(artifacts = [], deliverable = {}) {
-    return (
-      window.projectManagerDeliverables?.findArtifactForDeliverable?.(
-        this,
-        artifacts,
-        deliverable
-      ) || null
-    );
-  }
-
-  getDeliverableStatusItems(stage, expectedDeliverables = [], selectedDeliverables = []) {
-    return (
-      window.projectManagerDeliverables?.getDeliverableStatusItems?.(
-        this,
-        stage,
-        expectedDeliverables,
-        selectedDeliverables
-      ) || []
-    );
-  }
-
-  getDeliverableProgressSummary(stage, expectedDeliverables = [], selectedDeliverables = []) {
-    return (
-      window.projectManagerDeliverables?.getDeliverableProgressSummary?.(
-        this,
-        stage,
-        expectedDeliverables,
-        selectedDeliverables
-      ) || {
-        items: [],
-        selectedItems: [],
-        selectedCount: 0,
-        generatedCount: 0,
-        generatingCount: 0,
-        totalCount: 0
-      }
-    );
-  }
-
-  renderDeliverableStatusPanel(stage, expectedDeliverables, selectedDeliverables, projectId) {
-    return (
-      window.projectManagerDeliverables?.renderDeliverableStatusPanel?.(
-        this,
-        stage,
-        expectedDeliverables,
-        selectedDeliverables,
-        projectId
-      ) || ''
-    );
-  }
-
-  async generateAdditionalDeliverables(projectId, stageId) {
-    return window.projectManagerDeliverables?.generateAdditionalDeliverables?.(
-      this,
-      projectId,
-      stageId
-    );
-  }
-
-  async regenerateStageDeliverable(projectId, stageId, artifactId) {
-    return window.projectManagerDeliverables?.regenerateStageDeliverable?.(
-      this,
-      projectId,
-      stageId,
-      artifactId
-    );
-  }
-
-  async retryStageDeliverable(projectId, stageId, deliverableType) {
-    return window.projectManagerDeliverables?.retryStageDeliverable?.(
-      this,
-      projectId,
-      stageId,
-      deliverableType
-    );
-  }
-
-  getMissingDeliverables(stage, definition) {
-    return (
-      window.projectManagerDeliverables?.getMissingDeliverables?.(this, stage, definition) || []
-    );
-  }
-
-  getMissingSelectedDeliverables(stage, definition, selectedIds = []) {
-    return (
-      window.projectManagerDeliverables?.getMissingSelectedDeliverables?.(
-        this,
-        stage,
-        definition,
-        selectedIds
-      ) || []
-    );
-  }
-
-  getMissingDeliverablesFromExpected(stage, expected = []) {
-    return (
-      window.projectManagerDeliverables?.getMissingDeliverablesFromExpected?.(
-        this,
-        stage,
-        expected
-      ) || []
-    );
-  }
-
-  getMissingDeliverablesWithReason(stage, expected = [], selectedIds = []) {
-    return (
-      window.projectManagerDeliverables?.getMissingDeliverablesWithReason?.(
-        this,
-        stage,
-        expected,
-        selectedIds
-      ) || []
-    );
-  }
-
-  hasGeneratedPrd(project) {
-    return Boolean(window.projectManagerDeliverables?.hasGeneratedPrd?.(this, project));
-  }
-
-  validateStrategyDocDependency(project, selectedArtifactTypes = []) {
-    return Boolean(
-      window.projectManagerDeliverables?.validateStrategyDocDependency?.(
-        this,
-        project,
-        selectedArtifactTypes
-      )
-    );
-  }
-
-  getStageSelectedDeliverables(stageId, expectedDeliverables) {
-    return (
-      window.projectManagerDeliverables?.getStageSelectedDeliverables?.(
-        this,
-        stageId,
-        expectedDeliverables
-      ) || []
-    );
-  }
-
-  toggleStageDeliverable(stageId, encodedId, checked) {
-    return window.projectManagerDeliverables?.toggleStageDeliverable?.(
-      this,
-      stageId,
-      encodedId,
-      checked
-    );
-  }
-
-  async startStageWithSelection(projectId, stageId, reopen = false) {
-    return window.projectManagerDeliverables?.startStageWithSelection?.(
-      this,
-      projectId,
-      stageId,
-      reopen
-    );
-  }
-
   getArtifactIcon(artifactType) {
     const def = this.getArtifactTypeDefinition(artifactType);
     return def.icon;
@@ -960,6 +782,49 @@ class ProjectManager {
   formatFileSize(bytes) {
     return window.projectManagerArtifactPreview?.formatFileSize?.(bytes) || '0 B';
   }
+}
+
+const deliverableDelegateDefs = [
+  ['getExpectedDeliverables', 'getExpectedDeliverables', args => [], false],
+  ['resolveSelectedArtifactTypes', 'resolveSelectedArtifactTypes', args => [], false],
+  ['normalizeDeliverableKey', 'normalizeDeliverableKey', args => '', true],
+  ['findArtifactForDeliverable', 'findArtifactForDeliverable', args => null, false],
+  ['getDeliverableStatusItems', 'getDeliverableStatusItems', args => [], false],
+  [
+    'getDeliverableProgressSummary',
+    'getDeliverableProgressSummary',
+    () => ({
+      items: [],
+      selectedItems: [],
+      selectedCount: 0,
+      generatedCount: 0,
+      generatingCount: 0,
+      totalCount: 0
+    }),
+    false
+  ],
+  ['renderDeliverableStatusPanel', 'renderDeliverableStatusPanel', args => '', false],
+  ['generateAdditionalDeliverables', 'generateAdditionalDeliverables', () => undefined, false],
+  ['regenerateStageDeliverable', 'regenerateStageDeliverable', () => undefined, false],
+  ['retryStageDeliverable', 'retryStageDeliverable', () => undefined, false],
+  ['getMissingDeliverables', 'getMissingDeliverables', args => [], false],
+  ['getMissingSelectedDeliverables', 'getMissingSelectedDeliverables', args => [], false],
+  ['getMissingDeliverablesFromExpected', 'getMissingDeliverablesFromExpected', args => [], false],
+  ['getMissingDeliverablesWithReason', 'getMissingDeliverablesWithReason', args => [], false],
+  ['hasGeneratedPrd', 'hasGeneratedPrd', args => false, false],
+  ['validateStrategyDocDependency', 'validateStrategyDocDependency', args => false, false],
+  ['getStageSelectedDeliverables', 'getStageSelectedDeliverables', args => [], false],
+  ['toggleStageDeliverable', 'toggleStageDeliverable', () => undefined, false],
+  ['startStageWithSelection', 'startStageWithSelection', () => undefined, false]
+];
+
+for (const [methodName, delegateName, fallback, plainArgs] of deliverableDelegateDefs) {
+  ProjectManager.prototype[methodName] = async function (...args) {
+    const result = plainArgs
+      ? await window.projectManagerDeliverables?.[delegateName]?.(...args)
+      : await window.projectManagerDeliverables?.[delegateName]?.(this, ...args);
+    return result ?? fallback(args);
+  };
 }
 
 if (typeof window !== 'undefined') {
