@@ -12,14 +12,20 @@ window.projectManagerProjectList = {
     if (
       !pm.projectsLoaded &&
       !pm.projectsLoadPromise &&
-      (pm.storageManager || window.storageManager)
+      (pm.storageManager || window.storageManager) &&
+      !pm._projectListBootstrapInProgress
     ) {
+      pm._projectListBootstrapInProgress = true;
       (async () => {
         try {
           await pm.loadProjects();
-          pm.renderProjectList(containerId);
+          if (pm.projectsLoaded) {
+            pm.renderProjectList(containerId);
+          }
         } catch (_error) {
           // ignore initial load failures
+        } finally {
+          pm._projectListBootstrapInProgress = false;
         }
       })();
     }

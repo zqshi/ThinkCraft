@@ -254,6 +254,7 @@ registerPmDelegates('projectManagerSetup', [
     method: 'loadProjects',
     promise: true,
     fallback() {
+      this.projectsLoaded = true;
       return this.projects;
     }
   },
