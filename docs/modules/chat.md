@@ -31,6 +31,7 @@ async sendMessage()
 ```
 
 **功能**:
+
 - 获取用户输入
 - 创建新对话(如果需要)
 - 发送消息到API
@@ -38,6 +39,7 @@ async sendMessage()
 - 更新UI
 
 **流程**:
+
 1. 检查输入框内容
 2. 检查对话是否忙碌
 3. 创建或获取当前对话ID
@@ -64,15 +66,9 @@ addMessage(
 **返回值**: 创建的消息DOM元素
 
 **示例**:
+
 ```javascript
-const messageDiv = messageHandler.addMessage(
-  'user',
-  '你好',
-  null,
-  false,
-  false,
-  false
-);
+const messageDiv = messageHandler.addMessage('user', '你好', null, false, false, false);
 ```
 
 #### `handleAPIResponse(data, chatId)`
@@ -84,6 +80,7 @@ async handleAPIResponse(data: Object, chatId: number)
 ```
 
 **功能**:
+
 - 解析API响应
 - 显示AI回复
 - 处理快捷回复
@@ -120,12 +117,14 @@ async typeWriter(
 ```
 
 **功能**:
+
 - 逐字显示文本
 - 支持Markdown渲染
 - 支持代码块高亮
 - 自动滚动
 
 **示例**:
+
 ```javascript
 const typingEffect = new TypingEffect();
 await typingEffect.typeWriter(messageDiv, 'Hello World', 30);
@@ -145,19 +144,16 @@ async typeWriterWithCompletion(
 ```
 
 **功能**:
+
 - 与typeWriter相同
 - 完成后执行回调函数
 
 **示例**:
+
 ```javascript
-await typingEffect.typeWriterWithCompletion(
-  messageDiv,
-  'Hello World',
-  30,
-  (element) => {
-    console.log('打字完成');
-  }
-);
+await typingEffect.typeWriterWithCompletion(messageDiv, 'Hello World', 30, element => {
+  console.log('打字完成');
+});
 ```
 
 ---
@@ -173,10 +169,11 @@ await typingEffect.typeWriterWithCompletion(
 加载对话列表。
 
 ```javascript
-loadChats()
+loadChats();
 ```
 
 **功能**:
+
 - 从localStorage加载对话
 - 渲染对话列表
 - 更新UI显示
@@ -186,10 +183,11 @@ loadChats()
 开始新对话。
 
 ```javascript
-startNewChat()
+startNewChat();
 ```
 
 **功能**:
+
 - 清空当前消息
 - 重置对话状态
 - 更新UI
@@ -203,6 +201,7 @@ deleteChat(chatId: number)
 ```
 
 **功能**:
+
 - 从localStorage删除
 - 更新UI
 - 如果是当前对话则清空
@@ -220,10 +219,11 @@ deleteChat(chatId: number)
 保存当前对话。
 
 ```javascript
-saveCurrentChat()
+saveCurrentChat();
 ```
 
 **功能**:
+
 - 自动提取标题
 - 区分新建和更新
 - 持久化到localStorage
@@ -237,6 +237,7 @@ loadChat(chatId: number)
 ```
 
 **功能**:
+
 - 保存当前对话
 - 加载消息和状态
 - 更新UI显示
@@ -250,6 +251,7 @@ toggleChatMenu(e: Event, chatId: number)
 ```
 
 **功能**:
+
 - Portal模式避免裁剪
 - 自动关闭其他菜单
 - 动态定位
@@ -316,6 +318,7 @@ POST /api/chat
 ```
 
 **请求体**:
+
 ```json
 {
   "message": "用户消息",
@@ -326,6 +329,7 @@ POST /api/chat
 ```
 
 **响应**:
+
 ```json
 {
   "code": 0,
@@ -479,7 +483,7 @@ const messages = state.messages.slice(0, pageSize);
 
 ## 相关文档
 
-- [架构设计](../architecture.md)
+- [架构 ADR](../architecture/ADR-001-modular-refactor.md)
 - [API文档](../api/message-handler.md)
-- [测试指南](../TESTING.md)
+- [测试指南](../guides/testing.md)
 - [快速开始](../guides/getting-started.md)

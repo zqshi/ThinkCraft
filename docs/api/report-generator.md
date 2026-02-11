@@ -30,5 +30,4 @@ const reportGenerator = await window.moduleLazyLoader.load('reportGenerator');
 ## 相关文档
 
 - `docs/modules/report.md`
-- `docs/architecture.md`
-
+- `docs/architecture/ADR-001-modular-refactor.md`

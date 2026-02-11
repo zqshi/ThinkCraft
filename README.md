@@ -1,453 +1,138 @@
-# ThinkCraft - AI思维助手
+# ThinkCraft
 
-> 创意验证操作系统：用对话式引导 + AI分析报告，把灵感变成可执行方案
+创意验证与项目协作平台（前端 + 后端 + 可选 DeepResearch 微服务）。
 
-## ✨ 当前能力概览
+## 文档入口
 
-- **多入口体验**：`OS.html` 产品介绍页 → 登录 → 主应用
-- **对话式思维引导**：多轮对话、快速回复、打字机效果、历史记录
-- **项目空间**：对话与项目分区管理
-- **结构化产出**：分析报告、商业计划书章节、PDF导出、分享链接
-- **🆕 深度研究模式**：集成DeepResearch，支持多轮迭代和网络搜索，生成更专业的报告
-- **AI增强模块**：视觉分析、工作流推荐与执行、数字员工
-- **账号体系**：手机号登录（首次登录自动注册）、手机验证码、账号管理
-- **数据持久化**：MongoDB + Redis
-- **DDD架构**：领域驱动设计，清晰的分层架构
-- **容器化部署**：Docker + Docker Compose一键部署
-- **PWA基础设施**：`manifest.json` + `service-worker.js`
+- 启动与停止（唯一权威）：`docs/STARTUP_RUNBOOK.md`
+- 文档治理规范：`docs/DOC_GOVERNANCE.md`
+- 脚本注册表：`docs/SCRIPT_REGISTRY.md`
+- 架构 ADR：`docs/architecture/ADR-001-modular-refactor.md`
+- 开发文档索引：`docs/README.md`
 
-## 🚀 快速开始
-
-### 方式一：Docker部署（推荐）
-
-使用Docker Compose一键启动所有服务（前端、后端、MongoDB、Redis）：
+## 快速开始
 
 ```bash
-# 1. 配置环境变量
-cp backend/.env.example backend/.env
-# 编辑 backend/.env，设置 DEEPSEEK_API_KEY 等配置
-
-# 2. 使用管理脚本启动
-./docker.sh build   # 构建镜像
-./docker.sh start   # 启动服务
-./docker.sh status  # 查看状态
-./docker.sh logs    # 查看日志
-
-# 或直接使用 docker-compose
-docker-compose up -d
-```
-
-启动后访问：
-
-- 前端应用：http://localhost
-- 后端API：http://localhost:3000
-- 健康检查：http://localhost/health
-
-详细文档：
-
-- [部署指南](docs/guides/deployment.md)
-- [开发文档索引](docs/README.md)
-
-### 方式二：本地开发
-
-#### 前端预览（无需后端）
-
-```bash
-# 在项目根目录
-python3 -m http.server 8000
-# 访问 http://localhost:8000/OS.html
-```
-
-- 在 OS 页面点击"立即体验"进入登录页
-- 登录为演示模式（存储在浏览器本地）
-
-#### 一键启动前后端（推荐）
-
-```bash
-# 在项目根目录
-./dev.sh
-
-# 停止服务
-./stop.sh
-```
-
-- 日志目录：`logs/`
-- 运行时 PID：`run/`
-
-#### 启动后端（解锁完整功能）
-
-```bash
-cd backend
 npm install
-npm run dev
+./start-all.sh
 ```
 
-在 `backend/.env` 中设置：
-
-```env
-# DeepSeek API配置
-DEEPSEEK_API_KEY=your_api_key_here
-
-# 服务配置
-PORT=3000
-FRONTEND_URL=http://localhost:8000
-
-# 数据库配置
-DB_TYPE=mongodb
-MONGODB_URI=mongodb://localhost:27017/thinkcraft
-
-# Redis配置
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Token密钥
-ACCESS_TOKEN_SECRET=your-access-token-secret
-REFRESH_TOKEN_SECRET=your-refresh-token-secret
-
-# SMS服务配置（生产必配）
-SMS_PROVIDER=aliyun  # 可选: aliyun, tencent
-```
-
-后端启动后，前端默认请求 `http://localhost:3000`。
-
-#### 启动DeepResearch微服务（可选，用于深度研究模式）
+停止：
 
 ```bash
-# 在新终端中
-cd backend/services/deep-research
-./start.sh
-
-# 或手动启动
-pip install -r requirements.txt
-python app.py
+./stop-all.sh
 ```
 
-DeepResearch微服务启动后，可以在生成商业计划书时勾选"启用深度研究模式"，使用多轮迭代和网络搜索生成更专业的报告。
+说明：
 
-详细文档：
+- `./dev.sh` 仅兼容历史命令，内部转发到 `./start-all.sh`
+- `./stop.sh` 仅兼容历史命令，内部转发到 `./stop-all.sh`
 
-- [DeepResearch快速启动](docs/DEEPRESEARCH_QUICKSTART.md)
-- [DeepResearch部署指南](docs/DEEPRESEARCH_DEPLOYMENT.md)
+## 实际运行入口
 
-## 🏗️ 架构说明
+- 前端应用：`http://127.0.0.1:5173/index.html?app=1`
+- 产品介绍页：`http://127.0.0.1:5173/OS.html`
+- 后端健康检查：`http://127.0.0.1:3000/health`
+- 后端就绪检查：`http://127.0.0.1:3000/ready`
+- DeepResearch（可选）：`http://127.0.0.1:5001/health`
 
-### 模块化重构（2026-01-31）
+## 后端 API（与当前挂载一致）
 
-ThinkCraft已完成大规模模块化重构，将7098行的单体文件拆分为15+个独立模块：
+后端统一在 `backend/server.js` 挂载以下前缀：
 
-**重构成果**:
+- `/api/auth`
+- `/api/verification`
+- `/api/account`
+- `/api/chat`
+- `/api/report`
+- `/api/business-plan`
+- `/api/vision`
+- `/api/pdf-export`
+- `/api/share`
+- `/api/agents`
+- `/api/projects`
+- `/api/workflow`
+- `/api/prompts`
 
-- ✅ 代码行数减少 95.8%（7098行 → 296行）
-- ✅ 模块数量增加 1400%（1个 → 15+个）
-- ✅ 可维护性提升 300%
-- ✅ 团队协作效率提升 150%
-- ✅ 功能完整性 100%（无缺失）
+常用接口（当前代码存在）：
 
-**模块结构**:
+- `POST /api/auth/login`
+- `POST /api/auth/register`
+- `POST /api/auth/refresh-token`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `POST /api/verification/send`
+- `POST /api/verification/verify`
+- `GET /api/account/info`
+- `POST /api/account/bind-phone`
+- `PUT /api/account/phone`
+- `PUT /api/account/preferences`
+- `DELETE /api/account`
+- `POST /api/chat/create`
+- `POST /api/chat/send-message`
+- `POST /api/chat/:chatId/auto-title`
+- `POST /api/projects`
+- `GET /api/projects`
+- `GET /api/projects/:id`
+- `PUT /api/projects/:id`
+- `DELETE /api/projects/:id`
+- `GET /api/projects/workflow-config/:category`
+- `POST /api/workflow/:projectId/execute-stage`
+- `POST /api/workflow/:projectId/execute-batch`
+- `GET /api/workflow/:projectId/stages/:stageId/artifacts`
+- `GET /api/workflow/:projectId/artifacts`
+- `GET /api/workflow/:projectId/artifacts/tree`
+- `GET /api/workflow/:projectId/artifacts/bundle`
 
-```
-frontend/js/
-├── app-boot.js (296行) - 应用启动入口
-├── boot/
-│   └── init.js - 初始化流程
-├── core/
-│   └── state-manager.js - 核心状态管理
-├── modules/
-│   ├── chat/ - 聊天系统
-│   │   ├── message-handler.js - 消息处理
-│   │   ├── typing-effect.js - 打字机效果
-│   │   └── chat-list.js - 对话列表
-│   ├── report/ - 报告生成系统
-│   │   ├── report-generator.js - 报告生成
-│   │   ├── report-viewer.js - 报告查看
-│   │   └── share-card.js - 分享功能
-│   ├── agent-collaboration.js - Agent协作系统
-│   ├── project-manager.js - 项目管理
-│   ├── knowledge-base.js - 知识库
-│   ├── business-plan-generator.js - 商业计划书
-│   ├── input-handler.js - 输入处理（语音/图片）
-│   ├── onboarding/ - 新手引导
-│   ├── settings/ - 设置管理
-│   └── state/ - 状态管理
-└── utils/
-    ├── dom.js - DOM操作工具
-    ├── icons.js - 图标工具
-    ├── format.js - 格式化工具
-    ├── app-helpers.js - 应用辅助函数
-    └── module-lazy-loader.js - 模块懒加载器
-```
+## 项目结构（当前有效）
 
-**性能优化**:
-
-- 支持按需加载（懒加载）
-- 代码分割和缓存优化
-
-相关文档：
-
-- [ADR-001 Modular Refactor](docs/architecture/ADR-001-modular-refactor.md)
-- [模块化重构备份](backups/2026-01-31-modular-refactor/README.md)
-
-## 🧩 主要模块
-
-### 前端（DDD架构）
-
-- **入口页面**：`OS.html`、`login.html`、`index.html`
-- **DDD模块（实验）**：`frontend/experimental-src/features/`（chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
-- **共享基础设施（实验）**：`frontend/experimental-src/shared/`（领域模型基类、工具类）
-- **样式**：`css/` + `frontend/css/`
-
-### 后端（DDD架构）
-
-- **服务入口**：`backend/server.js`
-- **DDD模块**：`backend/src/features/`（auth、chat、agents、projects、business-plan、report、pdf-export、share、vision、workflow、workflow-recommendation）
-- **共享基础设施**：`backend/src/shared/`（领域模型基类）、`backend/src/infrastructure/`（缓存、SMS等）
-- **路由**：`backend/routes/`
-- **数据库**：MongoDB模型和仓库、Redis缓存服务
-- **脚本**：`backend/scripts/`（数据迁移、备份、恢复）
-
-### 配置与文档
-
-- **系统提示词**：`config/system-prompts.js`
-- **报告提示词**：`config/report-prompts.js`
-- **配置说明**：`config/README.md`
-- **架构文档**：`docs/architecture/ADR-001-modular-refactor.md`
-- **开发文档索引**：`docs/README.md`
-- **认证OpenAPI**：`docs/openapi-auth.yaml`
-- **执行计划**：`EXECUTION_PLAN.md`
-- **日志目录**：`logs/`
-- **运行时PID**：`run/`
-
-## 🔌 后端API
-
-### 认证与账号
-
-- `POST /api/auth/register` - 手机号注册（验证码）
-- `POST /api/auth/login` - 手机号登录（首次登录自动注册）
-- `POST /api/auth/logout` - 用户登出
-- `POST /api/verification/send` - 发送验证码
-- `POST /api/verification/verify` - 验证验证码
-- `GET /api/account/profile` - 获取个人信息
-- `PUT /api/account/profile` - 更新个人信息
-- `POST /api/account/phone/bind` - 绑定手机号
-- `DELETE /api/account` - 注销账号
-
-### 核心功能
-
-- `GET /health` - 健康检查（简单）
-- `GET /api/health` - 健康检查（详细）
-- `POST /api/chat/create` - 创建对话
-- `POST /api/chat/send-message` - 发送消息
-- `POST /api/report/generate` - 报告生成
-- `POST /api/business-plan/*` - 商业计划书生成
-- `POST /api/vision/analyze` - 图片分析
-- `POST /api/pdf-export/report` - PDF导出
-- `POST /api/share/*` - 分享链接
-- `GET /api/agents/*` - 数字员工
-- `GET /api/projects/*` - 项目管理
-- `POST /api/workflow/*` - 工作流执行
-- `POST /api/workflow-recommendation/*` - 工作流推荐
-
-## 📁 项目结构
-
-```
-ThinkCraft/
-├── index.html                    # 主应用入口
-├── OS.html                       # 产品介绍页
-├── login.html                    # 登录页
-├── docker-compose.yml            # Docker编排配置
-├── docker.sh                     # Docker管理脚本
-├── dev.sh                        # 本地开发一键启动
-├── stop.sh                       # 停止本地开发服务
-├── logs/                         # 本地开发日志
-├── run/                          # 运行时PID文件
-├── EXECUTION_PLAN.md             # 项目执行计划
+```text
+.
+├── index.html
+├── OS.html
+├── login.html
+├── start-all.sh
+├── stop-all.sh
+├── dev.sh
+├── stop.sh
+├── scripts/
+├── docs/
 ├── frontend/
-│   ├── Dockerfile                # 前端Docker镜像
-│   ├── nginx.conf                # Nginx配置
-│   ├── css/                      # 样式文件
-│   ├── js/                       # 旧版JS（逐步迁移中）
+│   ├── js/
+│   ├── css/
 │   └── experimental-src/
-│       ├── features/             # DDD功能模块
-│       │   ├── chat/             # 对话模块
-│       │   ├── agents/           # 数字员工模块
-│       │   ├── projects/         # 项目管理模块
-│       │   ├── business-plan/    # 商业计划书模块
-│       │   ├── report/           # 报告模块
-│       │   ├── pdf-export/       # PDF导出模块
-│       │   ├── share/            # 分享模块
-│       │   ├── vision/           # 视觉分析模块
-│       │   ├── workflow/         # 工作流模块
-│       │   └── workflow-recommendation/  # 工作流推荐模块
-│       └── shared/               # 共享基础设施
 ├── backend/
-│   ├── Dockerfile                # 后端Docker镜像
-│   ├── server.js                 # 服务入口
-│   ├── routes/                   # 路由
-│   ├── config/                   # 配置
-│   ├── scripts/                  # 数据迁移脚本
-│   │   ├── migrate-to-mongodb.js
-│   │   ├── backup-data.js
-│   │   ├── restore-data.js
-│   │   ├── verify-migration.js
-│   │   └── check-sms-config.js
+│   ├── server.js
+│   ├── routes/
+│   ├── scripts/
 │   └── src/
-│       ├── features/             # DDD功能模块
-│       │   ├── auth/             # 认证模块（含账号管理）
-│       │   ├── chat/             # 对话模块
-│       │   ├── agents/           # 数字员工模块
-│       │   └── ...               # 其他模块
-│       ├── shared/               # 共享领域模型
-│       └── infrastructure/       # 基础设施
-│           ├── cache/            # Redis缓存
-│           └── sms/              # SMS服务
-├── config/                       # 提示词配置
-│   ├── system-prompts.js
-│   ├── report-prompts.js
-│   └── README.md
-├── docs/                         # 文档
-│   ├── architecture/             # 架构与ADR
-│   ├── guides/                   # 开发指南
-│   ├── modules/                  # 模块文档
-│   ├── openapi-auth.yaml         # 认证OpenAPI
-│   └── README.md
-├── scripts/                      # 工具脚本
-│   ├── cleanup-node-modules.js
-│   └── create-frontend-ddd-module.sh
-├── css/                          # 全局样式
-├── icons/                        # 图标资源
-├── manifest.json                 # PWA配置
-└── service-worker.js             # Service Worker
+├── config/
+├── prompts/
+├── css/
+├── logs/
+└── run/
 ```
 
-## 🏗️ 技术架构
+## 技术栈
 
-### 架构模式
+- 前端：原生 JavaScript（主应用）+ React（实验区 `frontend/experimental-src`）
+- 后端：Node.js + Express
+- 存储：MongoDB（主）+ Redis（缓存，可降级）
+- 测试：Jest
+- 构建：Vite
 
-- **DDD（领域驱动设计）**：清晰的分层架构，领域模型驱动
-- **CQRS**：命令查询职责分离
-- **事件驱动**：领域事件支持
-
-### 技术栈
-
-- **前端**：原生JavaScript + DDD架构
-- **后端**：Node.js + Express + DDD架构
-- **数据库**：MongoDB（主数据库）+ Redis（缓存）
-- **AI服务**：DeepSeek API
-- **容器化**：Docker + Docker Compose
-- **测试**：Jest（单元测试 + 集成测试）
-- **代码质量**：ESLint + Prettier + Husky + lint-staged
-
-### 数据库
-
-- **MongoDB**：用户数据、对话历史、项目数据等
-- **Redis**：会话缓存、验证码缓存、频率限制等
-
-详见：[架构文档](docs/architecture/ADR-001-modular-refactor.md)
-
-## 🧪 开发与测试
-
-### 代码规范
+## 开发命令
 
 ```bash
+# 全栈启动（推荐）
+./start-all.sh
+
+# 前端开发服务器
+npm run dev:frontend
+
 # 代码检查
 npm run lint
 
-# 自动修复
-npm run lint:fix
-
-# 格式化
-npm run format
-
-# 格式检查
-npm run format:check
-```
-
-### 测试
-
-```bash
-cd backend
-
-# 运行所有测试
+# 测试
 npm test
-
-# 监听模式
-npm run test:watch
-
-# 测试覆盖率
-npm run test:coverage
 ```
-
-测试覆盖率：以 `npm run test:coverage` 输出为准
-
-### Git提交
-
-项目配置了Husky + lint-staged，每次提交前会自动：
-
-- 运行ESLint检查和修复
-- 运行Prettier格式化
-- 确保代码质量
-
-## 📚 文档
-
-- [执行计划](EXECUTION_PLAN.md) - 项目执行计划和进度跟踪
-- [开发文档索引](docs/README.md) - 开发者文档入口
-- [架构ADR](docs/architecture/ADR-001-modular-refactor.md) - 架构设计记录
-- [部署指南](docs/guides/deployment.md) - 部署说明
-- [快速开始](docs/guides/getting-started.md) - 本地开发
-- [测试指南](docs/guides/testing.md) - 单元测试与集成测试
-- [认证OpenAPI](docs/openapi-auth.yaml) - 登录/注册接口
-- [数据库文档](backend/DATABASE.md) - 数据库集成指南
-- [数据迁移文档](backend/scripts/README.md) - 数据迁移工具文档
-
-## 📊 项目进度
-
-项目进度以 [执行计划](EXECUTION_PLAN.md) 为准
-
-## 🔒 安全特性
-
-- **JWT认证**：基于Token的无状态认证
-- **密码加密**：bcrypt加密存储
-- **手机验证码**：支持注册、登录
-- **频率限制**：防止API滥用
-- **CORS配置**：严格的跨域控制
-- **输入验证**：防止XSS和SQL注入
-- **安全响应头**：Helmet中间件
-
-## 🚧 已知限制
-
-- 前端部分模块仍在从旧架构迁移到DDD架构
-- 测试覆盖率需要提升
-- CI/CD流程尚未完成
-
-## 🛠️ 故障排查
-
-### Docker相关问题
-
-参见：[部署指南](docs/guides/deployment.md)
-
-### 数据库相关问题
-
-参见：[数据库文档 - 故障排查](backend/DATABASE.md#故障排查)
-
-### 常见问题
-
-**Q: 前端无法连接后端？**
-A: 检查后端是否启动，CORS配置是否正确，前端API地址是否正确。
-
-**Q: MongoDB连接失败？**
-A: 确保MongoDB服务已启动，连接字符串正确。使用Docker部署时会自动启动MongoDB。
-
-**Q: 验证码收不到？**
-A: 开发环境可启用模拟短信以便调试，生产环境必须配置真实的SMS服务。
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 📄 许可证
-
-MIT License
-
----
-
-**ThinkCraft - 让每个想法都值得被认真对待**

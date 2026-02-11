@@ -1,5 +1,8 @@
 # DeepResearch 集成指南
 
+> 项目启动方式已统一，请优先遵循 `docs/STARTUP_RUNBOOK.md`。
+> 本文档仅保留 DeepResearch 功能集成细节。
+
 本文档说明如何在 ThinkCraft 中集成和使用 Alibaba Tongyi-DeepResearch-30B-A3B 模型进行深度研究。
 
 ## 架构概述
@@ -127,11 +130,10 @@ curl -X POST http://localhost:5001/research/business-plan-chapter \
 DEEPRESEARCH_SERVICE_URL=http://localhost:5001
 ```
 
-然后启动后端：
+然后按统一启动手册启动项目（会自动拉起后端）：
 
 ```bash
-cd backend
-npm start
+./start-all.sh
 ```
 
 ### 6. 使用前端界面

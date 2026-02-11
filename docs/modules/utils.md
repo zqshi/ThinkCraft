@@ -27,10 +27,12 @@ autoResize(textarea: HTMLTextAreaElement)
 ```
 
 **功能**:
+
 - 根据内容自动调整高度
 - 最大高度限制为120px
 
 **示例**:
+
 ```javascript
 const textarea = document.getElementById('input');
 textarea.addEventListener('input', () => autoResize(textarea));
@@ -45,9 +47,11 @@ scrollToBottom(force: boolean = false)
 ```
 
 **参数**:
+
 - `force`: 是否强制滚动(忽略锁定状态)
 
 **示例**:
+
 ```javascript
 // 正常滚动
 scrollToBottom();
@@ -65,6 +69,7 @@ focusInput(inputId: string = 'mainInput')
 ```
 
 **示例**:
+
 ```javascript
 // 聚焦默认输入框
 focusInput();
@@ -82,10 +87,12 @@ lockAutoScroll(duration: number = 3000)
 ```
 
 **功能**:
+
 - 临时禁用自动滚动
 - 指定时间后自动解锁
 
 **示例**:
+
 ```javascript
 // 锁定3秒
 lockAutoScroll(3000);
@@ -96,7 +103,7 @@ lockAutoScroll(3000);
 解锁自动滚动。
 
 ```javascript
-unlockAutoScroll()
+unlockAutoScroll();
 ```
 
 ### showElement(element)
@@ -108,6 +115,7 @@ showElement(element: string | HTMLElement)
 ```
 
 **示例**:
+
 ```javascript
 // 通过ID
 showElement('myElement');
@@ -174,6 +182,7 @@ formatTime(timestamp: number): string
 ```
 
 **返回值**:
+
 - "刚刚" (< 1分钟)
 - "N分钟前" (< 1小时)
 - "N小时前" (< 1天)
@@ -182,6 +191,7 @@ formatTime(timestamp: number): string
 - "YYYY-MM-DD" (>= 4周)
 
 **示例**:
+
 ```javascript
 const time = formatTime(Date.now() - 60000);
 // 输出: "1分钟前"
@@ -206,6 +216,7 @@ normalizeChatId(chatId: string | number): number
 ```
 
 **功能**:
+
 - 将字符串ID转换为数字
 - 处理带前导零的字符串
 
@@ -220,10 +231,11 @@ formatDate(date: Date | number | string): string
 **返回值**: "YYYY-MM-DD"
 
 **示例**:
+
 ```javascript
-formatDate(new Date());              // "2026-01-30"
-formatDate(Date.now());              // "2026-01-30"
-formatDate('2026-01-30T10:00:00');   // "2026-01-30"
+formatDate(new Date()); // "2026-01-30"
+formatDate(Date.now()); // "2026-01-30"
+formatDate('2026-01-30T10:00:00'); // "2026-01-30"
 ```
 
 ### formatDateTime(date)
@@ -249,6 +261,7 @@ truncateText(
 ```
 
 **示例**:
+
 ```javascript
 truncateText('这是一段很长的文本', 5);
 // 输出: "这是一段很..."
@@ -273,6 +286,7 @@ formatFileSize(bytes: number): string
 ```
 
 **返回值**:
+
 - "0 B"
 - "123 B"
 - "1.23 KB"
@@ -281,9 +295,10 @@ formatFileSize(bytes: number): string
 - "1.23 TB"
 
 **示例**:
+
 ```javascript
-formatFileSize(1024);        // "1.00 KB"
-formatFileSize(1048576);     // "1.00 MB"
+formatFileSize(1024); // "1.00 KB"
+formatFileSize(1048576); // "1.00 MB"
 ```
 
 ### formatNumber(num)
@@ -295,9 +310,10 @@ formatNumber(num: number): string
 ```
 
 **示例**:
+
 ```javascript
-formatNumber(1234567);       // "1,234,567"
-formatNumber(1234.56);       // "1,234.56"
+formatNumber(1234567); // "1,234,567"
+formatNumber(1234.56); // "1,234.56"
 ```
 
 ### parseCodeBlocks(text)
@@ -309,6 +325,7 @@ parseCodeBlocks(text: string): Array<Object>
 ```
 
 **返回值**:
+
 ```javascript
 [
   {
@@ -328,6 +345,7 @@ escapeHtml(text: string): string
 ```
 
 **功能**:
+
 - `<` → `&lt;`
 - `>` → `&gt;`
 - `&` → `&amp;`
@@ -347,8 +365,9 @@ async sleep(ms: number): Promise<void>
 ```
 
 **示例**:
+
 ```javascript
-await sleep(1000);  // 等待1秒
+await sleep(1000); // 等待1秒
 ```
 
 ### formatDateTime(date)
@@ -390,6 +409,7 @@ vibrate(duration: number = 30)
 ```
 
 **功能**:
+
 - 仅在支持的设备上生效
 - 默认震动30ms
 
@@ -412,10 +432,11 @@ getFileExtension(filename: string): string
 ```
 
 **示例**:
+
 ```javascript
-getFileExtension('document.pdf');    // "pdf"
-getFileExtension('image.PNG');       // "png"
-getFileExtension('archive.tar.gz');  // "gz"
+getFileExtension('document.pdf'); // "pdf"
+getFileExtension('image.PNG'); // "png"
+getFileExtension('archive.tar.gz'); // "gz"
 ```
 
 ### truncateText(text, maxLength, suffix)
@@ -451,6 +472,7 @@ getIcon(name: string): string
 ```
 
 **支持的图标**:
+
 - `send` - 发送图标
 - `mic` - 麦克风图标
 - `stop` - 停止图标
@@ -470,6 +492,7 @@ getIcon(name: string): string
 - `info` - 信息图标
 
 **示例**:
+
 ```javascript
 const sendIcon = getIcon('send');
 button.innerHTML = sendIcon;
@@ -484,6 +507,7 @@ createIcon(name: string, className: string = ''): HTMLElement
 ```
 
 **示例**:
+
 ```javascript
 const icon = createIcon('send', 'icon-large');
 button.appendChild(icon);
@@ -603,6 +627,7 @@ npm run test:coverage -- utils
 ```
 
 **测试覆盖率**:
+
 - dom.js: 92.85%
 - format.js: 98.36%
 - helpers.js: 90%+
@@ -614,6 +639,7 @@ npm run test:coverage -- utils
 ### Q: 如何添加新的工具函数?
 
 A:
+
 1. 在相应的文件中添加函数
 2. 添加JSDoc注释
 3. 导出函数
@@ -636,6 +662,6 @@ A: 工具函数已考虑主流浏览器兼容性,对于不支持的API会提供�
 
 ## 相关文档
 
-- [架构设计](../architecture.md)
-- [测试指南](../TESTING.md)
+- [架构 ADR](../architecture/ADR-001-modular-refactor.md)
+- [测试指南](../guides/testing.md)
 - [快速开始](../guides/getting-started.md)

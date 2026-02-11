@@ -1,6 +1,10 @@
 # 部署指南
 
-本指南描述 ThinkCraft 的生产部署流程（Docker Compose）。
+生产部署前，请先阅读统一启动运行手册：
+
+- `docs/STARTUP_RUNBOOK.md`
+
+本页仅保留生产 Docker 相关信息。
 
 ## 1. 准备环境
 
@@ -25,5 +29,8 @@ Docker_BUILDKIT=1 docker compose up -d --build
 
 ## 5. 生产检查
 
-发布前请执行 `docs/PRODUCTION_CHECKLIST.md`。
+发布前至少完成以下检查：
 
+- `docker compose ps` 无异常退出容器
+- `http://<host>:3000/health` 返回 200
+- 关键 API（登录、聊天、项目）可用

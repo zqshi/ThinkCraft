@@ -28,7 +28,7 @@ ThinkCraft/
 │   │   │   └── ...
 │   │   └── utils/              # 工具函数
 │   ├── css/                    # 样式文件
-│   └── index.html              # HTML入口
+├── index.html                  # HTML入口（仓库根目录）
 ├── backend/                    # 后端代码
 ├── docs/                       # 文档
 └── tests/                      # 测试
@@ -83,62 +83,62 @@ touch frontend/js/modules/your-module/your-module.js
 /* eslint-disable no-unused-vars, no-undef */
 
 class YourModule {
-    /**
-     * 创建YourModule实例
-     * @constructor
-     */
-    constructor() {
-        // 依赖注入
-        this.state = window.state;
+  /**
+   * 创建YourModule实例
+   * @constructor
+   */
+  constructor() {
+    // 依赖注入
+    this.state = window.state;
+  }
+
+  /**
+   * 初始化模块
+   * @returns {Promise<void>}
+   */
+  async init() {
+    try {
+      // 初始化逻辑
+      console.log('[YourModule] 初始化成功');
+    } catch (error) {
+      console.error('[YourModule] 初始化失败:', error);
+      throw error;
     }
+  }
 
-    /**
-     * 初始化模块
-     * @returns {Promise<void>}
-     */
-    async init() {
-        try {
-            // 初始化逻辑
-            console.log('[YourModule] 初始化成功');
-        } catch (error) {
-            console.error('[YourModule] 初始化失败:', error);
-            throw error;
-        }
+  /**
+   * 主要功能方法
+   * @param {Object} params - 参数对象
+   * @returns {Promise<Object>} 返回结果
+   */
+  async doSomething(params) {
+    try {
+      // 验证参数
+      if (!params) {
+        throw new Error('参数不能为空');
+      }
+
+      // 执行逻辑
+      const result = await this._processData(params);
+
+      // 返回结果
+      return result;
+    } catch (error) {
+      console.error('[YourModule] 执行失败:', error);
+      throw error;
     }
+  }
 
-    /**
-     * 主要功能方法
-     * @param {Object} params - 参数对象
-     * @returns {Promise<Object>} 返回结果
-     */
-    async doSomething(params) {
-        try {
-            // 验证参数
-            if (!params) {
-                throw new Error('参数不能为空');
-            }
-
-            // 执行逻辑
-            const result = await this._processData(params);
-
-            // 返回结果
-            return result;
-        } catch (error) {
-            console.error('[YourModule] 执行失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 私有方法
-     * @private
-     * @param {Object} data - 数据
-     * @returns {Promise<Object>} 处理结果
-     */
-    async _processData(data) {
-        // 处理逻辑
-        return data;
-    }
+  /**
+   * 私有方法
+   * @private
+   * @param {Object} data - 数据
+   * @returns {Promise<Object>} 处理结果
+   */
+  async _processData(data) {
+    // 处理逻辑
+    return data;
+  }
 }
 
 // 导出模块(用于测试)
@@ -158,10 +158,10 @@ let yourModuleInstance = null;
  * @returns {YourModule}
  */
 function getYourModule() {
-    if (!yourModuleInstance) {
-        yourModuleInstance = new YourModule();
-    }
-    return yourModuleInstance;
+  if (!yourModuleInstance) {
+    yourModuleInstance = new YourModule();
+  }
+  return yourModuleInstance;
 }
 
 /**
@@ -170,7 +170,7 @@ function getYourModule() {
  * @returns {Promise<Object>}
  */
 async function doSomething(params) {
-    return await getYourModule().doSomething(params);
+  return await getYourModule().doSomething(params);
 }
 ```
 
@@ -190,18 +190,18 @@ async function doSomething(params) {
 ```javascript
 // 在DOMContentLoaded事件中添加
 document.addEventListener('DOMContentLoaded', async () => {
-    // ... 其他初始化代码
+  // ... 其他初始化代码
 
-    // 初始化YourModule
-    try {
-        const yourModule = getYourModule();
-        await yourModule.init();
-        console.log('[App] YourModule初始化成功');
-    } catch (error) {
-        console.error('[App] YourModule初始化失败:', error);
-    }
+  // 初始化YourModule
+  try {
+    const yourModule = getYourModule();
+    await yourModule.init();
+    console.log('[App] YourModule初始化成功');
+  } catch (error) {
+    console.error('[App] YourModule初始化失败:', error);
+  }
 
-    // ... 其他初始化代码
+  // ... 其他初始化代码
 });
 ```
 
@@ -212,10 +212,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 ```html
 <!-- 在适当位置添加 -->
 <div id="yourModuleContainer" class="your-module-container">
-    <button id="yourModuleButton" class="btn">
-        执行操作
-    </button>
-    <div id="yourModuleResult"></div>
+  <button id="yourModuleButton" class="btn">执行操作</button>
+  <div id="yourModuleResult"></div>
 </div>
 ```
 
@@ -224,13 +222,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 ```javascript
 // 在app-boot.js中添加事件监听
 document.getElementById('yourModuleButton')?.addEventListener('click', async () => {
-    try {
-        const result = await doSomething({ param: 'value' });
-        document.getElementById('yourModuleResult').textContent = JSON.stringify(result);
-    } catch (error) {
-        console.error('执行失败:', error);
-        alert('操作失败,请重试');
-    }
+  try {
+    const result = await doSomething({ param: 'value' });
+    document.getElementById('yourModuleResult').textContent = JSON.stringify(result);
+  } catch (error) {
+    console.error('执行失败:', error);
+    alert('操作失败,请重试');
+  }
 });
 ```
 
@@ -254,56 +252,56 @@ touch frontend/js/modules/your-module/your-module.test.js
 import { YourModule } from './your-module.js';
 
 describe('YourModule', () => {
-    let yourModule;
+  let yourModule;
 
-    beforeEach(() => {
-        // 设置测试环境
-        window.state = {
-            // 模拟state对象
-        };
+  beforeEach(() => {
+    // 设置测试环境
+    window.state = {
+      // 模拟state对象
+    };
 
-        yourModule = new YourModule();
+    yourModule = new YourModule();
+  });
+
+  afterEach(() => {
+    // 清理
+    delete window.state;
+  });
+
+  describe('init', () => {
+    test('应该成功初始化', async () => {
+      await yourModule.init();
+      // 验证初始化结果
+      expect(yourModule.state).toBeDefined();
     });
 
-    afterEach(() => {
-        // 清理
-        delete window.state;
+    test('应该处理初始化错误', async () => {
+      // 模拟错误
+      window.state = null;
+
+      await expect(yourModule.init()).rejects.toThrow();
+    });
+  });
+
+  describe('doSomething', () => {
+    test('应该成功执行', async () => {
+      const params = { param: 'value' };
+      const result = await yourModule.doSomething(params);
+
+      expect(result).toBeDefined();
     });
 
-    describe('init', () => {
-        test('应该成功初始化', async () => {
-            await yourModule.init();
-            // 验证初始化结果
-            expect(yourModule.state).toBeDefined();
-        });
-
-        test('应该处理初始化错误', async () => {
-            // 模拟错误
-            window.state = null;
-
-            await expect(yourModule.init()).rejects.toThrow();
-        });
+    test('应该验证参数', async () => {
+      await expect(yourModule.doSomething(null)).rejects.toThrow('参数不能为空');
     });
 
-    describe('doSomething', () => {
-        test('应该成功执行', async () => {
-            const params = { param: 'value' };
-            const result = await yourModule.doSomething(params);
+    test('应该处理错误', async () => {
+      // 模拟错误场景
+      const invalidParams = { invalid: true };
 
-            expect(result).toBeDefined();
-        });
-
-        test('应该验证参数', async () => {
-            await expect(yourModule.doSomething(null)).rejects.toThrow('参数不能为空');
-        });
-
-        test('应该处理错误', async () => {
-            // 模拟错误场景
-            const invalidParams = { invalid: true };
-
-            await expect(yourModule.doSomething(invalidParams)).rejects.toThrow();
-        });
+      await expect(yourModule.doSomething(invalidParams)).rejects.toThrow();
     });
+  });
 });
 ```
 
@@ -323,6 +321,7 @@ npm run test:coverage
 ### 步骤4: 确保测试覆盖率
 
 目标覆盖率:
+
 - 语句覆盖率: 80%+
 - 分支覆盖率: 70%+
 - 函数覆盖率: 80%+
@@ -383,6 +382,7 @@ const result = await yourModule.doSomething({ param: 'value' });
 ## 常见问题
 
 ### Q: ...
+
 A: ...
 ```
 
@@ -395,12 +395,12 @@ A: ...
 
 简要描述...
 
-详细文档: [docs/modules/your-module.md](docs/modules/your-module.md)
+详细文档: `docs/modules/your-module.md`
 ```
 
 ### 步骤4: 更新架构文档
 
-在`docs/architecture.md`中添加新模块的架构说明。
+在 `docs/architecture/ADR-001-modular-refactor.md` 的基础上补充新模块架构说明（或新增 ADR）。
 
 ---
 
@@ -475,6 +475,7 @@ git push origin feature/your-feature-name
 ```
 
 **类型(type)**:
+
 - `feat`: 新功能
 - `fix`: 修复bug
 - `docs`: 文档更新
@@ -484,6 +485,7 @@ git push origin feature/your-feature-name
 - `chore`: 构建/工具相关
 
 **示例**:
+
 ```
 feat(chat): 添加语音输入功能
 
@@ -508,14 +510,14 @@ Closes #123
 
 ```javascript
 try {
-    // 操作
+  // 操作
 } catch (error) {
-    console.error('[YourModule] 错误:', error);
-    // 显示用户友好的错误信息
-    showError('操作失败,请重试');
-    // 记录错误日志
-    logError(error);
-    throw error;
+  console.error('[YourModule] 错误:', error);
+  // 显示用户友好的错误信息
+  showError('操作失败,请重试');
+  // 记录错误日志
+  logError(error);
+  throw error;
 }
 ```
 
@@ -540,6 +542,7 @@ try {
 ### Q: 如何调试新功能?
 
 A: 使用浏览器开发者工具:
+
 ```javascript
 console.log('[YourModule] 调试信息:', data);
 debugger; // 设置断点
@@ -548,36 +551,40 @@ debugger; // 设置断点
 ### Q: 如何处理异步操作?
 
 A: 使用async/await:
+
 ```javascript
 async function doSomething() {
-    try {
-        const result = await asyncOperation();
-        return result;
-    } catch (error) {
-        console.error('异步操作失败:', error);
-        throw error;
-    }
+  try {
+    const result = await asyncOperation();
+    return result;
+  } catch (error) {
+    console.error('异步操作失败:', error);
+    throw error;
+  }
 }
 ```
 
 ### Q: 如何与其他模块交互?
 
 A: 通过全局state或事件:
+
 ```javascript
 // 通过state
 window.state.yourData = data;
 
 // 通过事件
-window.dispatchEvent(new CustomEvent('your-event', {
+window.dispatchEvent(
+  new CustomEvent('your-event', {
     detail: { data }
-}));
+  })
+);
 ```
 
 ---
 
 ## 相关文档
 
-- [架构设计](../architecture.md)
-- [测试指南](../TESTING.md)
+- [架构 ADR](../architecture/ADR-001-modular-refactor.md)
+- [测试指南](../guides/testing.md)
 - [快速开始](getting-started.md)
 - [代码规范](code-style.md)

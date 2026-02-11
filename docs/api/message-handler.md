@@ -15,6 +15,7 @@ const messageHandler = new MessageHandler();
 ```
 
 **初始化**:
+
 - 注入全局state依赖
 - 设置事件监听器
 
@@ -31,6 +32,7 @@ async sendMessage(): Promise<void>
 ```
 
 **功能**:
+
 1. 获取用户输入(支持桌面端和移动端)
 2. 验证输入和对话状态
 3. 创建新对话(如果需要)
@@ -40,16 +42,19 @@ async sendMessage(): Promise<void>
 7. 保存到localStorage
 
 **流程图**:
+
 ```
 用户输入 → 验证 → 创建/获取对话 → 添加消息 → 调用API → 处理响应 → 保存状态
 ```
 
 **错误处理**:
+
 - 输入为空: 静默返回
 - 对话忙碌: 静默返回
 - API失败: 显示错误消息
 
 **示例**:
+
 ```javascript
 const handler = new MessageHandler();
 await handler.sendMessage();
@@ -74,18 +79,19 @@ addMessage(
 
 **参数**:
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| role | string | - | 消息角色: 'user' 或 'assistant' |
-| content | string | - | 消息内容(支持Markdown) |
-| quickReplies | Array\<string\> \| null | null | 快捷回复选项 |
-| showButtons | boolean | false | 是否显示操作按钮 |
-| skipTyping | boolean | false | 是否跳过打字机效果 |
-| skipStatePush | boolean | false | 是否跳过添加到state |
+| 参数          | 类型                    | 默认值 | 说明                            |
+| ------------- | ----------------------- | ------ | ------------------------------- |
+| role          | string                  | -      | 消息角色: 'user' 或 'assistant' |
+| content       | string                  | -      | 消息内容(支持Markdown)          |
+| quickReplies  | Array\<string\> \| null | null   | 快捷回复选项                    |
+| showButtons   | boolean                 | false  | 是否显示操作按钮                |
+| skipTyping    | boolean                 | false  | 是否跳过打字机效果              |
+| skipStatePush | boolean                 | false  | 是否跳过添加到state             |
 
 **返回值**: 创建的消息DOM元素
 
 **功能**:
+
 - 创建消息DOM结构
 - 应用打字机效果(AI消息)
 - 渲染Markdown
@@ -94,6 +100,7 @@ addMessage(
 - 添加操作按钮(复制、重新生成等)
 
 **示例**:
+
 ```javascript
 // 添加用户消息
 const userMsg = handler.addMessage('user', '你好');
@@ -109,14 +116,7 @@ const aiMsg = handler.addMessage(
 );
 
 // 添加AI回复(无打字机效果)
-const quickMsg = handler.addMessage(
-  'assistant',
-  '收到!',
-  null,
-  false,
-  true,
-  false
-);
+const quickMsg = handler.addMessage('assistant', '收到!', null, false, true, false);
 ```
 
 ---
@@ -130,10 +130,12 @@ async handleAPIResponse(data: Object, chatId: number): Promise<void>
 ```
 
 **参数**:
+
 - `data`: API响应数据
 - `chatId`: 对话ID
 
 **功能**:
+
 - 解析响应数据
 - 显示AI回复
 - 处理快捷回复
@@ -141,6 +143,7 @@ async handleAPIResponse(data: Object, chatId: number): Promise<void>
 - 触发后续操作
 
 **响应数据结构**:
+
 ```javascript
 {
   code: 0,
@@ -155,6 +158,7 @@ async handleAPIResponse(data: Object, chatId: number): Promise<void>
 ```
 
 **示例**:
+
 ```javascript
 const response = await fetch('/api/chat', { ... });
 const data = await response.json();
@@ -172,14 +176,17 @@ isCurrentChatBusy(): boolean
 ```
 
 **返回值**:
+
 - `true`: 当前对话正在处理消息
 - `false`: 当前对话空闲
 
 **判断条件**:
+
 - 正在打字(typingChatId === currentChat)
 - 正在加载(pendingChatIds包含currentChat)
 
 **示例**:
+
 ```javascript
 if (handler.isCurrentChatBusy()) {
   console.log('对话忙碌中,请稍候');
@@ -226,12 +233,13 @@ MessageHandler会触发以下自定义事件:
 消息发送成功时触发。
 
 ```javascript
-window.addEventListener('message:sent', (event) => {
+window.addEventListener('message:sent', event => {
   console.log('消息已发送:', event.detail);
 });
 ```
 
 **事件数据**:
+
 ```javascript
 {
   chatId: number,
@@ -245,12 +253,13 @@ window.addEventListener('message:sent', (event) => {
 收到AI回复时触发。
 
 ```javascript
-window.addEventListener('message:received', (event) => {
+window.addEventListener('message:received', event => {
   console.log('收到回复:', event.detail);
 });
 ```
 
 **事件数据**:
+
 ```javascript
 {
   chatId: number,
@@ -264,12 +273,13 @@ window.addEventListener('message:received', (event) => {
 消息发送失败时触发。
 
 ```javascript
-window.addEventListener('message:error', (event) => {
+window.addEventListener('message:error', event => {
   console.error('发送失败:', event.detail);
 });
 ```
 
 **事件数据**:
+
 ```javascript
 {
   chatId: number,
@@ -472,5 +482,5 @@ loadChats();
 ## 相关文档
 
 - [聊天模块文档](../modules/chat.md)
-- [架构设计](../architecture.md)
-- [测试指南](../TESTING.md)
+- [架构 ADR](../architecture/ADR-001-modular-refactor.md)
+- [测试指南](../guides/testing.md)

@@ -33,12 +33,14 @@ async generateReport(
 ```
 
 **功能**:
+
 - 调用后端API生成报告
 - 缓存报告数据
 - 更新生成状态
 - 返回报告数据
 
 **示例**:
+
 ```javascript
 const generator = new ReportGenerator();
 const report = await generator.generateReport(123, 'analysis');
@@ -56,11 +58,13 @@ async prefetchAnalysisReport(
 ```
 
 **功能**:
+
 - 在后台预先生成报告
 - 提高用户体验
 - 减少等待时间
 
 **使用场景**:
+
 - 对话达到一定步骤后自动触发
 - 用户可能需要查看报告时
 
@@ -76,6 +80,7 @@ async fetchCachedAnalysisReport(
 ```
 
 **功能**:
+
 - 检查缓存是否存在
 - 返回缓存的报告
 - 缓存未命中时生成新报告
@@ -93,11 +98,13 @@ async exportFullReport(
 ```
 
 **功能**:
+
 - 生成PDF/DOCX/Markdown格式
 - 包含完整报告内容
 - 自动下载文件
 
 **示例**:
+
 ```javascript
 await generator.exportFullReport(123, reportData, 'pdf');
 ```
@@ -111,6 +118,7 @@ async loadGenerationStates()
 ```
 
 **功能**:
+
 - 从localStorage加载状态
 - 恢复生成进度
 - 更新UI显示
@@ -143,12 +151,14 @@ renderAIReport(
 ```
 
 **功能**:
+
 - 渲染6个章节
 - 支持Markdown格式
 - 代码高亮
 - 响应式布局
 
 **报告章节**:
+
 1. 创意定义与演化
 2. 核心洞察与根本假设
 3. 边界条件与应用场景
@@ -157,6 +167,7 @@ renderAIReport(
 6. 结构化行动建议
 
 **示例**:
+
 ```javascript
 const viewer = new ReportViewer();
 const container = document.getElementById('reportContainer');
@@ -175,6 +186,7 @@ async viewGeneratedReport(
 ```
 
 **功能**:
+
 - 加载报告数据
 - 渲染报告内容
 - 显示报告面板
@@ -188,6 +200,7 @@ async viewReport(chatId: number)
 ```
 
 **功能**:
+
 - 检查报告是否存在
 - 生成或加载报告
 - 显示报告面板
@@ -209,6 +222,7 @@ async generateShareCard(reportData: Object): Promise<Blob>
 ```
 
 **功能**:
+
 - 生成精美的分享图片
 - 包含报告摘要
 - 支持社交媒体分享
@@ -335,6 +349,7 @@ POST /api/reports/analysis
 ```
 
 **请求体**:
+
 ```json
 {
   "chatId": 123,
@@ -343,6 +358,7 @@ POST /api/reports/analysis
 ```
 
 **响应**:
+
 ```json
 {
   "code": 0,
@@ -360,6 +376,7 @@ POST /api/reports/business
 ```
 
 **请求体**:
+
 ```json
 {
   "chatId": 123,
@@ -374,6 +391,7 @@ POST /api/reports/product
 ```
 
 **请求体**:
+
 ```json
 {
   "chatId": 123,
@@ -388,6 +406,7 @@ POST /api/reports/export
 ```
 
 **请求体**:
+
 ```json
 {
   "chatId": 123,
@@ -581,6 +600,7 @@ A: 默认24小时,可在`getAnalysisReportKey`函数中修改。
 ### Q: 如何添加新的报告类型?
 
 A:
+
 1. 在`ReportGenerator`中添加新的生成方法
 2. 在`ReportViewer`中添加新的渲染方法
 3. 更新API接口
@@ -590,7 +610,7 @@ A:
 
 ## 相关文档
 
-- [架构设计](../architecture.md)
+- [架构 ADR](../architecture/ADR-001-modular-refactor.md)
 - [API文档](../api/report-generator.md)
-- [测试指南](../TESTING.md)
+- [测试指南](../guides/testing.md)
 - [快速开始](../guides/getting-started.md)
