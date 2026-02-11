@@ -7,6 +7,71 @@ function getDefaultApiUrl() {
   return window.location.origin;
 }
 
+const STAGE_ID_ALIASES = {
+  'strategy-validation': 'strategy',
+  'strategy-review': 'strategy',
+  'strategy-plan': 'strategy',
+  'product-definition': 'requirement',
+  'product-requirement': 'requirement',
+  requirements: 'requirement',
+  'ux-design': 'design',
+  'ui-design': 'design',
+  'product-design': 'design',
+  'experience-design': 'design',
+  'user-experience-design': 'design',
+  'prototype-design': 'design',
+  'architecture-design': 'architecture',
+  'tech-architecture': 'architecture',
+  'system-architecture': 'architecture',
+  implementation: 'development',
+  dev: 'development',
+  qa: 'testing',
+  test: 'testing',
+  launch: 'deployment',
+  release: 'deployment',
+  operation: 'operation',
+  ops: 'operation'
+};
+
+const ARTIFACT_TYPE_DEFS = {
+  prd: { name: '产品需求文档', icon: '📋' },
+  'user-story': { name: '用户故事', icon: '👤' },
+  'feature-list': { name: '功能清单', icon: '📝' },
+  design: { name: '设计稿', icon: '🎨' },
+  'design-spec': { name: '设计规范', icon: '📐' },
+  prototype: { name: '交互原型', icon: '🖼️' },
+  code: { name: '代码', icon: '💻' },
+  'frontend-code': { name: '前端源代码', icon: '💻' },
+  'backend-code': { name: '后端源代码', icon: '🖥️' },
+  'component-lib': { name: '组件库', icon: '🧩' },
+  'api-doc': { name: 'API文档', icon: '📡' },
+  'test-report': { name: '测试报告', icon: '📊' },
+  'deployment-guide': { name: '部署指南', icon: '🚀' },
+  document: { name: '文档', icon: '📄' },
+  report: { name: '报告', icon: '📈' },
+  plan: { name: '计划', icon: '📝' },
+  'frontend-doc': { name: '前端开发文档', icon: '🧩' },
+  'backend-doc': { name: '后端开发文档', icon: '🧱' },
+  'strategy-doc': { name: '战略设计文档', icon: '🎯' },
+  'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
+  'ui-design': { name: 'UI设计方案', icon: '🎨' },
+  'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
+  'marketing-plan': { name: '运营推广方案', icon: '📈' },
+  'deploy-doc': { name: '部署文档', icon: '🚀' },
+  'api-spec': { name: 'API接口规范', icon: '📡' },
+  'tech-stack': { name: '技术栈选型', icon: '🧩' },
+  'core-prompt-design': { name: '核心引导逻辑Prompt设计', icon: '🧠' },
+  'growth-strategy': { name: '增长策略', icon: '📈' },
+  'analytics-report': { name: '数据分析报告', icon: '📊' },
+  'env-config': { name: '环境配置', icon: '🧩' },
+  'release-notes': { name: '发布说明', icon: '📝' },
+  'bug-list': { name: '缺陷清单', icon: '🐞' },
+  'performance-report': { name: '性能报告', icon: '📊' },
+  preview: { name: '可交互预览', icon: '🖥️' },
+  'ui-preview': { name: 'UI预览', icon: '🖼️' },
+  image: { name: '图片', icon: '🖼️' }
+};
+
 var logger = window.createLogger ? window.createLogger('ProjectManager') : console;
 
 class ProjectManager {
@@ -35,44 +100,7 @@ class ProjectManager {
     this.storageManager = window.storageManager;
     this.stageDetailPanel = null; // 阶段详情面板
     this.stageDetailOverlay = null; // 遮罩层
-    this.artifactTypeDefs = {
-      prd: { name: '产品需求文档', icon: '📋' },
-      'user-story': { name: '用户故事', icon: '👤' },
-      'feature-list': { name: '功能清单', icon: '📝' },
-      design: { name: '设计稿', icon: '🎨' },
-      'design-spec': { name: '设计规范', icon: '📐' },
-      prototype: { name: '交互原型', icon: '🖼️' },
-      code: { name: '代码', icon: '💻' },
-      'frontend-code': { name: '前端源代码', icon: '💻' },
-      'backend-code': { name: '后端源代码', icon: '🖥️' },
-      'component-lib': { name: '组件库', icon: '🧩' },
-      'api-doc': { name: 'API文档', icon: '📡' },
-      'test-report': { name: '测试报告', icon: '📊' },
-      'deployment-guide': { name: '部署指南', icon: '🚀' },
-      document: { name: '文档', icon: '📄' },
-      report: { name: '报告', icon: '📈' },
-      plan: { name: '计划', icon: '📝' },
-      'frontend-doc': { name: '前端开发文档', icon: '🧩' },
-      'backend-doc': { name: '后端开发文档', icon: '🧱' },
-      'strategy-doc': { name: '战略设计文档', icon: '🎯' },
-      'research-analysis-doc': { name: '产品研究分析报告', icon: '🔎' },
-      'ui-design': { name: 'UI设计方案', icon: '🎨' },
-      'architecture-doc': { name: '系统架构设计', icon: '🏗️' },
-      'marketing-plan': { name: '运营推广方案', icon: '📈' },
-      'deploy-doc': { name: '部署文档', icon: '🚀' },
-      'api-spec': { name: 'API接口规范', icon: '📡' },
-      'tech-stack': { name: '技术栈选型', icon: '🧩' },
-      'core-prompt-design': { name: '核心引导逻辑Prompt设计', icon: '🧠' },
-      'growth-strategy': { name: '增长策略', icon: '📈' },
-      'analytics-report': { name: '数据分析报告', icon: '📊' },
-      'env-config': { name: '环境配置', icon: '🧩' },
-      'release-notes': { name: '发布说明', icon: '📝' },
-      'bug-list': { name: '缺陷清单', icon: '🐞' },
-      'performance-report': { name: '性能报告', icon: '📊' },
-      preview: { name: '可交互预览', icon: '🖥️' },
-      'ui-preview': { name: 'UI预览', icon: '🖼️' },
-      image: { name: '图片', icon: '🖼️' }
-    };
+    this.artifactTypeDefs = ARTIFACT_TYPE_DEFS;
   }
 
   getAuthToken() {
@@ -156,32 +184,7 @@ class ProjectManager {
       return window.workflowExecutor.normalizeStageId(stageId);
     }
     const normalized = String(stageId).trim();
-    const aliases = {
-      'strategy-validation': 'strategy',
-      'strategy-review': 'strategy',
-      'strategy-plan': 'strategy',
-      'product-definition': 'requirement',
-      'product-requirement': 'requirement',
-      requirements: 'requirement',
-      'ux-design': 'design',
-      'ui-design': 'design',
-      'product-design': 'design',
-      'experience-design': 'design',
-      'user-experience-design': 'design',
-      'prototype-design': 'design',
-      'architecture-design': 'architecture',
-      'tech-architecture': 'architecture',
-      'system-architecture': 'architecture',
-      implementation: 'development',
-      dev: 'development',
-      qa: 'testing',
-      test: 'testing',
-      launch: 'deployment',
-      release: 'deployment',
-      operation: 'operation',
-      ops: 'operation'
-    };
-    return aliases[normalized] || normalized;
+    return STAGE_ID_ALIASES[normalized] || normalized;
   }
 
   resolveCatalogStageIdByAgents(agentIds = []) {
