@@ -141,15 +141,26 @@ class DeepResearchClient:
         content = result['choices'][0]['message']['content']
         citations = result.get('citations', [])
 
-        # 转换引用格式
-        sources = [
+        # 转换引用格式并进行相关性过滤
+        keywords = self._extract_keywords(query)
+        raw = [
             {
                 'title': cite.get('title', '未知来源'),
                 'url': cite.get('url', ''),
-                'snippet': cite.get('snippet', ''),
-                'relevance': 0.9
+                'content': cite.get('snippet', ''),
+                'snippet': cite.get('snippet', '')
             }
             for cite in citations[:10]
+        ]
+        filtered = self._filter_results_by_keywords(raw, keywords)
+        sources = [
+            {
+                'title': r.get('title', '未知来源'),
+                'url': r.get('url', ''),
+                'snippet': r.get('snippet', ''),
+                'relevance': 0.9
+            }
+            for r in filtered
         ]
 
         return {
@@ -214,6 +225,14 @@ class DeepResearchClient:
             deduped.append(r)
         results = self._filter_results_by_keywords(deduped, keywords)
 
+        if not results:
+            return {
+                'content': '检索来源不足，无法提供可靠的外部证据支撑当前章节结论。建议补充更具体的关键词或行业约束后重试。',
+                'sources': [],
+                'confidence': 0.3,
+                'tokens': 0
+            }
+
         # 使用OpenAI生成最终内容（基于搜索结果）
         context = '\n\n'.join([
             f"来源: {r['title']}\nURL: {r['url']}\n内容: {r['content']}"
@@ -276,17 +295,44 @@ class DeepResearchClient:
         if not results:
             return []
         if not keywords:
-            return results[:10]
+            return []
 
         scored = []
         for r in results:
             text = f"{r.get('title','')} {r.get('content','')}".lower()
             hits = sum(1 for k in keywords if k in text)
-            scored.append((hits, r))
+            domain_score = self._score_domain(r.get('url', ''))
+            score = hits + domain_score
+            scored.append((score, hits, r))
 
-        # 保留相关度>0，最多10条；若全部为0，保留原始前10条
-        filtered = [r for hits, r in sorted(scored, key=lambda x: x[0], reverse=True) if hits > 0]
-        return (filtered or [r for _, r in scored])[:10]
+        # 只保留相关度达标的来源
+        filtered = [
+            r for score, hits, r in sorted(scored, key=lambda x: (x[0], x[1]), reverse=True)
+            if hits >= 1 and score >= 1.5
+        ]
+        return filtered[:10]
+
+    def _score_domain(self, url: str) -> float:
+        """根据域名给予质量加减分"""
+        domain = (url or '').lower()
+        if not domain:
+            return 0.0
+        preferred = [
+            'who.int', 'worldbank.org', 'oecd.org', 'un.org', 'imf.org',
+            'statista.com', 'reuters.com', 'bloomberg.com', 'gov', 'edu',
+            'nature.com', 'science.org', 'sciencedirect.com', 'ieee.org'
+        ]
+        deprioritized = [
+            'zhihu.com', 'baike.baidu.com', 'blog', 'medium.com',
+            'sohu.com', 'csdn.net', 'bbs', 'forum'
+        ]
+        for p in preferred:
+            if p in domain:
+                return 1.2
+        for d in deprioritized:
+            if d in domain:
+                return -0.8
+        return 0.0
 
     def _build_search_queries(
         self,

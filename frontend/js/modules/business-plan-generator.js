@@ -150,7 +150,7 @@ class BusinessPlanGenerator {
 
     logger.debug('[按钮点击] 报告状态', { type, chatId, status: report?.status });
 
-    if (!report || report.status === 'idle' || report.status === 'error') {
+    if (!report || report.status === 'idle' || report.status === 'error' || report.status === 'pending') {
       // 状态：空闲或错误 → 显示章节选择
       console.log('[按钮点击] 显示章节选择弹窗');
       logger.debug('[按钮点击] 显示章节选择弹窗');

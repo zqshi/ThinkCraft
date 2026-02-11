@@ -3092,6 +3092,22 @@ body {
   background: var(--primary-dark);
 }
 
+.btn-danger {
+  padding: 10px 20px;
+  background: #ef4444;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
 /* 章节选择模态框样式 */
 .chapter-selection {
   max-width: 800px;
@@ -6192,6 +6208,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  position: relative;
 }
 
 .workflow-stage-artifact-card:hover {
@@ -6208,6 +6225,15 @@ body {
 .workflow-stage-artifact-info {
   flex: 1;
   min-width: 0;
+}
+
+.workflow-artifact-delete {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.workflow-stage-artifact-card:hover .workflow-artifact-delete {
+  opacity: 1;
 }
 
 .workflow-stage-artifact-name {
@@ -6392,11 +6418,29 @@ body {
   padding: 10px 12px;
   background: var(--bg-secondary);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .project-deliverable-item.active {
   border-color: #60a5fa;
   background: #eff6ff;
+}
+
+.project-deliverable-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-deliverable-delete {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.project-deliverable-item:hover .project-deliverable-delete {
+  opacity: 1;
 }
 
 .project-deliverable-tab {

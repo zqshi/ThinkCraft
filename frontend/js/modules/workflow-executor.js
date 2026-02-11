@@ -84,6 +84,43 @@ class WorkflowExecutor {
     return aliases[normalized] || normalized;
   }
 
+  async resolveStageId(projectId, stageId, context = {}) {
+    const direct =
+      stageId ||
+      context?.stageId ||
+      context?.stage?.id ||
+      context?.stage?.stageId ||
+      context?.stage?.key;
+    const normalized = this.normalizeStageId(direct);
+    if (normalized) {
+      return normalized;
+    }
+    const currentStageId = this.projectManager?.currentStageId;
+    if (currentStageId) {
+      return this.normalizeStageId(currentStageId);
+    }
+    if (this.storageManager?.getProject) {
+      try {
+        const project = await window.projectManager?.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
+        });
+        const stages = project?.workflow?.stages || [];
+        const candidate =
+          stages.find(s => s.status === 'active') ||
+          stages.find(s => s.status === 'pending') ||
+          stages[0];
+        if (candidate?.id) {
+          return this.normalizeStageId(candidate.id);
+        }
+      } catch (error) {
+        console.warn('[WorkflowExecutor] resolveStageId failed:', error);
+      }
+    }
+    return null;
+  }
+
   /**
    * 执行单个阶段任务
    * @param {String} projectId - 项目ID
@@ -320,13 +357,18 @@ class WorkflowExecutor {
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          const err = new Error('UNAUTHORIZED');
+          err.code = 'UNAUTHORIZED';
+          throw err;
+        }
         throw new Error('获取交付物失败');
       }
 
       const result = await response.json();
       return result.data.artifacts || [];
     } catch (error) {
-      return [];
+      throw error;
     }
   }
 
@@ -344,20 +386,32 @@ class WorkflowExecutor {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`, {
-        headers: {
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-        }
-      });
+      let response;
+      try {
+        response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`, {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          }
+        });
+      } catch (error) {
+        const err = new Error('CONNECTION_REFUSED');
+        err.code = 'CONNECTION_REFUSED';
+        throw err;
+      }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          const err = new Error('UNAUTHORIZED');
+          err.code = 'UNAUTHORIZED';
+          throw err;
+        }
         throw new Error('获取交付物失败');
       }
 
       const result = await response.json();
       return result.data.artifacts || [];
     } catch (error) {
-      return [];
+      throw error;
     }
   }
 
@@ -386,8 +440,12 @@ class WorkflowExecutor {
       );
 
       if (!response.ok) {
+        if (response.status === 404) {
+          return { ok: true, alreadyMissing: true };
+        }
         throw new Error('删除交付物失败');
       }
+      return { ok: true };
     } catch (error) {
       throw error;
     }
@@ -402,7 +460,11 @@ class WorkflowExecutor {
    */
   async updateProjectStageStatus(projectId, stageId, status, artifacts = null, options = {}) {
     try {
-      const project = await this.storageManager.getProject(projectId);
+      const project = await window.projectManager?.getProject(projectId, {
+        requireRemote: true,
+        allowLocalFallback: false,
+        keepLocalOnMissing: false
+      });
       if (!project || !project.workflow || !project.workflow.stages) {
         return;
       }
@@ -522,7 +584,11 @@ class WorkflowExecutor {
   }
 
   async ensureRolesForStage(projectId, stageId) {
-    const project = await this.storageManager.getProject(projectId);
+    const project = await window.projectManager?.getProject(projectId, {
+      requireRemote: true,
+      allowLocalFallback: false,
+      keepLocalOnMissing: false
+    });
     if (!project) {
       return true;
     }
@@ -581,6 +647,10 @@ class WorkflowExecutor {
         throw new Error('未提供访问令牌');
       }
     }
+    const resolvedStageId = await this.resolveStageId(projectId, stageId, context);
+    if (!resolvedStageId) {
+      throw new Error('缺少阶段ID');
+    }
     const { timeoutMs = 2 * 60 * 1000, retry = 0, retryDelay = 1500 } = options;
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
     let lastError = null;
@@ -610,7 +680,7 @@ class WorkflowExecutor {
             'Content-Type': 'application/json',
             ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
           },
-          body: JSON.stringify({ stageId, context }),
+          body: JSON.stringify({ stageId: resolvedStageId, context }),
           signal: controller.signal
         });
       } catch (error) {
@@ -890,7 +960,11 @@ class WorkflowExecutor {
   async startStage(projectId, stageId, options = {}) {
     try {
       // 【新增】检查依赖阶段是否完成
-      const project = await this.storageManager.getProject(projectId);
+      const project = await window.projectManager?.getProject(projectId, {
+        requireRemote: true,
+        allowLocalFallback: false,
+        keepLocalOnMissing: false
+      });
       const stages = project.workflow?.stages || [];
       const currentStage = stages.find(s => s.id === stageId);
 
@@ -1032,7 +1106,11 @@ class WorkflowExecutor {
       // 强制刷新项目面板
       const projectManager = this.projectManager || window.projectManager;
       if (projectManager?.currentProjectId === projectId) {
-        const updatedProject = await this.storageManager.getProject(projectId);
+        const updatedProject = await window.projectManager?.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
+        });
         if (updatedProject) {
           const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
           if (stage && stage.executingArtifactTypes) {
@@ -1060,7 +1138,11 @@ class WorkflowExecutor {
       await this.updateProjectStageStatus(projectId, stageId, 'pending');
       const projectManager = this.projectManager || window.projectManager;
       if (projectManager?.currentProjectId === projectId) {
-        const updatedProject = await this.storageManager.getProject(projectId);
+        const updatedProject = await window.projectManager?.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
+        });
         if (updatedProject) {
           const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
           if (stage && stage.executingArtifactTypes) {

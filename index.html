@@ -2,14 +2,21 @@
 <html lang="zh-CN">
 <head>
     <script>
-        // ✅ 检查是否在登录相关页面
-        const isLoginPage = /\/(login|OS)\.html(?:[?#]|$)/.test(window.location.pathname);
-        const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
+        // ✅ 默认进入官网页面（OS.html）
+        const isRootPath = window.location.pathname === '/' || /\/index\.html$/.test(window.location.pathname);
+        const forceApp = /[?&]app=1(?:[&#]|$)/.test(window.location.search);
+        if (isRootPath && !forceApp) {
+            window.location.replace('OS.html' + window.location.search + window.location.hash);
+        } else {
+            // ✅ 检查是否在登录相关页面
+            const isLoginPage = /\/(login|OS)\.html(?:[?#]|$)/.test(window.location.pathname);
+            const isLoggedIn = sessionStorage.getItem('thinkcraft_logged_in') === 'true';
 
-        // ✅ 未登录且不在登录页面，跳转到登录页
-        if (!isLoggedIn && !isLoginPage) {
-            console.log('[认证检查] 未登录，跳转到登录页面');
-            window.location.replace('login.html' + window.location.search + window.location.hash);
+            // ✅ 未登录且不在登录页面，跳转到登录页
+            if (!isLoggedIn && !isLoginPage) {
+                console.log('[认证检查] 未登录，跳转到登录页面');
+                window.location.replace('login.html' + window.location.search + window.location.hash);
+            }
         }
     </script>
     <meta charset="UTF-8">

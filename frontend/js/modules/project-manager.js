@@ -26,11 +26,14 @@ class ProjectManager {
     this.currentStageId = null;
     this.stageTabState = {};
     this.stageArtifactState = {};
+    this.deletedArtifactIdsByProject = {};
     this.stageDeliverableSelection = {};
     this.stageDeliverableSelectionByProject = this.loadStageDeliverableSelectionStore();
     this.artifactPollingTimer = null;
     this.artifactPollingProjectId = null;
     this.artifactPollingInFlight = false;
+    this.backendReconnectTimer = null;
+    this.backendReconnectInFlight = false;
     this.stageProgressTracker = {};
     this.agentMarket = [];
     this.agentMarketCategory = null;
@@ -79,6 +82,19 @@ class ProjectManager {
       'ui-preview': { name: 'UI预览', icon: '🖼️' },
       image: { name: '图片', icon: '🖼️' }
     };
+  }
+
+  getDeletedArtifactIds(projectId) {
+    if (!projectId) return new Set();
+    if (!this.deletedArtifactIdsByProject[projectId]) {
+      this.deletedArtifactIdsByProject[projectId] = new Set();
+    }
+    return this.deletedArtifactIdsByProject[projectId];
+  }
+
+  markArtifactDeleted(projectId, artifactId) {
+    if (!projectId || !artifactId) return;
+    this.getDeletedArtifactIds(projectId).add(artifactId);
   }
 
   getAuthToken() {
@@ -321,19 +337,10 @@ class ProjectManager {
   }
 
   /**
-   * 加载所有项目（从本地存储）
+   * 加载所有项目（从后端存储）
    */
   async loadProjects(options = {}) {
     const { force = false } = options;
-
-    if (!this.storageManager && window.storageManager) {
-      this.storageManager = window.storageManager;
-    }
-
-    if (!this.storageManager) {
-      return this.projects;
-    }
-
     if (!force && this.projectsLoaded) {
       return this.projects;
     }
@@ -344,11 +351,39 @@ class ProjectManager {
 
     this.projectsLoadPromise = (async () => {
       try {
-        const allProjects = await this.storageManager.getAllProjects();
-
-        // 过滤掉已删除的项目
-        this.projects = allProjects.filter(project => project.status !== 'deleted');
+        if (window.requireAuth) {
+          const ok = await window.requireAuth({ redirect: true, prompt: true });
+          if (!ok) {
+            return this.projects;
+          }
+        }
+        const response = await this.fetchWithAuth(`${this.apiUrl}/api/projects`);
+        if (!response.ok) {
+          if (response.status === 401 && window.requireAuth) {
+            await window.requireAuth({ redirect: true, prompt: true });
+          }
+          return this.projects;
+        }
+        const result = await response.json();
+        const projects = Array.isArray(result?.data?.projects) ? result.data.projects : [];
+        this.projects = projects.filter(project => project.status !== 'deleted');
         this.projectsLoaded = true;
+
+        if (!this.storageManager && window.storageManager) {
+          this.storageManager = window.storageManager;
+        }
+        if (this.storageManager) {
+          const remoteIds = new Set(this.projects.map(p => String(p.id)));
+          const localProjects = await this.storageManager.getAllProjects().catch(() => []);
+          for (const project of this.projects) {
+            await this.storageManager.saveProject(project).catch(() => {});
+          }
+          for (const project of localProjects) {
+            if (!remoteIds.has(String(project.id))) {
+              await this.storageManager.deleteProject(project.id).catch(() => {});
+            }
+          }
+        }
 
         // 更新全局状态
         if (window.setProjects) {
@@ -643,12 +678,15 @@ class ProjectManager {
         return null;
       }
 
-      const requireRemote = Boolean(options.requireRemote);
-      const allowLocalFallback = Boolean(options.allowLocalFallback);
-      const keepLocalOnMissing = Boolean(options.keepLocalOnMissing);
-      const localProject = this.storageManager?.getProject
-        ? await this.storageManager.getProject(projectId).catch(() => null)
-        : null;
+      const requireRemote = options.requireRemote !== undefined ? options.requireRemote : true;
+      const allowLocalFallback =
+        options.allowLocalFallback !== undefined ? options.allowLocalFallback : false;
+      const keepLocalOnMissing =
+        options.keepLocalOnMissing !== undefined ? options.keepLocalOnMissing : false;
+      const localProject =
+        !requireRemote && this.storageManager?.getProject
+          ? await this.storageManager.getProject(projectId).catch(() => null)
+          : null;
       if (!requireRemote) {
         // 先从本地获取
         const project = localProject;
@@ -687,7 +725,7 @@ class ProjectManager {
 
       const result = await response.json();
       const remoteProject = result.data.project;
-      const mergedRemote = this.mergeExecutionState(remoteProject, localProject);
+      const mergedRemote = this.mergeExecutionState(remoteProject, null);
       const patchedRemote = await this.ensureProjectWorkflow(mergedRemote);
       if (patchedRemote !== remoteProject) {
         await this.storageManager.saveProject(patchedRemote);
@@ -715,13 +753,10 @@ class ProjectManager {
         }
         return {
           ...stage,
-          status: localStage.status || stage.status,
-          startedAt: localStage.startedAt ?? stage.startedAt,
-          completedAt: localStage.completedAt ?? stage.completedAt,
-          artifacts:
-            Array.isArray(localStage.artifacts) && localStage.artifacts.length > 0
-              ? localStage.artifacts
-              : stage.artifacts
+          status: stage.status,
+          startedAt: stage.startedAt,
+          completedAt: stage.completedAt,
+          artifacts: stage.artifacts
         };
       });
     };
@@ -974,6 +1009,9 @@ class ProjectManager {
       // 软删除本地存储
       logger.debug('[DEBUG] deleteProject - deleting from local storage');
       await this.storageManager.deleteProject(projectId);
+      if (this.storageManager?.deleteProjectArtifacts) {
+        await this.storageManager.deleteProjectArtifacts(projectId).catch(() => {});
+      }
 
       // 更新内存（保留项目，标记为deleted）
       this.projects = this.projects.map(project =>
@@ -1310,6 +1348,37 @@ class ProjectManager {
     this.artifactPollingInFlight = false;
   }
 
+  scheduleBackendReconnect() {
+    if (this.backendReconnectTimer || this.backendReconnectInFlight) {
+      return;
+    }
+    this.backendReconnectTimer = setInterval(async () => {
+      if (this.backendReconnectInFlight) return;
+      this.backendReconnectInFlight = true;
+      try {
+        const healthy = await this.checkBackendHealth();
+        if (healthy && this.currentProjectId) {
+          clearInterval(this.backendReconnectTimer);
+          this.backendReconnectTimer = null;
+          this.backendReconnectInFlight = false;
+          await this.loadProjects({ force: true });
+          const refreshed = await this.getProject(this.currentProjectId, {
+            requireRemote: true,
+            allowLocalFallback: false,
+            keepLocalOnMissing: false
+          }).catch(() => null);
+          if (refreshed) {
+            this.currentProject = refreshed;
+            this.refreshProjectPanel(refreshed);
+          }
+          this.startArtifactPolling(this.currentProjectId);
+          return;
+        }
+      } catch (error) {}
+      this.backendReconnectInFlight = false;
+    }, 5000);
+  }
+
   async pollProjectArtifacts() {
     if (this.artifactPollingInFlight) {
       return;
@@ -1320,7 +1389,27 @@ class ProjectManager {
     this.artifactPollingInFlight = true;
     try {
       const projectId = this.currentProjectId;
-      const artifacts = await window.workflowExecutor.getAllArtifacts(projectId);
+      let artifacts;
+      try {
+        artifacts = await window.workflowExecutor.getAllArtifacts(projectId);
+      } catch (error) {
+        if (error?.code === 'UNAUTHORIZED' || error?.message === 'UNAUTHORIZED') {
+          this.stopArtifactPolling();
+          if (window.requireAuth) {
+            await window.requireAuth({ redirect: true, prompt: true });
+          }
+          return;
+        }
+        if (error?.code === 'CONNECTION_REFUSED' || error?.message === 'CONNECTION_REFUSED') {
+          this.stopArtifactPolling();
+          if (window.ErrorHandler) {
+            window.ErrorHandler.showToast('后端服务不可用，已停止轮询', 'warning');
+          }
+          this.scheduleBackendReconnect();
+          return;
+        }
+        throw error;
+      }
       if (!Array.isArray(artifacts)) {
         return;
       }
@@ -1345,10 +1434,13 @@ class ProjectManager {
 
       project.workflow.stages = project.workflow.stages.map(stage => {
         const incoming = byStage.get(stage.id) || [];
-        const merged = this.mergeArtifacts(stage.artifacts || [], incoming);
-        const artifactCountChanged = merged.length !== (stage.artifacts || []).length;
-        if (artifactCountChanged) {
-          stage.artifacts = merged;
+        const current = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        const artifactCountChanged = incoming.length !== current.length;
+        const artifactsChanged =
+          artifactCountChanged ||
+          incoming.some((item, index) => item?.id !== current[index]?.id);
+        if (artifactsChanged) {
+          stage.artifacts = incoming;
           stage.artifactsUpdatedAt = now;
           changed = true;
         }
@@ -1358,8 +1450,8 @@ class ProjectManager {
           lastCount: (stage.artifacts || []).length,
           lastUpdatedAt: stage.artifactsUpdatedAt || stage.startedAt || now
         };
-        if (artifactCountChanged) {
-          tracker.lastCount = merged.length;
+        if (artifactsChanged) {
+          tracker.lastCount = incoming.length;
           tracker.lastUpdatedAt = now;
         }
         this.stageProgressTracker[trackerKey] = tracker;
@@ -1768,13 +1860,22 @@ class ProjectManager {
     }
 
     const leftArtifactsHTML = artifacts
-      .map(artifact => {
+      .map((artifact, index) => {
         const typeLabel = this.getArtifactTypeLabel(artifact);
         const isActive = artifact.id === selectedArtifact?.id;
+        const artifactKey = artifact.id || `__index__${index}`;
+        const deleteButton = artifact.id
+          ? `
+                <button class="icon-btn icon-btn-danger project-deliverable-delete" title="删除" onclick="event.stopPropagation(); projectManager.deleteArtifactFromProject('${project.id}', '${stageId}', '${artifact.id}')">🗑️</button>
+            `
+          : '';
         return `
-            <div class="project-deliverable-item ${isActive ? 'active' : ''}" onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stageId}', '${artifact.id}')">
-                <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
-                <div class="project-panel-item-sub">${typeLabel}</div>
+            <div class="project-deliverable-item ${isActive ? 'active' : ''}" onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stageId}', '${artifactKey}')">
+                <div class="project-deliverable-item-main">
+                  <div class="project-panel-item-title">${this.escapeHtml(artifact.name || '未命名交付物')}</div>
+                  <div class="project-panel-item-sub">${typeLabel}</div>
+                </div>
+                ${deleteButton}
             </div>
         `;
       })
@@ -1954,7 +2055,7 @@ class ProjectManager {
                         ${outputsHTML}
                         ${missingHTML}
                         ${deliverableChecklistHTML}
-                        ${stage.status !== 'pending' || hasArtifacts ? deliverableStatusHTML : ''}
+                        ${hasArtifacts ? deliverableStatusHTML : ''}
                     </div>
                     ${actionHTML}
                 </div>
@@ -2581,18 +2682,54 @@ class ProjectManager {
   }
 
   getStageSelectedDeliverables(stageId, expectedDeliverables) {
+    const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
+    const fromStage = Array.isArray(stage?.selectedDeliverables)
+      ? stage.selectedDeliverables.filter(Boolean)
+      : [];
+    if (fromStage.length > 0) {
+      this.stageDeliverableSelection[stageId] = fromStage;
+      return fromStage;
+    }
+
     const existing = this.stageDeliverableSelection[stageId];
     if (Array.isArray(existing) && existing.length > 0) {
       return existing;
     }
-    const defaults = expectedDeliverables.map(item => item.id || item.key).filter(Boolean);
-    this.stageDeliverableSelection[stageId] = defaults;
+
+    let inferred = [];
+    if (stage) {
+      const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+      if (artifacts.length > 0) {
+        inferred = expectedDeliverables
+          .map(item => item.id || item.key)
+          .filter(Boolean)
+          .filter(id => this.findArtifactForDeliverable(artifacts, { id, key: id, label: id }));
+      } else if (
+        Array.isArray(stage.executingArtifactTypes) &&
+        stage.executingArtifactTypes.length > 0
+      ) {
+        const executingSet = new Set(
+          stage.executingArtifactTypes
+            .map(value => this.normalizeDeliverableKey(value))
+            .filter(Boolean)
+        );
+        inferred = expectedDeliverables
+          .map(item => item.id || item.key)
+          .filter(Boolean)
+          .filter(id => executingSet.has(this.normalizeDeliverableKey(id)));
+      }
+    }
+
+    this.stageDeliverableSelection[stageId] = inferred;
+    if (stage && inferred.length > 0) {
+      stage.selectedDeliverables = inferred;
+    }
     if (this.currentProjectId) {
       this.stageDeliverableSelectionByProject[this.currentProjectId] =
         this.stageDeliverableSelection;
       this.persistStageDeliverableSelectionStore();
     }
-    return defaults;
+    return inferred;
   }
 
   toggleStageDeliverable(stageId, encodedId, checked) {
@@ -2635,6 +2772,11 @@ class ProjectManager {
     }
     const stage = (this.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
     const definition = window.workflowExecutor?.getStageDefinition(stageId, stage);
+    const resolvedStageId = stageId || stage?.id || definition?.id;
+    if (!resolvedStageId) {
+      window.modalManager?.alert('缺少阶段ID，无法执行', 'warning');
+      return;
+    }
     const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
     if (expectedDeliverables.length === 0) {
       window.modalManager?.alert('该阶段未配置可执行交付物，请先检查阶段配置', 'warning');
@@ -2659,7 +2801,37 @@ class ProjectManager {
       window.modalManager?.alert('未选择有效的交付物类型', 'warning');
       return;
     }
-    await window.workflowExecutor.startStage(projectId, stageId, {
+    if (resolvedArtifactTypes.includes('strategy-doc')) {
+      const stages = this.currentProject?.workflow?.stages || [];
+      let hasPrd = stages.some(stage =>
+        (Array.isArray(stage.artifacts) ? stage.artifacts : []).some(
+          artifact =>
+            artifact?.type === 'prd' &&
+            (typeof artifact.content === 'string' ? artifact.content.trim() : artifact.relativePath)
+        )
+      );
+      if (!hasPrd && this.storageManager?.getArtifactsByProject && this.currentProject?.id) {
+        try {
+          const artifacts = await this.storageManager.getArtifactsByProject(this.currentProject.id);
+          hasPrd = Array.isArray(artifacts)
+            ? artifacts.some(
+                artifact =>
+                  artifact?.type === 'prd' &&
+                  (typeof artifact.content === 'string'
+                    ? artifact.content.trim()
+                    : artifact.relativePath)
+              )
+            : false;
+        } catch (error) {
+          hasPrd = false;
+        }
+      }
+      if (!hasPrd) {
+        window.modalManager?.alert('需先生成产品需求文档（PRD）后才能生成战略设计文档', 'warning');
+        return;
+      }
+    }
+    await window.workflowExecutor.startStage(projectId, resolvedStageId, {
       selectedArtifactTypes: resolvedArtifactTypes.length > 0 ? resolvedArtifactTypes : selected,
       queueWhileExecuting: true
     });
@@ -2869,17 +3041,24 @@ class ProjectManager {
         </div>
         <div class="workflow-stage-artifacts-grid">
           ${displayArtifacts
-            .map(artifact => {
+            .map((artifact, index) => {
               const icon = this.getArtifactIcon(artifact.type);
               const typeLabel = this.getArtifactTypeLabel(artifact);
+              const artifactKey = artifact.id || `__index__${index}`;
+              const deleteButton = artifact.id
+                ? `
+                <button class="icon-btn icon-btn-danger workflow-artifact-delete" title="删除" onclick="event.stopPropagation(); projectManager.deleteArtifactFromProject('${project.id}', '${stage.id}', '${artifact.id}')">🗑️</button>
+              `
+                : '';
               return `
               <div class="workflow-stage-artifact-card"
-                   onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifact.id}')">
+                   onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifactKey}')">
                 <span class="workflow-stage-artifact-icon">${icon}</span>
                 <div class="workflow-stage-artifact-info">
                   <div class="workflow-stage-artifact-name">${this.escapeHtml(artifact.name || artifact.fileName || '未命名')}</div>
                   <div class="workflow-stage-artifact-type">${typeLabel}</div>
                 </div>
+                ${deleteButton}
               </div>
             `;
             })
@@ -2966,7 +3145,7 @@ class ProjectManager {
           ${repairNoteHTML}
           ${deliverableChecklistHTML}
           ${stage.status === 'pending' && !hasArtifacts ? expectedArtifactsHTML : ''}
-          ${stage.status !== 'pending' || hasArtifacts ? deliverableStatusHTML : ''}
+        ${hasArtifacts ? deliverableStatusHTML : ''}
           ${actualArtifactsHTML}
         </div>
         ${actionsHTML ? `<div class="workflow-stage-detail-actions">${actionsHTML}</div>` : ''}
@@ -3450,9 +3629,14 @@ class ProjectManager {
     }
 
     const assignedIds = project.assignedAgents || [];
+    const missingIds = project.missingRecommendedAgents || [];
+    const allIds = Array.from(new Set([...assignedIds, ...missingIds].filter(Boolean)));
     logger.info('[项目成员面板] 分配的成员ID:', assignedIds);
+    if (missingIds.length > 0) {
+      logger.info('[项目成员面板] 缺失的推荐成员类型:', missingIds);
+    }
 
-    if (assignedIds.length === 0) {
+    if (allIds.length === 0) {
       container.classList.add('is-empty');
       container.innerHTML = '<div class="project-panel-empty centered">暂未添加成员</div>';
       return;
@@ -3465,10 +3649,12 @@ class ProjectManager {
     let members = hiredAgents.filter(agent => assignedIds.includes(agent.id));
     logger.info('[项目成员面板] 从已雇佣列表匹配的成员:', members.length);
 
-    // 如果没有匹配到已雇佣的成员，则根据成员类型生成虚拟成员卡片
-    if (members.length === 0) {
+    // 根据成员类型补充虚拟成员卡片（用于未雇佣/缺失成员）
+    const existingIds = new Set(members.map(agent => agent.id));
+    const virtualIds = allIds.filter(id => !existingIds.has(id));
+    if (virtualIds.length > 0) {
       logger.info('[项目成员面板] 使用成员类型生成虚拟成员卡片');
-      members = assignedIds.map(agentType => {
+      const virtuals = virtualIds.map(agentType => {
         const agentDef = this.getAgentDefinition(agentType);
         return {
           id: agentType,
@@ -3479,6 +3665,7 @@ class ProjectManager {
           skills: []
         };
       });
+      members = members.concat(virtuals);
     }
 
     container.classList.remove('is-empty');
@@ -4748,10 +4935,10 @@ class ProjectManager {
       return;
     }
 
-    const chats = await this.storageManager.getAllChats();
-    const analyzedChats = await this.filterCompletedIdeas(chats);
-    const projects = await this.storageManager.getAllProjects().catch(() => []);
-    const activeProjects = projects.filter(p => p.status !== 'deleted');
+      const chats = await this.storageManager.getAllChats();
+      const analyzedChats = await this.filterCompletedIdeas(chats);
+      await this.loadProjects({ force: true });
+      const activeProjects = (this.projects || []).filter(p => p.status !== 'deleted');
     const chatIdToProjectName = new Map(
       activeProjects.map(p => [this.normalizeIdeaIdForCompare(p.ideaId), p.name || '未命名项目'])
     );
@@ -4925,8 +5112,8 @@ class ProjectManager {
       });
 
       // 检查哪些创意已经创建过项目
-      const projects = await this.storageManager.getAllProjects().catch(() => []);
-      const activeProjects = projects.filter(p => p.status !== 'deleted');
+      await this.loadProjects({ force: true });
+      const activeProjects = (this.projects || []).filter(p => p.status !== 'deleted');
       const chatIdToProjectName = new Map(
         activeProjects.map(p => [this.normalizeIdeaIdForCompare(p.ideaId), p.name || '未命名项目'])
       );
@@ -5517,27 +5704,20 @@ class ProjectManager {
       const backendHealthy = await this.checkBackendHealth();
       let project = null;
       if (!backendHealthy) {
-        project = await this.getProject(projectId, {
-          requireRemote: false,
-          allowLocalFallback: true,
-          keepLocalOnMissing: true
-        }).catch(() => null);
-        if (!project) {
-          const msg =
-            this.lastHealthError === 'unauthorized' ? '请先登录后再试' : '服务异常，稍候再试';
-          if (window.modalManager) {
-            window.modalManager.alert(msg, 'warning');
-          } else {
-            alert(msg);
-          }
-          return;
+        const msg =
+          this.lastHealthError === 'unauthorized' ? '请先登录后再试' : '服务异常，稍候再试';
+        if (window.modalManager) {
+          window.modalManager.alert(msg, 'warning');
+        } else {
+          alert(msg);
         }
+        return;
       } else {
-        // 获取项目详情（优先远端，不可用时允许本地兜底）
+        // 获取项目详情（仅后端为准）
         project = await this.getProject(projectId, {
           requireRemote: true,
-          allowLocalFallback: true,
-          keepLocalOnMissing: true
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
         });
         if (!project) {
           throw new Error('项目不存在');
@@ -5551,7 +5731,7 @@ class ProjectManager {
 
       this.currentProjectId = projectId;
       this.currentProject = project;
-      this.stageDeliverableSelection = this.stageDeliverableSelectionByProject[projectId] || {};
+      this.stageDeliverableSelection = {};
 
       // 更新全局状态
       if (window.setCurrentProject) {
@@ -6542,8 +6722,25 @@ class ProjectManager {
 
       // 直接使用 stage.artifacts，不过滤类型
       const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
-      const artifact = artifacts.find(a => a.id === artifactId);
+      let artifact = artifacts.find(a => a.id === artifactId);
+      if (!artifact && typeof artifactId === 'string' && artifactId.startsWith('__index__')) {
+        const index = Number(artifactId.replace('__index__', ''));
+        if (Number.isFinite(index) && artifacts[index]) {
+          artifact = artifacts[index];
+        }
+      }
       if (!artifact) {
+        if (artifactId && typeof artifactId === 'string') {
+          if (window.workflowExecutor) {
+            await this.syncWorkflowArtifactsFromServer(project).catch(() => {});
+          }
+          this.currentProject = project;
+          this.refreshProjectPanel(project);
+          if (window.ErrorHandler) {
+            window.ErrorHandler.showToast('交付物已不存在，已从列表移除', 'info');
+          }
+          return;
+        }
         logger.error('[交付物预览] 未找到交付物:', {
           artifactId,
           availableArtifacts: artifacts.map(a => ({ id: a.id, name: a.name, type: a.type }))
@@ -6858,6 +7055,15 @@ class ProjectManager {
         `
             : ''
         }
+        ${
+          artifact.id
+            ? `
+          <button class="btn-danger" onclick="projectManager.deleteArtifactFromProject('${project.id}', '${stage.id}', '${artifact.id}')">
+            🗑️ 删除
+          </button>
+        `
+            : ''
+        }
       </div>
     `;
     const filePathMeta = artifact.relativePath
@@ -6997,6 +7203,96 @@ class ProjectManager {
       logger.error('[下载交付物] 失败:', error);
       if (window.ErrorHandler) {
         window.ErrorHandler.showToast('下载失败：' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * 删除交付物
+   * @param {String} projectId - 项目ID
+   * @param {String} stageId - 阶段ID
+   * @param {String} artifactId - 交付物ID
+   */
+  async deleteArtifactFromProject(projectId, stageId, artifactId) {
+    try {
+      if (!artifactId) {
+        throw new Error('交付物缺少ID，无法删除');
+      }
+      const project = await this.getProject(projectId);
+      if (!project || !project.workflow) {
+        throw new Error('项目不存在');
+      }
+      const stage = project.workflow.stages.find(item => item.id === stageId);
+      if (!stage) {
+        throw new Error('阶段不存在');
+      }
+      const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+      const targetIndex = artifacts.findIndex(item => item?.id === artifactId);
+      if (targetIndex === -1) {
+        throw new Error('交付物不存在');
+      }
+      const artifact = artifacts[targetIndex];
+      const name = artifact?.name || artifact?.fileName || artifact?.type || '交付物';
+      const confirmed = confirm(`确定要删除「${name}」吗？\n\n删除后可重新勾选生成。`);
+      if (!confirmed) {
+        return;
+      }
+
+      if (!window.workflowExecutor) {
+        throw new Error('工作流服务不可用');
+      }
+
+      await window.workflowExecutor.deleteArtifact(projectId, artifactId);
+
+      if (this.storageManager?.deleteArtifact) {
+        await this.storageManager.deleteArtifact(artifactId).catch(() => {});
+      }
+
+      const nextArtifacts = artifacts.filter(item => item?.id !== artifactId);
+      stage.artifacts = nextArtifacts;
+      stage.artifactsUpdatedAt = Date.now();
+
+      if (nextArtifacts.length === 0) {
+        stage.status = 'pending';
+        stage.executingArtifactTypes = [];
+      }
+
+      if (window.workflowExecutor) {
+        await this.syncWorkflowArtifactsFromServer(project).catch(() => {});
+      }
+      try {
+        const refreshed = await this.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
+        });
+        if (refreshed) {
+          this.currentProject = refreshed;
+        }
+      } catch (error) {}
+
+      if (this.stageArtifactState[stageId] === artifactId) {
+        this.stageArtifactState[stageId] = nextArtifacts[0]?.id || null;
+      }
+
+      if (this.storageManager?.saveProject) {
+        await this.storageManager.saveProject(project).catch(() => {});
+      }
+
+      if (this.currentProjectId === project.id) {
+        this.currentProject = project;
+        this.refreshProjectPanel(project);
+      }
+
+      this.closeArtifactPreviewPanel();
+
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('交付物已删除', 'success');
+      }
+    } catch (error) {
+      logger.error('[删除交付物] 失败:', error);
+      if (window.ErrorHandler) {
+        window.ErrorHandler.showToast('删除失败：' + error.message, 'error');
       }
     }
   }

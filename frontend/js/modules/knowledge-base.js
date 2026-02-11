@@ -923,7 +923,11 @@ class KnowledgeBase {
         }
 
         if (!item.chatId && item.type === 'idea' && item.projectId && window.storageManager?.getProject) {
-            const project = await window.storageManager.getProject(item.projectId).catch(() => null);
+            const project = await window.projectManager?.getProject(item.projectId, {
+              requireRemote: true,
+              allowLocalFallback: false,
+              keepLocalOnMissing: false
+            }).catch(() => null);
             if (project?.ideaId) {
                 item.chatId = project.ideaId;
                 await window.storageManager.saveKnowledge(item);

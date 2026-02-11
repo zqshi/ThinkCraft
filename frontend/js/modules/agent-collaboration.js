@@ -241,7 +241,11 @@ class AgentCollaboration {
     let project = null;
     if (projectId && window.storageManager?.getProject) {
       try {
-        project = await window.storageManager.getProject(projectId);
+        project = await window.projectManager?.getProject(projectId, {
+          requireRemote: true,
+          allowLocalFallback: true,
+          keepLocalOnMissing: true
+        });
       } catch (error) {}
     }
 
@@ -258,6 +262,15 @@ class AgentCollaboration {
       } catch (error) {}
     }
 
+    const panelProject =
+      window.projectManager?.currentProject?.id === projectId
+        ? window.projectManager.currentProject
+        : null;
+    const projectForEcho = project || panelProject;
+    const effectiveExecuted = Boolean(
+      collaborationExecuted || projectForEcho?.collaborationExecuted
+    );
+
     this.currentContext = {
       idea,
       agents,
@@ -265,7 +278,7 @@ class AgentCollaboration {
       chat: resolvedChat,
       conversation,
       workflowCategory,
-      collaborationExecuted
+      collaborationExecuted: effectiveExecuted
     };
     const ideaContext = this.resolveIdeaContext({
       idea,
@@ -281,7 +294,7 @@ class AgentCollaboration {
       projectId,
       idea: ideaContext.displayName
     });
-    const cached = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
+    const cached = projectForEcho?.collaborationSuggestion || this.loadSuggestion(storageKey);
     const initialAgents = cached?.recommendedAgents?.length > 0 ? cached.recommendedAgents : [];
     const agentCards = initialAgents.length > 0
       ? this.renderMemberCards(await this.resolveMemberList(initialAgents, agents), true)
@@ -289,7 +302,7 @@ class AgentCollaboration {
 
     const contentHTML = `
       <div style="display: grid; gap: 16px; max-height: 70vh; overflow-y: auto;">
-        ${collaborationExecuted ? '<div style="padding: 8px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0369a1; font-size: 14px; display: flex; align-items: center; gap: 6px;"><span>✓</span><span>已确认执行</span></div>' : ''}
+        ${effectiveExecuted ? '<div style="padding: 8px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0369a1; font-size: 14px; display: flex; align-items: center; gap: 6px;"><span>✓</span><span>已确认执行</span></div>' : ''}
         <div>
           <div style="font-weight: 600; margin-bottom: 6px;">创意</div>
           <div style="color: var(--text-secondary);">${ideaDisplayHtml}</div>
@@ -303,7 +316,7 @@ class AgentCollaboration {
         </div>
         <div>
           <div style="font-weight: 600; margin-bottom: 6px;">雇佣建议</div>
-          <div id="collaborationMemberList" class="${collaborationExecuted ? 'readonly-mode' : ''}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto;">
+          <div id="collaborationMemberList" class="${effectiveExecuted ? 'readonly-mode' : ''}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto;">
             ${agentCards}
           </div>
           <div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
@@ -311,7 +324,7 @@ class AgentCollaboration {
           </div>
         </div>
         <div style="display: flex; gap: 12px; position: sticky; bottom: -24px; background: white; padding: 16px 0; margin: 0 -24px; padding-left: 24px; padding-right: 24px; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.08);">
-          ${collaborationExecuted
+          ${effectiveExecuted
             ? '<button class="btn-primary" id="collaborationClose" style="flex: 1;">关闭</button>'
             : `
           <button class="btn-secondary" id="collaborationCancel" style="flex: 1;">取消</button>
@@ -332,7 +345,7 @@ class AgentCollaboration {
       const memberList = fallbackList.length ? fallbackList : agents;
       const resolved = await this.resolveMemberList(memberList, agents);
       this.renderMemberList(resolved, fallbackList.length > 0);
-    } else {
+    } else if (!effectiveExecuted) {
       this.renderSuggestionLoading();
       await this.requestSuggestion(
         ideaContext.displayName,
@@ -344,6 +357,27 @@ class AgentCollaboration {
         project,
         workflowCategory
       );
+    } else {
+      // 已确认执行但缺少缓存：只回显，不再重新生成
+      const stageNames = Array.isArray(projectForEcho?.workflow?.stages)
+        ? projectForEcho.workflow.stages.map(s => s.name).filter(Boolean)
+        : [];
+      const fallbackPlan = stageNames.length
+        ? `已确认执行，当前流程阶段：${stageNames.join(' / ')}`
+        : '已确认执行。当前暂无协作建议内容可回显。';
+      const suggestionBox = document.getElementById('collaborationSuggestion');
+      const metaBox = document.getElementById('collaborationSuggestionMeta');
+      if (suggestionBox) {
+        suggestionBox.classList.remove('markdown-content');
+        suggestionBox.textContent = fallbackPlan;
+      }
+      if (metaBox) {
+        metaBox.textContent = '已确认执行';
+      }
+      const memberList =
+        projectForEcho?.assignedAgents?.length ? projectForEcho.assignedAgents : (this.currentContext?.agents || agents);
+      const resolved = await this.resolveMemberList(memberList, agents);
+      this.renderMemberList(resolved, false);
     }
 
     setTimeout(() => {
@@ -436,7 +470,13 @@ class AgentCollaboration {
 
       if (projectId && window.storageManager?.saveProject) {
         try {
-          const target = project || (await window.storageManager.getProject(projectId));
+          const target =
+            project ||
+            (await window.projectManager?.getProject(projectId, {
+              requireRemote: true,
+              allowLocalFallback: false,
+              keepLocalOnMissing: false
+            }));
           if (target) {
             target.collaborationSuggestion = payload;
             await window.storageManager.saveProject(target);
@@ -565,9 +605,11 @@ class AgentCollaboration {
 
     try {
       // 获取当前项目
-      const project = await window.storageManager?.getProject(
-        this.currentContext.projectId
-      );
+      const project = await window.projectManager?.getProject(this.currentContext.projectId, {
+        requireRemote: true,
+        allowLocalFallback: false,
+        keepLocalOnMissing: false
+      });
       const suggestion = project?.collaborationSuggestion;
 
       // 检查并自动雇佣推荐成员
@@ -629,7 +671,11 @@ class AgentCollaboration {
       }
 
       // 标记项目为已执行状态
-      const updatedProject = await window.storageManager?.getProject(this.currentContext.projectId);
+      const updatedProject = await window.projectManager?.getProject(this.currentContext.projectId, {
+        requireRemote: true,
+        allowLocalFallback: false,
+        keepLocalOnMissing: false
+      });
       await window.projectManager?.updateProject(
         this.currentContext.projectId,
         { collaborationExecuted: true },
@@ -647,7 +693,11 @@ class AgentCollaboration {
 
       // 刷新整个项目面板（确保阶段和成员都显示）
       if (window.projectManager?.currentProject?.id === this.currentContext.projectId) {
-        const finalProject = await window.storageManager?.getProject(this.currentContext.projectId);
+        const finalProject = await window.projectManager?.getProject(this.currentContext.projectId, {
+          requireRemote: true,
+          allowLocalFallback: false,
+          keepLocalOnMissing: false
+        });
         window.projectManager.currentProject = finalProject;
         window.projectManager.renderProjectPanel(finalProject);
       }

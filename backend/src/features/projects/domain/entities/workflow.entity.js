@@ -3,7 +3,7 @@
  * 管理项目的工作流阶段和状态
  */
 import { Entity } from '../../../../shared/domain/entity.base.js';
-import { ARTIFACT_TYPES, DEFAULT_WORKFLOW_STAGES } from '../../../../../config/workflow-stages.js';
+import { ARTIFACT_TYPES, DEFAULT_WORKFLOW_STAGES, getDefaultWorkflowStagesForInit } from '../../../../../config/workflow-stages.js';
 
 export class Workflow extends Entity {
   constructor(id, stages = [], currentStageId = null, isCustom = false) {
@@ -20,7 +20,7 @@ export class Workflow extends Entity {
    */
   static createDefault() {
     const workflowId = `workflow_${Date.now()}`;
-    const stages = DEFAULT_WORKFLOW_STAGES.map((stage, index) => {
+    const stages = getDefaultWorkflowStagesForInit().map((stage, index) => {
       const outputs = Array.isArray(stage.artifactTypes) ? stage.artifactTypes : [];
       const outputsDetailed = buildOutputsDetailed(outputs);
       return WorkflowStage.create(
@@ -34,7 +34,7 @@ export class Workflow extends Entity {
       );
     });
 
-    return new Workflow(workflowId, stages, 'requirement', false);
+    return new Workflow(workflowId, stages, 'strategy-requirement', false);
   }
 
   /**

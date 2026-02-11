@@ -8,6 +8,7 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
+import { getRepository } from '../../../shared/infrastructure/repository.factory.js';
 import {
   getStageById,
   normalizeStageId,
@@ -21,7 +22,8 @@ import {
   ensureDevScaffold,
   materializeArtifactFile,
   resolveRepoRoot,
-  updateArtifactsIndex
+  updateArtifactsIndex,
+  removeArtifactsIndex
 } from '../../../features/projects/infrastructure/project-files.js';
 
 const router = express.Router();
@@ -113,9 +115,23 @@ async function loadPromptFromTemplates(artifactType, context = {}) {
     throw err;
   }
   const projectRoot = process.cwd();
+  const resolveTemplatePath = tpl => {
+    if (!tpl || typeof tpl !== 'string') {
+      return null;
+    }
+    if (path.isAbsolute(tpl)) {
+      return tpl;
+    }
+    const candidates = [
+      path.resolve(projectRoot, tpl),
+      path.resolve(projectRoot, '..', tpl),
+      path.resolve(projectRoot, '..', '..', tpl)
+    ];
+    return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+  };
   const contents = [];
   for (const tpl of templates) {
-    const abs = path.resolve(projectRoot, tpl);
+    const abs = resolveTemplatePath(tpl);
     if (!fs.existsSync(abs)) {
       const err = new Error(`交付物模板不存在: ${tpl}`);
       err.status = 400;
@@ -129,7 +145,11 @@ async function loadPromptFromTemplates(artifactType, context = {}) {
     }
     contents.push(replaceTemplateVariables(text, context));
   }
-  return contents.join('\n\n');
+  let finalPrompt = contents.join('\n\n');
+  if (context?.CONVERSATION && !finalPrompt.includes('{CONVERSATION}')) {
+    finalPrompt += `\n\n【对话历史】\n${context.CONVERSATION}`;
+  }
+  return finalPrompt;
 }
 
 function trimLog(text, maxChars = 20000) {
@@ -892,6 +912,21 @@ async function executeStage(projectId, stageId, context = {}) {
     err.status = 400;
     throw err;
   }
+  if (effectiveArtifactTypes.includes('strategy-doc')) {
+    const workflowStages = project.workflow?.stages || [];
+    const hasPrd = workflowStages.some(stage =>
+      (Array.isArray(stage?.artifacts) ? stage.artifacts : []).some(
+        artifact =>
+          artifact?.type === 'prd' &&
+          (typeof artifact.content === 'string' ? artifact.content.trim() : artifact.relativePath)
+      )
+    );
+    if (!hasPrd) {
+      const err = new Error('需先生成产品需求文档（PRD）后才能生成战略设计文档');
+      err.status = 400;
+      throw err;
+    }
+  }
 
   if (normalizedStageId === 'testing') {
     const generatedArtifacts = await executeTestingStage({
@@ -997,6 +1032,43 @@ async function executeStage(projectId, stageId, context = {}) {
     throw err;
   }
 
+  // 确保上下文包含创意与对话（用于需求类文档）
+  if (!context?.IDEA || !context?.CONVERSATION) {
+    try {
+      const chatId = project.ideaId || project.ideaID || project.idea_id;
+      if (chatId) {
+        const chatRepository = getRepository('chat');
+        const chat = await chatRepository.findById(String(chatId));
+        if (chat) {
+          if (!context.IDEA) {
+            const idea =
+              chat.userData?.idea ||
+              chat.title ||
+              chat.userData?.summary ||
+              '';
+            context.IDEA = idea;
+          }
+          if (!context.CONVERSATION) {
+            const messages = Array.isArray(chat.messages) ? chat.messages : [];
+            const conversation = messages
+              .map(m => `${m.role || m.sender}: ${m.content}`)
+              .join('\n\n');
+            context.CONVERSATION = conversation;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[Workflow] 获取创意对话上下文失败:', error);
+    }
+  }
+  if (effectiveArtifactTypes.includes('prd')) {
+    if (!context.CONVERSATION || String(context.CONVERSATION).trim().length < 50) {
+      const err = new Error('对话内容不足，无法生成产品需求文档（PRD）');
+      err.status = 400;
+      throw err;
+    }
+  }
+
   // 创建交付物
   const generatedArtifacts = [...preGeneratedArtifacts];
 
@@ -1008,10 +1080,34 @@ async function executeStage(projectId, stageId, context = {}) {
       artifactType,
       promptChars: prompt.length
     });
-    const result = await callDeepSeekAPI([{ role: 'user', content: prompt }], null, {
+    let result = await callDeepSeekAPI([{ role: 'user', content: prompt }], null, {
       max_tokens: 4000,
       temperature: 0.7
     });
+    // 质量校验与自动修正（仅PRD）
+    if (artifactType === 'prd') {
+      const content = String(result?.content || '');
+      const issues = [];
+      const evidenceCount = (content.match(/\[对话证据\]/g) || []).length;
+      if (!content.includes('创意诉求摘要')) {
+        issues.push('缺少“创意诉求摘要”');
+      }
+      if (!content.includes('创意诉求 → 需求映射表')) {
+        issues.push('缺少“创意诉求 → 需求映射表”');
+      }
+      if (evidenceCount < 3) {
+        issues.push(`对话证据不足（当前 ${evidenceCount} 条，至少 3 条）`);
+      }
+      if (issues.length > 0) {
+        const issueSummary = issues.join('；');
+        console.warn('[Workflow] PRD质量校验失败，准备重试生成:', issueSummary);
+        const retryPrompt = `${prompt}\n\n【质量校验失败原因】\n${issueSummary}\n\n【修正要求】\n请严格依据对话内容重新生成PRD，并满足硬性要求。`;
+        result = await callDeepSeekAPI([{ role: 'user', content: retryPrompt }], null, {
+          max_tokens: 4000,
+          temperature: 0.7
+        });
+      }
+    }
 
     const usage = result?.usage || { total_tokens: 0 };
     console.info('[Workflow] execute-stage model response', {
@@ -1517,6 +1613,10 @@ router.delete('/:projectId/artifacts/:artifactId', async (req, res, next) => {
         console.warn('[Workflow] 删除交付物文件失败:', error);
       }
     }
+
+    await removeArtifactsIndex(project, artifactId).catch(error => {
+      console.warn('[Workflow] 更新交付物索引失败:', error);
+    });
 
     res.json({
       code: 0,

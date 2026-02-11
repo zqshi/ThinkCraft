@@ -317,9 +317,10 @@ def build_synthesis_prompt(chapter_id, conversation_history, sources):
 要求：
 1. 输出结构化内容（标题 + 要点 + 结论）。
 2. 每个关键数据点或事实后标注引用编号，如 [1][2]。
-3. 若来源不足，请明确说明“不足以支持该结论”。
-4. 报告末尾必须追加“来源清单”区块，格式为有序列表，对应编号与标题+URL。
-5. 语言专业、客观、可执行。
+3. 只引用与本产品场景直接相关的来源；无关来源不得引用。
+4. 若来源不足，请明确说明“不足以支持该结论”，且不要强行引用不相关来源。
+5. 报告末尾必须追加“来源清单”区块，格式为有序列表，对应编号与标题+URL；如无有效来源，允许输出空清单。
+6. 语言专业、客观、可执行。
 
 来源清单数据：
 {sources}
@@ -428,7 +429,20 @@ def research_chapter():
                 iterations=config['iterations'],
                 summary_text=summary_text
             )
-            sources = research_result.get('sources', [])
+            raw_sources = research_result.get('sources', [])
+            # 过滤无效来源并去重
+            sources = []
+            seen_urls = set()
+            for s in raw_sources:
+                url = (s.get('url') or '').strip()
+                title = (s.get('title') or '').strip()
+                if not url or not title:
+                    continue
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                sources.append(s)
+            sources = sources[:8]
 
             # 二次合成（可选），确保结构化输出与引用
             if OPENROUTER_API_KEY:
@@ -530,6 +544,8 @@ if __name__ == '__main__':
     
     logger.info(f"DeepResearch 服务启动")
     logger.info(f"模型: {MODEL_NAME}")
-    logger.info(f"监听端口: 5001")
+    host = os.getenv('DEEPRESEARCH_HOST', '127.0.0.1')
+    port = int(os.getenv('DEEPRESEARCH_PORT', 5001))
+    logger.info(f"监听地址: {host}:{port}")
     
-    app.run(host='0.0.0.0', port=5001, debug=False)
+    app.run(host=host, port=port, debug=False)

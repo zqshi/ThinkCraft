@@ -8,16 +8,6 @@
  */
 export const DEFAULT_WORKFLOW_STAGES = [
   {
-    id: 'strategy',
-    name: '战略设计',
-    description: '战略设计、挑战回应',
-    recommendedAgents: ['strategy-design'],
-    artifactTypes: ['strategy-doc'],
-    estimatedDuration: 2,
-    icon: '🎯',
-    color: '#6366f1'
-  },
-  {
     id: 'requirement',
     name: '需求分析',
     description: '产品定位、用户分析、功能规划',
@@ -32,6 +22,16 @@ export const DEFAULT_WORKFLOW_STAGES = [
     estimatedDuration: 2, // 天数（仅供参考）
     icon: '📋',
     color: '#667eea'
+  },
+  {
+    id: 'strategy',
+    name: '战略设计',
+    description: '基于PRD的战略设计、挑战回应',
+    recommendedAgents: ['strategy-design'],
+    artifactTypes: ['strategy-doc'],
+    estimatedDuration: 2,
+    icon: '🎯',
+    color: '#6366f1'
   },
   {
     id: 'design',
@@ -100,6 +100,16 @@ export const DEFAULT_WORKFLOW_STAGES = [
     icon: '📈',
     color: '#fee140'
   }
+];
+
+const DEFAULT_WORKFLOW_STAGE_ORDER = [
+  'strategy-requirement',
+  'design',
+  'architecture',
+  'development',
+  'testing',
+  'deployment',
+  'operation'
 ];
 
 const STAGE_ID_ALIASES = {
@@ -542,8 +552,19 @@ export function getAgentPromptProfiles(agentIds = []) {
  * 初始化默认工作流
  * @returns {Array<Object>} 工作流阶段数组
  */
+export function getDefaultWorkflowStagesForInit() {
+  return DEFAULT_WORKFLOW_STAGE_ORDER
+    .map(stageId => {
+      if (stageId === 'strategy-requirement') {
+        return buildCompositeStage('strategy-requirement');
+      }
+      return DEFAULT_WORKFLOW_STAGES.find(stage => stage.id === stageId) || null;
+    })
+    .filter(Boolean);
+}
+
 export function initializeDefaultWorkflow() {
-  return DEFAULT_WORKFLOW_STAGES.map(stage => ({
+  return getDefaultWorkflowStagesForInit().map(stage => ({
     id: stage.id,
     name: stage.name,
     status: 'pending', // pending | active | completed
@@ -582,6 +603,7 @@ export default {
   getStageById,
   getRecommendedAgents,
   getArtifactTypes,
+  getDefaultWorkflowStagesForInit,
   initializeDefaultWorkflow,
   validateCustomWorkflow
 };

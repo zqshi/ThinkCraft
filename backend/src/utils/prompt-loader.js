@@ -20,6 +20,8 @@ class PromptLoader {
     // Agent和Task Prompts缓存
     this.agentPrompts = new Map();
     this.taskPrompts = new Map();
+    // Agent模板Prompts缓存（来自 prompts/agents/**/templates）
+    this.agentTemplatePrompts = new Map();
     this.initialized = false;
   }
 
@@ -65,9 +67,12 @@ class PromptLoader {
       // 加载Task Prompts
       await this._loadTaskPrompts();
 
+      // 预加载Agent模板Prompts
+      await this._loadAgentTemplatePrompts();
+
       this.initialized = true;
       console.log(
-        `[PromptLoader] Prompt加载完成 - Agents: ${this.agentPrompts.size}, Tasks: ${this.taskPrompts.size}`
+        `[PromptLoader] Prompt加载完成 - Agents: ${this.agentPrompts.size}, Tasks: ${this.taskPrompts.size}, AgentTemplates: ${this.agentTemplatePrompts.size}`
       );
     } catch (error) {
       console.error('[PromptLoader] Prompt加载失败:', error);
@@ -121,6 +126,41 @@ class PromptLoader {
       }
     } catch (error) {
       console.warn('[PromptLoader] Task Prompts目录不存在或无法访问');
+    }
+  }
+
+  /**
+   * 预加载 Agent 模板 Prompts
+   * 扫描 prompts/agents/.../templates 下的 .md 文件
+   */
+  async _loadAgentTemplatePrompts() {
+    try {
+      const templateFiles = await this._listMarkdownFilesByDirName('templates');
+      const agentRoot = path.join(this.promptDir, 'agents');
+      for (const filePath of templateFiles) {
+        if (!filePath.startsWith(agentRoot + path.sep)) {
+          continue;
+        }
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const parsed = this._parsePromptWithMetadata(content);
+          const template = parsed.template || parsed.systemPrompt || '';
+          if (!template) {
+            continue;
+          }
+          const templateId = parsed.metadata?.id || path.basename(filePath, '.md');
+          if (!templateId) {
+            continue;
+          }
+          this.agentTemplatePrompts.set(templateId, template);
+          this.taskPrompts.set(templateId, template);
+          console.log(`[PromptLoader] 加载Agent Template Prompt: ${templateId}`);
+        } catch (error) {
+          console.warn(`[PromptLoader] 加载Agent Template失败: ${filePath}`, error.message);
+        }
+      }
+    } catch (error) {
+      console.warn('[PromptLoader] Agent Templates目录不存在或无法访问');
     }
   }
 

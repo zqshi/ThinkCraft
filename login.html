@@ -819,7 +819,7 @@
 
                 // 延迟跳转，让用户看到成功消息
                 setTimeout(() => {
-                    window.location.href = 'index.html';
+                    window.location.href = 'index.html?app=1';
                 }, 1000);
 
             } catch (error) {
@@ -842,7 +842,7 @@
                         successMessage.classList.add('show');
 
                         setTimeout(() => {
-                            window.location.href = 'index.html';
+                            window.location.href = 'index.html?app=1';
                         }, 1000);
                         return;
                     }
@@ -869,14 +869,14 @@
                     startCodeCountdown(sendBtn);
                     // 开发环境下，如果返回了验证码，显示在弹窗中
                     const devCode = data?.data?.code;
-                    if (isLocalhostEnv() && devCode) {
+                    if (devCode) {
                         showCodeModal(devCode, phone);
                     } else {
                         alert('验证码已发送，请注意查收');
                     }
                 })
                 .catch((error) => {
-                    if (isLocalhostEnv() && isDevLoginEnabled()) {
+                    if (isDevLoginEnabled()) {
                         const code = generateLocalCode();
                         saveLocalLoginCode(phone, code);
                         showCodeModal(code, phone);

@@ -86,7 +86,7 @@ echo ""
 AUTO_OPEN=${AUTO_OPEN:-1}
 if [ "$AUTO_OPEN" = "1" ]; then
   sleep 1
-  if ! open http://localhost:5173 >/dev/null 2>&1; then
-    echo "⚠️  无法自动打开浏览器，请手动访问: http://localhost:5173"
+  if ! open http://localhost:5173/OS.html >/dev/null 2>&1; then
+    echo "⚠️  无法自动打开浏览器，请手动访问: http://localhost:5173/OS.html"
   fi
 fi
