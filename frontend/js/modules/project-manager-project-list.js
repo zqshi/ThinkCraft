@@ -14,9 +14,14 @@ window.projectManagerProjectList = {
       !pm.projectsLoadPromise &&
       (pm.storageManager || window.storageManager)
     ) {
-      Promise.resolve(pm.loadProjects())
-        .then(() => pm.renderProjectList(containerId))
-        .catch(() => {});
+      (async () => {
+        try {
+          await pm.loadProjects();
+          pm.renderProjectList(containerId);
+        } catch (_error) {
+          // ignore initial load failures
+        }
+      })();
     }
 
     const visibleProjects = pm.projects.filter(project => project.status !== 'deleted');
