@@ -226,21 +226,23 @@ function registerPmDelegates(moduleName, defs) {
     const config = typeof def === 'string' ? { method: def, delegate: def } : def;
     ProjectManager.prototype[config.method] = function (...args) {
       const module = window[moduleName];
-      if (!module?.[config.delegate]) {
-        return typeof config.fallback === 'function'
+      const resolveFallback = () =>
+        typeof config.fallback === 'function'
           ? config.fallback.call(this, ...args)
           : config.fallback;
+      if (!module?.[config.delegate]) {
+        const fallbackResult = resolveFallback();
+        return config.promise ? Promise.resolve(fallbackResult) : fallbackResult;
       }
       const invokeArgs = config.passCtx === false ? args : [this, ...args];
       const result = config.bindThis
         ? module[config.delegate].call(this, ...args)
         : module[config.delegate](...invokeArgs);
       if (result !== undefined && result !== null) {
-        return result;
+        return config.promise ? Promise.resolve(result) : result;
       }
-      return typeof config.fallback === 'function'
-        ? config.fallback.call(this, ...args)
-        : config.fallback;
+      const fallbackResult = resolveFallback();
+      return config.promise ? Promise.resolve(fallbackResult) : fallbackResult;
     };
   });
 }
@@ -250,6 +252,7 @@ registerPmDelegates('projectManagerSetup', [
   'init',
   {
     method: 'loadProjects',
+    promise: true,
     fallback() {
       return this.projects;
     }
@@ -269,7 +272,7 @@ registerPmDelegates('projectManagerData', [
   'createProject',
   'getProject',
   'getProjectByIdeaId',
-  'updateProject'
+  { method: 'updateProject', promise: true }
 ]);
 
 registerPmDelegates('projectManagerSync', [
