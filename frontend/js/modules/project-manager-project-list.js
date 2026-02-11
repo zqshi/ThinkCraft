@@ -14,7 +14,7 @@ window.projectManagerProjectList = {
       !pm.projectsLoadPromise &&
       (pm.storageManager || window.storageManager)
     ) {
-      pm.loadProjects()
+      Promise.resolve(pm.loadProjects())
         .then(() => pm.renderProjectList(containerId))
         .catch(() => {});
     }
