@@ -281,9 +281,9 @@
                 <div class="project-panel-header">
                     <div class="project-panel-title" id="projectPanelTitle">项目详情</div>
                     <div class="project-panel-header-actions">
-                        <button class="icon-btn" onclick="window.openProjectFiles && window.openProjectFiles(projectManager.currentProjectId)" title="项目文件树">
+                        <button class="icon-btn" onclick="projectManager.openProjectKnowledgePanel()" title="项目知识库">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                             </svg>
                         </button>
                         <button class="icon-btn" onclick="projectManager.editCurrentProjectName()" title="编辑项目">
@@ -1174,7 +1174,7 @@
     <script src="/frontend/js/modules/ui-controller.js?v=20260201-fix"></script>
 
     <!-- ==================== 启动文件 ==================== -->
-    <script src="/frontend/js/app-boot.js?v=20260131-lazy"></script>
+    <script src="/frontend/js/app-boot.js?v=20260211-cachefix1"></script>
     <script src="/frontend/js/boot/init.js?v=20260131-lazy"></script>
 
     <!-- ==================== 低优先级模块（延迟加载） ==================== -->
@@ -1184,13 +1184,34 @@
     <script defer src="/frontend/js/modules/report/share-card.js?v=20260201-fix"></script>
 
     <!-- 项目管理（用户点击"项目"时才需要） -->
-    <script defer src="/frontend/js/modules/project-manager.js?v=20260131-fix2"></script>
+    <script defer src="/frontend/js/modules/project-manager.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-legacy-compat.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-artifact-preview.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-deliverables.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-panel-renderer.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-members.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-idea-flow.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-workflow-runner.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-collaboration.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-panel-content.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-report-preview.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-panel-lifecycle.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-sync.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-entrypoints.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-project-list.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-stage-utils.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-artifacts-view.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-core-utils.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-ui-utils.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-project-actions.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-data.js?v=20260211-refactor-lite18"></script>
+    <script defer src="/frontend/js/modules/project-manager-setup.js?v=20260211-refactor-lite18"></script>
 
     <!-- 知识库（用户点击"知识库"时才需要） -->
-    <script defer src="/frontend/js/modules/knowledge-base.js?v=20260201-fix"></script>
+    <script defer src="/frontend/js/modules/knowledge-base.js?v=20260211-filetab-fix1"></script>
 
     <!-- Agent系统（用户点击"Agent管理"时才需要） -->
-    <script defer src="/frontend/js/modules/agent-collaboration.js?v=20260131-4"></script>
+    <script defer src="/frontend/js/modules/agent-collaboration.js?v=20260211-stage-template7"></script>
 
     <!-- 商业计划书（用户点击"生成商业计划书"时才需要） -->
     <script defer src="/frontend/js/modules/business-plan-generator.js?v=20260208-debug3"></script>
