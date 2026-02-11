@@ -4,7 +4,11 @@
   "description": "ThinkCraft AI思维助手项目配置",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "start:all": "./start-all.sh",
+    "stop:all": "./stop-all.sh",
+    "auth:agent-check": "bash scripts/auth-agent-check.sh",
+    "dev": "./start-all.sh",
+    "dev:frontend": "vite",
     "dev:css": "node scripts/sync-css.js",
     "dev:all": "npm run dev:css & npm run dev",
     "build": "node scripts/sync-css.js && vite build",
@@ -12,6 +16,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:smoke:workflow": "bash tests/system/test-workflow-collaboration-smoke.sh",
     "lint": "eslint frontend/js/modules/chat frontend/js/modules/report frontend/js/modules/project-manager.js frontend/js/core/storage-manager.js backend/src/features/projects --ext .js --max-warnings 9999",
     "lint:fix": "eslint frontend/js/modules/chat frontend/js/modules/report frontend/js/modules/project-manager.js frontend/js/core/storage-manager.js backend/src/features/projects --ext .js --fix --max-warnings 9999",
     "format": "prettier --write \"**/*.{js,json,css,md}\"",
@@ -20,7 +25,8 @@
     "prepare": "husky",
     "cleanup": "node backend/scripts/clear-project-space.js",
     "cleanup:verify": "node -e \"const mongoose = require('mongoose'); mongoose.connect('mongodb://localhost:27017/thinkcraft').then(async () => { const db = mongoose.connection.db; const collections = ['projects', 'chats', 'business_plans', 'analysis_reports', 'users']; for (const col of collections) { const count = await db.collection(col).countDocuments(); console.log(col + ': ' + count); } process.exit(0); });\"",
-    "check:templates": "node scripts/check-artifact-templates.js"
+    "check:templates": "node scripts/check-artifact-templates.js",
+    "governance:loop": "node scripts/refactor/bootstrap-governance-loop.mjs"
   },
   "lint-staged": {
     "*.js": [
