@@ -1,13 +1,16 @@
 # Project Manager Refactor Index
 
 ## Goal
+
 将超大文件 `frontend/js/modules/project-manager.js` 拆分为职责清晰的子模块，保持业务逻辑不变，仅做结构治理与可维护性提升。
 
 ## Current Entry
+
 - Main orchestrator: `frontend/js/modules/project-manager.js`
-- Role: 状态持有 + 对外 API + 委托各子模块。
+- Role: 状态持有 + 对外 API + 批量 delegate 注册（按模块注入 prototype 转发，减少壳方法重复）。
 
 ## Split Modules
+
 - `frontend/js/modules/project-manager-setup.js`
   - 初始化与工作流目录加载：`init/loadProjects/getWorkflowCatalog/...`
 - `frontend/js/modules/project-manager-data.js`
@@ -50,9 +53,11 @@
   - 旧版兼容入口
 
 ## Script Load Order
+
 `index.html` 中 `project-manager.js` 之后加载各委托模块，使用统一 cache-bust 版本号（当前 `v=20260211-refactor-lite18`）。
 
 ## Validation Checklist
+
 - `node --check frontend/js/modules/project-manager.js`
 - `node --check frontend/js/modules/project-manager-*.js`
 - `curl http://127.0.0.1:3000/api/health`

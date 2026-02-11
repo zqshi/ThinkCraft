@@ -72,8 +72,6 @@ const ARTIFACT_TYPE_DEFS = {
   image: { name: '图片', icon: '🖼️' }
 };
 
-var logger = window.createLogger ? window.createLogger('ProjectManager') : console;
-
 class ProjectManager {
   constructor() {
     this.projects = [];
@@ -98,8 +96,8 @@ class ProjectManager {
     this.hiredAgentsPromise = null;
     this.apiUrl = window.appState?.settings?.apiUrl || getDefaultApiUrl();
     this.storageManager = window.storageManager;
-    this.stageDetailPanel = null; // 阶段详情面板
-    this.stageDetailOverlay = null; // 遮罩层
+    this.stageDetailPanel = null;
+    this.stageDetailOverlay = null;
     this.artifactTypeDefs = ARTIFACT_TYPE_DEFS;
   }
 
@@ -153,7 +151,9 @@ class ProjectManager {
         'tc_stage_deliverables_v1',
         JSON.stringify(this.stageDeliverableSelectionByProject || {})
       );
-    } catch (error) {}
+    } catch (error) {
+      // ignore
+    }
   }
 
   normalizeIdeaId(value) {
@@ -191,8 +191,9 @@ class ProjectManager {
     const agents = Array.isArray(agentIds) ? agentIds : [];
     if (agents.includes('ui-ux-designer')) return 'design';
     if (agents.includes('tech-lead')) return 'architecture';
-    if (agents.includes('frontend-developer') || agents.includes('backend-developer'))
+    if (agents.includes('frontend-developer') || agents.includes('backend-developer')) {
       return 'development';
+    }
     if (agents.includes('qa-engineer')) return 'testing';
     if (agents.includes('devops')) return 'deployment';
     if (agents.includes('marketing') || agents.includes('operations')) return 'operation';
@@ -201,634 +202,255 @@ class ProjectManager {
     return null;
   }
 
-  async hydrateProjectStageOutputs(project) {
-    return (
-      (await window.projectManagerSetup?.hydrateProjectStageOutputs?.(this, project)) || project
-    );
-  }
-
-  async init() {
-    return window.projectManagerSetup?.init?.(this);
-  }
-
-  async loadProjects(options = {}) {
-    return (await window.projectManagerSetup?.loadProjects?.(this, options)) || this.projects;
-  }
-
-  buildKnowledgeFromArtifacts(projectId, artifacts) {
-    return (
-      window.projectManagerSetup?.buildKnowledgeFromArtifacts?.(this, projectId, artifacts) || []
-    );
-  }
-
-  getValidAgentIds() {
-    return (
-      window.projectManagerSetup?.getValidAgentIds?.(this) ||
-      new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006'])
-    );
-  }
-
-  getUserId() {
-    return window.projectManagerSetup?.getUserId?.(this) || `guest_${Date.now()}`;
-  }
-
-  async getWorkflowCatalog(category = 'product-development') {
-    return window.projectManagerSetup?.getWorkflowCatalog?.(this, category);
-  }
-
-  getWorkflowCategoryLabel() {
-    return window.projectManagerSetup?.getWorkflowCategoryLabel?.(this) || '统一产品开发';
-  }
-
-  patchWorkflowArtifacts(workflow, templateWorkflow) {
-    return (
-      window.projectManagerSync?.patchWorkflowArtifacts?.(this, workflow, templateWorkflow) ||
-      workflow
-    );
-  }
-
-  async createProject(ideaId, name) {
-    return window.projectManagerData?.createProject?.(this, ideaId, name);
-  }
-
-  async getProject(projectId, options = {}) {
-    return window.projectManagerData?.getProject?.(this, projectId, options);
-  }
-
-  mergeExecutionState(remoteProject, localProject) {
-    return (
-      window.projectManagerSync?.mergeExecutionState?.(this, remoteProject, localProject) ||
-      remoteProject
-    );
-  }
-
-  async ensureProjectWorkflow(project) {
-    return (await window.projectManagerSync?.ensureProjectWorkflow?.(this, project)) || project;
-  }
-
-  async getProjectByIdeaId(ideaId) {
-    return window.projectManagerData?.getProjectByIdeaId?.(this, ideaId);
-  }
-
-  async updateProject(projectId, updates, options = {}) {
-    return window.projectManagerData?.updateProject?.(this, projectId, updates, options);
-  }
-
-  async deleteProject(projectId) {
-    return window.projectManagerProjectActions?.deleteProject?.(this, projectId);
-  }
-
-  confirmDeleteCurrentProject() {
-    return window.projectManagerProjectActions?.confirmDeleteCurrentProject?.(this);
-  }
-
-  editCurrentProjectName() {
-    return window.projectManagerProjectActions?.editCurrentProjectName?.(this);
-  }
-
-  openIdeaChat(chatId) {
-    return window.projectManagerProjectActions?.openIdeaChat?.(this, chatId);
-  }
-
-  renderProjectList(containerId) {
-    return window.projectManagerProjectList?.renderProjectList?.(this, containerId);
-  }
-
-  renderProjectCard(project) {
-    return window.projectManagerProjectList?.renderProjectCard?.(this, project) || '';
-  }
-
-  calculateWorkflowProgress(workflow) {
-    return window.projectManagerUiUtils?.calculateWorkflowProgress?.(this, workflow) || 0;
-  }
-
-  formatTimeAgo(timestamp) {
-    return window.projectManagerCoreUtils?.formatTimeAgo?.(this, timestamp) || '刚刚';
-  }
-
-  escapeHtml(text) {
-    return window.projectManagerCoreUtils?.escapeHtml?.(this, text) || '';
-  }
-
-  mergeArtifacts(existing = [], incoming = []) {
-    return window.projectManagerCoreUtils?.mergeArtifacts?.(this, existing, incoming) || [];
-  }
-
-  startArtifactPolling(projectId) {
-    return window.projectManagerSync?.startArtifactPolling?.(this, projectId);
-  }
-
-  stopArtifactPolling() {
-    return window.projectManagerSync?.stopArtifactPolling?.(this);
-  }
-
-  async pollProjectArtifacts() {
-    return window.projectManagerSync?.pollProjectArtifacts?.(this);
-  }
-
-  refreshProjectPanel(project) {
-    return window.projectManagerPanelLifecycle?.refreshProjectPanel?.(this, project);
-  }
-
-  updateProjectSelection(projectId) {
-    return window.projectManagerPanelLifecycle?.updateProjectSelection?.(this, projectId);
-  }
-
-  renderProjectPanel(project) {
-    return window.projectManagerPanelRenderer?.renderProjectPanel?.call(this, project);
-  }
-
-  normalizeExecutionState(project) {
-    return window.projectManagerSync?.normalizeExecutionState?.(this, project) || project;
-  }
-
-  async openCollaborationMode(projectId) {
-    return window.projectManagerEntrypoints?.openCollaborationMode?.(this, projectId);
-  }
-
-  openProjectKnowledgePanel(projectId = null) {
-    return window.projectManagerEntrypoints?.openProjectKnowledgePanel?.(this, projectId);
-  }
-
-  switchStage(stageId) {
-    return window.projectManagerUiUtils?.switchStage?.(this, stageId);
-  }
-
-  renderStageContent(project, stageId) {
-    return window.projectManagerPanelRenderer?.renderStageContent?.call(this, project, stageId);
-  }
-
-  renderStageAction(project, stage) {
-    return window.projectManagerPanelRenderer?.renderStageAction?.call(this, project, stage) || '';
-  }
-
-  renderHumanInLoopPanel(stage) {
-    return '';
-  }
-
-  getStageStatusLabel(status) {
-    return window.projectManagerStageUtils?.getStageStatusLabel?.(this, status) || status;
-  }
-
-  calculateStageProgress(stage) {
-    return window.projectManagerStageUtils?.calculateStageProgress?.(this, stage) || 0;
-  }
-
-  getAgentDefinition(agentType) {
-    return window.projectManagerStageUtils?.getAgentDefinition?.(this, agentType) || null;
-  }
-
-  getArtifactTypeDefinition(artifactType) {
-    return (
-      window.projectManagerStageUtils?.getArtifactTypeDefinition?.(this, artifactType) || {
-        name: artifactType,
-        icon: '📄'
-      }
-    );
-  }
-
-  normalizeArtifactTypeId(value) {
-    return window.projectManagerStageUtils?.normalizeArtifactTypeId?.(this, value) || '';
-  }
-
   getArtifactIcon(artifactType) {
     const def = this.getArtifactTypeDefinition(artifactType);
     return def.icon;
   }
 
-  renderWorkflowSteps(stages, selectedStageId) {
-    return (
-      window.projectManagerPanelRenderer?.renderWorkflowSteps?.call(
-        this,
-        stages,
-        selectedStageId
-      ) || ''
-    );
+  renderHumanInLoopPanel() {
+    return '';
   }
 
-  renderStageDetailSection(project, stage) {
-    return (
-      window.projectManagerPanelRenderer?.renderStageDetailSection?.call(this, project, stage) || ''
-    );
-  }
-
-  selectStage(stageId) {
-    return window.projectManagerUiUtils?.selectStage?.(this, stageId);
-  }
-
-  viewAllArtifacts(projectId, stageId) {
-    return window.projectManagerUiUtils?.viewAllArtifacts?.(this, projectId, stageId);
-  }
-
-  switchDeliverableTab(stageId, tab) {
-    return window.projectManagerArtifactsView?.switchDeliverableTab?.(this, stageId, tab);
-  }
-
-  selectArtifact(stageId, artifactId) {
-    return window.projectManagerArtifactsView?.selectArtifact?.(this, stageId, artifactId);
-  }
-
-  renderDeliverableContent(stageId, artifact, tab) {
-    return window.projectManagerArtifactsView?.renderDeliverableContent?.(
-      this,
-      stageId,
-      artifact,
-      tab
-    );
-  }
-
-  getArtifactTypeLabel(artifact) {
-    return window.projectManagerArtifactsView?.getArtifactTypeLabel?.(this, artifact) || '文档';
-  }
-
-  renderStageArtifacts(stage, projectId, displayArtifacts) {
-    return (
-      window.projectManagerArtifactsView?.renderStageArtifacts?.(
-        this,
-        stage,
-        projectId,
-        displayArtifacts
-      ) || ''
-    );
-  }
-
-  getDocArtifacts(stage) {
-    return window.projectManagerArtifactsView?.getDocArtifacts?.(this, stage) || [];
-  }
-
-  getDisplayArtifacts(stage) {
-    return window.projectManagerArtifactsView?.getDisplayArtifacts?.(this, stage) || [];
-  }
-
-  async openKnowledgeFromArtifact(projectId, artifactId) {
-    return window.projectManagerArtifactsView?.openKnowledgeFromArtifact?.(
-      this,
-      projectId,
-      artifactId
-    );
-  }
-
-  confirmStage(stageId) {
-    return window.projectManagerUiUtils?.confirmStage?.(this, stageId);
-  }
-
-  requestStageRevision(stageId) {
-    return window.projectManagerUiUtils?.requestStageRevision?.(this, stageId);
-  }
-
-  addStageNote(stageId) {
-    return window.projectManagerUiUtils?.addStageNote?.(this, stageId);
-  }
-
-  extractHtmlFromContent(content = '') {
-    return window.projectManagerPanelLifecycle?.extractHtmlFromContent?.(this, content) || '';
-  }
-
-  findPreviewArtifact(project) {
-    return window.projectManagerPanelLifecycle?.findPreviewArtifact?.(this, project) || null;
-  }
-
-  async buildPreviewArtifact(project) {
-    return (
-      (await window.projectManagerPanelLifecycle?.buildPreviewArtifact?.(this, project)) || null
-    );
-  }
-
-  async openPreviewEntry(projectId) {
-    return window.projectManagerPanelLifecycle?.openPreviewEntry?.(this, projectId);
-  }
-
-  async openPreviewPanel(projectId, artifactId = null) {
-    return window.projectManagerPanelLifecycle?.openPreviewPanel?.(this, projectId, artifactId);
-  }
-
-  showStageArtifactsModal(projectId, stageId) {
-    return window.projectManagerPanelLifecycle?.showStageArtifactsModal?.(this, projectId, stageId);
-  }
-
-  closeProjectPanel() {
-    return window.projectManagerPanelLifecycle?.closeProjectPanel?.(this);
-  }
-
-  async renderProjectMembersPanel(project) {
-    return window.projectManagerPanelContent?.renderProjectMembersPanel?.(this, project);
-  }
-
-  async renderProjectIdeasPanel(project) {
-    return window.projectManagerPanelContent?.renderProjectIdeasPanel?.(this, project);
-  }
-
-  async renderProjectKnowledgePanel(project) {
-    return window.projectManagerPanelContent?.renderProjectKnowledgePanel?.(this, project);
-  }
-
-  async getReportsByChatId(chatId) {
-    return (await window.projectManagerPanelContent?.getReportsByChatId?.(this, chatId)) || {};
-  }
-
-  async viewIdeaReport(chatId, type) {
-    return window.projectManagerReportPreview?.viewIdeaReport?.(this, chatId, type);
-  }
-
-  async showMemberModal(projectId) {
-    return window.projectManagerMembers?.showMemberModal?.(this, projectId);
-  }
-
-  switchMemberModalTab(tab) {
-    return window.projectManagerMembers?.switchMemberModalTab?.(this, tab);
-  }
-
-  async renderMemberMarket() {
-    return window.projectManagerMembers?.renderMemberMarket?.(this);
-  }
-
-  buildFallbackAgentFromCatalog(catalog, agentId, project = null) {
-    return window.projectManagerMembers?.buildFallbackAgentFromCatalog?.(
-      this,
-      catalog,
-      agentId,
-      project
-    );
-  }
-
-  getRecommendedAgentsFromProjectWorkflow(project, stageId) {
-    return window.projectManagerMembers?.getRecommendedAgentsFromProjectWorkflow?.(
-      this,
-      project,
-      stageId
-    );
-  }
-
-  async renderMemberHired() {
-    return window.projectManagerMembers?.renderMemberHired?.(this);
-  }
-
-  async hireAgentToProject(projectId, agentId) {
-    return window.projectManagerMembers?.hireAgentToProject?.(this, projectId, agentId);
-  }
-
-  async fireAgentFromProject(projectId, agentId) {
-    return window.projectManagerMembers?.fireAgentFromProject?.(this, projectId, agentId);
-  }
-
-  async handleFireAgent(project, agentId) {
-    return window.projectManagerMembers?.handleFireAgent?.(this, project, agentId);
-  }
-
-  getMissingRolesAfterRemoval(project, agent) {
-    return window.projectManagerMembers?.getMissingRolesAfterRemoval?.(this, project, agent) || [];
-  }
-
-  async getAgentMarketList(workflowCategory) {
-    return (await window.projectManagerMembers?.getAgentMarketList?.(this, workflowCategory)) || [];
-  }
-
-  async getUserHiredAgents() {
-    return (await window.projectManagerMembers?.getUserHiredAgents?.(this)) || [];
-  }
-
-  getRecommendedAgentsForStage(project, stageId) {
-    return (
-      window.projectManagerMembers?.getRecommendedAgentsForStage?.(this, project, stageId) || []
-    );
-  }
-
-  getRecommendedAgentsForStageFromCatalog(workflow, stageId) {
-    return (
-      window.projectManagerMembers?.getRecommendedAgentsForStageFromCatalog?.(
-        this,
-        workflow,
-        stageId
-      ) || []
-    );
-  }
-
-  async showReplaceIdeaDialog(projectId) {
-    return window.projectManagerIdeaFlow?.showReplaceIdeaDialog?.(this, projectId);
-  }
-
-  async confirmReplaceIdea(projectId) {
-    return window.projectManagerIdeaFlow?.confirmReplaceIdea?.(this, projectId);
-  }
-
-  async saveIdeaKnowledge(projectId, ideaId) {
-    return window.projectManagerIdeaFlow?.saveIdeaKnowledge?.(this, projectId, ideaId);
-  }
-
-  async showCreateProjectDialog() {
-    return window.projectManagerIdeaFlow?.showCreateProjectDialog?.(this);
-  }
-
-  hasCompletedAnalysisReport(report) {
-    return window.projectManagerIdeaFlow?.hasCompletedAnalysisReport?.(this, report) || false;
-  }
-
-  async getChatsWithCompletedAnalysis() {
-    return (await window.projectManagerIdeaFlow?.getChatsWithCompletedAnalysis?.(this)) || [];
-  }
-
-  async filterCompletedIdeas(chats = []) {
-    return (await window.projectManagerIdeaFlow?.filterCompletedIdeas?.(this, chats)) || [];
-  }
-
-  async promptWorkflowRecommendation(project) {
+  async promptWorkflowRecommendation() {
     return;
-  }
-
-  async applyWorkflowCategory(projectId, workflowCategory) {
-    return window.projectManagerCollaboration?.applyWorkflowCategory?.(
-      this,
-      projectId,
-      workflowCategory
-    );
-  }
-
-  async customizeWorkflow(projectId, stages) {
-    return (
-      (await window.projectManagerCollaboration?.customizeWorkflow?.(this, projectId, stages)) ||
-      null
-    );
-  }
-
-  async applyCollaborationSuggestion(projectId, suggestion) {
-    return window.projectManagerCollaboration?.applyCollaborationSuggestion?.(
-      this,
-      projectId,
-      suggestion
-    );
-  }
-
-  sortStagesByDependencies(stages) {
-    return window.projectManagerCollaboration?.sortStagesByDependencies?.(this, stages) || [];
-  }
-
-  async buildWorkflowStages(category) {
-    return (
-      (await window.projectManagerCollaboration?.buildWorkflowStages?.(this, category)) || null
-    );
-  }
-
-  normalizeSuggestedStages(suggestedStages = []) {
-    return (
-      window.projectManagerCollaboration?.normalizeSuggestedStages?.(this, suggestedStages) || []
-    );
-  }
-
-  async confirmCreateProject() {
-    return window.projectManagerIdeaFlow?.confirmCreateProject?.(this);
-  }
-
-  async createProjectWithWorkflow(ideaId, name, selectedStages) {
-    return window.projectManagerIdeaFlow?.createProjectWithWorkflow?.(
-      this,
-      ideaId,
-      name,
-      selectedStages
-    );
-  }
-
-  async createProjectFromIdea(ideaId, name) {
-    return window.projectManagerIdeaFlow?.createProjectFromIdea?.(this, ideaId, name);
-  }
-
-  async openProject(projectId) {
-    return window.projectManagerEntrypoints?.openProject?.(this, projectId);
-  }
-
-  ensureProjectPanelStyles() {
-    return window.projectManagerWorkflowRunner?.ensureProjectPanelStyles?.(this);
-  }
-
-  async checkBackendHealth() {
-    return (await window.projectManagerWorkflowRunner?.checkBackendHealth?.(this)) || false;
-  }
-
-  async syncWorkflowArtifactsFromServer(project) {
-    return window.projectManagerWorkflowRunner?.syncWorkflowArtifactsFromServer?.(this, project);
-  }
-
-  renderWorkflowDetails(project) {
-    return window.projectManagerWorkflowRunner?.renderWorkflowDetails?.(this, project);
   }
 
   async executeAllStages(projectId) {
     const options = arguments.length > 1 && typeof arguments[1] === 'object' ? arguments[1] : {};
     return window.projectManagerWorkflowRunner?.executeAllStages?.(this, projectId, options);
   }
-
-  createNewProject() {
-    return window.projectManagerLegacyCompat?.createNewProject?.(this);
-  }
-
-  openProjectLegacy(projectId) {
-    return window.projectManagerLegacyCompat?.openProjectLegacy?.(this, projectId);
-  }
-
-  renderProjectDetail(project) {
-    return window.projectManagerLegacyCompat?.renderProjectDetail?.(this, project);
-  }
-
-  removeAgentFromProject(projectId, agentId) {
-    return window.projectManagerLegacyCompat?.removeAgentFromProject?.(this, projectId, agentId);
-  }
-
-  linkIdeaToProject(projectId) {
-    return window.projectManagerLegacyCompat?.linkIdeaToProject?.(this, projectId);
-  }
-
-  editProjectInfo(projectId) {
-    return window.projectManagerLegacyCompat?.editProjectInfo?.(this, projectId);
-  }
-
-  deleteProjectLegacy(projectId) {
-    return window.projectManagerLegacyCompat?.deleteProjectLegacy?.(this, projectId);
-  }
-
-  loadChatFromProject(chatId) {
-    return window.projectManagerUiUtils?.loadChatFromProject?.(this, chatId);
-  }
-
-  async startWorkflowExecution(projectId) {
-    return window.projectManagerWorkflowRunner?.startWorkflowExecution?.(this, projectId);
-  }
-
-  async openArtifactPreviewPanel(projectId, stageId, artifactId) {
-    return window.projectManagerArtifactPreview?.openArtifactPreviewPanel?.(
-      this,
-      projectId,
-      stageId,
-      artifactId
-    );
-  }
-
-  closeArtifactPreviewPanel() {
-    return window.projectManagerArtifactPreview?.closeArtifactPreviewPanel?.(this);
-  }
-
-  async renderArtifactPreviewPanel(project, stage, artifact) {
-    return window.projectManagerArtifactPreview?.renderArtifactPreviewPanel?.(
-      this,
-      project,
-      stage,
-      artifact
-    );
-  }
-
-  async copyArtifactContent(artifactId) {
-    return window.projectManagerArtifactPreview?.copyArtifactContent?.(this, artifactId);
-  }
-
-  async downloadArtifact(artifactId) {
-    return window.projectManagerArtifactPreview?.downloadArtifact?.(this, artifactId);
-  }
-
-  formatFileSize(bytes) {
-    return window.projectManagerArtifactPreview?.formatFileSize?.(bytes) || '0 B';
-  }
 }
 
-const deliverableDelegateDefs = [
-  ['getExpectedDeliverables', 'getExpectedDeliverables', args => [], false],
-  ['resolveSelectedArtifactTypes', 'resolveSelectedArtifactTypes', args => [], false],
-  ['normalizeDeliverableKey', 'normalizeDeliverableKey', args => '', true],
-  ['findArtifactForDeliverable', 'findArtifactForDeliverable', args => null, false],
-  ['getDeliverableStatusItems', 'getDeliverableStatusItems', args => [], false],
-  [
-    'getDeliverableProgressSummary',
-    'getDeliverableProgressSummary',
-    () => ({
+function registerPmDelegates(moduleName, defs) {
+  defs.forEach(def => {
+    const config = typeof def === 'string' ? { method: def, delegate: def } : def;
+    ProjectManager.prototype[config.method] = function (...args) {
+      const module = window[moduleName];
+      if (!module?.[config.delegate]) {
+        return typeof config.fallback === 'function'
+          ? config.fallback.call(this, ...args)
+          : config.fallback;
+      }
+      const invokeArgs = config.passCtx === false ? args : [this, ...args];
+      const result = config.bindThis
+        ? module[config.delegate].call(this, ...args)
+        : module[config.delegate](...invokeArgs);
+      if (result !== undefined && result !== null) {
+        return result;
+      }
+      return typeof config.fallback === 'function'
+        ? config.fallback.call(this, ...args)
+        : config.fallback;
+    };
+  });
+}
+
+registerPmDelegates('projectManagerSetup', [
+  { method: 'hydrateProjectStageOutputs', fallback: project => project },
+  'init',
+  {
+    method: 'loadProjects',
+    fallback() {
+      return this.projects;
+    }
+  },
+  { method: 'buildKnowledgeFromArtifacts', fallback: () => [] },
+  {
+    method: 'getValidAgentIds',
+    fallback: () =>
+      new Set(['agent_001', 'agent_002', 'agent_003', 'agent_004', 'agent_005', 'agent_006'])
+  },
+  { method: 'getUserId', fallback: () => `guest_${Date.now()}` },
+  'getWorkflowCatalog',
+  { method: 'getWorkflowCategoryLabel', fallback: '统一产品开发' }
+]);
+
+registerPmDelegates('projectManagerData', [
+  'createProject',
+  'getProject',
+  'getProjectByIdeaId',
+  'updateProject'
+]);
+
+registerPmDelegates('projectManagerSync', [
+  { method: 'patchWorkflowArtifacts', fallback: workflow => workflow },
+  { method: 'mergeExecutionState', fallback: remoteProject => remoteProject },
+  { method: 'ensureProjectWorkflow', fallback: project => project },
+  'startArtifactPolling',
+  'stopArtifactPolling',
+  'pollProjectArtifacts',
+  { method: 'normalizeExecutionState', fallback: project => project }
+]);
+
+registerPmDelegates('projectManagerProjectActions', [
+  'deleteProject',
+  'confirmDeleteCurrentProject',
+  'editCurrentProjectName',
+  'openIdeaChat'
+]);
+
+registerPmDelegates('projectManagerProjectList', [
+  'renderProjectList',
+  { method: 'renderProjectCard', fallback: '' }
+]);
+registerPmDelegates('projectManagerUiUtils', [
+  { method: 'calculateWorkflowProgress', fallback: 0 },
+  'switchStage',
+  'selectStage',
+  'viewAllArtifacts',
+  'confirmStage',
+  'requestStageRevision',
+  'addStageNote',
+  'loadChatFromProject'
+]);
+registerPmDelegates('projectManagerCoreUtils', [
+  { method: 'formatTimeAgo', fallback: '刚刚' },
+  { method: 'escapeHtml', fallback: '' },
+  { method: 'mergeArtifacts', fallback: () => [] }
+]);
+registerPmDelegates('projectManagerPanelRenderer', [
+  { method: 'renderProjectPanel', bindThis: true },
+  { method: 'renderStageContent', bindThis: true },
+  { method: 'renderStageAction', bindThis: true, fallback: '' },
+  { method: 'renderWorkflowSteps', bindThis: true, fallback: '' },
+  { method: 'renderStageDetailSection', bindThis: true, fallback: '' }
+]);
+registerPmDelegates('projectManagerStageUtils', [
+  { method: 'getStageStatusLabel', fallback: status => status },
+  { method: 'calculateStageProgress', fallback: 0 },
+  { method: 'getAgentDefinition', fallback: null },
+  {
+    method: 'getArtifactTypeDefinition',
+    fallback(artifactType) {
+      return { name: artifactType, icon: '📄' };
+    }
+  },
+  { method: 'normalizeArtifactTypeId', fallback: '' }
+]);
+registerPmDelegates('projectManagerDeliverables', [
+  { method: 'getExpectedDeliverables', fallback: () => [] },
+  { method: 'resolveSelectedArtifactTypes', fallback: () => [] },
+  { method: 'normalizeDeliverableKey', passCtx: false, fallback: '' },
+  { method: 'findArtifactForDeliverable', fallback: null },
+  { method: 'getDeliverableStatusItems', fallback: () => [] },
+  {
+    method: 'getDeliverableProgressSummary',
+    fallback: () => ({
       items: [],
       selectedItems: [],
       selectedCount: 0,
       generatedCount: 0,
       generatingCount: 0,
       totalCount: 0
-    }),
-    false
-  ],
-  ['renderDeliverableStatusPanel', 'renderDeliverableStatusPanel', args => '', false],
-  ['generateAdditionalDeliverables', 'generateAdditionalDeliverables', () => undefined, false],
-  ['regenerateStageDeliverable', 'regenerateStageDeliverable', () => undefined, false],
-  ['retryStageDeliverable', 'retryStageDeliverable', () => undefined, false],
-  ['getMissingDeliverables', 'getMissingDeliverables', args => [], false],
-  ['getMissingSelectedDeliverables', 'getMissingSelectedDeliverables', args => [], false],
-  ['getMissingDeliverablesFromExpected', 'getMissingDeliverablesFromExpected', args => [], false],
-  ['getMissingDeliverablesWithReason', 'getMissingDeliverablesWithReason', args => [], false],
-  ['hasGeneratedPrd', 'hasGeneratedPrd', args => false, false],
-  ['validateStrategyDocDependency', 'validateStrategyDocDependency', args => false, false],
-  ['getStageSelectedDeliverables', 'getStageSelectedDeliverables', args => [], false],
-  ['toggleStageDeliverable', 'toggleStageDeliverable', () => undefined, false],
-  ['startStageWithSelection', 'startStageWithSelection', () => undefined, false]
-];
-
-for (const [methodName, delegateName, fallback, plainArgs] of deliverableDelegateDefs) {
-  ProjectManager.prototype[methodName] = async function (...args) {
-    const result = plainArgs
-      ? await window.projectManagerDeliverables?.[delegateName]?.(...args)
-      : await window.projectManagerDeliverables?.[delegateName]?.(this, ...args);
-    return result ?? fallback(args);
-  };
-}
+    })
+  },
+  { method: 'renderDeliverableStatusPanel', fallback: '' },
+  'generateAdditionalDeliverables',
+  'regenerateStageDeliverable',
+  'retryStageDeliverable',
+  { method: 'getMissingDeliverables', fallback: () => [] },
+  { method: 'getMissingSelectedDeliverables', fallback: () => [] },
+  { method: 'getMissingDeliverablesFromExpected', fallback: () => [] },
+  { method: 'getMissingDeliverablesWithReason', fallback: () => [] },
+  { method: 'hasGeneratedPrd', fallback: false },
+  { method: 'validateStrategyDocDependency', fallback: false },
+  { method: 'getStageSelectedDeliverables', fallback: () => [] },
+  'toggleStageDeliverable',
+  'startStageWithSelection'
+]);
+registerPmDelegates('projectManagerArtifactsView', [
+  'switchDeliverableTab',
+  'selectArtifact',
+  'renderDeliverableContent',
+  { method: 'getArtifactTypeLabel', fallback: '文档' },
+  { method: 'renderStageArtifacts', fallback: '' },
+  { method: 'getDocArtifacts', fallback: () => [] },
+  { method: 'getDisplayArtifacts', fallback: () => [] },
+  'openKnowledgeFromArtifact'
+]);
+registerPmDelegates('projectManagerPanelLifecycle', [
+  'refreshProjectPanel',
+  'updateProjectSelection',
+  { method: 'extractHtmlFromContent', fallback: '' },
+  { method: 'findPreviewArtifact', fallback: null },
+  { method: 'buildPreviewArtifact', fallback: null },
+  'openPreviewEntry',
+  'openPreviewPanel',
+  'showStageArtifactsModal',
+  'closeProjectPanel'
+]);
+registerPmDelegates('projectManagerPanelContent', [
+  'renderProjectMembersPanel',
+  'renderProjectIdeasPanel',
+  'renderProjectKnowledgePanel',
+  { method: 'getReportsByChatId', fallback: () => ({}) }
+]);
+registerPmDelegates('projectManagerReportPreview', ['viewIdeaReport']);
+registerPmDelegates('projectManagerMembers', [
+  'showMemberModal',
+  'switchMemberModalTab',
+  'renderMemberMarket',
+  'buildFallbackAgentFromCatalog',
+  { method: 'getRecommendedAgentsFromProjectWorkflow', fallback: () => [] },
+  'renderMemberHired',
+  'hireAgentToProject',
+  'fireAgentFromProject',
+  'handleFireAgent',
+  { method: 'getMissingRolesAfterRemoval', fallback: () => [] },
+  { method: 'getAgentMarketList', fallback: () => [] },
+  { method: 'getUserHiredAgents', fallback: () => [] },
+  { method: 'getRecommendedAgentsForStage', fallback: () => [] },
+  { method: 'getRecommendedAgentsForStageFromCatalog', fallback: () => [] }
+]);
+registerPmDelegates('projectManagerIdeaFlow', [
+  'showReplaceIdeaDialog',
+  'confirmReplaceIdea',
+  'saveIdeaKnowledge',
+  'showCreateProjectDialog',
+  { method: 'hasCompletedAnalysisReport', fallback: false },
+  { method: 'getChatsWithCompletedAnalysis', fallback: () => [] },
+  { method: 'filterCompletedIdeas', fallback: () => [] },
+  'confirmCreateProject',
+  'createProjectWithWorkflow',
+  'createProjectFromIdea'
+]);
+registerPmDelegates('projectManagerCollaboration', [
+  'applyWorkflowCategory',
+  { method: 'customizeWorkflow', fallback: null },
+  'applyCollaborationSuggestion',
+  { method: 'sortStagesByDependencies', fallback: () => [] },
+  { method: 'buildWorkflowStages', fallback: null },
+  { method: 'normalizeSuggestedStages', fallback: () => [] }
+]);
+registerPmDelegates('projectManagerEntrypoints', [
+  'openCollaborationMode',
+  'openProjectKnowledgePanel',
+  'openProject'
+]);
+registerPmDelegates('projectManagerWorkflowRunner', [
+  'ensureProjectPanelStyles',
+  { method: 'checkBackendHealth', fallback: false },
+  'syncWorkflowArtifactsFromServer',
+  'renderWorkflowDetails',
+  'startWorkflowExecution'
+]);
+registerPmDelegates('projectManagerLegacyCompat', [
+  'createNewProject',
+  'openProjectLegacy',
+  'renderProjectDetail',
+  'removeAgentFromProject',
+  'linkIdeaToProject',
+  'editProjectInfo',
+  'deleteProjectLegacy'
+]);
+registerPmDelegates('projectManagerArtifactPreview', [
+  'openArtifactPreviewPanel',
+  'closeArtifactPreviewPanel',
+  'renderArtifactPreviewPanel',
+  'copyArtifactContent',
+  'downloadArtifact',
+  { method: 'formatFileSize', passCtx: false, fallback: '0 B' }
+]);
 
 if (typeof window !== 'undefined') {
   window.ProjectManager = ProjectManager;
