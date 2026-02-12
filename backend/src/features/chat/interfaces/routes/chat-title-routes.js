@@ -99,14 +99,26 @@ export function registerChatTitleRoutes(router, deps) {
 }
 
 function buildFallbackTitle(messages = []) {
-  const source = [...messages].reverse().find(msg => {
-    return msg && msg.role === 'user' && typeof msg.content === 'string' && msg.content.trim();
-  });
-  const raw = source?.content || messages[messages.length - 1]?.content || '新对话';
-  const line = String(raw).split('\n').find(item => item.trim()) || '新对话';
-  const normalized = line.replace(/\s+/g, ' ').trim();
-  if (!normalized) {
+  const userLines = messages
+    .filter(msg => msg && msg.role === 'user' && typeof msg.content === 'string')
+    .map(
+      msg =>
+        String(msg.content)
+          .split('\n')
+          .find(item => item.trim()) || ''
+    )
+    .map(text => text.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  if (userLines.length === 0) {
     return '新对话';
   }
-  return normalized.length > 20 ? `${normalized.slice(0, 20)}...` : normalized;
+
+  const unique = [...new Set(userLines)];
+  if (unique.length === 1) {
+    return unique[0].length > 20 ? `${unique[0].slice(0, 20)}...` : unique[0];
+  }
+
+  const merged = `${unique[0].slice(0, 10)} · ${unique[1].slice(0, 10)}`.trim();
+  return merged.length > 20 ? `${merged.slice(0, 20)}...` : merged;
 }
