@@ -4,14 +4,16 @@
  * Version: 1.0.0
  */
 
-const CACHE_VERSION = 'thinkcraft-v1.0.20';
+const CACHE_VERSION = 'thinkcraft-v1.0.21';
 const CACHE_NAME = `${CACHE_VERSION}`;
 const APP_BOOT_PATH = '/frontend/js/app-boot.js';
 const CRITICAL_SCRIPTS = new Set([
   '/frontend/js/app-boot.js',
   '/frontend/js/core/storage-manager.js',
   '/frontend/js/core/state-manager.js',
-  '/frontend/js/core/api-client.js'
+  '/frontend/js/core/api-client.js',
+  '/frontend/js/modules/project-manager.js',
+  '/frontend/js/modules/project-manager-idea-flow.js'
 ]);
 
 // 核心资源列表（优先缓存）
@@ -104,6 +106,7 @@ self.addEventListener('fetch', event => {
     url.pathname === APP_BOOT_PATH ||
     url.pathname === '/index.html' ||
     url.pathname === '/login.html' ||
+    url.pathname.startsWith('/frontend/js/modules/project-manager') ||
     CRITICAL_SCRIPTS.has(url.pathname)
   ) {
     event.respondWith(networkFirst(request));

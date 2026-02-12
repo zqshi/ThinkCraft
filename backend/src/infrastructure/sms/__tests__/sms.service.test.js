@@ -1,25 +1,23 @@
 /**
  * SMS服务单元测试
  */
+import { jest } from '@jest/globals';
 import { SmsService } from '../sms.service.js';
-import { logger } from '../../../../../middleware/logger.js';
-
-// Mock logger
-jest.mock('../../../../../middleware/logger.js', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn()
-  }
-}));
+import { logger } from '../../../../middleware/logger.js';
 
 describe('SmsService', () => {
   let smsService;
   const originalSmsProvider = process.env.SMS_PROVIDER;
+  let infoSpy;
+  let warnSpy;
+  let errorSpy;
 
   beforeEach(() => {
     // 清除所有mock
     jest.clearAllMocks();
+    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
     process.env.SMS_PROVIDER = 'mock';
     // 创建mock模式的SMS服务
     smsService = new SmsService({ provider: 'mock' });
@@ -31,6 +29,9 @@ describe('SmsService', () => {
     } else {
       process.env.SMS_PROVIDER = originalSmsProvider;
     }
+    infoSpy?.mockRestore();
+    warnSpy?.mockRestore();
+    errorSpy?.mockRestore();
   });
 
   describe('构造函数', () => {
@@ -124,12 +125,10 @@ describe('SmsService', () => {
       await smsService.sendVerificationCode('13800138000', '123456', 'register');
 
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('发送验证码到'),
-        expect.anything()
+        expect.stringContaining('发送验证码到')
       );
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('验证码发送成功'),
-        expect.anything()
+        expect.stringContaining('验证码发送成功')
       );
     });
 
@@ -167,8 +166,7 @@ describe('SmsService', () => {
       await smsService.sendNotification('13800138000', '测试消息');
 
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('发送通知短信到'),
-        expect.anything()
+        expect.stringContaining('发送通知短信到')
       );
     });
   });
@@ -264,8 +262,7 @@ describe('SmsService', () => {
       await smsService._sendMockSms('13800138000', '123456', 'register');
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('当前使用mock模式'),
-        expect.anything()
+        expect.stringContaining('模拟模式验证码仅在控制台输出')
       );
     });
   });

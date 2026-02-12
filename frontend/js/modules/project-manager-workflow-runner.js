@@ -320,17 +320,7 @@ window.projectManagerWorkflowRunner = {
             `;
           }
         } else if (stage.status === 'completed') {
-          actionHTML = workflowReady
-            ? `
-              <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${project.id}', '${stage.id}')" style="background: white; border: 1px solid #10b981; color: #10b981;">
-                👁️ 查看全部交付物
-              </button>
-            `
-            : `
-              <button class="btn-secondary" disabled title="工作流执行器未就绪">
-                查看交付物 (${artifactCount})
-              </button>
-            `;
+          actionHTML = '';
         } else {
           actionHTML = `
             <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">

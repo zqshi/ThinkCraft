@@ -315,26 +315,38 @@ class ModalManager {
    * @param {Function} onCancel - 取消回调
    */
   confirm(message, onConfirm, onCancel = null) {
+    let confirmed = false;
+    const confirmBtnId = `confirm-btn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     this.openTemp({
       title: '确认',
       content: `<p style="text-align: center; padding: 20px;">${message}</p>`,
       footer: `
         <button class="btn btn-secondary" onclick="modalManager.close(this.closest('.modal').id)">取消</button>
-        <button class="btn btn-primary" id="confirm-btn">确定</button>
+        <button class="btn btn-primary" id="${confirmBtnId}">确定</button>
       `,
       className: 'confirm-dialog',
-      onClose: onCancel
+      onClose: () => {
+        if (!confirmed && onCancel) {
+          onCancel();
+        }
+      }
     });
 
     // 绑定确认按钮
     setTimeout(() => {
-      document.getElementById('confirm-btn')?.addEventListener('click', () => {
-        const modalId = document.getElementById('confirm-btn').closest('.modal').id;
-        this.close(modalId);
-        if (onConfirm) {
-          onConfirm();
-        }
-      });
+      const confirmBtn = document.getElementById(confirmBtnId);
+      confirmBtn?.addEventListener(
+        'click',
+        () => {
+          const modalId = confirmBtn.closest('.modal').id;
+          confirmed = true;
+          if (onConfirm) {
+            onConfirm();
+          }
+          this.close(modalId);
+        },
+        { once: true }
+      );
     }, 0);
   }
 

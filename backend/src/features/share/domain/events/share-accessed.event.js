@@ -5,26 +5,22 @@ import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class ShareAccessedEvent extends DomainEvent {
   constructor(payload) {
-    super({
-      eventName: 'share.accessed',
-      aggregateId: payload.shareId,
-      payload
-    });
+    super('share.accessed', payload);
   }
 
   get shareId() {
-    return this.payload.shareId;
+    return this.data.shareId;
   }
 
   get resourceId() {
-    return this.payload.resourceId;
+    return this.data.resourceId;
   }
 
   get resourceType() {
-    return this.payload.resourceType;
+    return this.data.resourceType;
   }
 
   get accessCount() {
-    return this.payload.accessCount;
+    return this.data.accessCount;
   }
 }

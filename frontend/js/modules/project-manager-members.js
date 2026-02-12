@@ -140,10 +140,10 @@ window.projectManagerMembers = {
                     ${isRecommended ? '<div class="agent-card-badge">推荐</div>' : ''}
                     <div class="agent-card-actions">
                         ${
-                          isAssigned
-                            ? '<button class="hire-btn hired" disabled>✓ 已加入</button>'
-                            : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入</button>`
-                        }
+  isAssigned
+    ? '<button class="hire-btn hired" disabled>✓ 已加入</button>'
+    : `<button class="hire-btn" onclick="projectManager.hireAgentToProject('${project.id}', '${agent.id}')">加入</button>`
+}
                     </div>
                 </div>
             `;

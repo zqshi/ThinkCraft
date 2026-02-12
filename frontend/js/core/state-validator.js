@@ -45,7 +45,7 @@ class StateValidator {
 
     if (invalidIds.length > 0) {
       console.error(`[StateValidator] 发现无效的章节ID (类型: ${type}):`, invalidIds);
-      console.error('[StateValidator] 有效的章节ID:', validIds);
+      console.error(`[StateValidator] 有效的章节ID:`, validIds);
       return false;
     }
 
@@ -82,19 +82,7 @@ class StateValidator {
     }
 
     const validIds = [...config.core, ...config.optional].map(ch => ch.id);
-    const legacyMap =
-      type === 'business'
-        ? {
-            'risk-analysis': 'risk-assessment',
-            'implementation-plan': null,
-            appendix: null
-          }
-        : {};
-
-    const mappedIds = (chapterIds || [])
-      .map(id => (Object.prototype.hasOwnProperty.call(legacyMap, id) ? legacyMap[id] : id))
-      .filter(Boolean);
-    const fixedIds = mappedIds.filter(id => validIds.includes(id));
+    const fixedIds = chapterIds.filter(id => validIds.includes(id));
 
     if (fixedIds.length === 0) {
       console.warn('[StateValidator] 所有章节ID都无效，使用默认章节列表');
@@ -104,13 +92,6 @@ class StateValidator {
     if (fixedIds.length < chapterIds.length) {
       const removedIds = chapterIds.filter(id => !validIds.includes(id));
       console.warn('[StateValidator] 移除了无效的章节ID:', removedIds);
-    }
-
-    // 确保核心章节全部覆盖（用于历史数据兼容）
-    const coreIds = config.core.map(ch => ch.id);
-    const missingCore = coreIds.filter(id => !fixedIds.includes(id));
-    if (missingCore.length > 0) {
-      return [...fixedIds, ...missingCore];
     }
 
     return fixedIds;

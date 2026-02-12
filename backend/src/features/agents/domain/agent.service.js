@@ -4,7 +4,6 @@
  */
 import { DomainService } from '../../../shared/domain/index.js';
 import { Agent } from './agent.aggregate.js';
-import { AgentStatus } from './agent-status.vo.js';
 import { AgentType } from './agent-type.vo.js';
 import { AgentCapability } from './agent-capability.vo.js';
 
@@ -261,7 +260,7 @@ export class AgentService extends DomainService {
   /**
    * 优化分层协作
    */
-  async _optimizeHierarchicalCollaboration(agents, task) {
+  async _optimizeHierarchicalCollaboration(agents, _task) {
     if (agents.length < 2) {
       throw new Error('分层协作至少需要2个Agent');
     }

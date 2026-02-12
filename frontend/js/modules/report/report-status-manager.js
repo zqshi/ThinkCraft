@@ -1,10 +1,5 @@
 /* global normalizeChatId */
 
-// 创建日志实例
-const reportStatusLogger = window.createLogger
-  ? window.createLogger('ReportStatusManager')
-  : console;
-
 /**
  * 报告状态管理器
  *
@@ -54,7 +49,10 @@ class ReportStatusManager {
     }
 
     // 2. 从 IndexedDB 查询报告
-    const report = await this.queryReport(normalizedChatId, type);
+    let report = await this.queryReport(normalizedChatId, type);
+
+    // 2.1 状态归一：修复历史/异常状态与数据不一致
+    report = await this.reconcileReportState(normalizedChatId, type, report);
 
     // 3. 更新缓存
     this.updateCache(normalizedChatId, type, report);
@@ -90,6 +88,72 @@ class ReportStatusManager {
 
     // 5. 返回按钮状态
     return this.determineButtonState(report);
+  }
+
+  async reconcileReportState(chatId, type, report) {
+    if (!report) {
+      return report;
+    }
+
+    const normalizedStatus = String(report.status || '').toLowerCase();
+    const statusCompleted =
+      normalizedStatus === 'completed' ||
+      normalizedStatus === 'success' ||
+      normalizedStatus === 'done' ||
+      normalizedStatus === 'finished';
+    const hasData = this.validateReportData(report);
+
+    // 数据已完整但状态未完成：以数据为准，自动修正为 completed
+    if (!statusCompleted && hasData) {
+      const normalizedReport = {
+        ...report,
+        status: 'completed',
+        endTime: report.endTime || Date.now(),
+        error: null
+      };
+      await this.persistReconciledReport(normalizedReport);
+      return normalizedReport;
+    }
+
+    // 仅在生成中且缺少 startTime 的异常场景下，回看 chat 状态做兜底修正
+    if (normalizedStatus === 'generating' && !report.startTime) {
+      try {
+        const chat = await window.storageManager?.getChat?.(chatId);
+        const chatStatus = String(chat?.reportState?.analysis?.status || '').toLowerCase();
+        const chatCompleted =
+          chat?.analysisCompleted === true ||
+          chatStatus === 'completed' ||
+          chatStatus === 'success' ||
+          chatStatus === 'done' ||
+          chatStatus === 'finished';
+        if (chatCompleted) {
+          const normalizedReport = {
+            ...report,
+            status: 'completed',
+            startTime: report.startTime || Date.now(),
+            endTime: report.endTime || Date.now(),
+            error: null
+          };
+          await this.persistReconciledReport(normalizedReport);
+          return normalizedReport;
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    return report;
+  }
+
+  async persistReconciledReport(report) {
+    if (!report || !window.storageManager?.saveReport) {
+      return;
+    }
+    try {
+      await window.storageManager.saveReport(report);
+    } catch (error) {
+      // ignore reconcile persistence errors
+    }
   }
 
   /**
@@ -192,7 +256,7 @@ class ReportStatusManager {
       };
     }
 
-    const status = report.status;
+    const status = String(report.status || '').toLowerCase();
 
     // 兼容旧数据：缺少status但已有报告数据
     if (!status) {
@@ -244,7 +308,7 @@ class ReportStatusManager {
     }
 
     // 已完成
-    if (status === 'completed') {
+    if (status === 'completed' || status === 'success' || status === 'done' || status === 'finished') {
       // 验证报告数据完整性
       if (!this.validateReportData(report)) {
         return {
@@ -264,7 +328,7 @@ class ReportStatusManager {
     }
 
     // 生成失败
-    if (status === 'error') {
+    if (status === 'error' || status === 'failed' || status === 'timeout') {
       return {
         shouldShow: true,
         buttonText: '生成失败，点击重试',
@@ -332,9 +396,7 @@ class ReportStatusManager {
    * @param {String} newStatus - 新状态
    */
   onReportStatusChange(chatId, type, newStatus) {
-    reportStatusLogger.info(
-      `[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`
-    );
+    console.warn(`[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`);
     this.clearCache(chatId, type);
   }
 

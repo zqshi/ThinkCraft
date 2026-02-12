@@ -21,7 +21,7 @@ scene-1-dialogue/
 │   ├── chapters-config.json
 │   ├── version-config.json
 │   ├── ab-test-config.json
-│   └── chapters/          # 11个章节模板
+│   └── chapters/          # 9个固定章节模板
 │       ├── executive-summary.md
 │       ├── market-analysis.md
 │       └── ...
@@ -31,7 +31,7 @@ scene-1-dialogue/
     ├── chapters-config.json
     ├── version-config.json
     ├── ab-test-config.json
-    └── chapters/          # 7个章节模板
+    └── chapters/          # 6个固定章节模板
         ├── project-summary.md
         ├── problem-insight.md
         └── ...
@@ -71,7 +71,7 @@ const reportPrompt = await promptLoader.load('scene-1-dialogue/analysis-report/f
 
 **用途**：生成完整的商业计划书
 
-**章节列表**（11个）：
+**章节列表**（固定9章）：
 
 1. executive-summary（执行摘要）
 2. market-analysis（市场分析）
@@ -82,9 +82,6 @@ const reportPrompt = await promptLoader.load('scene-1-dialogue/analysis-report/f
 7. team-structure（团队结构）
 8. financial-projection（财务预测）
 9. risk-assessment（风险评估）
-10. implementation-plan（实施计划）
-11. appendix（附录）
-
 **使用方式**：
 
 ```javascript
@@ -99,15 +96,14 @@ const businessPlanPrompt = await promptLoader.buildDocumentPrompt(
 
 **用途**：生成产品立项材料
 
-**章节列表**（7个）：
+**章节列表**（固定6章）：
 
-1. project-summary（项目概述）
-2. problem-insight（问题洞察）
-3. product-solution（产品方案）
-4. implementation-path（实施路径）
-5. competitive-analysis（竞争分析）
-6. budget-planning（预算规划）
-7. risk-control（风险控制）
+1. project-summary（立项背景与机会论证）
+2. problem-insight（产品定义与价值主张）
+3. product-solution（产品方案与功能规格）
+4. implementation-path（实施路线图与资源计划）
+5. budget-planning（投入产出与成功度量）
+6. risk-control（风险评估与决策建议）
 
 **使用方式**：
 
@@ -196,10 +192,10 @@ AI引导用户多轮对话
 ### 3. 生成商业计划书
 
 ```
-对话历史 + 用户选择的章节
+对话历史 + 固定九章
   ↓
 加载 business-plan/full-document.md
-加载选中的章节模板
+加载九章模板
   ↓
 生成完整商业计划书
   ↓
@@ -216,8 +212,8 @@ AI引导用户多轮对话
 
 ### 添加新章节
 
-1. 在 `business-plan/chapters/` 或 `proposal/chapters/` 创建新文件
-2. 更新 `chapters-config.json`
+1. 在 `proposal/chapters/` 创建新文件（`business-plan` 采用固定九章，不新增章节）
+2. 更新对应 `chapters-config.json`
 3. 测试章节生成
 4. 提交变更
 

@@ -21,13 +21,10 @@ class AgentProgressManager {
       'team-structure': { name: '组织顾问', emoji: '👥' },
       'financial-projection': { name: '财务分析师', emoji: '💵' },
       'risk-assessment': { name: '风险专家', emoji: '⚠️' },
-      'implementation-plan': { name: '项目经理', emoji: '📋' },
-      'appendix': { name: '文档专家', emoji: '📎' },
       'project-summary': { name: '产品经理', emoji: '📋' },
       'problem-insight': { name: '用户研究专家', emoji: '🔍' },
       'product-solution': { name: '产品设计专家', emoji: '💡' },
       'implementation-path': { name: '项目管理专家', emoji: '🛤️' },
-      'competitive-analysis': { name: '竞品分析专家', emoji: '⚔️' },
       'budget-planning': { name: '财务规划专家', emoji: '💰' },
       'risk-control': { name: '风险管理专家', emoji: '⚠️' }
     };
@@ -152,17 +149,39 @@ class AgentProgressManager {
 
   resolveAgentIconKey(key) {
     const value = String(key || '');
-    if (/市场|📊/.test(value)) return 'chart';
-    if (/技术|架构|工程|⚙️|👨‍💻|👩‍💻/.test(value)) return 'cog';
-    if (/增长|营销|📈/.test(value)) return 'trend';
-    if (/组织|团队|👥/.test(value)) return 'users';
-    if (/财务|资金|💰|💵/.test(value)) return 'dollar';
-    if (/风险|⚠️/.test(value)) return 'shield';
-    if (/产品|创意|💡/.test(value)) return 'lightbulb';
-    if (/项目|📋/.test(value)) return 'clipboard';
-    if (/文档|📎/.test(value)) return 'document';
-    if (/竞争|⚔️/.test(value)) return 'shield';
-    if (/综合|🤖/.test(value)) return 'default';
+    if (/市场|📊/.test(value)) {
+      return 'chart';
+    }
+    if (/技术|架构|工程|⚙️|👨‍💻|👩‍💻/.test(value)) {
+      return 'cog';
+    }
+    if (/增长|营销|📈/.test(value)) {
+      return 'trend';
+    }
+    if (/组织|团队|👥/.test(value)) {
+      return 'users';
+    }
+    if (/财务|资金|💰|💵/.test(value)) {
+      return 'dollar';
+    }
+    if (/风险|⚠️/.test(value)) {
+      return 'shield';
+    }
+    if (/产品|创意|💡/.test(value)) {
+      return 'lightbulb';
+    }
+    if (/项目|📋/.test(value)) {
+      return 'clipboard';
+    }
+    if (/文档|📎/.test(value)) {
+      return 'document';
+    }
+    if (/竞争|⚔️/.test(value)) {
+      return 'shield';
+    }
+    if (/综合|🤖/.test(value)) {
+      return 'default';
+    }
     return 'default';
   }
 
@@ -218,23 +237,20 @@ class AgentProgressManager {
   getChapterTitle(chapterId) {
     const titles = {
       'executive-summary': '执行摘要',
-      'market-analysis': '市场分析',
-      'solution': '解决方案',
+      'market-analysis': '市场与行业分析',
+      'solution': '产品与服务',
       'business-model': '商业模式',
-      'competitive-landscape': '竞争格局',
-      'marketing-strategy': '市场策略',
-      'team-structure': '团队架构',
-      'financial-projection': '财务预测',
-      'risk-assessment': '风险评估',
-      'implementation-plan': '实施计划',
-      'appendix': '附录',
-      'project-summary': '项目摘要',
-      'problem-insight': '问题洞察',
-      'product-solution': '产品方案',
-      'implementation-path': '实施路径',
-      'competitive-analysis': '竞品分析',
-      'budget-planning': '预算规划',
-      'risk-control': '风险控制'
+      'competitive-landscape': '竞争与战略',
+      'marketing-strategy': '营销与销售策略',
+      'team-structure': '团队介绍',
+      'financial-projection': '财务预测与融资需求',
+      'risk-assessment': '风险分析与附录',
+      'project-summary': '立项背景与机会论证',
+      'problem-insight': '产品定义与价值主张',
+      'product-solution': '产品方案与功能规格',
+      'implementation-path': '实施路线图与资源计划',
+      'budget-planning': '投入产出与成功度量',
+      'risk-control': '风险评估与决策建议'
     };
     return titles[chapterId] || chapterId;
   }

@@ -1,6 +1,6 @@
 import { AgentUseCase } from '../agent.use-case.js';
 import { CreateAgentDTO, UpdateAgentDTO } from '../agent.dto.js';
-import { InMemoryAgentRepository } from '../infrastructure/agent-inmemory.repository.js';
+import { InMemoryAgentRepository } from '../../infrastructure/agent-inmemory.repository.js';
 
 describe('AgentUseCase', () => {
   let useCase;

@@ -5,8 +5,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { AgentService } from '../domain/agent.service.js';
 import {
-  CreateAgentDTO,
-  UpdateAgentDTO,
   AgentResponseDTO,
   AgentListResponseDTO
 } from './agent.dto.js';
@@ -15,6 +13,7 @@ import { MultiAgentOrchestrator } from './multi-agent-orchestrator.js';
 import { AgentExecutor } from '../infrastructure/agent-executor.js';
 import { ContextManager } from '../infrastructure/context-manager.js';
 import { Task } from '../domain/task.entity.js';
+import { agentScopeProxy } from '../infrastructure/agent-scope-adapter.js';
 
 export class AgentUseCase {
   constructor(repository = null) {
@@ -22,6 +21,13 @@ export class AgentUseCase {
     this._agentService = new AgentService();
     this._orchestrator = new MultiAgentOrchestrator();
     this._contextManager = new ContextManager();
+  }
+
+  async initializeAgentScope() {
+    if (!this._agentScopeInitialized) {
+      await agentScopeProxy.initialize();
+      this._agentScopeInitialized = true;
+    }
   }
 
   /**
@@ -68,13 +74,6 @@ export class AgentUseCase {
       return new AgentResponseDTO(agent);
     } catch (error) {
       throw new Error(`获取Agent失败: ${error.message}`);
-    }
-  }
-      }
-
-      return new AgentResponseDTO(agent);
-    } catch (error) {
-      throw new Error(`获取Agent详情失败: ${error.message}`);
     }
   }
 
@@ -225,16 +224,6 @@ export class AgentUseCase {
         task.id,
         'message_handling',
         { success: true, response: response.output },
-        0
-      );
-
-      await this._repository.save(agent);
-
-      return response;
-    } catch (error) {
-      throw new Error(`发送消息失败: ${error.message}`);
-    }
-  }
         0
       );
 

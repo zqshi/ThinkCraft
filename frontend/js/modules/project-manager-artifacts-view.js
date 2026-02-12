@@ -88,8 +88,8 @@ window.projectManagerArtifactsView = {
     return `
             <div class="project-panel-list" style="margin-top: 10px;">
                 ${displayArtifacts
-                  .map(
-                    artifact => `
+    .map(
+      artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${pm.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -100,8 +100,8 @@ window.projectManagerArtifactsView = {
                         </button>
                     </div>
                 `
-                  )
-                  .join('')}
+    )
+    .join('')}
             </div>
         `;
   },

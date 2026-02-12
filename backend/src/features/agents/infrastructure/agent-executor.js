@@ -116,21 +116,21 @@ ${capabilities}
     }
 
     if (task.previousResults && task.previousResults.length > 0) {
-      prompt += `【前序结果】\n`;
+      prompt += '【前序结果】\n';
       task.previousResults.forEach((result, index) => {
         prompt += `${index + 1}. ${result.agentName || 'Agent'}: ${result.output}\n\n`;
       });
     }
 
     if (task.requirements && task.requirements.length > 0) {
-      prompt += `【要求】\n`;
+      prompt += '【要求】\n';
       task.requirements.forEach((req, index) => {
         prompt += `${index + 1}. ${req}\n`;
       });
       prompt += '\n';
     }
 
-    prompt += `请根据你的专业能力完成这个任务。`;
+    prompt += '请根据你的专业能力完成这个任务。';
 
     return prompt;
   }

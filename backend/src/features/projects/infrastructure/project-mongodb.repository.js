@@ -414,6 +414,10 @@ export class ProjectMongoRepository {
         priority: stage.priority,
         outputs: Array.isArray(stage.outputs) ? stage.outputs : [],
         outputsDetailed: Array.isArray(stage.outputsDetailed) ? stage.outputsDetailed : [],
+        executionRuns:
+          stage.executionRuns && typeof stage.executionRuns === 'object'
+            ? stage.executionRuns
+            : null,
         artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
         startedAt: stage.startedAt || null,
         completedAt: stage.completedAt || null
@@ -423,14 +427,14 @@ export class ProjectMongoRepository {
     const normalizedStages = json.workflow ? normalizeStages(json.workflow.stages) : [];
     const workflow = json.workflow
       ? {
-          stages: normalizedStages,
-          currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
-          isCustomized: Boolean(
-            json.workflow.isCustomized !== undefined
-              ? json.workflow.isCustomized
-              : json.workflow.isCustom
-          )
-        }
+        stages: normalizedStages,
+        currentStage: json.workflow.currentStage || json.workflow.currentStageId || null,
+        isCustomized: Boolean(
+          json.workflow.isCustomized !== undefined
+            ? json.workflow.isCustomized
+            : json.workflow.isCustom
+        )
+      }
       : null;
 
     if (workflow && !Array.isArray(workflow.stages)) {

@@ -133,7 +133,7 @@ class StateManager {
     const host = window.location.hostname;
     const isLocalhost = host === 'localhost' || host === '127.0.0.1';
     if (isLocalhost && window.location.port !== '3000') {
-      return 'http://localhost:3000';
+      return 'http://127.0.0.1:3000';
     }
     return window.location.origin;
   }
@@ -436,8 +436,33 @@ class StateManager {
     this.notify();
   }
 
-  setAnalysisCompleted(completed) {
+  setAnalysisCompleted(chatIdOrCompleted, maybeCompleted) {
+    const hasChatId = arguments.length >= 2;
+    const targetChatId = hasChatId ? chatIdOrCompleted : this.state.currentChat;
+    const completed = hasChatId ? !!maybeCompleted : !!chatIdOrCompleted;
+
+    if (
+      targetChatId !== null &&
+      targetChatId !== undefined &&
+      String(targetChatId) !== String(this.state.currentChat)
+    ) {
+      return;
+    }
+
     this.state.analysisCompleted = completed;
+
+    if (targetChatId !== null && targetChatId !== undefined) {
+      const index = this.state.chats.findIndex(c => String(c.id) === String(targetChatId));
+      if (index !== -1) {
+        this.state.chats[index] = {
+          ...this.state.chats[index],
+          analysisCompleted: completed,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      this.scheduleChatStateSync(targetChatId);
+    }
+
     this.notify();
   }
 
@@ -1210,6 +1235,12 @@ class StateManager {
       const saved = localStorage.getItem('thinkcraft_settings');
       if (saved) {
         const settings = JSON.parse(saved);
+        if (typeof settings.apiUrl === 'string') {
+          settings.apiUrl = settings.apiUrl.replace(
+            'http://localhost:3000',
+            'http://127.0.0.1:3000'
+          );
+        }
         this.state.settings = { ...this.state.settings, ...settings };
       }
     } catch (error) {

@@ -82,11 +82,11 @@ window.projectManagerCollaboration = {
           const recommendedForStage = stageAgents.filter(a => recommendedAgents.includes(a));
           return recommendedForStage.length > 0
             ? {
-                ...stage,
-                agents: recommendedForStage,
-                priority: 'high',
-                recommended: true
-              }
+              ...stage,
+              agents: recommendedForStage,
+              priority: 'high',
+              recommended: true
+            }
             : null;
         })
         .filter(Boolean)

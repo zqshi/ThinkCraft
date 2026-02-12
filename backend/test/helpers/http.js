@@ -1,11 +1,12 @@
 import http from 'node:http';
 
 export function startTestServer(app) {
-  return new Promise(resolve => {
-    const server = app.listen(0, () => {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, '127.0.0.1', () => {
       const { port } = server.address();
       resolve({ server, port });
     });
+    server.on('error', reject);
   });
 }
 

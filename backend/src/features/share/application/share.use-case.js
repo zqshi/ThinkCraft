@@ -119,11 +119,11 @@ export class ShareUseCase {
     }
 
     if (requestDto.title !== undefined) {
-      share.title = requestDto.title;
+      share.updateTitle(requestDto.title);
     }
 
     if (requestDto.description !== undefined) {
-      share.description = requestDto.description;
+      share.updateDescription(requestDto.description);
     }
 
     if (requestDto.permission !== undefined) {

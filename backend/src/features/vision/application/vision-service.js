@@ -5,7 +5,7 @@
 import { VisionProviderFactory } from '../infrastructure/vision-provider-factory.js';
 import { ImageData } from '../domain/value-objects/image-data.vo.js';
 import { VisionAnalysis } from '../domain/entities/vision-analysis.entity.js';
-import logger from '../../../../middleware/logger.js';
+import { logger } from '../../../../middleware/logger.js';
 
 export class VisionService {
   constructor() {

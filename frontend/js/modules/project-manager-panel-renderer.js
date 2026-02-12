@@ -4,6 +4,46 @@
  */
 (function () {
   const panelRenderer = {
+    mergeDisplayStages(pm, project, suggestedStages = []) {
+      const normalizedSuggested = pm.normalizeSuggestedStages(suggestedStages || []);
+      const workflowStages = Array.isArray(project?.workflow?.stages) ? project.workflow.stages : [];
+      if (workflowStages.length === 0) {
+        return normalizedSuggested;
+      }
+
+      const runtimeStageMap = new Map(workflowStages.map(stage => [stage.id, stage]));
+      const merged = normalizedSuggested.map(stage => {
+        const runtime = runtimeStageMap.get(stage.id);
+        if (!runtime) {
+          return stage;
+        }
+        return {
+          ...stage,
+          status: runtime.status || stage.status,
+          startedAt: runtime.startedAt ?? stage.startedAt,
+          completedAt: runtime.completedAt ?? stage.completedAt,
+          executionRuns:
+            runtime.executionRuns && typeof runtime.executionRuns === 'object'
+              ? runtime.executionRuns
+              : stage.executionRuns,
+          artifacts: Array.isArray(runtime.artifacts) ? runtime.artifacts : stage.artifacts,
+          artifactsUpdatedAt: runtime.artifactsUpdatedAt ?? stage.artifactsUpdatedAt,
+          executingArtifactTypes: Array.isArray(runtime.executingArtifactTypes)
+            ? runtime.executingArtifactTypes
+            : stage.executingArtifactTypes,
+          supplementingDeliverableTypes: Array.isArray(runtime.supplementingDeliverableTypes)
+            ? runtime.supplementingDeliverableTypes
+            : stage.supplementingDeliverableTypes,
+          executionProbe: runtime.executionProbe || stage.executionProbe,
+          repairNote: runtime.repairNote || stage.repairNote
+        };
+      });
+
+      const existingIds = new Set(merged.map(stage => stage.id));
+      const missingRuntimeStages = workflowStages.filter(stage => !existingIds.has(stage.id));
+      return [...merged, ...missingRuntimeStages];
+    },
+
     renderProjectPanel(project) {
       const panel = document.getElementById('projectPanel');
       const title = document.getElementById('projectPanelTitle');
@@ -37,6 +77,12 @@
 
       const workflowCategory = project.workflowCategory || 'product-development';
       const workflowLabel = this.getWorkflowCategoryLabel(workflowCategory);
+      const routeHealth = this.workflowRouteHealthByProject?.[project.id] || null;
+      const runsOk = routeHealth?.executionRuns?.available === true;
+      const chunksOk = routeHealth?.artifactChunks?.available === true;
+      const routeHealthLabel = routeHealth
+        ? `路由自检 Runs ${runsOk ? '✓' : '✗'} / Chunks ${chunksOk ? '✓' : '✗'}`
+        : '路由自检中';
 
       const collaborationExecuted = project.collaborationExecuted || false;
       const suggestedStages = collaborationExecuted
@@ -45,7 +91,7 @@
       const hasSuggestedStages = Array.isArray(suggestedStages) && suggestedStages.length > 0;
       const stages = collaborationExecuted
         ? hasSuggestedStages
-          ? this.normalizeSuggestedStages(suggestedStages)
+          ? panelRenderer.mergeDisplayStages(this, project, suggestedStages)
           : project.workflow?.stages || []
         : [];
 
@@ -77,6 +123,7 @@
                         <span class="project-pill ${statusClass}">${statusText}</span>
                         <span class="project-pill">${workflowLabel}</span>
                         <span class="project-pill">进度 ${progress}%</span>
+                        <span class="project-pill">${routeHealthLabel}</span>
                     </div>
                     <div class="project-panel-meta">
                         <span>更新时间 ${updatedAt}</span>
@@ -86,6 +133,7 @@
                     </div>
                     <div class="project-panel-hero-actions">
                         <button class="btn-secondary" onclick="projectManager.showReplaceIdeaDialog('${project.id}')">更换创意</button>
+                        <button class="btn-secondary" onclick="projectManager.downloadProjectArtifactBundle('${project.id}')">产物包</button>
                         ${shouldRenderWorkflow && canShowPreviewEntry ? `<button class="btn-secondary" onclick="projectManager.openPreviewEntry('${project.id}')">预览入口</button>` : ''}
                     </div>
                 </div>
@@ -118,8 +166,8 @@
                 <div class="project-panel-section project-panel-card project-panel-span-2">
                     <div class="project-panel-section-title">流程阶段</div>
                     ${
-                      shouldRenderWorkflow
-                        ? `
+  shouldRenderWorkflow
+    ? `
                           <!-- 横向步骤条 -->
                           <div class="project-workflow-steps">
                             ${this.renderWorkflowSteps(sortedStages, selectedStageId)}
@@ -127,12 +175,12 @@
                           <!-- 阶段详情展开区域 -->
                           ${sortedStages.map(stage => this.renderStageDetailSection(project, stage)).join('')}
                         `
-                        : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' +
+    : '<div class="project-panel-empty centered"><div><div style="margin-bottom: 16px;">' +
                           (typeof window.getDefaultIconSvg === 'function'
                             ? window.getDefaultIconSvg(64, 'empty-icon')
                             : '🤝') +
                           '</div><div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">尚未配置协同模式</div><div style="font-size: 14px;">请点击上方"协同模式"按钮，配置项目的协作方式和团队成员</div></div></div>'
-                    }
+  }
                 </div>
                 <div class="project-panel-section project-panel-card project-panel-span-2">
                     <div class="project-panel-section-title">项目成员</div>
@@ -224,23 +272,23 @@
            </div>
            <div class="stage-dependency-list">
              ${dependencies
-               .map(d => {
-                 const depStage = project.workflow.stages.find(s => s.id === d);
-                 if (!depStage) {
-                   return '';
-                 }
-                 const depStatus = depStage.status || 'pending';
-                 const depStatusIcon =
+    .map(d => {
+      const depStage = project.workflow.stages.find(s => s.id === d);
+      if (!depStage) {
+        return '';
+      }
+      const depStatus = depStage.status || 'pending';
+      const depStatusIcon =
                    depStatus === 'completed' ? '✓' : depStatus === 'active' ? '⚡' : '○';
-                 const depStatusClass = `status-${depStatus}`;
-                 return `
+      const depStatusClass = `status-${depStatus}`;
+      return `
                  <span class="stage-dependency-tag ${depStatusClass}">
                    <span class="dependency-icon">${depStatusIcon}</span>
                    ${this.escapeHtml(depStage.name)}
                  </span>
                `;
-               })
-               .join('')}
+    })
+    .join('')}
            </div>
          </div>`
           : '';
@@ -251,13 +299,13 @@
         stageAgents.length > 0
           ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
            负责成员：${stageAgents
-             .map(a => {
-               if (typeof a === 'object') {
-                 return this.escapeHtml(a.role || a.id);
-               }
-               return this.escapeHtml(a);
-             })
-             .join('、')}
+    .map(a => {
+      if (typeof a === 'object') {
+        return this.escapeHtml(a.role || a.id);
+      }
+      return this.escapeHtml(a);
+    })
+    .join('、')}
          </div>`
           : '';
 
@@ -268,18 +316,18 @@
         outputsDetailed.length > 0 || outputs.length > 0
           ? `<div style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
            预期交付物：${(outputsDetailed.length > 0 ? outputsDetailed : outputs)
-             .map(o => {
-               if (typeof o === 'string') {
-                 return this.escapeHtml(o);
-               }
-               const name = this.escapeHtml(o.name || o.id || '未命名交付物');
-               const templates =
+    .map(o => {
+      if (typeof o === 'string') {
+        return this.escapeHtml(o);
+      }
+      const name = this.escapeHtml(o.name || o.id || '未命名交付物');
+      const templates =
                  Array.isArray(o.promptTemplates) && o.promptTemplates.length > 0
                    ? `（模板：${o.promptTemplates.map(p => this.escapeHtml(p)).join('，')}）`
                    : '';
-               return `${name}${templates}`;
-             })
-             .join('、')}
+      return `${name}${templates}`;
+    })
+    .join('、')}
          </div>`
           : '';
       const expectedDeliverables = this.getExpectedDeliverables(stage, definition);
@@ -296,7 +344,9 @@
       const isExecuting = stage.status === 'active' || stage.status === 'in_progress';
       const isCompleted = stage.status === 'completed';
       const showSupplementAction = isExecuting || (isCompleted && missingDeliverables.length > 0);
-      const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
+      const canSupplement =
+        allowSupplementSelection &&
+        (selectedDeliverables.length > 0 || expectedDeliverables.length > 0);
       const isSelectionLocked =
         (stage.status !== 'pending' && !allowSupplementSelection) ||
         (project?.status === 'in_progress' && !allowSupplementSelection);
@@ -307,52 +357,70 @@
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
             ${expectedDeliverables
-              .map((item, index) => {
-                const id = item.id || item.key || `deliverable-${index}`;
-                const encodedId = encodeURIComponent(id);
-                const label = this.escapeHtml(item.label || item.id || id);
-                const checked = selectedSet.has(id) ? 'checked' : '';
-                const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
-                const disableBecauseGenerated = Boolean(artifact);
-                const supplementingTypes = new Set(
-                  (stage?.supplementingDeliverableTypes || [])
-                    .map(value => this.normalizeDeliverableKey(value))
-                    .filter(Boolean)
-                );
-                const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
-                const templates = Array.isArray(item.promptTemplates) ? item.promptTemplates : [];
-                const missingTemplates = Array.isArray(item.missingPromptTemplates)
-                  ? item.missingPromptTemplates
-                  : [];
-                const templateLabel =
+    .map((item, index) => {
+      const id = item.id || item.key || `deliverable-${index}`;
+      const encodedId = encodeURIComponent(id);
+      const label = this.escapeHtml(item.label || item.id || id);
+      const isChecked = selectedSet.has(id);
+      const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
+      const disableBecauseGenerated = Boolean(artifact);
+      const executingTypeKeys = new Set(
+        (stage?.executingArtifactTypes || [])
+          .map(value => this.normalizeDeliverableKey(value))
+          .filter(Boolean)
+      );
+      const stageIsGenerating = stage?.status === 'active' || stage?.status === 'in_progress';
+      const itemKeys = [id, item?.key, item?.label]
+        .map(value => this.normalizeDeliverableKey(value))
+        .filter(Boolean);
+      const isGeneratingTarget =
+        executingTypeKeys.size > 0
+          ? itemKeys.some(key => executingTypeKeys.has(key))
+          : isChecked && stageIsGenerating;
+      const disableBecauseGenerating = isGeneratingTarget;
+      const forceChecked = isChecked || disableBecauseGenerated || disableBecauseGenerating;
+      const checked = forceChecked ? 'checked' : '';
+      const supplementingTypes = new Set(
+        (stage?.supplementingDeliverableTypes || [])
+          .map(value => this.normalizeDeliverableKey(value))
+          .filter(Boolean)
+      );
+      const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
+      const lockHint = disableBecauseGenerating ? 'title="交付物生成中，暂不可取消勾选"' : '';
+      const lockStyle = disableBecauseGenerating ? 'style="opacity: 0.55; cursor: not-allowed;"' : '';
+      const templates = Array.isArray(item.promptTemplates) ? item.promptTemplates : [];
+      const missingTemplates = Array.isArray(item.missingPromptTemplates)
+        ? item.missingPromptTemplates
+        : [];
+      const templateLabel =
                   templates.length > 0
                     ? `模板：${templates.map(t => this.escapeHtml(t)).join('，')}`
                     : '';
-                const missingLabel =
+      const missingLabel =
                   missingTemplates.length > 0
                     ? `缺失模板：${missingTemplates.map(t => this.escapeHtml(t)).join('，')}`
                     : '';
-                const meta =
+      const meta =
                   templateLabel || missingLabel
                     ? `<div class="project-deliverable-checklist-meta">${templateLabel}${templateLabel && missingLabel ? '｜' : ''}${missingLabel}</div>`
                     : '';
-                return `
-              <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
+      return `
+              <label class="project-deliverable-checklist-item" ${lockHint} ${lockStyle}>
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing || disableBecauseGenerating ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stageId}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
                 ${meta}
               </label>
             `;
-              })
-              .join('')}
+    })
+    .join('')}
         </div>
         ${
-          showSupplementAction
-            ? `<div style="margin-top: 6px; width: 100%;">
+  showSupplementAction
+    ? `<div style="margin-top: 6px; width: 100%;">
                  <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
                </div>`
-            : ''
-        }
+    : ''
+  }
       </div>
     `
           : '';
@@ -429,7 +497,7 @@
 
       if (stage.status === 'pending') {
         if (hasArtifacts) {
-          return `<button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">查看交付物</button>`;
+          return '';
         }
         if (project?.status === 'in_progress') {
           return '<button class="btn-secondary" disabled>执行中...</button>';
@@ -448,7 +516,7 @@
       if (stage.status === 'active') {
         return '<button class="btn-secondary" disabled>执行中...</button>';
       }
-      return `<button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">查看交付物</button>`;
+      return '';
     },
     renderWorkflowSteps(stages, selectedStageId) {
       return stages
@@ -506,16 +574,16 @@
         </div>
         <div class="workflow-stage-agents-list">
           ${(stage.agents || [])
-            .map(agentType => {
-              const agentDef = this.getAgentDefinition(agentType);
-              return `
+    .map(agentType => {
+      const agentDef = this.getAgentDefinition(agentType);
+      return `
               <div class="workflow-stage-agent-tag">
                 <span>${agentDef?.icon || '👤'}</span>
                 <span>${agentDef?.name || agentType}</span>
               </div>
             `;
-            })
-            .join('')}
+    })
+    .join('')}
         </div>
       </div>
     `
@@ -544,7 +612,9 @@
       const isExecuting = stage.status === 'active' || stage.status === 'in_progress';
       const isCompleted = stage.status === 'completed';
       const showSupplementAction = isExecuting || (isCompleted && missingDeliverables.length > 0);
-      const canSupplement = allowSupplementSelection && selectedDeliverables.length > 0;
+      const canSupplement =
+        allowSupplementSelection &&
+        (selectedDeliverables.length > 0 || expectedDeliverables.length > 0);
       const isSelectionLocked = stage.status !== 'pending' && !allowSupplementSelection;
       const deliverableChecklistHTML =
         expectedDeliverables.length > 0
@@ -553,35 +623,53 @@
         <div class="project-deliverable-checklist-title">输出交付物（可选）</div>
         <div class="project-deliverable-checklist-list">
           ${expectedDeliverables
-            .map((item, index) => {
-              const id = item.id || item.key || `deliverable-${index}`;
-              const encodedId = encodeURIComponent(id);
-              const label = this.escapeHtml(item.label || item.id || id);
-              const checked = selectedSet.has(id) ? 'checked' : '';
-              const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
-              const disableBecauseGenerated = Boolean(artifact);
-              const supplementingTypes = new Set(
-                (stage?.supplementingDeliverableTypes || [])
-                  .map(value => this.normalizeDeliverableKey(value))
-                  .filter(Boolean)
-              );
-              const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
-              return `
-              <label class="project-deliverable-checklist-item">
-                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
+    .map((item, index) => {
+      const id = item.id || item.key || `deliverable-${index}`;
+      const encodedId = encodeURIComponent(id);
+      const label = this.escapeHtml(item.label || item.id || id);
+      const isChecked = selectedSet.has(id);
+      const artifact = this.findArtifactForDeliverable(stage?.artifacts || [], item);
+      const disableBecauseGenerated = Boolean(artifact);
+      const executingTypeKeys = new Set(
+        (stage?.executingArtifactTypes || [])
+          .map(value => this.normalizeDeliverableKey(value))
+          .filter(Boolean)
+      );
+      const stageIsGenerating = stage?.status === 'active' || stage?.status === 'in_progress';
+      const itemKeys = [id, item?.key, item?.label]
+        .map(value => this.normalizeDeliverableKey(value))
+        .filter(Boolean);
+      const isGeneratingTarget =
+        executingTypeKeys.size > 0
+          ? itemKeys.some(key => executingTypeKeys.has(key))
+          : isChecked && stageIsGenerating;
+      const disableBecauseGenerating = isGeneratingTarget;
+      const forceChecked = isChecked || disableBecauseGenerated || disableBecauseGenerating;
+      const checked = forceChecked ? 'checked' : '';
+      const supplementingTypes = new Set(
+        (stage?.supplementingDeliverableTypes || [])
+          .map(value => this.normalizeDeliverableKey(value))
+          .filter(Boolean)
+      );
+      const isSupplementing = supplementingTypes.has(this.normalizeDeliverableKey(id));
+      const lockHint = disableBecauseGenerating ? 'title="交付物生成中，暂不可取消勾选"' : '';
+      const lockStyle = disableBecauseGenerating ? 'style="opacity: 0.55; cursor: not-allowed;"' : '';
+      return `
+              <label class="project-deliverable-checklist-item" ${lockHint} ${lockStyle}>
+                <input class="project-deliverable-checklist-input" type="checkbox" ${checked} ${isSelectionLocked || disableBecauseGenerated || isSupplementing || disableBecauseGenerating ? 'disabled' : ''} onchange="projectManager.toggleStageDeliverable('${stage.id}', '${encodedId}', this.checked)">
                 <span class="project-deliverable-checklist-label">${label}</span>
               </label>
             `;
-            })
-            .join('')}
+    })
+    .join('')}
         </div>
         ${
-          showSupplementAction
-            ? `<div style="margin-top: 6px; width: 100%;">
+  showSupplementAction
+    ? `<div style="margin-top: 6px; width: 100%;">
                  <button class="btn-secondary project-deliverable-supplement-action" style="width: 100%;" ${canSupplement ? '' : 'disabled title="请选择交付物后再生成"'} onclick="projectManager.generateAdditionalDeliverables('${project.id}', '${stage.id}')">追加生成</button>
                </div>`
-            : ''
-        }
+    : ''
+  }
       </div>
     `
           : '';
@@ -597,9 +685,9 @@
         </div>
         <div class="workflow-stage-artifacts-grid">
           ${definition.expectedArtifacts
-            .map(artifactType => {
-              const artifactDef = this.getArtifactTypeDefinition(artifactType);
-              return `
+    .map(artifactType => {
+      const artifactDef = this.getArtifactTypeDefinition(artifactType);
+      return `
               <div class="workflow-stage-artifact-card" style="opacity: 0.6; cursor: default;">
                 <span class="workflow-stage-artifact-icon">${artifactDef?.icon || '📄'}</span>
                 <div class="workflow-stage-artifact-info">
@@ -608,8 +696,8 @@
                 </div>
               </div>
             `;
-            })
-            .join('')}
+    })
+    .join('')}
         </div>
       </div>
     `
@@ -633,10 +721,10 @@
         </div>
         <div class="workflow-stage-artifacts-grid">
           ${displayArtifacts
-            .map(artifact => {
-              const icon = this.getArtifactIcon(artifact.type);
-              const typeLabel = this.getArtifactTypeLabel(artifact);
-              return `
+    .map(artifact => {
+      const icon = this.getArtifactIcon(artifact.type);
+      const typeLabel = this.getArtifactTypeLabel(artifact);
+      return `
               <div class="workflow-stage-artifact-card"
                    onclick="projectManager.openArtifactPreviewPanel('${project.id}', '${stage.id}', '${artifact.id}')">
                 <span class="workflow-stage-artifact-icon">${icon}</span>
@@ -644,10 +732,16 @@
                   <div class="workflow-stage-artifact-name">${this.escapeHtml(artifact.name || artifact.fileName || '未命名')}</div>
                   <div class="workflow-stage-artifact-type">${typeLabel}</div>
                 </div>
+                <button
+                  class="btn-secondary workflow-artifact-delete"
+                  style="margin-left: 8px; padding: 2px 8px; font-size: 11px;"
+                  onclick="event.stopPropagation(); projectManager.deleteGeneratedDeliverable('${project.id}', '${stage.id}', '${artifact.id}')"
+                  title="删除交付物"
+                >删除</button>
               </div>
             `;
-            })
-            .join('')}
+    })
+    .join('')}
         </div>
       </div>
     `
@@ -662,13 +756,7 @@
       // 操作按钮
       let actionsHTML = '';
       if (stage.status === 'pending') {
-        if (hasArtifacts) {
-          actionsHTML = `
-          <button class="btn-secondary" onclick="projectManager.showStageArtifactsModal('${project.id}', '${stage.id}')">
-            查看交付物
-          </button>
-        `;
-        } else {
+        if (!hasArtifacts) {
           const dependencies = stage.dependencies || [];
           const unmetDependencies = [];
           if (dependencies.length > 0) {
@@ -683,10 +771,13 @@
 
           const isBlocked = unmetDependencies.length > 0;
           const workflowReady = Boolean(window.workflowExecutor);
+          const blockedReason = isBlocked
+            ? `依赖阶段未完成：${unmetDependencies.join('、')}`
+            : '';
 
-          if (isBlocked) {
+          if (blockedReason) {
             actionsHTML = `
-          <button class="btn-secondary" disabled title="依赖阶段未完成：${unmetDependencies.join('、')}" style="opacity: 0.5;">
+          <button class="btn-secondary" disabled title="${blockedReason}" style="opacity: 0.5;">
             🔒 依赖未满足
           </button>
         `;

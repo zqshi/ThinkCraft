@@ -76,9 +76,27 @@ class PreviewPanel {
     if (!this.iframe || !artifact) {
       return;
     }
-    this.currentSource = artifact.content || '';
-    this.iframe.srcdoc = this.currentSource;
+    this.renderPreviewAsync({ artifact }).catch(() => {
+      this.showPreviewError('预览加载失败，请稍后重试');
+    });
+  }
 
+  async renderPreviewAsync({ artifact }) {
+    const html = await this.resolvePreviewHtml(artifact);
+    if (!html) {
+      this.showPreviewError('预览内容为空或不可访问');
+      return;
+    }
+
+    this.currentSource = html;
+    this.iframe.srcdoc = html;
+    this.bindIframePickHandler();
+  }
+
+  bindIframePickHandler() {
+    if (!this.iframe) {
+      return;
+    }
     this.iframe.onload = () => {
       try {
         const doc = this.iframe.contentDocument;
@@ -87,21 +105,136 @@ class PreviewPanel {
           evt.stopPropagation();
           this.handleElementPick(evt.target);
         });
-      } catch (error) {}
+      } catch (error) {
+        // Ignore iframe access errors (e.g. cross-origin or sandbox restrictions).
+      }
     };
+  }
+
+  showPreviewError(message) {
+    if (!this.iframe) {
+      return;
+    }
+    const text = String(message || '预览加载失败');
+    this.currentSource = '';
+    this.iframe.srcdoc = `
+      <!doctype html>
+      <html lang="zh-CN">
+      <head>
+        <meta charset="UTF-8" />
+        <style>
+          body { margin: 0; font-family: sans-serif; background: #f8fafc; color: #334155; }
+          .preview-error { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="preview-error">${this.escapeHtml(text)}</div>
+      </body>
+      </html>
+    `;
+  }
+
+  escapeHtml(text) {
+    return String(text || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  normalizeHtmlForPreview(html) {
+    const source = String(html || '');
+    if (!source.trim()) {
+      return '';
+    }
+    const hasHtmlTag = /<html[\s>]/i.test(source);
+    const hasBodyTag = /<body[\s>]/i.test(source);
+    const hasClosingHtml = /<\/html>/i.test(source);
+    const hasDoctype = /<!doctype html>/i.test(source);
+    if ((hasHtmlTag || hasDoctype) && hasBodyTag && hasClosingHtml) {
+      return source;
+    }
+    const escaped = this.escapeHtml(source).slice(0, 12000);
+    return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>预览内容异常</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
+    .wrap { padding: 20px; max-width: 980px; margin: 0 auto; }
+    .warn { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="warn">原型 HTML 内容不完整（可能被截断），已显示源码片段以便排查。</div>
+    <pre>${escaped}</pre>
+  </div>
+</body>
+</html>`;
+  }
+
+  normalizeUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) {
+      return '';
+    }
+    if (/^https?:\/\//i.test(raw)) {
+      return raw;
+    }
+    const base = String(this.apiUrl || window.location.origin).replace(/\/$/, '');
+    return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
+  }
+
+  async resolvePreviewHtml(artifact) {
+    const rawContent = String(artifact?.content || artifact?.htmlContent || '').trim();
+    if (rawContent) {
+      const extracted = window.projectManager?.extractHtmlFromContent
+        ? window.projectManager.extractHtmlFromContent(rawContent)
+        : '';
+      if (extracted) {
+        return this.normalizeHtmlForPreview(extracted);
+      }
+      const looksLikeHtml = /<!doctype html>/i.test(rawContent) || /<html[\s>]/i.test(rawContent);
+      if (looksLikeHtml) {
+        return this.normalizeHtmlForPreview(rawContent);
+      }
+    }
+
+    const previewUrl = String(artifact?.previewUrl || artifact?.url || '').trim();
+    if (!previewUrl) {
+      return '';
+    }
+
+    const targetUrl = this.normalizeUrl(previewUrl);
+    const doFetch =
+      typeof window.projectManager?.fetchWithAuth === 'function'
+        ? options => window.projectManager.fetchWithAuth(targetUrl, options)
+        : options => fetch(targetUrl, options);
+
+    const response = await doFetch({ method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`预览资源加载失败（HTTP ${response.status}）`);
+    }
+
+    return this.normalizeHtmlForPreview(await response.text());
   }
 
   setDeviceMode(mode) {
     this.deviceMode = mode;
-    if (!this.iframe) return;
+    if (!this.iframe) {return;}
     const wrap = this.iframe.parentElement;
-    if (!wrap) return;
+    if (!wrap) {return;}
     wrap.classList.remove('mode-mobile', 'mode-tablet', 'mode-desktop');
     wrap.classList.add(`mode-${mode}`);
   }
 
   handleElementPick(element) {
-    if (!element) return;
+    if (!element) {return;}
     if (this.selectedElement) {
       this.selectedElement.style.outline = '';
     }
@@ -134,9 +267,9 @@ class PreviewPanel {
 
   applyNlUpdate() {
     const input = document.getElementById('previewNlInput');
-    if (!input) return;
+    if (!input) {return;}
     const instruction = input.value.trim();
-    if (!instruction) return;
+    if (!instruction) {return;}
 
     if (this.selectedElement) {
       this.selectedElement.textContent = instruction;
@@ -147,12 +280,12 @@ class PreviewPanel {
 
   async handleImageUpload(event) {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {return;}
 
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = String(reader.result || '').split(',')[1] || '';
-      if (!base64) return;
+      if (!base64) {return;}
       try {
         if (window.requireAuth) {
           const ok = await window.requireAuth({ redirect: true, prompt: true });

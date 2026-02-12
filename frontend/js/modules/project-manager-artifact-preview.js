@@ -20,6 +20,142 @@
   };
 
   const api = {
+    escapeHtml(text) {
+      return String(text || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    },
+
+    normalizeHtmlForPreview(html) {
+      const source = String(html || '');
+      if (!source.trim()) {
+        return '';
+      }
+      const hasHtmlTag = /<html[\s>]/i.test(source);
+      const hasBodyTag = /<body[\s>]/i.test(source);
+      const hasClosingHtml = /<\/html>/i.test(source);
+      const hasDoctype = /<!doctype html>/i.test(source);
+      if ((hasHtmlTag || hasDoctype) && hasBodyTag && hasClosingHtml) {
+        return source;
+      }
+      const escaped = api.escapeHtml(source).slice(0, 12000);
+      return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>预览内容异常</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
+    .wrap { padding: 20px; max-width: 980px; margin: 0 auto; }
+    .warn { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="warn">原型 HTML 内容不完整（可能被截断），已显示源码片段以便排查。</div>
+    <pre>${escaped}</pre>
+  </div>
+</body>
+</html>`;
+    },
+
+    revokePreviewObjectUrl(pm) {
+      const url = pm?.currentPreviewObjectUrl;
+      if (url && String(url).startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+      if (pm) {
+        pm.currentPreviewObjectUrl = null;
+      }
+    },
+
+    toAbsoluteUrl(pm, url) {
+      const raw = String(url || '').trim();
+      if (!raw) {
+        return '';
+      }
+      if (/^https?:\/\//i.test(raw)) {
+        return raw;
+      }
+      const base = String(pm?.apiUrl || window.location.origin).replace(/\/$/, '');
+      return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
+    },
+
+    needsAuthProxy(pm, url) {
+      const abs = api.toAbsoluteUrl(pm, url);
+      if (!abs) {
+        return false;
+      }
+      try {
+        const u = new URL(abs, window.location.origin);
+        // 任何 /api/* 资源都优先走鉴权代理下载，避免 iframe 直连受 X-Frame-Options 限制导致白屏
+        if (u.pathname.startsWith('/api/')) {
+          return true;
+        }
+      } catch (_error) {}
+      const apiBase = String(pm?.apiUrl || window.location.origin).replace(/\/$/, '');
+      if (abs.startsWith(`${apiBase}/api/`)) {
+        return true;
+      }
+      try {
+        const u = new URL(abs, window.location.origin);
+        return u.origin === new URL(apiBase).origin && u.pathname.startsWith('/api/');
+      } catch (_error) {
+        return false;
+      }
+    },
+
+    async resolvePreviewUrl(pm, url) {
+      const abs = api.toAbsoluteUrl(pm, url);
+      if (!abs) {
+        return '';
+      }
+      if (!api.needsAuthProxy(pm, abs)) {
+        return abs;
+      }
+      const response = await pm.fetchWithAuth(abs, { method: 'GET' });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text || `预览资源加载失败（HTTP ${response.status}）`);
+      }
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      if (
+        contentType.includes('text/html') ||
+        contentType.includes('application/xhtml+xml') ||
+        contentType.includes('text/plain')
+      ) {
+        const text = await response.text();
+        const normalized = api.normalizeHtmlForPreview(text);
+        const blob = new Blob([normalized], { type: 'text/html;charset=utf-8' });
+        api.revokePreviewObjectUrl(pm);
+        const blobUrl = URL.createObjectURL(blob);
+        pm.currentPreviewObjectUrl = blobUrl;
+        return blobUrl;
+      }
+      const blob = await response.blob();
+      api.revokePreviewObjectUrl(pm);
+      const blobUrl = URL.createObjectURL(blob);
+      pm.currentPreviewObjectUrl = blobUrl;
+      return blobUrl;
+    },
+
+    createHtmlBlobUrl(pm, html) {
+      const text = api.normalizeHtmlForPreview(html);
+      if (!text.trim()) {
+        return '';
+      }
+      const blob = new Blob([text], { type: 'text/html;charset=utf-8' });
+      api.revokePreviewObjectUrl(pm);
+      const blobUrl = URL.createObjectURL(blob);
+      pm.currentPreviewObjectUrl = blobUrl;
+      return blobUrl;
+    },
+
     async openArtifactPreviewPanel(pm, projectId, stageId, artifactId) {
       try {
         const project = await pm.getProject(projectId);
@@ -76,6 +212,7 @@
       if (pm.stageDetailPanel) {
         pm.stageDetailPanel.classList.remove('open');
       }
+      api.revokePreviewObjectUrl(pm);
     },
 
     async renderArtifactPreviewPanel(pm, project, stage, artifact) {
@@ -149,9 +286,25 @@
         const previewUrl = artifact.previewUrl || artifact.url || '';
         const htmlContent = artifact.htmlContent || artifact.content || '';
         if (previewUrl) {
-          contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe src="${previewUrl}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
+          try {
+            const resolvedPreviewUrl = await api.resolvePreviewUrl(pm, previewUrl);
+            contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe src="${resolvedPreviewUrl}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
+          } catch (error) {
+            previewLogger.warn('[交付物预览] 加载预览地址失败，回退到内容预览', {
+              artifactId: artifact.id,
+              error: error?.message || String(error)
+            });
+            if (htmlContent) {
+              const blobUrl = api.createHtmlBlobUrl(pm, htmlContent);
+              contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe src="${blobUrl}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
+            } else {
+              contentHTML =
+                '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🖥️</div><div>预览资源加载失败，请稍后重试</div></div>';
+            }
+          }
         } else if (htmlContent) {
-          contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe srcdoc="${pm.escapeHtml(htmlContent)}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
+          const blobUrl = api.createHtmlBlobUrl(pm, htmlContent);
+          contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe src="${blobUrl}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
         } else {
           contentHTML =
             '<div class="artifact-preview-empty"><div class="artifact-preview-empty-icon">🖥️</div><div>暂无预览内容</div></div>';
@@ -168,7 +321,8 @@
         const content = artifact.content || artifact.text || artifact.code || '';
         if (content) {
           if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
-            contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe srcdoc="${pm.escapeHtml(content)}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
+            const blobUrl = api.createHtmlBlobUrl(pm, content);
+            contentHTML = `<div class="artifact-preview-content"><div class="artifact-preview-iframe-container"><iframe src="${blobUrl}" class="artifact-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="${pm.escapeHtml(artifact.name || '预览')}"></iframe></div></div>`;
           } else {
             let renderedContent = '';
             if (window.markdownRenderer) {
@@ -187,15 +341,15 @@
               <div class="artifact-preview-info-item"><span class="label">文件名:</span><span class="value">${pm.escapeHtml(artifact.fileName || artifact.name || '未命名')}</span></div>
               <div class="artifact-preview-info-item"><span class="label">类型:</span><span class="value">${typeLabel}</span></div>
               ${
-                artifact.size
-                  ? `<div class="artifact-preview-info-item"><span class="label">大小:</span><span class="value">${api.formatFileSize(artifact.size)}</span></div>`
-                  : ''
-              }
+  artifact.size
+    ? `<div class="artifact-preview-info-item"><span class="label">大小:</span><span class="value">${api.formatFileSize(artifact.size)}</span></div>`
+    : ''
+  }
               ${
-                artifact.createdAt
-                  ? `<div class="artifact-preview-info-item"><span class="label">创建时间:</span><span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span></div>`
-                  : ''
-              }
+  artifact.createdAt
+    ? `<div class="artifact-preview-info-item"><span class="label">创建时间:</span><span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span></div>`
+    : ''
+  }
             </div>
           </div>`;
         }
@@ -204,20 +358,20 @@
       const actionsHTML = `
       <div class="artifact-preview-actions">
         ${
-          artifact.previewUrl || artifact.url
-            ? `<button class="btn-primary" onclick="window.open('${artifact.previewUrl || artifact.url}', '_blank')">🔗 新窗口打开</button>`
-            : ''
-        }
+  artifact.previewUrl || artifact.url
+    ? `<button class="btn-primary" onclick="projectManager.openArtifactPreviewInNewWindow('${artifact.id}')">🔗 新窗口打开</button>`
+    : ''
+  }
         ${
-          artifact.downloadUrl
-            ? `<button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">📥 下载</button>`
-            : ''
-        }
+  artifact.downloadUrl
+    ? `<button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">📥 下载</button>`
+    : ''
+  }
         ${
-          artifact.content || artifact.text || artifact.code
-            ? `<button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">📋 复制内容</button>`
-            : ''
-        }
+  artifact.content || artifact.text || artifact.code
+    ? `<button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">📋 复制内容</button>`
+    : ''
+  }
       </div>`;
 
       pm.stageDetailPanel.innerHTML = `
@@ -240,6 +394,28 @@
           artifact.type === 'backend-code')
       ) {
         setTimeout(() => window.Prism.highlightAll(), 100);
+      }
+    },
+
+    async openArtifactPreviewInNewWindow(pm, artifactId) {
+      try {
+        if (!pm.currentProject) {
+          throw new Error('未选择项目');
+        }
+        const found = findArtifactById(pm.currentProject, artifactId);
+        const artifact = found?.artifact;
+        if (!artifact) {
+          throw new Error('交付物不存在');
+        }
+        const previewUrl = artifact.previewUrl || artifact.url;
+        if (!previewUrl) {
+          throw new Error('交付物无可预览地址');
+        }
+        const resolved = await api.resolvePreviewUrl(pm, previewUrl);
+        window.open(resolved, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        previewLogger.error('[交付物预览] 新窗口打开失败:', error);
+        window.ErrorHandler?.showToast?.(`打开失败：${error.message}`, 'error');
       }
     },
 

@@ -1,0 +1,30 @@
+export const ARTIFACT_DEPENDENCIES = {
+  'strategy-doc': ['prd'],
+  'core-prompt-design': ['strategy-doc', 'prd'],
+  'ui-design': ['prd'],
+  'design-spec': ['prd'],
+  prototype: ['ui-design', 'design-spec', 'prd'],
+  'architecture-doc': ['prd'],
+  'tech-stack': ['architecture-doc', 'prd'],
+  'api-spec': ['prd', 'prototype', 'architecture-doc', 'tech-stack'],
+  'frontend-code': [
+    'architecture-doc',
+    'tech-stack',
+    'frontend-doc',
+    'prd',
+    'ui-design',
+    'design-spec',
+    'prototype'
+  ],
+  'backend-code': ['architecture-doc', 'tech-stack', 'backend-doc', 'prd'],
+  'api-doc': ['architecture-doc', 'tech-stack', 'prd'],
+  'component-lib': ['architecture-doc', 'tech-stack', 'prd', 'frontend-code'],
+  'frontend-doc': ['architecture-doc', 'tech-stack', 'prd'],
+  'backend-doc': ['architecture-doc', 'tech-stack', 'prd'],
+  'test-report': ['bug-list', 'performance-report'],
+  'bug-list': [],
+  'performance-report': [],
+  'deploy-doc': ['frontend-doc', 'backend-doc'],
+  'env-config': ['frontend-doc', 'backend-doc', 'frontend-code', 'backend-code'],
+  'release-notes': ['deploy-doc', 'env-config']
+};

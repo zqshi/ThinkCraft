@@ -9,7 +9,9 @@
 /* eslint-disable no-undef */
 
 // 创建日志实例
-var logger = window.createLogger ? window.createLogger('Onboarding') : console;
+const onboardingLogger =
+  window.__onboardingLogger ||
+  (window.__onboardingLogger = window.createLogger ? window.createLogger('Onboarding') : console);
 
 
 class OnboardingManager {
@@ -78,7 +80,7 @@ class OnboardingManager {
       return;
     }
 
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {return;}
 
     this.onboardingKey = onboardingKey;
     this.setupElements();
@@ -561,7 +563,7 @@ class OnboardingManager {
     // 安全措施：30秒后自动清理（防止引导异常退出导致内容残留）
     const autoCleanupTimer = setTimeout(() => {
       if (this.onboardingContext.mockPanelShown) {
-        logger.warn('⚠️ 示例面板显示超时，自动清理');
+        onboardingLogger.warn('⚠️ 示例面板显示超时，自动清理');
         cleanup();
       }
     }, 30000);
@@ -620,7 +622,7 @@ class OnboardingManager {
         panel.style.display = 'none';
         title.textContent = '';
         body.innerHTML = '';
-        logger.debug('🧹 已清理示例项目面板');
+        onboardingLogger.debug('🧹 已清理示例项目面板');
       }
     }
 
@@ -628,7 +630,7 @@ class OnboardingManager {
     const mockCards = document.querySelectorAll('.project-card.onboarding-mock, .project-card[data-project-id="onboarding-mock-project"]');
     if (mockCards.length > 0) {
       mockCards.forEach(card => card.remove());
-      logger.debug(`🧹 已清理 ${mockCards.length} 个示例卡片`);
+      onboardingLogger.debug(`🧹 已清理 ${mockCards.length} 个示例卡片`);
     }
 
     // 清理临时创建的网格容器
@@ -639,7 +641,7 @@ class OnboardingManager {
           grid.remove();
         }
       });
-      logger.debug(`🧹 已清理 ${tempGrids.length} 个临时容器`);
+      onboardingLogger.debug(`🧹 已清理 ${tempGrids.length} 个临时容器`);
     }
 
     // 重置上下文
@@ -787,4 +789,4 @@ function initOnboarding() {
 // 暴露到window对象
 window.initOnboarding = initOnboarding;
 
-logger.debug('✅ OnboardingManager 模块已加载');
+onboardingLogger.debug('✅ OnboardingManager 模块已加载');

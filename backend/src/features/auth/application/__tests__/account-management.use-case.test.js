@@ -1,24 +1,23 @@
 /**
  * 账号管理用例单元测试（手机号体系）
  */
+import { jest } from '@jest/globals';
 import { AccountManagementUseCase } from '../account-management.use-case.js';
 import { logger } from '../../../../../middleware/logger.js';
-
-jest.mock('../../../../../middleware/logger.js', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn()
-  }
-}));
 
 describe('AccountManagementUseCase', () => {
   let accountManagementUseCase;
   let mockUserRepository;
   let mockPhoneVerificationUseCase;
+  let infoSpy;
+  let warnSpy;
+  let errorSpy;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
 
     mockUserRepository = {
       findById: jest.fn(),
@@ -165,5 +164,11 @@ describe('AccountManagementUseCase', () => {
       );
       expect(logger.error).toHaveBeenCalled();
     });
+  });
+
+  afterEach(() => {
+    infoSpy?.mockRestore();
+    warnSpy?.mockRestore();
+    errorSpy?.mockRestore();
   });
 });

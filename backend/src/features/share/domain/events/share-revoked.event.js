@@ -5,22 +5,18 @@ import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class ShareRevokedEvent extends DomainEvent {
   constructor(payload) {
-    super({
-      eventName: 'share.revoked',
-      aggregateId: payload.shareId,
-      payload
-    });
+    super('share.revoked', payload);
   }
 
   get shareId() {
-    return this.payload.shareId;
+    return this.data.shareId;
   }
 
   get resourceId() {
-    return this.payload.resourceId;
+    return this.data.resourceId;
   }
 
   get resourceType() {
-    return this.payload.resourceType;
+    return this.data.resourceType;
   }
 }

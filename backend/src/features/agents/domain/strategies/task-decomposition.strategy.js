@@ -5,7 +5,7 @@
 import { callDeepSeekAPI } from '../../../../infrastructure/ai/deepseek-client.js';
 import { TaskPromptTemplates } from '../../infrastructure/prompt-templates/task-prompts.js';
 import { Task } from '../task.entity.js';
-import { logger } from '../../../../middleware/logger.js';
+import { logger } from '../../../../../middleware/logger.js';
 
 export class TaskDecompositionStrategy {
   /**

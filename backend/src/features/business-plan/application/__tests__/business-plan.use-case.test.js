@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../config/deepseek.js', () => ({
+jest.unstable_mockModule('../../../../../config/deepseek.js', () => ({
   callDeepSeekAPI: jest.fn(async () => ({
     content: 'Generated content',
     usage: { total_tokens: 1000 }
@@ -81,6 +81,6 @@ describe('BusinessPlanUseCase', () => {
     expect(result.chapters.length).toBe(2);
 
     const completed = await useCase.completeBusinessPlan(created.id);
-    expect(completed.status).toBe('completed');
+    expect(completed.status).toBe('COMPLETED');
   });
 });

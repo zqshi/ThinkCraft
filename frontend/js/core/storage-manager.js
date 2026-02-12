@@ -3,9 +3,6 @@
  * 使用IndexedDB管理大容量数据存储，替代localStorage
  */
 
-// 创建日志实例
-const storageLogger = window.createLogger ? window.createLogger('StorageManager') : console;
-
 class StorageManager {
   constructor() {
     this.db = null;
@@ -407,7 +404,7 @@ class StorageManager {
 
       // 🔧 如果找到了旧数据，迁移为字符串格式
       if (reports.length > 0) {
-        storageLogger.info('[StorageManager] 发现旧格式数据，正在迁移 chatId 为字符串格式');
+        console.warn('[StorageManager] 发现旧格式数据，正在迁移 chatId 为字符串格式');
         for (const report of reports) {
           report.chatId = normalizedChatId;
           await this.save('reports', report);
@@ -490,7 +487,7 @@ class StorageManager {
       return;
     }
     await this.delete('reports', id);
-    storageLogger.info('[StorageManager] 已删除报告', { reportId: id });
+    console.warn('[StorageManager] 已删除报告', { reportId: id });
   }
 
   /**
@@ -506,7 +503,7 @@ class StorageManager {
     const report = await this.getReportByChatIdAndType(chatId, type);
     if (report && report.id) {
       await this.deleteReport(report.id);
-      storageLogger.info('[StorageManager] 已删除报告', { chatId, type, reportId: report.id });
+      console.warn('[StorageManager] 已删除报告', { chatId, type, reportId: report.id });
     }
   }
 
@@ -550,7 +547,7 @@ class StorageManager {
         for (const chat of chats) {
           await this.saveChat(chat);
         }
-        storageLogger.info(`[StorageManager] 已迁移 ${chats.length} 个对话到 IndexedDB`);
+        console.warn(`[StorageManager] 已迁移 ${chats.length} 个对话到 IndexedDB`);
       }
 
       // 迁移设置
@@ -567,7 +564,7 @@ class StorageManager {
 
       // 清除旧数据（保留迁移标记）
       localStorage.removeItem('thinkcraft_chats');
-      storageLogger.info('[StorageManager] localStorage 数据迁移完成，旧数据已清除');
+      console.warn('[StorageManager] localStorage 数据迁移完成，旧数据已清除');
     } catch (error) {
       console.error('[StorageManager] 数据迁移失败:', error);
     }

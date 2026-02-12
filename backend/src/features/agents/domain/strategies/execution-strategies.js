@@ -2,7 +2,7 @@
  * 执行策略
  * 定义不同的Agent协作执行模式
  */
-import { logger } from '../../../../middleware/logger.js';
+import { logger } from '../../../../../middleware/logger.js';
 
 /**
  * 并行执行策略

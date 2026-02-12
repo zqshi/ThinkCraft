@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../config/deepseek.js', () => ({
+jest.unstable_mockModule('../../../../../config/deepseek.js', () => ({
   callDeepSeekAPI: jest.fn(async () => ({
     content: '{"sections":[{"title":"S1","content":"C1","type":"text","order":1}]}'
   }))

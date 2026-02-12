@@ -1,15 +1,19 @@
 /**
- * Prompt同步验证脚本
- * 验证Markdown文件与JS脚本的同步性
+ * Prompt完整性校验脚本（已升级）
+ * 目标：
+ * 1) 校验 ARTIFACT_TYPES 的模板路径存在且非空
+ * 2) 校验 AGENT_PROMPT_MAP 的 persona 路径存在且非空
+ * 3) 校验 workflow.json 的 phase/依赖/outputs 基本完整性
  */
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { AGENT_PROMPT_MAP, ARTIFACT_TYPES } from '../config/workflow-stages.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '../..');
 
-// 颜色输出
 const colors = {
   reset: '\x1b[0m',
   red: '\x1b[31m',
@@ -22,247 +26,126 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-/**
- * 验证Markdown文件格式
- */
-async function validateMarkdownFormat(filePath, type) {
-  try {
-    const content = await fs.readFile(filePath, 'utf-8');
-    const errors = [];
+function resolveFromRepo(relativePath) {
+  return path.resolve(repoRoot, relativePath);
+}
 
-    // 检查是否有代码块
-    const codeBlockMatch = content.match(/```\s*([^\s]*?)\s*\n([\s\S]*?)```/);
-    if (!codeBlockMatch) {
-      errors.push(`缺少代码块`);
+function existsNonEmpty(filePath) {
+  if (!fs.existsSync(filePath)) return { ok: false, reason: 'missing' };
+  const content = fs.readFileSync(filePath, 'utf-8');
+  if (!content.trim()) return { ok: false, reason: 'empty' };
+  return { ok: true, reason: '' };
+}
+
+function validateArtifactTemplates(issues) {
+  const artifactTypes = Object.entries(ARTIFACT_TYPES || {});
+  for (const [artifactType, def] of artifactTypes) {
+    const templates = Array.isArray(def?.promptTemplates) ? def.promptTemplates : [];
+    if (templates.length === 0) {
+      issues.push(`[artifact] ${artifactType} 未配置 promptTemplates`);
+      continue;
     }
-
-    // 检查是否有版本信息
-    if (!content.includes('Version:')) {
-      errors.push(`缺少版本信息`);
-    }
-
-    // 检查是否有更新日期
-    if (!content.includes('Last Updated:')) {
-      errors.push(`缺少更新日期`);
-    }
-
-    // 检查占位符格式（仅对Task类型）
-    if (type === 'task') {
-      const promptContent = codeBlockMatch ? codeBlockMatch[2] : '';
-      if (promptContent.includes('{{taskContent}}')) {
-        // 正确格式
-      } else if (promptContent.includes('${taskContent}')) {
-        errors.push(`占位符格式错误：应使用 {{taskContent}} 而不是 \${taskContent}`);
+    for (const relative of templates) {
+      if (!relative.startsWith('prompts/agents/')) {
+        issues.push(`[artifact] ${artifactType} 模板路径非法: ${relative}`);
+        continue;
+      }
+      const abs = resolveFromRepo(relative);
+      const state = existsNonEmpty(abs);
+      if (!state.ok) {
+        issues.push(
+          `[artifact] ${artifactType} 模板${state.reason === 'missing' ? '不存在' : '为空'}: ${relative}`
+        );
       }
     }
-
-    return { valid: errors.length === 0, errors };
-  } catch (error) {
-    return { valid: false, errors: [`读取文件失败: ${error.message}`] };
   }
 }
 
-/**
- * 获取JS文件中定义的类型
- */
-async function getDefinedTypes(jsFilePath, type) {
-  try {
-    const content = await fs.readFile(jsFilePath, 'utf-8');
-    const types = new Set();
+function validateAgentPersonaTemplates(issues) {
+  const agents = Object.entries(AGENT_PROMPT_MAP || {});
+  for (const [agentType, profile] of agents) {
+    const persona = Array.isArray(profile?.persona) ? profile.persona : [];
+    for (const relative of persona) {
+      const abs = resolveFromRepo(relative);
+      const state = existsNonEmpty(abs);
+      if (!state.ok) {
+        issues.push(
+          `[persona] ${agentType} persona ${state.reason === 'missing' ? '不存在' : '为空'}: ${relative}`
+        );
+      }
+    }
+  }
+}
 
-    if (type === 'agent') {
-      // 从agent-prompts.js中提取Agent类型
-      const match = content.match(/const basePrompts = \{([^}]+)\}/s);
-      if (match) {
-        const typesText = match[1];
-        const typeMatches = typesText.matchAll(/([\w-]+):/g);
-        for (const m of typeMatches) {
-          types.add(m[1]);
+function validateWorkflowJson(issues) {
+  const workflowPath = resolveFromRepo(
+    'prompts/scene-2-agent-orchestration/product-development/workflow.json'
+  );
+  if (!fs.existsSync(workflowPath)) {
+    issues.push('[workflow] workflow.json 不存在');
+    return;
+  }
+
+  let workflow = null;
+  try {
+    workflow = JSON.parse(fs.readFileSync(workflowPath, 'utf-8'));
+  } catch (error) {
+    issues.push(`[workflow] workflow.json 解析失败: ${error.message}`);
+    return;
+  }
+
+  const phases = Array.isArray(workflow?.phases) ? workflow.phases : [];
+  if (phases.length === 0) {
+    issues.push('[workflow] phases 为空');
+    return;
+  }
+
+  const phaseIds = new Set(phases.map(phase => phase.phase_id).filter(Boolean));
+  for (const phase of phases) {
+    if (!phase.phase_id) {
+      issues.push('[workflow] phase 缺少 phase_id');
+      continue;
+    }
+    if (!Array.isArray(phase.agents) || phase.agents.length === 0) {
+      issues.push(`[workflow] ${phase.phase_id} 缺少 agents`);
+    }
+    if (!Array.isArray(phase.outputs) || phase.outputs.length === 0) {
+      issues.push(`[workflow] ${phase.phase_id} 缺少 outputs`);
+    } else {
+      for (const output of phase.outputs) {
+        if (!ARTIFACT_TYPES[output]) {
+          issues.push(`[workflow] ${phase.phase_id} 引用了未定义交付物: ${output}`);
         }
       }
-    } else if (type === 'task') {
-      // 从task-prompts.js中提取Task类型
-      const match = content.match(/const templates = \{([^}]+)\}/s);
-      if (match) {
-        const typesText = match[1];
-        const typeMatches = typesText.matchAll(/([\w-]+):/g);
-        for (const m of typeMatches) {
-          types.add(m[1]);
-        }
+    }
+    for (const dep of phase.dependencies || []) {
+      if (!phaseIds.has(dep)) {
+        issues.push(`[workflow] ${phase.phase_id} 依赖不存在: ${dep}`);
       }
     }
-
-    return Array.from(types);
-  } catch (error) {
-    log(`读取JS文件失败: ${error.message}`, 'red');
-    return [];
   }
 }
 
-/**
- * 获取Markdown文件列表
- */
-async function getMarkdownFiles(dir) {
-  try {
-    const files = await fs.readdir(dir);
-    return files
-      .filter(file => file.endsWith('.md'))
-      .map(file => ({
-        file,
-        name: path.basename(file, '.md'),
-        normalizedName: path.basename(file, '.md').endsWith('-agent')
-          ? path.basename(file, '.md').slice(0, -6)
-          : path.basename(file, '.md')
-      }));
-  } catch (error) {
-    return [];
-  }
-}
-
-/**
- * 验证Agent Prompts
- */
-async function validateAgentPrompts() {
-  log('\n=== 验证Agent Prompts ===', 'blue');
-
-  const agentsDir = path.join(
-    __dirname,
-    '../../prompts/scene-2-agent-orchestration/product-development/agents'
-  );
-  const jsFile = path.join(
-    __dirname,
-    '../src/features/agents/infrastructure/prompt-templates/agent-prompts.js'
-  );
-
-  // 获取Markdown文件列表
-  const mdFiles = await getMarkdownFiles(agentsDir);
-  log(`找到 ${mdFiles.length} 个Agent Markdown文件`, 'green');
-
-  // 获取JS中定义的类型
-  const jsTypes = await getDefinedTypes(jsFile, 'agent');
-  log(`JS文件中定义了 ${jsTypes.length} 个Agent类型`, 'green');
-
-  // 验证每个Markdown文件
-  let validCount = 0;
-  let errorCount = 0;
-
-  for (const mdFile of mdFiles) {
-    const filePath = path.join(agentsDir, mdFile.file);
-    const result = await validateMarkdownFormat(filePath, 'agent');
-
-    if (result.valid) {
-      log(`✓ ${mdFile.file}`, 'green');
-      validCount++;
-    } else {
-      log(`✗ ${mdFile.file}`, 'red');
-      result.errors.forEach(err => log(`  - ${err}`, 'yellow'));
-      errorCount++;
-    }
-  }
-
-  // 检查是否有JS中定义但没有Markdown文件的类型
-  const mdNames = mdFiles.map(item => item.normalizedName);
-  const missingMd = jsTypes.filter(type => !mdNames.includes(type));
-  if (missingMd.length > 0) {
-    log(`\n警告: 以下Agent类型在JS中定义但缺少Markdown文件:`, 'yellow');
-    missingMd.forEach(type => log(`  - ${type}.md`, 'yellow'));
-  }
-
-  // 检查是否有Markdown文件但JS中没有定义的类型
-  const extraMd = mdNames.filter(type => !jsTypes.includes(type));
-  if (extraMd.length > 0) {
-    log(`\n提示: 以下Markdown文件存在但JS中未定义（将使用动态加载）:`, 'blue');
-    extraMd.forEach(type => log(`  - ${type}.md`, 'blue'));
-  }
-
-  log(
-    `\n总计: ${validCount} 个有效, ${errorCount} 个错误`,
-    validCount === mdFiles.length ? 'green' : 'yellow'
-  );
-  return errorCount === 0;
-}
-
-/**
- * 验证Task Prompts
- */
-async function validateTaskPrompts() {
-  log('\n=== 验证Task Prompts ===', 'blue');
-
-  const tasksDir = path.join(__dirname, '../../prompts/scene-2-agent-orchestration/shared');
-  const jsFile = path.join(
-    __dirname,
-    '../src/features/agents/infrastructure/prompt-templates/task-prompts.js'
-  );
-
-  // 获取Markdown文件列表
-  const mdFiles = await getMarkdownFiles(tasksDir);
-  log(`找到 ${mdFiles.length} 个Task Markdown文件`, 'green');
-
-  // 获取JS中定义的类型
-  const jsTypes = await getDefinedTypes(jsFile, 'task');
-  log(`JS文件中定义了 ${jsTypes.length} 个Task类型`, 'green');
-
-  // 验证每个Markdown文件
-  let validCount = 0;
-  let errorCount = 0;
-
-  for (const mdFile of mdFiles) {
-    const filePath = path.join(tasksDir, mdFile.file);
-    const result = await validateMarkdownFormat(filePath, 'task');
-
-    if (result.valid) {
-      log(`✓ ${mdFile.file}`, 'green');
-      validCount++;
-    } else {
-      log(`✗ ${mdFile.file}`, 'red');
-      result.errors.forEach(err => log(`  - ${err}`, 'yellow'));
-      errorCount++;
-    }
-  }
-
-  // 检查是否有JS中定义但没有Markdown文件的类型
-  const mdNames = mdFiles.map(item => item.normalizedName);
-  const missingMd = jsTypes.filter(type => !mdNames.includes(type));
-  if (missingMd.length > 0) {
-    log(`\n警告: 以下Task类型在JS中定义但缺少Markdown文件:`, 'yellow');
-    missingMd.forEach(type => log(`  - ${type}.md`, 'yellow'));
-  }
-
-  // 检查是否有Markdown文件但JS中没有定义的类型
-  const extraMd = mdNames.filter(type => !jsTypes.includes(type));
-  if (extraMd.length > 0) {
-    log(`\n提示: 以下Markdown文件存在但JS中未定义（将使用动态加载）:`, 'blue');
-    extraMd.forEach(type => log(`  - ${type}.md`, 'blue'));
-  }
-
-  log(
-    `\n总计: ${validCount} 个有效, ${errorCount} 个错误`,
-    validCount === mdFiles.length ? 'green' : 'yellow'
-  );
-  return errorCount === 0;
-}
-
-/**
- * 主函数
- */
-async function main() {
+function main() {
   log('========================================', 'blue');
-  log('  Prompt同步验证工具', 'blue');
+  log('  Prompt完整性验证（升级版）', 'blue');
   log('========================================', 'blue');
 
-  const agentValid = await validateAgentPrompts();
-  const taskValid = await validateTaskPrompts();
+  const issues = [];
+  validateArtifactTemplates(issues);
+  validateAgentPersonaTemplates(issues);
+  validateWorkflowJson(issues);
 
-  log('\n========================================', 'blue');
-  if (agentValid && taskValid) {
-    log('  ✓ 所有验证通过', 'green');
-    log('========================================', 'blue');
+  if (issues.length === 0) {
+    log('✓ 模板完整性校验通过', 'green');
     process.exit(0);
-  } else {
-    log('  ✗ 验证失败，请修复上述错误', 'red');
-    log('========================================', 'blue');
-    process.exit(1);
   }
+
+  log(`✗ 发现 ${issues.length} 个问题:`, 'red');
+  for (const issue of issues) {
+    log(`- ${issue}`, 'yellow');
+  }
+  process.exit(1);
 }
 
 main();

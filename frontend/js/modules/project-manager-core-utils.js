@@ -4,8 +4,33 @@
 
 window.projectManagerCoreUtils = {
   formatTimeAgo(pm, timestamp) {
+    if (timestamp === null || timestamp === undefined || timestamp === '') {
+      return '未知时间';
+    }
+
+    let normalizedTs = timestamp;
+    if (timestamp instanceof Date) {
+      normalizedTs = timestamp.getTime();
+    } else if (typeof timestamp === 'string') {
+      const parsed = Date.parse(timestamp);
+      if (!Number.isNaN(parsed)) {
+        normalizedTs = parsed;
+      }
+    }
+
+    const tsNumber = Number(normalizedTs);
+    if (!Number.isFinite(tsNumber) || tsNumber <= 0) {
+      return '未知时间';
+    }
+
     const now = Date.now();
-    const diff = now - timestamp;
+    const diff = now - tsNumber;
+    if (!Number.isFinite(diff)) {
+      return '未知时间';
+    }
+    if (diff < 0) {
+      return '刚刚';
+    }
 
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);

@@ -172,20 +172,6 @@ CHAPTER_PROMPTS = {
 
 要求：结构合理，职责清晰。
 """,
-    'risk-analysis': """
-基于以下产品创意，进行风险分析：
-
-产品创意：
-{conversation}
-
-请提供：
-1. 市场风险和应对策略
-2. 技术风险和解决方案
-3. 运营风险和预防措施
-4. 财务风险和控制手段
-
-要求：全面客观，措施具体。
-""",
     'risk-assessment': """
 基于以下产品创意，进行风险分析：
 
@@ -199,21 +185,28 @@ CHAPTER_PROMPTS = {
 4. 财务风险和控制手段
 
 要求：全面客观，措施具体。
-""",
-    'implementation-plan': """
-基于以下产品创意，制定实施计划：
-
-产品创意：
-{conversation}
-
-请提供：
-1. 项目里程碑和时间表
-2. 资源需求和预算
-3. 关键任务和责任人
-4. 成功指标和评估标准
-
-要求：计划详细，可执行性强。
 """
+}
+
+BUSINESS_PLAN_NINE_CHAPTERS = {
+    'executive-summary',
+    'market-analysis',
+    'solution',
+    'business-model',
+    'competitive-landscape',
+    'marketing-strategy',
+    'team-structure',
+    'financial-projection',
+    'risk-assessment'
+}
+
+PROPOSAL_SIX_CHAPTERS = {
+    'project-summary',
+    'problem-insight',
+    'product-solution',
+    'implementation-path',
+    'budget-planning',
+    'risk-control'
 }
 
 # Prompt 文件路径与缓存
@@ -370,6 +363,12 @@ def research_chapter():
         
         if not conversation_history:
             return jsonify({'error': '缺少必要参数: conversationHistory'}), 400
+
+        if doc_type == 'business' and chapter_id not in BUSINESS_PLAN_NINE_CHAPTERS:
+            return jsonify({'error': f'商业计划书仅支持固定九章，收到无效章节: {chapter_id}'}), 400
+
+        if doc_type == 'proposal' and chapter_id not in PROPOSAL_SIX_CHAPTERS:
+            return jsonify({'error': f'产品立项材料仅支持固定六章，收到无效章节: {chapter_id}'}), 400
         
         logger.info(f"开始生成章节: {chapter_id}, 深度: {research_depth}")
         

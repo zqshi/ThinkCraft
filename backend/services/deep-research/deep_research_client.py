@@ -360,9 +360,13 @@ class DeepResearchClient:
             'financial-projection': '财务预测 收入 成本 盈亏平衡',
             'marketing-strategy': '营销策略 渠道 品牌 获客成本',
             'team-structure': '团队架构 人才 组织',
-            'risk-analysis': '风险分析 风险控制',
             'risk-assessment': '风险评估 风险控制',
-            'implementation-plan': '实施计划 里程碑 资源'
+            'project-summary': '立项背景 机会论证 用户场景 核心痛点',
+            'problem-insight': '产品定义 价值主张 用户画像 产品边界',
+            'product-solution': '产品方案 功能规格 MVP 交互流程 技术架构',
+            'implementation-path': '实施路线图 里程碑 资源计划 人力预算',
+            'budget-planning': '投入产出 ROI 成本估算 收益预测 成功指标',
+            'risk-control': '风险评估 决策建议 风险矩阵'
         }.get(chapter_id, chapter_id.replace('-', ' '))
 
         queries = [
@@ -559,19 +563,6 @@ class DeepResearchClient:
 
 请提供营销案例和最佳实践。
 """,
-            'risk-analysis': f"""
-请对以下产品进行风险分析：
-
-{conversation_text}
-
-分析要点：
-1. 市场风险和应对策略
-2. 技术风险和解决方案
-3. 运营风险和预防措施
-4. 财务风险和控制手段
-
-请提供可执行的风险缓解措施和参考案例。
-""",
             'risk-assessment': f"""
 请对以下产品进行风险评估：
 
@@ -584,6 +575,72 @@ class DeepResearchClient:
 4. 财务风险和控制手段
 
 请提供可执行的风险缓解措施和参考案例。
+""",
+            'project-summary': f"""
+请基于以下内容进行立项背景与机会论证：
+
+{conversation_text}
+
+分析要点：
+1. 目标用户与典型场景
+2. 核心痛点与证据
+3. 市场/业务机会窗口
+4. 现有方案缺口与不做代价
+""",
+            'problem-insight': f"""
+请基于以下内容定义产品与价值主张：
+
+{conversation_text}
+
+分析要点：
+1. 产品愿景陈述
+2. 目标用户画像
+3. 核心价值主张
+4. 产品边界与范围
+""",
+            'product-solution': f"""
+请基于以下内容输出产品方案与功能规格：
+
+{conversation_text}
+
+分析要点：
+1. 核心功能清单
+2. MVP范围界定
+3. 关键交互流程
+4. 技术架构概要
+""",
+            'implementation-path': f"""
+请基于以下内容制定实施路线图与资源计划：
+
+{conversation_text}
+
+分析要点：
+1. 关键里程碑与时间表
+2. 角色与人力需求
+3. 预算与资源计划
+4. 依赖项与风险触发条件
+""",
+            'budget-planning': f"""
+请基于以下内容进行投入产出与成功度量分析：
+
+{conversation_text}
+
+分析要点：
+1. 成本估算（人天/资金）
+2. 收益预测模型
+3. 关键成功指标
+4. ROI或盈亏平衡分析
+""",
+            'risk-control': f"""
+请基于以下内容输出风险评估与决策建议：
+
+{conversation_text}
+
+分析要点：
+1. 关键风险清单与分级
+2. 风险矩阵（概率/影响）
+3. 应对预案与触发信号
+4. 决策建议（立项/试点/延后）
 """
         }
 

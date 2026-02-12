@@ -101,6 +101,14 @@ describe('ReportUseCase', () => {
       })
     );
 
+    await useCase.generateReport(
+      new GenerateReportRequestDto({
+        reportId: report.id,
+        dataSource: { type: 'conversation', messages: [] },
+        options: {}
+      })
+    );
+
     const archived = await useCase.archiveReport(report.id);
     expect(archived.status).toBe('archived');
 

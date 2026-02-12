@@ -55,12 +55,12 @@ describe('ShareUseCase', () => {
 
     const updated = await useCase.updateShare(
       created.id,
-      new UpdateShareRequestDto({ title: 'New', permission: 'edit' }),
+      new UpdateShareRequestDto({ title: 'New', permission: 'write' }),
       'owner'
     );
 
     expect(updated.title).toBe('New');
-    expect(updated.permission).toBe('edit');
+    expect(updated.permission).toBe('write');
 
     const revoked = await useCase.revokeShare(created.id, 'owner');
     expect(revoked.status).toBe('revoked');
@@ -114,7 +114,7 @@ describe('ShareUseCase', () => {
         title: 'Batch',
         description: '',
         permission: 'read',
-        expiresAt: new Date(Date.now() - 1000).toISOString(),
+        expiresAt: new Date(Date.now() - 1000),
         password: null
       }),
       'user-3'

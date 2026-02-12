@@ -5,34 +5,30 @@ import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class ExportCompletedEvent extends DomainEvent {
   constructor(payload) {
-    super({
-      eventName: 'export.completed',
-      aggregateId: payload.exportId,
-      payload
-    });
+    super('export.completed', payload);
   }
 
   get exportId() {
-    return this.payload.exportId;
+    return this.data.exportId;
   }
 
   get projectId() {
-    return this.payload.projectId;
+    return this.data.projectId;
   }
 
   get format() {
-    return this.payload.format;
+    return this.data.format;
   }
 
   get filePath() {
-    return this.payload.filePath;
+    return this.data.filePath;
   }
 
   get fileSize() {
-    return this.payload.fileSize;
+    return this.data.fileSize;
   }
 
   get completedAt() {
-    return this.payload.completedAt;
+    return this.data.completedAt;
   }
 }

@@ -8,11 +8,58 @@
     : console;
 
   const api = {
+    notify(message, level = 'info') {
+      const text = String(message || '').trim();
+      if (!text) {
+        return;
+      }
+      if (window.modalManager?.alert) {
+        window.modalManager.alert(text, level);
+        return;
+      }
+      if (window.ErrorHandler?.showToast) {
+        window.ErrorHandler.showToast(text, level);
+        return;
+      }
+      if (typeof window.alert === 'function') {
+        window.alert(text);
+      }
+    },
+
+    isValidGeneratedArtifact(artifact) {
+      if (!artifact || typeof artifact !== 'object') {
+        return false;
+      }
+      const status = String(artifact.status || '').toLowerCase();
+      if (status === 'error' || status === 'failed') {
+        return false;
+      }
+      const contentReady =
+        typeof artifact.content === 'string' && artifact.content.trim().length > 0;
+      const fileReady =
+        (typeof artifact.downloadUrl === 'string' && artifact.downloadUrl.trim().length > 0) ||
+        (typeof artifact.relativePath === 'string' && artifact.relativePath.trim().length > 0);
+      const doneByStatus = status === 'completed' || status === 'done' || status === 'success';
+      return contentReady || fileReady || doneByStatus;
+    },
+
     normalizeDeliverableKey(value) {
       if (!value || typeof value !== 'string') {
         return '';
       }
       return value.trim().toLowerCase();
+    },
+
+    orderTypesByDependency(types = []) {
+      const ordered = Array.isArray(types) ? [...types] : [];
+      const normalize = value => api.normalizeDeliverableKey(value);
+      const prdIndex = ordered.findIndex(type => normalize(type) === 'prd');
+      const strategyIndex = ordered.findIndex(type => normalize(type) === 'strategy-doc');
+      if (prdIndex !== -1 && strategyIndex !== -1 && prdIndex > strategyIndex) {
+        const [prdType] = ordered.splice(prdIndex, 1);
+        ordered.splice(strategyIndex, 0, prdType);
+      }
+      return ordered;
     },
 
     getExpectedDeliverables(pm, stage, definition) {
@@ -161,21 +208,61 @@
       const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
       const hasArtifacts = artifacts.length > 0;
       const selectedSet = new Set((selectedDeliverables || []).filter(Boolean));
-      const hasExplicitSelection = selectedSet.size > 0;
+      const selectedNormalizedSet = new Set(
+        (selectedDeliverables || [])
+          .map(value => api.normalizeDeliverableKey(value))
+          .filter(Boolean)
+      );
       const executingKeys = new Set(
         (stage?.executingArtifactTypes || [])
           .map(val => api.normalizeDeliverableKey(val))
           .filter(Boolean)
       );
+      const runMap =
+        stage?.executionRuns && typeof stage.executionRuns === 'object' ? stage.executionRuns : {};
+      const resolveRunInfo = item => {
+        const keys = [item?.id, item?.key, item?.label]
+          .map(value => api.normalizeDeliverableKey(value))
+          .filter(Boolean);
+        const matchedType = Object.keys(runMap).find(type =>
+          keys.includes(api.normalizeDeliverableKey(type))
+        );
+        if (!matchedType) {
+          return { status: '', run: null };
+        }
+        const run = runMap?.[matchedType] || null;
+        return {
+          status: String(run?.status || '').toLowerCase(),
+          run
+        };
+      };
 
       return expectedDeliverables.map(item => {
         const id = item.id || item.key || item.label || '';
         const label = item.label || item.id || item.key || '未命名交付物';
-        const selected = hasExplicitSelection ? selectedSet.has(id) : true;
+        const itemKeys = [item?.id, item?.key, item?.label, id]
+          .map(value => api.normalizeDeliverableKey(value))
+          .filter(Boolean);
+        const selected =
+          selectedSet.has(id) || itemKeys.some(key => selectedNormalizedSet.has(key));
         const artifact = api.findArtifactForDeliverable(pm, artifacts, item);
+        const runInfo = resolveRunInfo(item);
+        const runStatus = runInfo.status;
+        const run = runInfo.run;
+        const runMessage = String(
+          run?.error?.message || run?.error?.code || run?.statusMessage || ''
+        ).trim();
         let status = 'pending';
         if (artifact) {
           status = 'generated';
+        } else if (runStatus === 'blocked') {
+          status = 'blocked';
+        } else if (runStatus === 'failed') {
+          status = 'failed';
+        } else if (runStatus === 'queued') {
+          status = 'queued';
+        } else if (runStatus === 'running') {
+          status = 'generating';
         } else if (!selected) {
           status = 'unselected';
         } else if (stage.status === 'pending' && hasArtifacts) {
@@ -190,7 +277,7 @@
         } else if (stage.status === 'completed') {
           status = 'missing';
         }
-        return { id, label, status, selected, artifact };
+        return { id, label, status, selected, artifact, runStatus, runMessage };
       });
     },
 
@@ -225,118 +312,194 @@
         expectedDeliverables,
         selectedDeliverables
       );
+      const visibleItems = (progress.items || []).filter(item => {
+        if (item.selected) {
+          return true;
+        }
+        if (item.status === 'generated') {
+          return true;
+        }
+        return ['failed', 'blocked', 'queued', 'generating'].includes(item.status);
+      });
+      if (visibleItems.length === 0) {
+        return '';
+      }
       const statusMap = {
         generated: '已生成',
         generating: '生成中',
+        queued: '排队中',
+        blocked: '依赖阻塞',
+        failed: '生成失败',
         pending: '待执行',
         unselected: '未选择',
         missing: '未生成'
       };
+      const visibleGeneratedCount = visibleItems.filter(item => item.status === 'generated').length;
       const progressPercent =
-        progress.selectedCount > 0
-          ? Math.min(100, Math.round((progress.generatedCount / progress.selectedCount) * 100))
+        visibleItems.length > 0
+          ? Math.min(100, Math.round((visibleGeneratedCount / visibleItems.length) * 100))
           : 0;
       return `
       <div class="project-deliverable-status">
         <div class="project-deliverable-status-header">
           <div class="project-deliverable-status-title">交付物进度</div>
-          <div class="project-deliverable-status-summary">已生成 ${progress.generatedCount} / 选择 ${progress.selectedCount}</div>
+          <div class="project-deliverable-status-summary">已生成 ${visibleGeneratedCount} / 显示 ${visibleItems.length}</div>
         </div>
         <div class="project-deliverable-progress">
           <div class="project-deliverable-progress-bar" style="width: ${progressPercent}%;"></div>
         </div>
         <div class="project-deliverable-status-list">
-          ${progress.selectedItems
-            .map(item => {
-              const statusLabel = statusMap[item.status] || statusMap.pending;
-              const retryBtn =
-                item.status === 'missing'
+          ${visibleItems
+    .map(item => {
+      const statusLabel = statusMap[item.status] || statusMap.pending;
+      const runHint =
+                item.runMessage && (item.status === 'failed' || item.status === 'blocked')
+                  ? `<div class="project-deliverable-status-meta" style="color:#b45309;">${pm.escapeHtml(item.runMessage)}</div>`
+                  : '';
+      const retryBtn =
+                item.status === 'missing' || item.status === 'failed' || item.status === 'blocked'
                   ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.retryStageDeliverable('${projectId}', '${stage.id}', '${pm.escapeHtml(item.id)}')" style="padding: 4px 8px; font-size: 11px;">重试</button>`
                   : '';
-              return `
+      return `
               <div class="project-deliverable-status-item status-${item.status}">
                 <div class="project-deliverable-status-info">
                   <div class="project-deliverable-status-name">${pm.escapeHtml(item.label)}</div>
                   <div class="project-deliverable-status-meta">${statusLabel}</div>
+                  ${runHint}
                 </div>
                 <div class="project-deliverable-status-actions">
                   <span class="project-deliverable-status-pill">${statusLabel}</span>
                   ${retryBtn}
                 </div>
               </div>`;
-            })
-            .join('')}
+    })
+    .join('')}
         </div>
       </div>`;
     },
 
     async generateAdditionalDeliverables(pm, projectId, stageId) {
-      const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
-      const stage = project?.workflow?.stages?.find(s => s.id === stageId);
-      if (!stage) {
-        return window.modalManager?.alert('未找到阶段信息', 'warning');
-      }
-      if (!window.workflowExecutor) {
-        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
-      }
-
-      const expected = api.getExpectedDeliverables(pm, stage, null);
-      const selected = api.getStageSelectedDeliverables(pm, stageId, expected);
-      if (!selected.length) {
-        return window.modalManager?.alert('请先勾选需要输出的交付物', 'info');
-      }
-
-      const resolvedArtifactTypes = api.resolveSelectedArtifactTypes(pm, stage, expected, selected);
-      if (
-        resolvedArtifactTypes.length === 0 &&
-        Array.isArray(stage?.artifactTypes) &&
-        stage.artifactTypes.length > 0
-      ) {
-        return window.modalManager?.alert('未选择有效的交付物类型', 'warning');
-      }
-
-      const existingTypes = new Set(
-        (stage.artifacts || [])
-          .map(artifact => api.normalizeDeliverableKey(artifact?.type))
-          .filter(Boolean)
-      );
-      const missingTypes = resolvedArtifactTypes.filter(
-        type => !existingTypes.has(api.normalizeDeliverableKey(type))
-      );
-      if (!api.validateStrategyDocDependency(pm, project, missingTypes)) {
-        return;
-      }
-      if (!missingTypes.length) {
-        return window.modalManager?.alert('已选交付物均已生成', 'info');
-      }
-
-      stage.selectedDeliverables = selected;
-      stage.supplementingDeliverableTypes = missingTypes;
       try {
-        await pm.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
-        pm.refreshProjectPanel(project);
-      } catch (error) {
-        deliverablesLogger.warn('[ProjectManager] 保存交付物选择失败，继续追加生成', error);
-      }
-
-      try {
-        await window.workflowExecutor.startStage(projectId, stageId, {
-          selectedArtifactTypes: missingTypes,
-          mergeArtifacts: true,
-          queueWhileExecuting: true
-        });
-      } finally {
-        const updated = await pm.getProject(projectId).catch(() => null);
-        if (updated) {
-          const nextStage = updated.workflow?.stages?.find(s => s.id === stageId);
-          if (nextStage?.supplementingDeliverableTypes) {
-            delete nextStage.supplementingDeliverableTypes;
-            await pm
-              .updateProject(projectId, { workflow: updated.workflow }, { allowFallback: true })
-              .catch(() => {});
-          }
-          pm.refreshProjectPanel(updated);
+        const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
+        const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+        if (!stage) {
+          api.notify('未找到阶段信息', 'warning');
+          return;
         }
+        if (!window.workflowExecutor) {
+          api.notify('工作流执行器未就绪', 'warning');
+          return;
+        }
+
+        const expected = api.getExpectedDeliverables(pm, stage, null);
+        if (!expected.length) {
+          api.notify('该阶段未配置可追加的交付物', 'warning');
+          return;
+        }
+
+        const existingTypes = new Set(
+          (stage.artifacts || [])
+            .filter(artifact => api.isValidGeneratedArtifact(artifact))
+            .map(artifact => api.normalizeDeliverableKey(artifact?.type))
+            .filter(Boolean)
+        );
+        const inferMissingFromExpected = expected.filter(
+          item => !api.findArtifactForDeliverable(pm, stage.artifacts || [], item)
+        );
+        const inferredSelectedIds = inferMissingFromExpected
+          .map(item => item.id || item.key)
+          .filter(Boolean);
+        const inferredMissingTypes = api.orderTypesByDependency(
+          inferMissingFromExpected
+            .map(item => pm.normalizeArtifactTypeId(item.id || item.key || item.label))
+            .filter(Boolean)
+        );
+
+        let selected = api.getStageSelectedDeliverables(pm, stageId, expected);
+        if (!selected.length && inferredSelectedIds.length > 0) {
+          selected = inferredSelectedIds;
+        }
+        const dependencyResult = await api.resolveDependenciesWithConfirm(
+          pm,
+          stage,
+          expected,
+          selected
+        );
+        if (!dependencyResult.confirmed) {
+          return;
+        }
+        selected = dependencyResult.selectedIds;
+
+        let resolvedArtifactTypes = api.orderTypesByDependency(
+          api.resolveSelectedArtifactTypes(pm, stage, expected, selected)
+        );
+        if (resolvedArtifactTypes.length === 0 && inferredMissingTypes.length > 0) {
+          resolvedArtifactTypes = inferredMissingTypes;
+        }
+        if (resolvedArtifactTypes.length === 0) {
+          api.notify('未找到可追加生成的交付物，请先勾选或检查阶段配置', 'warning');
+          return;
+        }
+
+        const missingTypes = resolvedArtifactTypes.filter(
+          type => !existingTypes.has(api.normalizeDeliverableKey(type))
+        );
+        const executingTypes = new Set(
+          (stage.executingArtifactTypes || [])
+            .map(type => api.normalizeDeliverableKey(type))
+            .filter(Boolean)
+        );
+        const hasExecutingSelected = resolvedArtifactTypes.some(type =>
+          executingTypes.has(api.normalizeDeliverableKey(type))
+        );
+        if (!api.validateStrategyDocDependency(pm, project, missingTypes)) {
+          return;
+        }
+        if (!missingTypes.length) {
+          if (hasExecutingSelected) {
+            api.notify('已选交付物正在生成中，请稍候', 'info');
+            return;
+          }
+          api.notify('已选交付物均已生成', 'info');
+          return;
+        }
+
+        stage.selectedDeliverables = selected;
+        stage.supplementingDeliverableTypes = missingTypes;
+        if (pm.currentProjectId) {
+          pm.stageDeliverableSelection[stageId] = selected;
+          pm.stageDeliverableSelectionByProject[pm.currentProjectId] = pm.stageDeliverableSelection;
+          pm.persistStageDeliverableSelectionStore();
+        }
+        try {
+          await pm.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
+          pm.refreshProjectPanel(project);
+        } catch (error) {
+          deliverablesLogger.warn('[ProjectManager] 保存交付物选择失败，继续追加生成', error);
+        }
+
+        try {
+          await window.workflowExecutor.startStage(projectId, stageId, {
+            selectedArtifactTypes: missingTypes,
+            mergeArtifacts: true,
+            queueWhileExecuting: true
+          });
+        } finally {
+          const updated = await pm.getProject(projectId).catch(() => null);
+          if (updated) {
+            const nextStage = updated.workflow?.stages?.find(s => s.id === stageId);
+            if (nextStage?.supplementingDeliverableTypes) {
+              delete nextStage.supplementingDeliverableTypes;
+              await pm
+                .updateProject(projectId, { workflow: updated.workflow }, { allowFallback: true })
+                .catch(() => {});
+            }
+            pm.refreshProjectPanel(updated);
+          }
+        }
+      } catch (error) {
+        deliverablesLogger.error('[ProjectManager] 追加生成失败', error);
+        api.notify(`追加生成失败：${error.message || error}`, 'error');
       }
     },
 
@@ -375,18 +538,37 @@
       pm.isRetryingDeliverable = true;
       const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
       const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+      const expected = stage ? api.getExpectedDeliverables(pm, stage, null) : [];
+      const resolved = api.resolveSelectedArtifactTypes(pm, stage, expected, [deliverableType]);
+      let selectedForRetry = resolved.length > 0 ? resolved : [deliverableType];
+      const dependencyResult = await api.resolveDependenciesWithConfirm(
+        pm,
+        stage,
+        expected,
+        selectedForRetry
+      );
+      if (!dependencyResult.confirmed) {
+        pm.isRetryingDeliverable = false;
+        return;
+      }
+      selectedForRetry = dependencyResult.selectedIds;
+      const selectedTypesForRetry = api.orderTypesByDependency(
+        api.resolveSelectedArtifactTypes(pm, stage, expected, selectedForRetry)
+      );
       if (stage) {
-        const expected = api.getExpectedDeliverables(pm, stage, null);
-        const resolved = api.resolveSelectedArtifactTypes(pm, stage, expected, [deliverableType]);
-        const artifactType = resolved[0] || deliverableType;
-        stage.executingArtifactTypes = [artifactType];
+        stage.executingArtifactTypes =
+          selectedTypesForRetry.length > 0 ? selectedTypesForRetry : [deliverableType];
         await pm.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
       }
       try {
-        const expected = stage ? api.getExpectedDeliverables(pm, stage, null) : [];
-        const resolved = api.resolveSelectedArtifactTypes(pm, stage, expected, [deliverableType]);
-        const artifactType = resolved[0] || deliverableType;
-        if (!api.validateStrategyDocDependency(pm, project, [artifactType])) {
+        const artifactType = selectedTypesForRetry[0] || deliverableType;
+        if (
+          !api.validateStrategyDocDependency(
+            pm,
+            project,
+            selectedTypesForRetry.length > 0 ? selectedTypesForRetry : [artifactType]
+          )
+        ) {
           return;
         }
         if (
@@ -397,7 +579,8 @@
           return window.modalManager?.alert('未选择有效的交付物类型', 'warning');
         }
         await window.workflowExecutor.startStage(projectId, stageId, {
-          selectedArtifactTypes: [artifactType],
+          selectedArtifactTypes:
+            selectedTypesForRetry.length > 0 ? selectedTypesForRetry : [artifactType],
           mergeArtifacts: true,
           silent: true,
           queueWhileExecuting: true
@@ -533,13 +716,120 @@
       return false;
     },
 
-    getStageSelectedDeliverables(pm, stageId, expectedDeliverables) {
-      const existing = pm.stageDeliverableSelection[stageId];
-      if (Array.isArray(existing) && existing.length > 0) {
-        return existing;
+    getDeliverableDependenciesByType(artifactType = '') {
+      const key = api.normalizeDeliverableKey(artifactType);
+      const dependencyMap = {
+        prototype: ['ui-design', 'design-spec'],
+        'strategy-doc': ['prd']
+      };
+      return Array.isArray(dependencyMap[key]) ? dependencyMap[key] : [];
+    },
+
+    async resolveDependenciesWithConfirm(
+      pm,
+      stage,
+      expectedDeliverables = [],
+      selectedIds = []
+    ) {
+      const selected = Array.isArray(selectedIds) ? [...selectedIds] : [];
+      if (!stage || selected.length === 0) {
+        return { confirmed: true, selectedIds: selected };
       }
-      const defaults = expectedDeliverables.map(item => item.id || item.key).filter(Boolean);
-      pm.stageDeliverableSelection[stageId] = defaults;
+      const selectedTypes = api.resolveSelectedArtifactTypes(
+        pm,
+        stage,
+        expectedDeliverables,
+        selected
+      );
+      const selectedTypeSet = new Set(
+        selectedTypes.map(type => api.normalizeDeliverableKey(type)).filter(Boolean)
+      );
+      const expectedByType = new Map();
+      expectedDeliverables.forEach(item => {
+        const typeId = pm.normalizeArtifactTypeId(item?.id || item?.key || item?.label);
+        const typeKey = api.normalizeDeliverableKey(typeId);
+        if (typeKey) {
+          expectedByType.set(typeKey, item);
+        }
+      });
+
+      const toAppend = [];
+      for (const type of selectedTypes) {
+        const dependencies = api.getDeliverableDependenciesByType(type);
+        for (const depType of dependencies) {
+          const depKey = api.normalizeDeliverableKey(depType);
+          if (!depKey || selectedTypeSet.has(depKey)) {
+            continue;
+          }
+          const depItem = expectedByType.get(depKey);
+          if (!depItem) {
+            continue;
+          }
+          const existingArtifact = api.findArtifactForDeliverable(pm, stage.artifacts || [], depItem);
+          if (existingArtifact) {
+            continue;
+          }
+          toAppend.push({
+            id: depItem.id || depItem.key || depType,
+            label: depItem.label || depItem.id || depType
+          });
+          selectedTypeSet.add(depKey);
+        }
+      }
+
+      if (toAppend.length === 0) {
+        return { confirmed: true, selectedIds: selected };
+      }
+
+      const depLabels = toAppend.map(item => item.label).join('、');
+      const message = `检测到所选交付物存在依赖项：${depLabels}。\n是否一并生成？`;
+      let confirmed = false;
+      if (window.modalManager?.confirm) {
+        confirmed = await new Promise(resolve => {
+          window.modalManager.confirm(
+            message,
+            () => resolve(true),
+            () => resolve(false)
+          );
+        });
+      } else {
+        confirmed = window.confirm(message);
+      }
+      if (!confirmed) {
+        return { confirmed: false, selectedIds: selected };
+      }
+
+      const selectedSet = new Set(selected);
+      toAppend.forEach(item => {
+        if (item.id) {
+          selectedSet.add(item.id);
+        }
+      });
+      return {
+        confirmed: true,
+        selectedIds: Array.from(selectedSet)
+      };
+    },
+
+    getStageSelectedDeliverables(pm, stageId, _expectedDeliverables) {
+      const stage = (pm.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
+      const expectedIds = Array.isArray(_expectedDeliverables)
+        ? new Set(_expectedDeliverables.map(item => item?.id || item?.key).filter(Boolean))
+        : null;
+      const normalizeSelection = list => {
+        const values = Array.isArray(list) ? list.filter(Boolean) : [];
+        if (!expectedIds || expectedIds.size === 0) {
+          return values;
+        }
+        return values.filter(id => expectedIds.has(id));
+      };
+
+      const stageSelected = normalizeSelection(stage?.selectedDeliverables);
+      pm.stageDeliverableSelection[stageId] = Array.isArray(stage?.selectedDeliverables)
+        ? stageSelected
+        : [];
+
+      const defaults = pm.stageDeliverableSelection[stageId];
       if (pm.currentProjectId) {
         pm.stageDeliverableSelectionByProject[pm.currentProjectId] = pm.stageDeliverableSelection;
         pm.persistStageDeliverableSelectionStore();
@@ -553,6 +843,28 @@
         return;
       }
       const stage = (pm.currentProject?.workflow?.stages || []).find(s => s.id === stageId);
+      const normalizedId = api.normalizeDeliverableKey(id);
+      if (!checked && stage) {
+        const executingKeys = new Set(
+          (stage?.executingArtifactTypes || [])
+            .map(value => api.normalizeDeliverableKey(value))
+            .filter(Boolean)
+        );
+        const isGeneratingTarget = normalizedId && executingKeys.has(normalizedId);
+        const expected = api.getExpectedDeliverables(pm, stage, null);
+        const matchedItem = expected.find(item => {
+          const keys = [item?.id, item?.key, item?.label]
+            .map(value => api.normalizeDeliverableKey(value))
+            .filter(Boolean);
+          return normalizedId && keys.includes(normalizedId);
+        });
+        const hasGeneratedArtifact = Boolean(
+          matchedItem && api.findArtifactForDeliverable(pm, stage?.artifacts || [], matchedItem)
+        );
+        if (isGeneratingTarget || hasGeneratedArtifact) {
+          return;
+        }
+      }
       const allowSupplementSelection =
         stage?.status === 'completed' ||
         stage?.status === 'active' ||
@@ -582,6 +894,113 @@
       }
     },
 
+    async deleteGeneratedDeliverable(pm, projectId, stageId, artifactId) {
+      if (!window.workflowExecutor) {
+        return window.modalManager?.alert('工作流执行器未就绪', 'warning');
+      }
+      const project = pm.currentProject || (await pm.getProject(projectId).catch(() => null));
+      const stage = project?.workflow?.stages?.find(s => s.id === stageId);
+      const artifact = stage?.artifacts?.find(a => a.id === artifactId);
+      if (!project || !stage || !artifact) {
+        return window.modalManager?.alert('未找到待删除交付物', 'warning');
+      }
+      const confirmed = window.confirm(`确认删除交付物「${artifact.name || artifact.type}」？`);
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await window.workflowExecutor.deleteArtifact(projectId, artifactId);
+      } catch (error) {
+        return window.modalManager?.alert(`删除交付物失败：${error.message || error}`, 'error');
+      }
+
+      stage.artifacts = (stage.artifacts || []).filter(a => a.id !== artifactId);
+      if (stage.executionRuns && typeof stage.executionRuns === 'object' && artifact.type) {
+        delete stage.executionRuns[artifact.type];
+      }
+
+      const expectedDeliverables = api.getExpectedDeliverables(pm, stage, null);
+      const selectedSet = new Set(pm.stageDeliverableSelection[stageId] || []);
+      expectedDeliverables.forEach(item => {
+        const keys = [item?.id, item?.key, item?.label]
+          .map(value => api.normalizeDeliverableKey(value))
+          .filter(Boolean);
+        const artifactKeys = [artifact?.type, artifact?.name]
+          .map(value => api.normalizeDeliverableKey(value))
+          .filter(Boolean);
+        if (keys.some(key => artifactKeys.includes(key))) {
+          const id = item.id || item.key;
+          if (id) {
+            selectedSet.delete(id);
+          }
+        }
+      });
+      const nextSelection = Array.from(selectedSet);
+      pm.stageDeliverableSelection[stageId] = nextSelection;
+      stage.selectedDeliverables = nextSelection;
+
+      const resetStageRuntimeIfEmpty = targetStage => {
+        if (!targetStage) {
+          return;
+        }
+        const remaining = Array.isArray(targetStage.artifacts) ? targetStage.artifacts.length : 0;
+        if (remaining > 0) {
+          return;
+        }
+        targetStage.status = 'pending';
+        targetStage.startedAt = null;
+        targetStage.completedAt = null;
+        targetStage.artifactsUpdatedAt = Date.now();
+        targetStage.executingArtifactTypes = [];
+        targetStage.supplementingDeliverableTypes = [];
+        targetStage.executionRuns = {};
+        targetStage.executionProbe = null;
+        targetStage.repairNote = null;
+      };
+
+      // 若该阶段已无交付物，恢复到初始待执行状态，避免仍显示“追加生成”
+      resetStageRuntimeIfEmpty(stage);
+
+      // 协同建议中的阶段状态也保持一致
+      const suggestionStage = project?.collaborationSuggestion?.stages?.find(s => s.id === stageId);
+      if (suggestionStage) {
+        suggestionStage.artifacts = Array.isArray(stage.artifacts) ? [...stage.artifacts] : [];
+        suggestionStage.selectedDeliverables = Array.isArray(stage.selectedDeliverables)
+          ? [...stage.selectedDeliverables]
+          : [];
+        resetStageRuntimeIfEmpty(suggestionStage);
+      }
+
+      // 项目级状态同步回非执行态，避免“开始执行”按钮被 project.status=in_progress 阻断
+      const allStages = Array.isArray(project?.workflow?.stages) ? project.workflow.stages : [];
+      const hasRunningStages = allStages.some(s =>
+        ['active', 'in_progress'].includes(String(s?.status || '').toLowerCase())
+      );
+      if (!hasRunningStages && project?.status === 'in_progress') {
+        project.status = 'active';
+      }
+
+      if (pm.currentProjectId) {
+        pm.stageDeliverableSelectionByProject[pm.currentProjectId] = pm.stageDeliverableSelection;
+        pm.persistStageDeliverableSelectionStore();
+      }
+
+      await pm
+        .updateProject(
+          projectId,
+          {
+            workflow: project.workflow,
+            collaborationSuggestion: project.collaborationSuggestion
+          },
+          { allowFallback: true }
+        )
+        .catch(() => {});
+
+      pm.refreshProjectPanel(project);
+      window.ErrorHandler?.showToast?.('交付物已删除，可重新勾选后生成', 'success');
+    },
+
     async startStageWithSelection(pm, projectId, stageId, reopen = false) {
       if (!window.workflowExecutor) {
         return window.modalManager?.alert('工作流执行器未就绪', 'warning');
@@ -592,7 +1011,7 @@
       if (expectedDeliverables.length === 0) {
         return window.modalManager?.alert('该阶段未配置可执行交付物，请先检查阶段配置', 'warning');
       }
-      const selected = api.getStageSelectedDeliverables(pm, stageId, expectedDeliverables);
+      let selected = api.getStageSelectedDeliverables(pm, stageId, expectedDeliverables);
       if (expectedDeliverables.length > 0 && selected.length === 0) {
         const msg = '请先勾选需要输出的交付物';
         if (window.modalManager) {
@@ -602,17 +1021,43 @@
         }
         return;
       }
-      const resolvedArtifactTypes = api.resolveSelectedArtifactTypes(
+      const dependencyResult = await api.resolveDependenciesWithConfirm(
         pm,
         stage,
         expectedDeliverables,
         selected
+      );
+      if (!dependencyResult.confirmed) {
+        return;
+      }
+      selected = dependencyResult.selectedIds;
+      const resolvedArtifactTypes = api.orderTypesByDependency(
+        api.resolveSelectedArtifactTypes(pm, stage, expectedDeliverables, selected)
       );
       if (resolvedArtifactTypes.length === 0 && selected.length > 0) {
         return window.modalManager?.alert('未选择有效的交付物类型', 'warning');
       }
       if (!api.validateStrategyDocDependency(pm, pm.currentProject, resolvedArtifactTypes)) {
         return;
+      }
+      if (stage) {
+        stage.selectedDeliverables = selected;
+        if (resolvedArtifactTypes.length > 0) {
+          stage.executingArtifactTypes = resolvedArtifactTypes;
+        }
+        if (stage.status === 'pending') {
+          stage.status = 'active';
+          stage.startedAt = stage.startedAt || Date.now();
+        }
+        if (pm.currentProjectId) {
+          pm.stageDeliverableSelection[stageId] = selected;
+          pm.stageDeliverableSelectionByProject[pm.currentProjectId] = pm.stageDeliverableSelection;
+          pm.persistStageDeliverableSelectionStore();
+        }
+        pm.refreshProjectPanel(pm.currentProject);
+        pm
+          .updateProject(projectId, { workflow: pm.currentProject?.workflow }, { allowFallback: true })
+          .catch(() => {});
       }
       await window.workflowExecutor.startStage(projectId, stageId, {
         selectedArtifactTypes: resolvedArtifactTypes.length > 0 ? resolvedArtifactTypes : selected,

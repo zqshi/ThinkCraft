@@ -8,14 +8,22 @@ const reportPreviewLogger = window.createLogger
 
 window.projectManagerReportPreview = {
   async viewIdeaReport(pm, chatId, type) {
-    if (!window.modalManager || !pm.storageManager) {
+    const modalManager = window.modalManager;
+    const storageManager = pm.storageManager || window.storageManager;
+    if (!modalManager) {
+      reportPreviewLogger.error('[项目面板] modalManager 未就绪，无法打开报告弹窗');
       return;
     }
+    if (!storageManager) {
+      modalManager.alert('报告存储未就绪，请稍后重试', 'warning');
+      return;
+    }
+    try {
     let chat = null;
     try {
-      chat = await pm.storageManager.getChat(chatId);
+      chat = await storageManager.getChat(chatId);
       if (!chat) {
-        const allChats = await pm.storageManager.getAllChats().catch(() => []);
+        const allChats = await storageManager.getAllChats().catch(() => []);
         chat = allChats.find(
           item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
         );
@@ -31,18 +39,13 @@ window.projectManagerReportPreview = {
       }
     }
 
-    const reports = await pm.storageManager.getAllReports();
+    const reports = await storageManager.getAllReports();
     const report = reports.find(
       r =>
         pm.normalizeIdeaIdForCompare(r.chatId) === pm.normalizeIdeaIdForCompare(chatId) &&
         r.type === type
     );
-    if (!report) {
-      window.modalManager.alert('暂无报告内容', 'info');
-      return;
-    }
-
-    const data = report.data || {};
+    const data = report?.data || {};
     const normalizeMarkdown = text => {
       if (
         window.reportViewer &&
@@ -242,15 +245,15 @@ window.projectManagerReportPreview = {
                     <h4>2. 核心假设清单</h4>
                     <p><strong>创意成立所依赖的关键前提（未经完全验证）：</strong></p>
                     ${ch2Assumptions
-                      .map(
-                        (item, idx) => `
+    .map(
+      (item, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">${safeText(item)}</div>
                         </div>
                     `
-                      )
-                      .join('')}
+    )
+    .join('')}
                 </div>
             </div>
         </div>
@@ -311,20 +314,20 @@ window.projectManagerReportPreview = {
                     <h4>1. 实现路径分解</h4>
                     <p><strong>将大创意拆解为关键模块/发展阶段：</strong></p>
                     ${stages
-                      .map(
-                        (stage, idx) => `
+    .map(
+      (stage, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">
                                 <strong>${safeText(normalizeText(stage?.stage, `阶段 ${idx + 1}`))}：</strong>
                                 ${safeText(normalizeText(stage?.goal, fallbackText))} · ${safeText(
-                                  normalizeText(stage?.tasks, fallbackText)
-                                )}
+  normalizeText(stage?.tasks, fallbackText)
+)}
                             </div>
                         </div>
                     `
-                      )
-                      .join('')}
+    )
+    .join('')}
 
                     <h4>2. 最大障碍预判</h4>
                     <div class="highlight-box">
@@ -351,14 +354,14 @@ window.projectManagerReportPreview = {
                     <p><strong>以下问题需通过调研、实验或原型才能回答：</strong></p>
                     <div class="analysis-grid">
                         ${keyQuestions
-                          .map(
-                            (item, idx) => `
+    .map(
+      (item, idx) => `
                             <div class="analysis-card">
                                 <div class="analysis-card-header">
                                     <div class="analysis-icon">❓</div>
                                     <div class="analysis-card-title">${safeText(
-                                      normalizeText(item?.category, `决定性问题 ${idx + 1}`)
-                                    )}</div>
+    normalizeText(item?.category, `决定性问题 ${idx + 1}`)
+  )}</div>
                                 </div>
                                 <div class="analysis-card-content">
                                     <strong>问题：</strong>${safeText(normalizeText(item?.question, fallbackText))}<br><br>
@@ -367,8 +370,8 @@ window.projectManagerReportPreview = {
                                 </div>
                             </div>
                         `
-                          )
-                          .join('')}
+    )
+    .join('')}
                     </div>
                 </div>
             </div>
@@ -430,15 +433,15 @@ window.projectManagerReportPreview = {
                     <h4>3. 概念延伸提示</h4>
                     <p><strong>对话中衍生的关联创意方向：</strong></p>
                     ${ch6ExtendedIdeas
-                      .map(
-                        (item, idx) => `
+    .map(
+      (item, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">${safeText(item)}</div>
                         </div>
                     `
-                      )
-                      .join('')}
+    )
+    .join('')}
 
                     <h4>4. 验证方法与成功指标</h4>
                     <div class="analysis-grid">
@@ -471,8 +474,6 @@ window.projectManagerReportPreview = {
       `;
     };
 
-    const metaHTML =
-      type === 'analysis' ? '<div class="report-meta">项目面板 · 只读预览</div>' : '';
     const buildReportHeader = ({ title, subtitle, meta }) => `
       <div class="report-hero">
         <div class="report-hero-title">${safeText(title)}</div>
@@ -480,25 +481,43 @@ window.projectManagerReportPreview = {
         ${meta ? `<div class="report-hero-meta">${meta}</div>` : ''}
       </div>
     `;
+    const buildEmptyReportSection = ({
+      title = '报告内容缺失',
+      message = '检测到报告内容为空，建议返回对话重新生成。',
+      showChatAction = false
+    } = {}) => `
+      <div class="report-section">
+          <div class="report-section-title">${safeText(title)}</div>
+          <div class="document-chapter">
+              <div class="chapter-content">
+                  <p style="color: var(--text-secondary);">${safeText(message)}</p>
+                  <div style="display: flex; gap: 12px; margin-top: 16px;">
+                      <button class="btn-secondary" onclick="window.modalManager && window.modalManager.close('projectIdeaReportModal')">关闭</button>
+                      ${
+                        showChatAction
+                          ? `<button class="btn-primary" onclick="window.modalManager && window.modalManager.close('projectIdeaReportModal'); projectManager.openIdeaChat('${safeText(chatId)}')">查看对话</button>`
+                          : ''
+                      }
+                  </div>
+              </div>
+          </div>
+      </div>
+    `;
     let contentHTML = '';
     if (type === 'analysis') {
       // 检查数据是否有效
-      if (!data || !data.chapters) {
-        contentHTML =
-          metaHTML +
-          `
-          <div style="text-align: center; padding: 60px 20px;">
-            <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
-            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-              暂无分析报告内容
-            </div>
-            <div style="font-size: 14px; color: var(--text-secondary);">
-              报告数据不完整或格式错误
-            </div>
-          </div>
+      if (!report || !data || !data.chapters) {
+        contentHTML = `
+          ${buildEmptyReportSection({
+            title: '报告内容缺失',
+            message: report
+              ? '检测到分析报告数据不完整，建议返回对话重新生成。'
+              : '当前创意尚未生成分析报告，建议先在对话中生成。',
+            showChatAction: true
+          })}
         `;
       } else {
-        contentHTML = metaHTML + buildAnalysisHTML(data);
+        contentHTML = buildAnalysisHTML(data);
       }
     } else if (type === 'business' || type === 'proposal') {
       const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
@@ -538,37 +557,37 @@ window.projectManagerReportPreview = {
           contentHTML = `
             ${headerHTML}
             ${chapters
-              .map((chapter, index) => {
-                const agentIcon =
+    .map((chapter, index) => {
+      const agentIcon =
                   typeof window.getAgentIconSvg === 'function'
                     ? window.getAgentIconSvg(
-                        chapter.emoji || chapter.agent,
-                        16,
-                        'agent-inline-icon'
-                      )
+                      chapter.emoji || chapter.agent,
+                      16,
+                      'agent-inline-icon'
+                    )
                     : '';
-                const agentLine = chapter.agent ? `${agentIcon} ${safeText(chapter.agent)}` : '';
-                return `
+      const agentLine = chapter.agent ? `${agentIcon} ${safeText(chapter.agent)}` : '';
+      return `
                   <div class="report-section">
                       <div class="report-section-title">${index + 1}. ${safeText(
-                        chapter.title || `章节 ${index + 1}`
-                      )}</div>
+  chapter.title || `章节 ${index + 1}`
+)}</div>
                       ${
-                        agentLine
-                          ? `<div class="report-section-meta">分析师：${agentLine}</div>`
-                          : ''
-                      }
+  agentLine
+    ? `<div class="report-section-meta">分析师：${agentLine}</div>`
+    : ''
+}
                       <div class="report-section-body report-rich-text markdown-content">
                           ${
-                            chapter.content
-                              ? renderMarkdown(chapter.content)
-                              : '<p class="report-empty">内容生成中...</p>'
-                          }
+  chapter.content
+    ? renderMarkdown(chapter.content)
+    : '<p class="report-empty">内容生成中...</p>'
+}
                       </div>
                   </div>
                 `;
-              })
-              .join('')}
+    })
+    .join('')}
             <div class="report-footer-note">本报告由 ThinkCraft AI 自动生成 | 数据仅供参考</div>
           `;
         }
@@ -577,19 +596,22 @@ window.projectManagerReportPreview = {
       const chapters = Array.isArray(data.chapters)
         ? data.chapters
         : Object.values(data.chapters || {});
-      contentHTML = metaHTML + buildChaptersHTML(chapters);
+      contentHTML = buildChaptersHTML(chapters);
     } else {
       const summary = data.coreDefinition || data.problem || data.solution || '';
-      contentHTML =
-        metaHTML + `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
+      contentHTML = `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
     }
 
     if (!contentHTML) {
-      contentHTML = `${metaHTML}<div class="project-panel-empty">暂无报告内容</div>`;
+      contentHTML = '<div class="project-panel-empty">暂无报告内容</div>';
     }
 
     const modalTitle =
       type === 'analysis' ? '分析报告' : type === 'business' ? '商业计划书' : '产品立项材料';
-    window.modalManager.showCustomModal(modalTitle, contentHTML, 'projectIdeaReportModal');
+    modalManager.showCustomModal(modalTitle, contentHTML, 'projectIdeaReportModal');
+    } catch (error) {
+      reportPreviewLogger.error('[项目面板] 打开报告失败:', error);
+      modalManager.alert('打开报告失败，请稍后重试', 'error');
+    }
   }
 };

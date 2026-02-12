@@ -24,56 +24,46 @@ class ReportGenerator {
     this.isGenerating = false; // 防止重复请求
   }
 
-  getReportGenerateEndpoints() {
-    return ['/api/report/generate', '/api/report/reports/generate'];
-  }
+  async ensureChatAnalysisPersisted(chatId) {
+    if (!chatId || !window.apiClient?.put || !window.apiClient?.get) {
+      return;
+    }
 
-  async postReportGenerateWithClient(apiClient, body, options = {}) {
-    const endpoints = this.getReportGenerateEndpoints();
-    let lastError = null;
-    for (const endpoint of endpoints) {
-      try {
-        return await apiClient.request(endpoint, {
-          method: 'POST',
-          body,
-          timeout: options.timeout,
-          retry: options.retry
-        });
-      } catch (error) {
-        const status = error?.status;
-        if (status === 404) {
-          lastError = error;
-          continue;
+    const normalizedChatId = String(chatId).trim();
+    const payload = {
+      analysisCompleted: true,
+      reportState: {
+        analysis: {
+          status: 'completed',
+          progress: { current: 1, total: 1, percentage: 100 },
+          updatedAt: Date.now(),
+          source: 'report-generator'
         }
-        throw error;
       }
-    }
-    if (lastError) {
-      throw lastError;
-    }
-    throw new Error('报告接口不可用');
-  }
+    };
 
-  async postReportGenerateWithFetch(apiUrl, body, options = {}) {
-    const endpoints = this.getReportGenerateEndpoints();
+    const maxAttempts = 2;
     let lastError = null;
-    for (const endpoint of endpoints) {
-      const response = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        headers: options.headers || { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: options.signal
-      });
-      if (response.status === 404) {
-        lastError = response;
-        continue;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await window.apiClient.put(`/api/chat/${normalizedChatId}`, payload);
+        const verify = await window.apiClient.get(`/api/chat/${normalizedChatId}`);
+        const chat = verify?.data || null;
+        const status = String(chat?.reportState?.analysis?.status || '').toLowerCase();
+        const persisted =
+          chat?.analysisCompleted === true &&
+          (status === 'completed' || status === 'success' || status === 'done' || status === 'finished');
+        if (persisted) {
+          return;
+        }
+        lastError = new Error('会话分析状态未持久化');
+      } catch (error) {
+        lastError = error;
       }
-      return response;
     }
-    if (lastError) {
-      return lastError;
-    }
-    throw new Error('报告接口不可用');
+
+    throw lastError || new Error('会话分析状态入库失败');
   }
 
   async persistAnalysisReport(reportData, status = 'completed') {
@@ -142,9 +132,9 @@ class ReportGenerator {
       window.apiClient = apiClient;
 
       const chatId = normalizeChatId(this.state.currentChat);
-      const data = await this.postReportGenerateWithClient(
-        apiClient,
-        {
+      const data = await apiClient.request('/api/report/generate', {
+        method: 'POST',
+        body: {
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -153,11 +143,9 @@ class ReportGenerator {
           reportKey: this.getAnalysisReportKey(),
           force: false
         },
-        {
-          timeout: 180000, // 增加到3分钟
-          retry: 2 // 增加重试次数
-        }
-      );
+        timeout: 180000, // 增加到3分钟
+        retry: 2 // 增加重试次数
+      });
 
       if (data && data.code !== 0) {
         return;
@@ -213,9 +201,9 @@ class ReportGenerator {
       window.apiClient = apiClient;
 
       const chatId = normalizeChatId(this.state.currentChat);
-      const data = await this.postReportGenerateWithClient(
-        apiClient,
-        {
+      const data = await apiClient.request('/api/report/generate', {
+        method: 'POST',
+        body: {
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -225,11 +213,9 @@ class ReportGenerator {
           force: false,
           cacheOnly: true
         },
-        {
-          timeout: 120000,
-          retry: 0
-        }
-      );
+        timeout: 120000,
+        retry: 0
+      });
 
       if (data && data.code !== 0) {
         return false;
@@ -319,12 +305,6 @@ class ReportGenerator {
     // 防止重复请求
     if (this.isGenerating) {
       console.warn('[生成报告] 已有报告正在生成中，跳过重复请求');
-
-      // 给用户友好的提示
-      if (window.showToast) {
-        window.showToast('报告正在生成中，请稍候...', 'info');
-      }
-
       return;
     }
 
@@ -378,9 +358,13 @@ class ReportGenerator {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      const response = await this.postReportGenerateWithFetch(
-        this.state.settings.apiUrl,
-        {
+      const response = await fetch(`${this.state.settings.apiUrl}/api/report/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({
           messages: this.state.messages.map(m => ({
             role: m.role,
             content: m.content
@@ -388,15 +372,9 @@ class ReportGenerator {
           chatId,
           reportKey: this.getAnalysisReportKey(),
           force: forceRegenerate || false
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-          },
-          signal: this.currentController.signal
-        }
-      );
+        }),
+        signal: this.currentController.signal
+      });
 
       clearTimeout(timeoutId);
       this.currentController = null;
@@ -422,6 +400,7 @@ class ReportGenerator {
 
       // 保存到数据库
       await this.persistAnalysisReport(report, 'completed');
+      await this.ensureChatAnalysisPersisted(chatId);
 
       // 完成生成流程 - 更新StateManager状态
       if (window.stateManager) {

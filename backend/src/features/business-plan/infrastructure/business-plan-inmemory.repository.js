@@ -22,7 +22,8 @@ export class BusinessPlanInMemoryRepository extends IBusinessPlanRepository {
    * 根据ID查找商业计划书
    */
   async findById(id) {
-    return this._businessPlans.get(id.value) || null;
+    const key = typeof id === 'string' ? id : id?.value;
+    return key ? this._businessPlans.get(key) || null : null;
   }
 
   /**
@@ -54,7 +55,8 @@ export class BusinessPlanInMemoryRepository extends IBusinessPlanRepository {
    * 删除商业计划书
    */
   async delete(id) {
-    return this._businessPlans.delete(id.value);
+    const key = typeof id === 'string' ? id : id?.value;
+    return key ? this._businessPlans.delete(key) : false;
   }
 
   /**

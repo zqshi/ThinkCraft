@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 const AnalysisReportSchema = new mongoose.Schema(
   {
     reportKey: { type: String, required: true, unique: true, index: true },
+    chatId: { type: String, index: true, default: null },
     report: { type: mongoose.Schema.Types.Mixed, required: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }

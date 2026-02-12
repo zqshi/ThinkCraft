@@ -16,7 +16,7 @@
 
 /**
  * 开始生成商业计划书
- * HTML调用位置: index.html:571
+ * HTML调用位置: frontend/pages/index.html:571
  */
 function startGeneration() {
   if (!window.businessPlanGenerator) {
@@ -35,7 +35,7 @@ function startGeneration() {
 
 /**
  * 取消生成进度
- * HTML调用位置: index.html:602
+ * HTML调用位置: frontend/pages/index.html:602
  */
 function cancelGeneration() {
   if (!window.agentProgressManager) {
@@ -54,7 +54,7 @@ function cancelGeneration() {
 
 /**
  * 调整商业计划书章节
- * HTML调用位置: index.html:627
+ * HTML调用位置: frontend/pages/index.html:627
  */
 function adjustBusinessReportChapters() {
   try {
@@ -90,7 +90,7 @@ function adjustBusinessReportChapters() {
 
 /**
  * 重新生成商业计划书
- * HTML调用位置: index.html:628
+ * HTML调用位置: frontend/pages/index.html:628
  */
 function regenerateBusinessReport() {
   if (!window.businessPlanGenerator) {
@@ -132,7 +132,7 @@ function regenerateBusinessReport() {
 
 /**
  * 分享商业计划书
- * HTML调用位置: index.html:630
+ * HTML调用位置: frontend/pages/index.html:630
  */
 function shareBusinessReport() {
   if (!window.businessPlanGenerator) {
@@ -155,7 +155,7 @@ function shareBusinessReport() {
 
 /**
  * 显示添加成员模态框
- * HTML调用位置: index.html:920
+ * HTML调用位置: frontend/pages/index.html:920
  */
 function showAddMember() {
   if (!window.teamCollaboration) {
@@ -174,7 +174,7 @@ function showAddMember() {
 
 /**
  * 切换添加成员标签页
- * HTML调用位置: index.html:956,957
+ * HTML调用位置: frontend/pages/index.html:956,957
  * @param {string} tab - 标签页名称 ('market' 或 'hired')
  */
 function switchAddMemberTab(tab) {
@@ -194,7 +194,7 @@ function switchAddMemberTab(tab) {
 
 /**
  * 切换员工市场标签页
- * HTML调用位置: index.html:996,997
+ * HTML调用位置: frontend/pages/index.html:996,997
  * @param {string} tab - 标签页名称
  */
 function switchMarketTab(tab) {
@@ -231,7 +231,7 @@ function switchMarketTab(tab) {
 
 /**
  * 切换知识库组织方式
- * HTML调用位置: index.html:658,659,660
+ * HTML调用位置: frontend/pages/index.html:658,659,660
  * @param {string} orgType - 组织方式 ('type', 'timeline', 'tags')
  *
  * 注意: 这是一个别名函数，实际调用 switchKnowledgeOrg()

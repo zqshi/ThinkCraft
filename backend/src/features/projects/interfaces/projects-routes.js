@@ -65,6 +65,12 @@ router.put('/:id/workflow', projectController.customizeWorkflow);
 router.get('/by-idea/:ideaId', projectController.getProjectByIdeaId);
 
 /**
+ * GET /api/projects/eligible-ideas
+ * 获取“已完成分析且可用于创建项目”的创意列表（后端统一口径）
+ */
+router.get('/eligible-ideas', projectController.getEligibleIdeas);
+
+/**
  * GET /api/projects/:id
  * 获取项目详情
  * 响应: { code: number, message: string, data: { project: object, stages: array, artifacts: array } }

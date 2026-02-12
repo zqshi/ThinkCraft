@@ -3,7 +3,7 @@
   "last_updated": "2026-02-05",
   "agents": [
     {
-      "id": "strategy-designer",
+      "id": "strategy-design",
       "name": "战略设计师 Agent",
       "domain": "strategy",
       "path": "prompts/agents/strategy/strategy-designer/strategy-designer-agent.md",

@@ -10,6 +10,11 @@
 - 架构 ADR：`docs/architecture/ADR-001-modular-refactor.md`
 - 开发文档索引：`docs/README.md`
 
+## 模块化重构架构说明
+
+- 模块化重构已完成，主入口按 `frontend/js/modules/*` 分层加载。
+- 架构说明与决策记录见 `docs/architecture/ADR-001-modular-refactor.md`。
+
 ## 快速开始
 
 ```bash
@@ -79,10 +84,25 @@ npm install
 - `GET /api/projects/workflow-config/:category`
 - `POST /api/workflow/:projectId/execute-stage`
 - `POST /api/workflow/:projectId/execute-batch`
+- `GET /api/workflow/:projectId/execution-runs`
+- `GET /api/workflow/:projectId/artifact-chunks`
+- `GET /api/workflow/:projectId/artifact-chunks/:runId`
 - `GET /api/workflow/:projectId/stages/:stageId/artifacts`
 - `GET /api/workflow/:projectId/artifacts`
 - `GET /api/workflow/:projectId/artifacts/tree`
 - `GET /api/workflow/:projectId/artifacts/bundle`
+
+## 工作流生成配置（可维护沉淀）
+
+- 配置集中在：`backend/config/workflow-generation.js`
+- 环境变量示例在：`backend/.env.example`
+
+当前默认策略：
+
+- `prototype` 多轮续写默认 `10` 轮（`WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`）
+- `prototype/preview/ui-preview` 结束标记默认 `<!--END_HTML-->`
+- 非 HTML 交付物默认 `4` 轮（`WORKFLOW_ARTIFACT_LOOP_MAX_ROUNDS=4`）
+- 原型支持分轮拼接与重叠去重，完成后落库分块会话（`artifact-chunks`）以支持追踪和断点恢复
 
 ## 项目结构（当前有效）
 

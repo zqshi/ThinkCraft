@@ -55,7 +55,7 @@ export class ReportStatus extends ValueObject {
   }
 
   canEdit() {
-    return this.isDraft() || this.isFailed();
+    return this.isDraft() || this.isFailed() || this.isGenerating();
   }
 
   canGenerate() {

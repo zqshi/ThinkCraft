@@ -1,28 +1,25 @@
 /**
  * 手机验证码用例单元测试
  */
+import { jest } from '@jest/globals';
 import { PhoneVerificationUseCase } from '../phone-verification.use-case.js';
-import { SmsService } from '../../../../infrastructure/sms/sms.service.js';
 import { logger } from '../../../../../middleware/logger.js';
-
-// Mock logger
-jest.mock('../../../../../middleware/logger.js', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn()
-  }
-}));
 
 describe('PhoneVerificationUseCase', () => {
   let phoneVerificationUseCase;
   let mockUserRepository;
   let mockSmsService;
   let mockCacheService;
+  let infoSpy;
+  let warnSpy;
+  let errorSpy;
 
   beforeEach(() => {
     // 清除所有mock
     jest.clearAllMocks();
+    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
 
     // Mock用户仓库
     mockUserRepository = {
@@ -39,6 +36,7 @@ describe('PhoneVerificationUseCase', () => {
 
     // Mock缓存服务
     mockCacheService = {
+      isEnabled: jest.fn(() => true),
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn()
@@ -308,5 +306,11 @@ describe('PhoneVerificationUseCase', () => {
     it('应该处理短手机号', () => {
       expect(phoneVerificationUseCase._maskPhone('123')).toBe('123');
     });
+  });
+
+  afterEach(() => {
+    infoSpy?.mockRestore();
+    warnSpy?.mockRestore();
+    errorSpy?.mockRestore();
   });
 });

@@ -202,42 +202,42 @@ class InputHandler {
       // 根据错误类型给出不同提示
       let errorMessage = '❌ 语音识别失败\n\n';
       switch (event.error) {
-        case 'no-speech':
-          errorMessage += '未检测到语音输入，请重试';
-          break;
-        case 'audio-capture':
-          errorMessage += '无法访问麦克风，请检查设备连接和权限设置';
-          this.microphonePermissionGranted = false; // 重置权限状态
-          break;
-        case 'not-allowed':
-          errorMessage += '麦克风权限被拒绝\n\n请在浏览器设置中允许访问麦克风：\n\niOS: 设置 > Safari > 麦克风\nAndroid: 设置 > 应用 > 浏览器 > 权限';
-          this.microphonePermissionGranted = false; // 重置权限状态
-          break;
-        case 'network':
-          errorMessage += '网络连接失败\n\n';
-          errorMessage += '语音识别需要连接到Google服务器。\n\n';
-          errorMessage += '可能的原因：\n';
-          errorMessage += '1. 网络未连接或不稳定\n';
-          errorMessage += '2. 无法访问Google服务\n';
-          errorMessage += '3. 防火墙或代理阻止连接\n\n';
-          errorMessage += '建议：\n';
-          errorMessage += '• 检查网络连接\n';
-          errorMessage += '• 尝试切换到文字输入\n';
-          errorMessage += '• 使用VPN或更换网络环境';
-          break;
-        case 'aborted':
-          // 用户主动取消，不显示错误
-          this.resetVoiceInput();
-          return;
-        case 'service-not-allowed':
-          errorMessage += '语音识别服务不可用\n\n可能是网络限制或服务暂时不可用';
-          break;
-        default:
-          errorMessage += `错误代码: ${event.error}\n\n`;
-          errorMessage += '请尝试：\n';
-          errorMessage += '1. 检查网络连接\n';
-          errorMessage += '2. 刷新页面重试\n';
-          errorMessage += '3. 使用文字输入';
+      case 'no-speech':
+        errorMessage += '未检测到语音输入，请重试';
+        break;
+      case 'audio-capture':
+        errorMessage += '无法访问麦克风，请检查设备连接和权限设置';
+        this.microphonePermissionGranted = false; // 重置权限状态
+        break;
+      case 'not-allowed':
+        errorMessage += '麦克风权限被拒绝\n\n请在浏览器设置中允许访问麦克风：\n\niOS: 设置 > Safari > 麦克风\nAndroid: 设置 > 应用 > 浏览器 > 权限';
+        this.microphonePermissionGranted = false; // 重置权限状态
+        break;
+      case 'network':
+        errorMessage += '网络连接失败\n\n';
+        errorMessage += '语音识别需要连接到Google服务器。\n\n';
+        errorMessage += '可能的原因：\n';
+        errorMessage += '1. 网络未连接或不稳定\n';
+        errorMessage += '2. 无法访问Google服务\n';
+        errorMessage += '3. 防火墙或代理阻止连接\n\n';
+        errorMessage += '建议：\n';
+        errorMessage += '• 检查网络连接\n';
+        errorMessage += '• 尝试切换到文字输入\n';
+        errorMessage += '• 使用VPN或更换网络环境';
+        break;
+      case 'aborted':
+        // 用户主动取消，不显示错误
+        this.resetVoiceInput();
+        return;
+      case 'service-not-allowed':
+        errorMessage += '语音识别服务不可用\n\n可能是网络限制或服务暂时不可用';
+        break;
+      default:
+        errorMessage += `错误代码: ${event.error}\n\n`;
+        errorMessage += '请尝试：\n';
+        errorMessage += '1. 检查网络连接\n';
+        errorMessage += '2. 刷新页面重试\n';
+        errorMessage += '3. 使用文字输入';
       }
 
       alert(errorMessage);

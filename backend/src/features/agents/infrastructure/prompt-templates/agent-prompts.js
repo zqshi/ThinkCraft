@@ -162,11 +162,11 @@ export class AgentPromptTemplates {
    */
   static getCollaborationPrompt(collaborationType) {
     const prompts = {
-      parallel: `你正在与其他Agent并行工作。请专注于你负责的部分，提供独立完整的输出。`,
+      parallel: '你正在与其他Agent并行工作。请专注于你负责的部分，提供独立完整的输出。',
 
-      sequential: `你正在接力完成任务。请基于前序Agent的输出继续工作，并将结果传递给下一个Agent。`,
+      sequential: '你正在接力完成任务。请基于前序Agent的输出继续工作，并将结果传递给下一个Agent。',
 
-      hierarchical: `你正在分层协作中工作。如果你是Master Agent，请分解任务并汇总结果；如果你是Worker Agent，请专注完成分配的子任务。`
+      hierarchical: '你正在分层协作中工作。如果你是Master Agent，请分解任务并汇总结果；如果你是Worker Agent，请专注完成分配的子任务。'
     };
 
     return prompts[collaborationType] || '';

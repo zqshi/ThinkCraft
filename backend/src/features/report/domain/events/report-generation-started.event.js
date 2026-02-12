@@ -5,22 +5,18 @@ import { DomainEvent } from '../../../../shared/domain/domain-event.base.js';
 
 export class ReportGenerationStartedEvent extends DomainEvent {
   constructor(payload) {
-    super({
-      eventName: 'report.generation.started',
-      aggregateId: payload.reportId,
-      payload
-    });
+    super('report.generation.started', payload);
   }
 
   get reportId() {
-    return this.payload.reportId;
+    return this.data.reportId;
   }
 
   get projectId() {
-    return this.payload.projectId;
+    return this.data.projectId;
   }
 
   get type() {
-    return this.payload.type;
+    return this.data.type;
   }
 }

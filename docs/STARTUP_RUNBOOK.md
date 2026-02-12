@@ -23,6 +23,8 @@ npm install
 cp backend/.env.example backend/.env
 ```
 
+4. 如需调整交互原型分轮生成策略，修改 `backend/.env` 中的工作流参数（默认 `WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`，结束标记 `WORKFLOW_PROTOTYPE_END_MARKER=<!--END_HTML-->`）。
+
 ## 3. 标准启动（唯一入口）
 
 ```bash

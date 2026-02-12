@@ -88,6 +88,10 @@ class ProjectManager {
     this.artifactPollingTimer = null;
     this.artifactPollingProjectId = null;
     this.artifactPollingInFlight = false;
+    this.executionRunsUnavailableByProject = {};
+    this.artifactChunksUnavailableByProject = {};
+    this.enableExecutionRunsPolling = true;
+    this.workflowRouteHealthByProject = {};
     this.stageProgressTracker = {};
     this.agentMarket = [];
     this.agentMarketCategory = null;
@@ -231,7 +235,7 @@ class ProjectManager {
 
 function registerPmDelegates(moduleName, defs) {
   defs.forEach(def => {
-    const config = typeof def === 'string' ? { method: def, delegate: def } : def;
+    const config = typeof def === 'string' ? { method: def, delegate: def } : { ...def, delegate: def.delegate || def.method };
     ProjectManager.prototype[config.method] = function (...args) {
       const module = window[moduleName];
       const resolveFallback = () =>
@@ -317,7 +321,18 @@ registerPmDelegates('projectManagerUiUtils', [
 ]);
 registerPmDelegates('projectManagerCoreUtils', [
   { method: 'formatTimeAgo', fallback: '刚刚' },
-  { method: 'escapeHtml', fallback: '' },
+  {
+    method: 'escapeHtml',
+    fallback(_text) {
+      const value = _text === null || _text === undefined ? '' : String(_text);
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+  },
   { method: 'mergeArtifacts', fallback: () => [] }
 ]);
 registerPmDelegates('projectManagerPanelRenderer', [
@@ -360,6 +375,7 @@ registerPmDelegates('projectManagerDeliverables', [
   'generateAdditionalDeliverables',
   'regenerateStageDeliverable',
   'retryStageDeliverable',
+  'deleteGeneratedDeliverable',
   { method: 'getMissingDeliverables', fallback: () => [] },
   { method: 'getMissingSelectedDeliverables', fallback: () => [] },
   { method: 'getMissingDeliverablesFromExpected', fallback: () => [] },
@@ -388,6 +404,7 @@ registerPmDelegates('projectManagerPanelLifecycle', [
   { method: 'buildPreviewArtifact', fallback: null },
   'openPreviewEntry',
   'openPreviewPanel',
+  'downloadProjectArtifactBundle',
   'showStageArtifactsModal',
   'closeProjectPanel'
 ]);
@@ -420,7 +437,13 @@ registerPmDelegates('projectManagerIdeaFlow', [
   'saveIdeaKnowledge',
   'showCreateProjectDialog',
   { method: 'hasCompletedAnalysisReport', fallback: false },
-  { method: 'getChatsWithCompletedAnalysis', fallback: () => [] },
+  {
+    method: 'getChatsWithCompletedAnalysis',
+    fallback() {
+      console.warn('[ProjectManager] projectManagerIdeaFlow.getChatsWithCompletedAnalysis 未加载');
+      return [];
+    }
+  },
   { method: 'filterCompletedIdeas', fallback: () => [] },
   'confirmCreateProject',
   'createProjectWithWorkflow',
@@ -446,19 +469,11 @@ registerPmDelegates('projectManagerWorkflowRunner', [
   'renderWorkflowDetails',
   'startWorkflowExecution'
 ]);
-registerPmDelegates('projectManagerLegacyCompat', [
-  'createNewProject',
-  'openProjectLegacy',
-  'renderProjectDetail',
-  'removeAgentFromProject',
-  'linkIdeaToProject',
-  'editProjectInfo',
-  'deleteProjectLegacy'
-]);
 registerPmDelegates('projectManagerArtifactPreview', [
   'openArtifactPreviewPanel',
   'closeArtifactPreviewPanel',
   'renderArtifactPreviewPanel',
+  'openArtifactPreviewInNewWindow',
   'copyArtifactContent',
   'downloadArtifact',
   { method: 'formatFileSize', passCtx: false, fallback: '0 B' }

@@ -148,8 +148,32 @@ window.projectManagerPanelLifecycle = {
     }
 
     if (artifact.previewUrl || artifact.url) {
-      window.open(artifact.previewUrl || artifact.url, '_blank');
-      return;
+      const targetUrl = artifact.previewUrl || artifact.url;
+      try {
+        if (typeof pm.fetchWithAuth === 'function') {
+          const response = await pm.fetchWithAuth(targetUrl, { method: 'GET' });
+          if (!response.ok) {
+            const message = await response.text().catch(() => '');
+            throw new Error(message || `预览资源加载失败（HTTP ${response.status}）`);
+          }
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+          if (!win) {
+            URL.revokeObjectURL(blobUrl);
+            window.modalManager?.alert('浏览器拦截了新标签页，请允许弹出窗口', 'warning');
+            return;
+          }
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 60 * 1000);
+          return;
+        }
+
+        window.open(targetUrl, '_blank');
+        return;
+      } catch (error) {
+        window.modalManager?.alert(`打开预览失败：${error.message}`, 'warning');
+        return;
+      }
     }
 
     const html = pm.extractHtmlFromContent(artifact.content || '');
@@ -213,8 +237,8 @@ window.projectManagerPanelLifecycle = {
     const listHTML = `
             <div style="display: grid; gap: 10px;">
                 ${artifacts
-                  .map(
-                    artifact => `
+    .map(
+      artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${pm.escapeHtml(artifact.name || '未命名交付物')}</div>
@@ -225,12 +249,50 @@ window.projectManagerPanelLifecycle = {
                         </button>
                     </div>
                 `
-                  )
-                  .join('')}
+    )
+    .join('')}
             </div>
         `;
 
     window.modalManager.showCustomModal('交付物列表', listHTML, 'stageArtifactsModal');
+  },
+
+  async downloadProjectArtifactBundle(pm, projectId = null) {
+    const targetProjectId = projectId || pm.currentProjectId || pm.currentProject?.id;
+    if (!targetProjectId) {
+      window.modalManager?.alert('请先选择项目', 'info');
+      return;
+    }
+
+    try {
+      window.ErrorHandler?.showToast?.('正在打包项目产物，请稍候...', 'info');
+      const baseApiUrl = String(pm.apiUrl || window.location.origin).replace(/\/$/, '');
+      const downloadUrl = `${baseApiUrl}/api/workflow/${encodeURIComponent(targetProjectId)}/artifacts/bundle?fresh=1&format=zip`;
+      const response = await pm.fetchWithAuth(downloadUrl, { method: 'GET' });
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '');
+        throw new Error(message || `下载失败（HTTP ${response.status}）`);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const fileName = fileNameMatch?.[1] || `${targetProjectId}-artifacts.zip`;
+
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(objectUrl);
+
+      window.ErrorHandler?.showToast?.('产物包下载已开始', 'success');
+    } catch (error) {
+      window.ErrorHandler?.showToast?.(`产物包下载失败：${error.message}`, 'error');
+    }
   },
 
   closeProjectPanel(pm) {

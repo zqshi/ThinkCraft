@@ -32,9 +32,9 @@ describe('E2E health endpoints', () => {
     expect(res.json.status).toBe('ok');
   });
 
-  it('should return 404 for unknown route', async () => {
+  it('should enforce auth on unknown api route', async () => {
     const res = await requestJson({ port, path: '/api/unknown' });
-    expect(res.status).toBe(404);
-    expect(res.json.code).toBe(-1);
+    expect(res.status).toBe(401);
+    expect(res.json.error).toContain('令牌');
   });
 });

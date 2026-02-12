@@ -7,7 +7,7 @@ function getDefaultApiUrl() {
   const host = window.location.hostname;
   const isLocalhost = host === 'localhost' || host === '127.0.0.1';
   if (isLocalhost && window.location.port !== '3000') {
-    return 'http://localhost:3000';
+    return 'http://127.0.0.1:3000';
   }
   return window.location.origin;
 }

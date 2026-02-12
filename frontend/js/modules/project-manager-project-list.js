@@ -126,13 +126,13 @@ window.projectManagerProjectList = {
                     </div>
                     <div class="project-card-meta">
                         ${metaItems
-                          .map(
-                            (item, index) => `
+    .map(
+      (item, index) => `
                             ${index ? '<span class="project-card-meta-dot"></span>' : ''}
                             <span>${item}</span>
                         `
-                          )
-                          .join('')}
+    )
+    .join('')}
                     </div>
                 </div>
                 <div class="project-card-kpis">

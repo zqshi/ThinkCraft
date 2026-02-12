@@ -4,33 +4,27 @@
   "description": "覆盖完整产品迭代流程，交付物由大模型在可选范围内动态选择",
   "phases": [
     {
-      "phase_id": "strategy",
-      "phase_name": "战略设计",
-      "description": "战略建模与范围边界定义；输出关键假设、原则与里程碑；明确对后续阶段的输入要求",
+      "phase_id": "strategy-requirement",
+      "phase_name": "战略与需求",
+      "description": "先完成需求分析与PRD，再输出战略设计文档与关键假设，确保战略设计有PRD输入依据",
       "dependencies": [],
-      "agents": [
-        {
-          "agent_id": "strategy-design",
-          "role": "战略设计师",
-          "tasks": [
-            "明确战略目标、范围边界与关键假设",
-            "输出战略设计文档、约束原则与里程碑",
-            "定义对需求/设计/架构阶段的输入要求"
-          ]
-        }
-      ],
-      "outputs": ["strategy-doc"]
-    },
-    {
-      "phase_id": "requirement",
-      "phase_name": "需求分析",
-      "description": "产品定位、用户分析与功能规划；完成全量产品交付物",
-      "dependencies": ["strategy"],
       "agents": [
         {
           "agent_id": "product-manager",
           "role": "产品经理",
-          "tasks": ["完成完整需求分析与产品规划", "输出全量产品交付物"]
+          "tasks": [
+            "完成完整需求分析与产品规划",
+            "产出PRD、用户故事与功能清单，明确范围和优先级"
+          ]
+        },
+        {
+          "agent_id": "strategy-design",
+          "role": "战略设计师",
+          "tasks": [
+            "基于PRD提炼战略目标、关键假设与约束原则",
+            "输出战略设计文档与里程碑",
+            "定义对设计/架构阶段的输入要求"
+          ]
         }
       ],
       "outputs": [
@@ -38,14 +32,15 @@
         "prd",
         "user-story",
         "feature-list",
-        "core-prompt-design"
+        "core-prompt-design",
+        "strategy-doc"
       ]
     },
     {
       "phase_id": "design",
       "phase_name": "产品设计",
       "description": "UI/UX设计、交互原型与视觉规范",
-      "dependencies": ["requirement"],
+      "dependencies": ["strategy-requirement"],
       "agents": [
         {
           "agent_id": "ui-ux-designer",

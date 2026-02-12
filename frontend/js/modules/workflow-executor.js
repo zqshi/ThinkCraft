@@ -7,7 +7,7 @@ function getDefaultApiUrl() {
   const host = window.location.hostname;
   const isLocalhost = host === 'localhost' || host === '127.0.0.1';
   if (isLocalhost && window.location.port !== '3000') {
-    return 'http://localhost:3000';
+    return 'http://127.0.0.1:3000';
   }
   return window.location.origin;
 }
@@ -23,6 +23,7 @@ class WorkflowExecutor {
     this.isExecuting = false;
     this.stageQueues = new Map();
     this.stageQueueRunning = new Set();
+    this.artifactChunkEndpointUnavailableByProject = {};
   }
 
   mergeArtifacts(existing = [], incoming = []) {
@@ -84,41 +85,48 @@ class WorkflowExecutor {
     return aliases[normalized] || normalized;
   }
 
-  async resolveStageId(projectId, stageId, context = {}) {
-    const direct =
-      stageId ||
-      context?.stageId ||
-      context?.stage?.id ||
-      context?.stage?.stageId ||
-      context?.stage?.key;
-    const normalized = this.normalizeStageId(direct);
-    if (normalized) {
-      return normalized;
+  resolveExecuteStageTimeoutMs(stageId, context = {}, options = {}) {
+    const explicitTimeout = Number(options.timeoutMs);
+    if (Number.isFinite(explicitTimeout) && explicitTimeout > 0) {
+      return explicitTimeout;
     }
-    const currentStageId = this.projectManager?.currentStageId;
-    if (currentStageId) {
-      return this.normalizeStageId(currentStageId);
-    }
-    if (this.storageManager?.getProject) {
-      try {
-        const project = await window.projectManager?.getProject(projectId, {
-          requireRemote: true,
-          allowLocalFallback: false,
-          keepLocalOnMissing: false
-        });
-        const stages = project?.workflow?.stages || [];
-        const candidate =
-          stages.find(s => s.status === 'active') ||
-          stages.find(s => s.status === 'pending') ||
-          stages[0];
-        if (candidate?.id) {
-          return this.normalizeStageId(candidate.id);
-        }
-      } catch (error) {
-        console.warn('[WorkflowExecutor] resolveStageId failed:', error);
-      }
-    }
-    return null;
+
+    const normalizedStageId = this.normalizeStageId(stageId);
+    const selectedArtifactTypes = Array.isArray(context?.selectedArtifactTypes)
+      ? context.selectedArtifactTypes.filter(Boolean)
+      : [];
+    const deliverableCount = Math.max(1, selectedArtifactTypes.length || 1);
+
+    const stageBaseTimeoutMsMap = {
+      'strategy-requirement': 6 * 60 * 1000,
+      strategy: 6 * 60 * 1000,
+      requirement: 6 * 60 * 1000,
+      design: 7 * 60 * 1000,
+      architecture: 7 * 60 * 1000,
+      development: 8 * 60 * 1000,
+      testing: 5 * 60 * 1000,
+      deployment: 5 * 60 * 1000,
+      operation: 6 * 60 * 1000
+    };
+    const modelHeavyStages = new Set([
+      'strategy-requirement',
+      'strategy',
+      'requirement',
+      'design',
+      'architecture',
+      'development',
+      'operation'
+    ]);
+    const baseTimeoutMs = stageBaseTimeoutMsMap[normalizedStageId] || 6 * 60 * 1000;
+    const perDeliverableTimeoutMs = modelHeavyStages.has(normalizedStageId)
+      ? 2 * 60 * 1000
+      : 60 * 1000;
+
+    const computed =
+      baseTimeoutMs + Math.max(0, deliverableCount - 1) * perDeliverableTimeoutMs;
+    const minTimeoutMs = 4 * 60 * 1000;
+    const maxTimeoutMs = 30 * 60 * 1000;
+    return Math.min(maxTimeoutMs, Math.max(minTimeoutMs, computed));
   }
 
   /**
@@ -140,11 +148,15 @@ class WorkflowExecutor {
       if (!canProceed) {
         return { aborted: true };
       }
-      await this.updateProjectStageStatus(projectId, stageId, 'active');
+      await this.updateProjectStageStatus(projectId, stageId, 'active', null, {
+        executionMeta: this.createExecutionProbeMeta(normalizedStageId)
+      });
 
       const result = await this.executeStageRequest(projectId, normalizedStageId, context);
       // 更新项目状态
-      await this.updateProjectStageStatus(projectId, stageId, 'completed', result.artifacts || []);
+      await this.updateProjectStageStatus(projectId, stageId, 'completed', result.artifacts || [], {
+        executionMeta: this.resolveExecutionResultMeta(result)
+      });
 
       return result;
     } catch (error) {
@@ -167,11 +179,14 @@ class WorkflowExecutor {
       if (!canProceed) {
         return { aborted: true };
       }
-      await this.updateProjectStageStatus(projectId, stageId, 'active');
+      await this.updateProjectStageStatus(projectId, stageId, 'active', null, {
+        executionMeta: this.createExecutionProbeMeta(normalizedStageId)
+      });
 
       const result = await this.executeStageRequest(projectId, normalizedStageId, context);
       await this.updateProjectStageStatus(projectId, stageId, 'completed', result.artifacts || [], {
-        mergeArtifacts: Boolean(options.mergeArtifacts)
+        mergeArtifacts: Boolean(options.mergeArtifacts),
+        executionMeta: this.resolveExecutionResultMeta(result)
       });
 
       return result;
@@ -181,6 +196,93 @@ class WorkflowExecutor {
     } finally {
       this.isExecuting = false;
     }
+  }
+
+  async getArtifactChunkSessions(projectId, options = {}) {
+    try {
+      if (this.artifactChunkEndpointUnavailableByProject?.[projectId] === true) {
+        return [];
+      }
+      if (window.requireAuth) {
+        const ok = await window.requireAuth({ redirect: true, prompt: true });
+        if (!ok) {
+          return [];
+        }
+      }
+      const query = new URLSearchParams();
+      if (options.stageId) {
+        query.set('stageId', this.normalizeStageId(options.stageId));
+      }
+      if (options.artifactType) {
+        query.set('artifactType', String(options.artifactType));
+      }
+      query.set('limit', String(Number(options.limit) > 0 ? Number(options.limit) : 50));
+      query.set('includeContent', options.includeContent ? '1' : '0');
+      const authToken = window.getAuthToken ? window.getAuthToken() : null;
+      const response = await fetch(
+        `${this.apiUrl}/api/workflow/${projectId}/artifact-chunks?${query.toString()}`,
+        {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          }
+        }
+      );
+      if (response.status === 404) {
+        this.artifactChunkEndpointUnavailableByProject[projectId] = true;
+        return [];
+      }
+      if (!response.ok) {
+        return [];
+      }
+      const result = await response.json().catch(() => ({}));
+      return Array.isArray(result?.data?.sessions) ? result.data.sessions : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  async resolveResumeRunIdMap(projectId, stageId, selectedArtifactTypes = []) {
+    const types = Array.isArray(selectedArtifactTypes)
+      ? selectedArtifactTypes.filter(Boolean).map(type => String(type))
+      : [];
+    if (!projectId || !stageId || types.length === 0) {
+      return {};
+    }
+    const sessions = await this.getArtifactChunkSessions(projectId, {
+      stageId,
+      limit: 200,
+      includeContent: false
+    });
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return {};
+    }
+    const typeSet = new Set(types.map(type => type.trim()).filter(Boolean));
+    const runIdMap = {};
+    const sorted = [...sessions].sort((a, b) => {
+      const ta = Number(new Date(a?.updatedAt || a?.createdAt || 0).getTime() || 0);
+      const tb = Number(new Date(b?.updatedAt || b?.createdAt || 0).getTime() || 0);
+      return tb - ta;
+    });
+    for (const session of sorted) {
+      const artifactType = String(session?.artifactType || '').trim();
+      if (!artifactType || !typeSet.has(artifactType) || runIdMap[artifactType]) {
+        continue;
+      }
+      const status = String(session?.status || '').trim().toLowerCase();
+      const completedRounds = Number(session?.completedRounds || 0);
+      const totalRounds = Number(session?.totalRounds || 0);
+      const isComplete = Boolean(session?.assembled?.isComplete);
+      const resumable =
+        ['running', 'failed', 'assembled'].includes(status) &&
+        completedRounds > 0 &&
+        totalRounds > 0 &&
+        completedRounds < totalRounds &&
+        !isComplete;
+      if (resumable && session?.runId) {
+        runIdMap[artifactType] = String(session.runId);
+      }
+    }
+    return runIdMap;
   }
 
   /**
@@ -223,7 +325,9 @@ class WorkflowExecutor {
         if (!canProceed) {
           break;
         }
-        await this.updateProjectStageStatus(projectId, stageId, 'active');
+        await this.updateProjectStageStatus(projectId, stageId, 'active', null, {
+          executionMeta: this.createExecutionProbeMeta(normalizedStageId)
+        });
         if (typeof onProgress === 'function') {
           onProgress(stageId, 'active', index);
         }
@@ -255,7 +359,9 @@ class WorkflowExecutor {
           }
         }
 
-        await this.updateProjectStageStatus(projectId, stageId, 'completed', artifacts);
+        await this.updateProjectStageStatus(projectId, stageId, 'completed', artifacts, {
+          executionMeta: this.resolveExecutionResultMeta(stageResult)
+        });
         if (typeof onProgress === 'function') {
           onProgress(stageId, 'completed', index);
         }
@@ -357,18 +463,13 @@ class WorkflowExecutor {
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          const err = new Error('UNAUTHORIZED');
-          err.code = 'UNAUTHORIZED';
-          throw err;
-        }
         throw new Error('获取交付物失败');
       }
 
       const result = await response.json();
       return result.data.artifacts || [];
     } catch (error) {
-      throw error;
+      return [];
     }
   }
 
@@ -386,32 +487,20 @@ class WorkflowExecutor {
         }
       }
       const authToken = window.getAuthToken ? window.getAuthToken() : null;
-      let response;
-      try {
-        response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`, {
-          headers: {
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-          }
-        });
-      } catch (error) {
-        const err = new Error('CONNECTION_REFUSED');
-        err.code = 'CONNECTION_REFUSED';
-        throw err;
-      }
+      const response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/artifacts`, {
+        headers: {
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        }
+      });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          const err = new Error('UNAUTHORIZED');
-          err.code = 'UNAUTHORIZED';
-          throw err;
-        }
         throw new Error('获取交付物失败');
       }
 
       const result = await response.json();
       return result.data.artifacts || [];
     } catch (error) {
-      throw error;
+      return [];
     }
   }
 
@@ -439,13 +528,18 @@ class WorkflowExecutor {
         }
       );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          return { ok: true, alreadyMissing: true };
-        }
-        throw new Error('删除交付物失败');
+      if (response.status === 404) {
+        return { ok: true, notFound: true };
       }
-      return { ok: true };
+      if (!response.ok) {
+        let message = '删除交付物失败';
+        try {
+          const error = await response.json();
+          message = error?.error || error?.message || message;
+        } catch (_error) {}
+        throw new Error(message);
+      }
+      return { ok: true, notFound: false };
     } catch (error) {
       throw error;
     }
@@ -460,11 +554,7 @@ class WorkflowExecutor {
    */
   async updateProjectStageStatus(projectId, stageId, status, artifacts = null, options = {}) {
     try {
-      const project = await window.projectManager?.getProject(projectId, {
-        requireRemote: true,
-        allowLocalFallback: false,
-        keepLocalOnMissing: false
-      });
+      const project = await this.storageManager.getProject(projectId);
       if (!project || !project.workflow || !project.workflow.stages) {
         return;
       }
@@ -480,22 +570,50 @@ class WorkflowExecutor {
           return;
         }
         targetStage.status = status;
+        const now = Date.now();
         if (status === 'active' || status === 'completed') {
           targetStage.repairNote = null;
+        }
+        if (status === 'active') {
+          targetStage.executionProbe = {
+            ...targetStage.executionProbe,
+            requestStartedAt: now,
+            modelCallVerified: false,
+            modelRequired: Boolean(options.executionMeta?.modelRequired),
+            requestId: options.executionMeta?.requestId || targetStage.executionProbe?.requestId || '',
+            source: options.executionMeta?.source || 'workflow-executor',
+            updatedAt: now
+          };
+        }
+        if (options.executionMeta) {
+          targetStage.executionProbe = {
+            ...targetStage.executionProbe,
+            ...options.executionMeta,
+            updatedAt: now
+          };
         }
         if (Array.isArray(artifacts)) {
           targetStage.artifacts = options.mergeArtifacts
             ? this.mergeArtifacts(targetStage.artifacts || [], artifacts)
             : artifacts;
-          targetStage.artifactsUpdatedAt = Date.now();
+          targetStage.artifactsUpdatedAt = now;
         }
         if ((status === 'active' || status === 'in_progress') && !targetStage.startedAt) {
-          targetStage.startedAt = Date.now();
+          targetStage.startedAt = now;
         } else if (status === 'completed' && !targetStage.completedAt) {
-          targetStage.completedAt = Date.now();
+          targetStage.completedAt = now;
+          targetStage.executingArtifactTypes = [];
         } else if (status === 'pending') {
           targetStage.startedAt = null;
           targetStage.completedAt = null;
+          targetStage.executingArtifactTypes = [];
+          if (options.executionMeta) {
+            targetStage.executionProbe = {
+              ...targetStage.executionProbe,
+              ...options.executionMeta,
+              updatedAt: now
+            };
+          }
         }
       };
 
@@ -583,12 +701,29 @@ class WorkflowExecutor {
     await this.storageManager.saveKnowledgeItems(items);
   }
 
+  createExecutionProbeMeta(normalizedStageId) {
+    const nonModelStages = new Set(['testing', 'deployment']);
+    return {
+      requestId: `wf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      modelRequired: !nonModelStages.has(normalizedStageId),
+      modelCallVerified: false,
+      source: 'workflow-executor'
+    };
+  }
+
+  resolveExecutionResultMeta(result) {
+    const modelArtifactCount = Number(result?.meta?.modelArtifactCount || 0);
+    const hasModelArtifacts = Boolean(result?.meta?.hasModelArtifacts || modelArtifactCount > 0);
+    return {
+      modelCallVerified: hasModelArtifacts,
+      modelArtifactCount,
+      modelTokenTotal: Number(result?.meta?.modelTokenTotal || 0),
+      completedAt: Date.now()
+    };
+  }
+
   async ensureRolesForStage(projectId, stageId) {
-    const project = await window.projectManager?.getProject(projectId, {
-      requireRemote: true,
-      allowLocalFallback: false,
-      keepLocalOnMissing: false
-    });
+    const project = await this.storageManager.getProject(projectId);
     if (!project) {
       return true;
     }
@@ -647,11 +782,8 @@ class WorkflowExecutor {
         throw new Error('未提供访问令牌');
       }
     }
-    const resolvedStageId = await this.resolveStageId(projectId, stageId, context);
-    if (!resolvedStageId) {
-      throw new Error('缺少阶段ID');
-    }
-    const { timeoutMs = 2 * 60 * 1000, retry = 0, retryDelay = 1500 } = options;
+    const timeoutMs = this.resolveExecuteStageTimeoutMs(stageId, context, options);
+    const { retry = 0, retryDelay = 1500 } = options;
     const authToken = window.getAuthToken ? window.getAuthToken() : null;
     let lastError = null;
 
@@ -671,7 +803,11 @@ class WorkflowExecutor {
           console.info('[WorkflowExecutor] execute-stage request', {
             projectId,
             stageId,
-            hasContext: Boolean(context && Object.keys(context).length > 0)
+            hasContext: Boolean(context && Object.keys(context).length > 0),
+            timeoutMs,
+            deliverableCount: Array.isArray(context?.selectedArtifactTypes)
+              ? context.selectedArtifactTypes.length
+              : 0
           });
         }
         response = await fetch(`${this.apiUrl}/api/workflow/${projectId}/execute-stage`, {
@@ -680,7 +816,7 @@ class WorkflowExecutor {
             'Content-Type': 'application/json',
             ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
           },
-          body: JSON.stringify({ stageId: resolvedStageId, context }),
+          body: JSON.stringify({ stageId, context }),
           signal: controller.signal
         });
       } catch (error) {
@@ -732,7 +868,9 @@ class WorkflowExecutor {
         projectId,
         stageId,
         code: result?.code,
-        artifactCount: Array.isArray(result?.data?.artifacts) ? result.data.artifacts.length : 0
+        artifactCount: Array.isArray(result?.data?.artifacts) ? result.data.artifacts.length : 0,
+        modelArtifactCount: Number(result?.data?.meta?.modelArtifactCount || 0),
+        hasModelArtifacts: Boolean(result?.data?.meta?.hasModelArtifacts)
       });
       return result.data;
     }
@@ -886,16 +1024,12 @@ class WorkflowExecutor {
     let actionHTML = '';
     if (stage.status === 'pending') {
       actionHTML = `
-                <button class="btn-primary" onclick="workflowExecutor.startStage('${projectId}', '${stage.id}')">
+                <button class="btn-primary" onclick="(window.projectManager?.startStageWithSelection ? window.projectManager.startStageWithSelection('${projectId}', '${stage.id}', true) : workflowExecutor.startStage('${projectId}', '${stage.id}'))">
                     开始执行
                 </button>
             `;
     } else if (stage.status === 'completed') {
-      actionHTML = `
-                <button class="btn-secondary" onclick="workflowExecutor.viewArtifacts('${projectId}', '${stage.id}')">
-                    查看交付物 (${artifactCount})
-                </button>
-            `;
+      actionHTML = '';
     } else {
       actionHTML = `
                 <button class="btn-secondary" disabled>
@@ -960,17 +1094,17 @@ class WorkflowExecutor {
   async startStage(projectId, stageId, options = {}) {
     try {
       // 【新增】检查依赖阶段是否完成
-      const project = await window.projectManager?.getProject(projectId, {
-        requireRemote: true,
-        allowLocalFallback: false,
-        keepLocalOnMissing: false
-      });
+      const project = await this.storageManager.getProject(projectId);
       const stages = project.workflow?.stages || [];
       const currentStage = stages.find(s => s.id === stageId);
 
+      const selectedArtifactTypes = Array.isArray(options.selectedArtifactTypes)
+        ? options.selectedArtifactTypes
+        : [];
+
       const resolveStageOutputs = () => {
         if (!currentStage) {
-          return [];
+          return selectedArtifactTypes;
         }
         let outputs = Array.isArray(currentStage.outputs) ? currentStage.outputs : [];
         if (outputs.length === 0 && stageId === 'strategy-requirement') {
@@ -982,6 +1116,9 @@ class WorkflowExecutor {
               ...(Array.isArray(requirement?.outputs) ? requirement.outputs : [])
             ])
           );
+        }
+        if (outputs.length === 0 && selectedArtifactTypes.length > 0) {
+          return selectedArtifactTypes.filter(Boolean);
         }
         return outputs.filter(Boolean);
       };
@@ -1029,9 +1166,11 @@ class WorkflowExecutor {
         ? chat.messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
         : '';
 
-      const selectedArtifactTypes = Array.isArray(options.selectedArtifactTypes)
-        ? options.selectedArtifactTypes
-        : [];
+      const resumeRunIdMap = await this.resolveResumeRunIdMap(
+        projectId,
+        stageId,
+        selectedArtifactTypes
+      );
 
       if (this.isExecuting) {
         if (options.queueWhileExecuting) {
@@ -1040,7 +1179,8 @@ class WorkflowExecutor {
             stageId,
             {
               CONVERSATION: conversation,
-              selectedArtifactTypes
+              selectedArtifactTypes,
+              resumeRunIdMap
             },
             options
           );
@@ -1067,7 +1207,8 @@ class WorkflowExecutor {
         stageId,
         {
           CONVERSATION: conversation,
-          selectedArtifactTypes
+          selectedArtifactTypes,
+          resumeRunIdMap
         },
         { mergeArtifacts: Boolean(options.mergeArtifacts) }
       );
@@ -1106,11 +1247,7 @@ class WorkflowExecutor {
       // 强制刷新项目面板
       const projectManager = this.projectManager || window.projectManager;
       if (projectManager?.currentProjectId === projectId) {
-        const updatedProject = await window.projectManager?.getProject(projectId, {
-          requireRemote: true,
-          allowLocalFallback: false,
-          keepLocalOnMissing: false
-        });
+        const updatedProject = await this.storageManager.getProject(projectId);
         if (updatedProject) {
           const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
           if (stage && stage.executingArtifactTypes) {
@@ -1138,11 +1275,7 @@ class WorkflowExecutor {
       await this.updateProjectStageStatus(projectId, stageId, 'pending');
       const projectManager = this.projectManager || window.projectManager;
       if (projectManager?.currentProjectId === projectId) {
-        const updatedProject = await window.projectManager?.getProject(projectId, {
-          requireRemote: true,
-          allowLocalFallback: false,
-          keepLocalOnMissing: false
-        });
+        const updatedProject = await this.storageManager.getProject(projectId);
         if (updatedProject) {
           const stage = updatedProject.workflow?.stages?.find(s => s.id === stageId);
           if (stage && stage.executingArtifactTypes) {

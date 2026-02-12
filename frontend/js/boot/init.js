@@ -93,13 +93,15 @@ function initApp() {
 
   updateUserNameDisplay();
 
-  loadChats();
   loadSettings();
   focusInput();
 
   window.modalManager = new ModalManager();
   window.storageManager = new StorageManager();
   const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
+  if (typeof savedSettings.apiUrl === 'string') {
+    savedSettings.apiUrl = savedSettings.apiUrl.replace('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
   const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || getDefaultApiUrl();
   window.apiClient = window.apiClient || new APIClient(apiUrl);
   window.apiClient.setBaseURL && window.apiClient.setBaseURL(apiUrl);
@@ -140,6 +142,13 @@ function initApp() {
     .then(async () => {
       if (window.storageManager?.migrateFromLocalStorage) {
         await window.storageManager.migrateFromLocalStorage();
+      }
+
+      // 在 apiClient/storage 就绪后再加载会话，避免先渲染本地残留导致点击后 404
+      if (window.chatList?.loadChats) {
+        await window.chatList.loadChats({ preferLocal: false });
+      } else {
+        await loadChats();
       }
 
       // ✅ 确保DOM完全渲染后再恢复状态
@@ -375,7 +384,7 @@ function getDefaultApiUrl() {
   const host = window.location.hostname;
   const isLocalhost = host === 'localhost' || host === '127.0.0.1';
   if (isLocalhost && window.location.port !== '3000') {
-    return 'http://localhost:3000';
+    return 'http://127.0.0.1:3000';
   }
   return window.location.origin;
 }

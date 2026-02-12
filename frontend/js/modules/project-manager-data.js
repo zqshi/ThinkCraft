@@ -41,15 +41,11 @@ window.projectManagerData = {
     const ideaIdString = String(normalizedIdeaId);
     projectDataLogger.info('[createProject] 发送给后端:', { ideaIdString });
 
-    const existing = await pm.storageManager.getProjectByIdeaId(normalizedIdeaId);
-    if (existing) {
-      throw new Error('该创意已创建项目');
-    }
-
     try {
       const byIdeaResp = await pm.fetchWithAuth(
         `${pm.apiUrl}/api/projects/by-idea/${encodeURIComponent(ideaIdString)}`
       );
+      projectDataLogger.info('[createProject] by-idea 状态:', { status: byIdeaResp.status });
       if (byIdeaResp.ok) {
         const byIdeaResult = await byIdeaResp.json();
         const existingProject = byIdeaResult?.data?.project || byIdeaResult?.data || null;
@@ -74,9 +70,14 @@ window.projectManagerData = {
       headers: pm.buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ ideaId: ideaIdString, name })
     });
+    projectDataLogger.info('[createProject] POST /api/projects 状态:', { status: response.status });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      projectDataLogger.warn('[createProject] 创建失败响应:', {
+        status: response.status,
+        error: error?.error || null
+      });
       if (error?.error === '该创意已创建项目') {
         try {
           const byIdeaResp = await pm.fetchWithAuth(
@@ -178,11 +179,11 @@ window.projectManagerData = {
         normalizedIdeaUpdate &&
         Object.prototype.hasOwnProperty.call(normalizedIdeaUpdate, 'assignedAgents')
           ? {
-              ...normalizedIdeaUpdate,
-              assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
-                ? normalizedIdeaUpdate.assignedAgents.filter(Boolean).map(String)
-                : []
-            }
+            ...normalizedIdeaUpdate,
+            assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
+              ? normalizedIdeaUpdate.assignedAgents.filter(Boolean).map(String)
+              : []
+          }
           : normalizedIdeaUpdate;
 
       if (options.localOnly) {

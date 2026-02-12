@@ -256,7 +256,8 @@ class WorkflowStage extends Entity {
     status = 'pending',
     artifacts = [],
     outputs = [],
-    outputsDetailed = []
+    outputsDetailed = [],
+    executionRuns = null
   ) {
     super(id);
     this._name = name;
@@ -266,6 +267,7 @@ class WorkflowStage extends Entity {
     this._artifacts = artifacts;
     this._outputs = outputs;
     this._outputsDetailed = outputsDetailed;
+    this._executionRuns = executionRuns && typeof executionRuns === 'object' ? executionRuns : null;
     this._startedAt = null;
     this._completedAt = null;
   }
@@ -273,8 +275,27 @@ class WorkflowStage extends Entity {
   /**
    * 创建工作流阶段
    */
-  static create(id, name, orderNumber, description = '', status = 'pending', outputs = [], outputsDetailed = []) {
-    return new WorkflowStage(id, name, orderNumber, description, status, [], outputs, outputsDetailed);
+  static create(
+    id,
+    name,
+    orderNumber,
+    description = '',
+    status = 'pending',
+    outputs = [],
+    outputsDetailed = [],
+    executionRuns = null
+  ) {
+    return new WorkflowStage(
+      id,
+      name,
+      orderNumber,
+      description,
+      status,
+      [],
+      outputs,
+      outputsDetailed,
+      executionRuns
+    );
   }
 
   /**
@@ -316,7 +337,8 @@ class WorkflowStage extends Entity {
       json.status || 'pending',
       Array.isArray(json.artifacts) ? json.artifacts : [],
       outputs,
-      outputsDetailed
+      outputsDetailed,
+      json.executionRuns && typeof json.executionRuns === 'object' ? json.executionRuns : null
     );
     stage._startedAt = json.startedAt ? new Date(json.startedAt) : null;
     stage._completedAt = json.completedAt ? new Date(json.completedAt) : null;
@@ -416,6 +438,11 @@ class WorkflowStage extends Entity {
   get outputsDetailed() {
     return [...this._outputsDetailed];
   }
+  get executionRuns() {
+    return this._executionRuns && typeof this._executionRuns === 'object'
+      ? { ...this._executionRuns }
+      : null;
+  }
   get startedAt() {
     return this._startedAt;
   }
@@ -433,6 +460,7 @@ class WorkflowStage extends Entity {
       artifacts: this._artifacts,
       outputs: this._outputs,
       outputsDetailed: this._outputsDetailed,
+      executionRuns: this._executionRuns,
       startedAt: this._startedAt,
       completedAt: this._completedAt
     };

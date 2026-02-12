@@ -17,6 +17,9 @@ export default {
     '**/tests/**/*.test.js'
   ],
 
+  // 忽略构建产物中的重复测试
+  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+
   // 覆盖率收集配置
   collectCoverageFrom: [
     'frontend/js/utils/**/*.js',

@@ -49,6 +49,22 @@ function generateChatId() {
 }
 
 /**
+ * 规范化聊天ID
+ * @param {string|number} chatId - 聊天ID
+ * @returns {number|null} 规范化后的数字ID
+ */
+function normalizeChatId(chatId) {
+  if (typeof chatId === 'number') {
+    return chatId;
+  }
+  if (typeof chatId === 'string') {
+    const normalized = Number.parseInt(chatId, 10);
+    return Number.isNaN(normalized) ? null : normalized;
+  }
+  return null;
+}
+
+/**
  * 格式化日期为YYYY-MM-DD格式
  * @param {Date|number|string} date - 日期对象、时间戳或日期字符串
  * @returns {string} 格式化后的日期字符串
@@ -169,6 +185,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     formatTime,
     generateChatId,
+    normalizeChatId,
     formatDate,
     formatDateTime,
     truncateText,
@@ -184,6 +201,7 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof global !== 'undefined') {
   global.formatTime = formatTime;
   global.generateChatId = generateChatId;
+  global.normalizeChatId = normalizeChatId;
   global.formatDate = formatDate;
   global.formatDateTime = formatDateTime;
   global.truncateText = truncateText;
@@ -193,4 +211,3 @@ if (typeof global !== 'undefined') {
   global.parseCodeBlocks = parseCodeBlocks;
   global.escapeHtml = escapeHtml;
 }
-

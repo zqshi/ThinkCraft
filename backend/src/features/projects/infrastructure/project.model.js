@@ -17,6 +17,7 @@ const WorkflowStageSchema = new mongoose.Schema(
     priority: { type: String },
     outputs: { type: [String], default: [] },
     outputsDetailed: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    executionRuns: { type: mongoose.Schema.Types.Mixed, default: null },
     artifacts: [
       {
         id: String,
@@ -28,6 +29,11 @@ const WorkflowStageSchema = new mongoose.Schema(
         agentName: String,
         source: String,
         tokens: Number,
+        contextSummary: String,
+        compressedContext: String,
+        keyPoints: { type: [String], default: [] },
+        contextDigest: { type: mongoose.Schema.Types.Mixed, default: null },
+        reactTrace: { type: mongoose.Schema.Types.Mixed, default: null },
         createdAt: Date,
         fileName: String,
         relativePath: String,

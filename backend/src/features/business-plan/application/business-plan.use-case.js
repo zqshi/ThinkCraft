@@ -179,8 +179,6 @@ export class BusinessPlanUseCase {
         const conversation = this._formatConversation(conversationHistory);
         const prompt = template.replace('{CONVERSATION}', conversation);
 
-        `);
-
         const result = await callDeepSeekAPI(
             [{ role: 'user', content: prompt }],
             null,

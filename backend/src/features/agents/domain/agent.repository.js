@@ -8,7 +8,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 根据ID查找Agent
    * @param {string} id
    */
-  async findById(id) {
+  async findById(_id) {
     throw new Error('必须实现findById方法');
   }
 
@@ -16,7 +16,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 保存Agent
    * @param {Agent} agent
    */
-  async save(agent) {
+  async save(_agent) {
     throw new Error('必须实现save方法');
   }
 
@@ -31,7 +31,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 根据类型查找Agent
    * @param {string} type
    */
-  async findByType(type) {
+  async findByType(_type) {
     throw new Error('必须实现findByType方法');
   }
 
@@ -39,7 +39,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 根据状态查找Agent
    * @param {string} status
    */
-  async findByStatus(status) {
+  async findByStatus(_status) {
     throw new Error('必须实现findByStatus方法');
   }
 
@@ -47,7 +47,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 根据能力查找Agent
    * @param {string[]} capabilities
    */
-  async findByCapabilities(capabilities) {
+  async findByCapabilities(_capabilities) {
     throw new Error('必须实现findByCapabilities方法');
   }
 
@@ -55,7 +55,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 删除Agent
    * @param {string} id
    */
-  async delete(id) {
+  async delete(_id) {
     throw new Error('必须实现delete方法');
   }
 
@@ -63,7 +63,7 @@ export class IAgentRepository extends IAggregateRootRepository {
    * 检查Agent是否存在
    * @param {string} id
    */
-  async exists(id) {
+  async exists(_id) {
     throw new Error('必须实现exists方法');
   }
 

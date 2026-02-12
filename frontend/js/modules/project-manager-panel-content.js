@@ -7,6 +7,42 @@ const panelLogger = window.createLogger
   : console;
 
 window.projectManagerPanelContent = {
+  resolveMemberRoleProfile(pm, agent) {
+    const roleCandidates = [
+      agent?.type,
+      agent?.agentType,
+      agent?.id,
+      agent?.role
+    ]
+      .map(value => (value === undefined || value === null ? '' : String(value).trim()))
+      .filter(Boolean);
+
+    for (const roleKey of roleCandidates) {
+      const profile = pm.getAgentDefinition(roleKey);
+      if (profile) {
+        return profile;
+      }
+    }
+
+    const normalizedName = String(agent?.name || '')
+      .trim()
+      .toLowerCase();
+    const aliases = {
+      '产品经理': 'product-manager',
+      'ui/ux设计师': 'ui-ux-designer',
+      '前端开发': 'frontend-developer',
+      '后端开发': 'backend-developer',
+      '测试工程师': 'qa-engineer',
+      '运维工程师': 'devops',
+      '市场营销': 'marketing',
+      '运营专员': 'operations',
+      '战略设计师': 'strategy-design',
+      '技术负责人': 'tech-lead'
+    };
+    const aliasKey = Object.entries(aliases).find(([name]) => name.toLowerCase() === normalizedName);
+    return aliasKey ? pm.getAgentDefinition(aliasKey[1]) : null;
+  },
+
   async renderProjectMembersPanel(pm, project) {
     const container = document.getElementById('projectPanelMembers');
     if (!container) {
@@ -42,10 +78,11 @@ window.projectManagerPanelContent = {
         const agentDef = pm.getAgentDefinition(agentType);
         return {
           id: agentType,
+          type: agentType,
           name: agentDef?.name || agentType,
           nickname: agentDef?.name || agentType,
           emoji: agentDef?.icon || agentDef?.emoji || '👤',
-          desc: `负责${agentDef?.name || agentType}相关工作`,
+          desc: agentDef?.persona || `负责${agentDef?.name || agentType}相关工作`,
           skills: []
         };
       });
@@ -53,23 +90,30 @@ window.projectManagerPanelContent = {
 
     container.classList.remove('is-empty');
     container.innerHTML = members
-      .map(
-        agent => `
+      .map(agent => {
+        const roleProfile = this.resolveMemberRoleProfile(pm, agent);
+        const roleTag = roleProfile?.roleTag || agent.role || '协作成员';
+        const personaText = roleProfile?.persona || agent.desc || '擅长当前项目的核心任务执行';
+        const roleName = roleProfile?.name || agent.name;
+        const skillTags = (agent.skills || []).slice(0, 3);
+        const mergedTags = [roleTag, ...skillTags].filter(Boolean);
+
+        return `
             <div class="agent-card hired">
                 <div class="agent-card-header">
                     <div class="agent-card-avatar">${typeof window.getAgentIconSvg === 'function' ? window.getAgentIconSvg(agent.emoji || agent.name, 32, 'agent-card-icon') : agent.emoji}</div>
                     <div class="agent-card-info">
-                        <div class="agent-card-name">${agent.nickname || agent.name}</div>
-                        <div class="agent-card-role">${agent.name}</div>
+                        <div class="agent-card-name">${pm.escapeHtml(agent.nickname || roleName || '未命名成员')}</div>
+                        <div class="agent-card-role">${pm.escapeHtml(roleName || '项目成员')}</div>
                     </div>
                 </div>
-                <div class="agent-card-desc">${agent.desc || '擅长当前项目的核心任务执行'}</div>
+                <div class="agent-card-desc">${pm.escapeHtml(personaText)}</div>
                 <div class="agent-card-skills">
-                    ${(agent.skills || []).map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                    ${mergedTags.map(tag => `<span class="skill-tag">${pm.escapeHtml(tag)}</span>`).join('')}
                 </div>
             </div>
-        `
-      )
+        `;
+      })
       .join('');
   },
 
@@ -115,9 +159,9 @@ window.projectManagerPanelContent = {
                 <div class="project-idea-summary">${pm.escapeHtml(analysisSummary || '暂无分析报告摘要')}</div>
                 <div class="project-idea-actions">
                     <button class="btn-secondary" onclick="projectManager.openIdeaChat('${chat.id}')">查看对话</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'analysis')" ${analysis ? '' : 'disabled'}>分析报告</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'business')" ${business ? '' : 'disabled'}>商业计划书</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')" ${proposal ? '' : 'disabled'}>立项材料</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'analysis')" title="${analysis ? '查看分析报告' : '暂无分析报告，先在对话中生成'}">分析报告</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'business')" title="${business ? '查看商业计划书' : '暂无商业计划书，先在对话中生成'}">商业计划书</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')" title="${proposal ? '查看立项材料' : '暂无立项材料，先在对话中生成'}">立项材料</button>
                 </div>
             </div>
         `;

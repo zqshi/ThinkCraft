@@ -2,6 +2,9 @@
 
 基于 OpenRouter API 调用 Alibaba Tongyi-DeepResearch-30B-A3B 模型，为 ThinkCraft 提供深度研究能力。
 
+> 项目级启动与依赖管理以 `/Users/zqs/Downloads/project/ThinkCraft/docs/STARTUP_RUNBOOK.md` 为准。
+> 本文档仅描述 DeepResearch 服务本身。
+
 ## 功能特性
 
 - 🔬 深度研究模式：多轮迭代、网络搜索、数据验证
@@ -143,15 +146,14 @@ curl -X POST http://localhost:5001/research/business-plan-chapter \
 ## 支持的章节
 
 - `executive-summary`: 执行摘要
-- `market-analysis`: 市场分析
-- `competitive-landscape`: 竞争格局
-- `solution`: 解决方案
+- `market-analysis`: 市场与行业分析
+- `solution`: 产品与服务
 - `business-model`: 商业模式
-- `financial-projection`: 财务预测
-- `marketing-strategy`: 营销策略
-- `team-structure`: 团队架构
-- `risk-analysis`: 风险分析
-- `implementation-plan`: 实施计划
+- `competitive-landscape`: 竞争与战略
+- `marketing-strategy`: 营销与销售策略
+- `team-structure`: 团队介绍
+- `financial-projection`: 财务预测与融资需求
+- `risk-assessment`: 风险分析与附录
 
 ## 成本估算
 
@@ -166,7 +168,7 @@ curl -X POST http://localhost:5001/research/business-plan-chapter \
 - 中等模式：约 $0.03-0.05
 - 深度模式：约 $0.08-0.12
 
-完整商业计划书（10个章节，中等模式）：约 $0.30-0.50
+完整商业计划书（9个章节，中等模式）：约 $0.27-0.45
 
 ## 故障排查
 

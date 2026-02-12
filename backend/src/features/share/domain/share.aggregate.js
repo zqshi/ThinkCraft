@@ -113,7 +113,8 @@ export class Share extends AggregateRoot {
   }
 
   static create(props) {
-    const share = new Share(new ShareId(`share_${Date.now()}`), {
+    const uniqueId = `share_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const share = new Share(new ShareId(uniqueId), {
       ...props,
       permission: props.permission || new SharePermission(SharePermission.READ),
       status: props.password
@@ -216,6 +217,32 @@ export class Share extends AggregateRoot {
         resourceType: this.props.resourceType.value
       })
     );
+  }
+
+  /**
+   * 更新分享标题
+   */
+  updateTitle(newTitle) {
+    if (!newTitle || typeof newTitle !== 'string') {
+      throw new Error('Share title is required');
+    }
+
+    this.props.title = newTitle.trim();
+    this.touch();
+  }
+
+  /**
+   * 更新分享描述
+   */
+  updateDescription(newDescription) {
+    if (newDescription === null || newDescription === undefined) {
+      this.props.description = '';
+      this.touch();
+      return;
+    }
+
+    this.props.description = String(newDescription).trim();
+    this.touch();
   }
 
   /**
