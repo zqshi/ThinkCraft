@@ -1,14 +1,8 @@
 /**
  * PDF Export 用例实现
  */
-import {
-  Export,
-  ExportFormat,
-  ExportStatus,
-  ExportOptions,
-  IExportRepository
-} from '../domain/index.js';
-import { CreateExportRequestDto, ExportResponseDto, ExportContentDto } from './pdf-export.dto.js';
+import { Export, ExportFormat, ExportOptions, IExportRepository } from '../domain/index.js';
+import { ExportResponseDto, ExportContentDto } from './pdf-export.dto.js';
 import { PdfGenerationService } from './pdf-generation.service.js';
 
 export class PdfExportUseCase {
@@ -65,26 +59,29 @@ export class PdfExportUseCase {
       let fileSize;
 
       switch (exportEntity.format.value) {
-      case ExportFormat.PDF:
-        const result = await this.pdfGenerationService.generatePdf(exportEntity);
-        filePath = result.filePath;
-        fileSize = result.fileSize;
-        break;
+        case ExportFormat.PDF: {
+          const result = await this.pdfGenerationService.generatePdf(exportEntity);
+          filePath = result.filePath;
+          fileSize = result.fileSize;
+          break;
+        }
 
-      case ExportFormat.HTML:
-        const htmlResult = await this.generateHtml(exportEntity);
-        filePath = htmlResult.filePath;
-        fileSize = htmlResult.fileSize;
-        break;
+        case ExportFormat.HTML: {
+          const htmlResult = await this.generateHtml(exportEntity);
+          filePath = htmlResult.filePath;
+          fileSize = htmlResult.fileSize;
+          break;
+        }
 
-      case ExportFormat.MARKDOWN:
-        const mdResult = await this.generateMarkdown(exportEntity);
-        filePath = mdResult.filePath;
-        fileSize = mdResult.fileSize;
-        break;
+        case ExportFormat.MARKDOWN: {
+          const mdResult = await this.generateMarkdown(exportEntity);
+          filePath = mdResult.filePath;
+          fileSize = mdResult.fileSize;
+          break;
+        }
 
-      default:
-        throw new Error(`Unsupported export format: ${exportEntity.format.value}`);
+        default:
+          throw new Error(`Unsupported export format: ${exportEntity.format.value}`);
       }
 
       // 完成导出

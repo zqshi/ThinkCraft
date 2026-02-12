@@ -45,7 +45,7 @@ class StateValidator {
 
     if (invalidIds.length > 0) {
       console.error(`[StateValidator] 发现无效的章节ID (类型: ${type}):`, invalidIds);
-      console.error(`[StateValidator] 有效的章节ID:`, validIds);
+      console.error('[StateValidator] 有效的章节ID:', validIds);
       return false;
     }
 

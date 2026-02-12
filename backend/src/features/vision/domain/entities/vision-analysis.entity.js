@@ -41,7 +41,7 @@ export class VisionAnalysis {
   getSummary() {
     return {
       id: this.id,
-      hasDescription: !!this.description,
+      hasDescription: Boolean(this.description),
       hasText: this.hasText(),
       textLength: this.ocrResult?.text?.length || 0,
       confidence: this.ocrResult?.confidence || 0,

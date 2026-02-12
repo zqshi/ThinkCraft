@@ -7,7 +7,7 @@ export class IDomainService {
    * 执行领域服务
    * @param {Object} params - 服务参数
    */
-  async execute(params) {
+  async execute(_params) {
     throw new Error('必须实现execute方法');
   }
 }

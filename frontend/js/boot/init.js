@@ -2,9 +2,10 @@
  * 处理 PWA 启动参数
  * 支持快捷方式（语音、相机、新建对话）和 Web Share Target
  */
+/* eslint-disable no-undef, no-console */
 
-// 创建日志实例
-var logger = window.createLogger ? window.createLogger('Init') : console;
+// 创建日志实例（避免污染全局 logger 命名）
+const initLogger = window.createLogger ? window.createLogger('Init') : console;
 
 function handleLaunchParams() {
   const params = new URLSearchParams(window.location.search);
@@ -40,9 +41,15 @@ function handleLaunchParams() {
     const input = document.getElementById('mainInput');
     if (input) {
       let content = '';
-      if (sharedTitle) content += sharedTitle + '\n';
-      if (sharedText) content += sharedText + '\n';
-      if (sharedUrl) content += sharedUrl;
+      if (sharedTitle) {
+        content += sharedTitle + '\n';
+      }
+      if (sharedText) {
+        content += sharedText + '\n';
+      }
+      if (sharedUrl) {
+        content += sharedUrl;
+      }
       input.value = content.trim();
       if (window.stateManager?.setInputDraft) {
         window.stateManager.setInputDraft(window.state?.currentChat, input.value);
@@ -100,7 +107,10 @@ function initApp() {
   window.storageManager = new StorageManager();
   const savedSettings = JSON.parse(localStorage.getItem('thinkcraft_settings') || '{}');
   if (typeof savedSettings.apiUrl === 'string') {
-    savedSettings.apiUrl = savedSettings.apiUrl.replace('http://localhost:3000', 'http://127.0.0.1:3000');
+    savedSettings.apiUrl = savedSettings.apiUrl.replace(
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    );
   }
   const apiUrl = savedSettings.apiUrl || state.settings.apiUrl || getDefaultApiUrl();
   window.apiClient = window.apiClient || new APIClient(apiUrl);
@@ -125,10 +135,7 @@ function initApp() {
   console.log('[Init] Toast管理器初始化完成');
 
   // 初始化导出验证器
-  window.exportValidator = new ExportValidator(
-    window.stateManager,
-    window.storageManager
-  );
+  window.exportValidator = new ExportValidator(window.stateManager, window.storageManager);
   console.log('[Init] 导出验证器初始化完成');
 
   // 初始化报告状态管理器
@@ -155,7 +162,7 @@ function initApp() {
       // 使用 requestAnimationFrame 确保在下一帧渲染后执行
       requestAnimationFrame(async () => {
         // 🔍 记录状态恢复开始
-        logger.debug('[初始化] 开始恢复生成状态', {
+        initLogger.debug('[初始化] 开始恢复生成状态', {
           currentChat: window.state?.currentChat,
           timestamp: Date.now()
         });
@@ -166,24 +173,28 @@ function initApp() {
         setTimeout(() => {
           const businessBtn = document.getElementById('businessPlanBtn');
           const proposalBtn = document.getElementById('proposalBtn');
-          logger.debug('[初始化] 状态恢复完成后按钮状态', {
-            businessBtn: businessBtn ? {
-              classList: Array.from(businessBtn.classList),
-              dataStatus: businessBtn.dataset.status,
-              dataChatId: businessBtn.dataset.chatId
-            } : 'not found',
-            proposalBtn: proposalBtn ? {
-              classList: Array.from(proposalBtn.classList),
-              dataStatus: proposalBtn.dataset.status,
-              dataChatId: proposalBtn.dataset.chatId
-            } : 'not found',
+          initLogger.debug('[初始化] 状态恢复完成后按钮状态', {
+            businessBtn: businessBtn
+              ? {
+                  classList: Array.from(businessBtn.classList),
+                  dataStatus: businessBtn.dataset.status,
+                  dataChatId: businessBtn.dataset.chatId
+                }
+              : 'not found',
+            proposalBtn: proposalBtn
+              ? {
+                  classList: Array.from(proposalBtn.classList),
+                  dataStatus: proposalBtn.dataset.status,
+                  dataChatId: proposalBtn.dataset.chatId
+                }
+              : 'not found',
             currentChat: window.state?.currentChat
           });
         }, 500);
       });
     })
     .catch(error => {
-      logger.error('[初始化] StorageManager初始化失败', error);
+      initLogger.error('[初始化] StorageManager初始化失败', error);
     });
 
   // 绑定输入框事件
@@ -191,7 +202,7 @@ function initApp() {
   if (mainInput) {
     mainInput.addEventListener('keydown', handleKeyDown);
     mainInput.addEventListener('keyup', handleKeyUp);
-    mainInput.addEventListener('input', function() {
+    mainInput.addEventListener('input', function () {
       autoResize(this);
       if (window.stateManager?.setInputDraft) {
         window.stateManager.setInputDraft(window.state?.currentChat, this.value);
@@ -207,7 +218,7 @@ function initApp() {
   if (mobileTextInput) {
     // 移动端输入框已经在 HTML 中通过 onkeydown 绑定了 handleKeyDown
     // 这里添加输入法组合事件监听
-    mobileTextInput.addEventListener('input', function() {
+    mobileTextInput.addEventListener('input', function () {
       if (window.stateManager?.setInputDraft) {
         window.stateManager.setInputDraft(window.state?.currentChat, this.value);
       }
@@ -284,7 +295,7 @@ function initMobileVoiceButton() {
   // 首次点击时显示权限说明
   let isFirstTouch = true;
 
-  mobileVoiceBtn.addEventListener('touchstart', async (e) => {
+  mobileVoiceBtn.addEventListener('touchstart', async e => {
     e.preventDefault();
     console.log('touchstart 事件触发');
 
@@ -302,8 +313,8 @@ function initMobileVoiceButton() {
       // 显示权限说明
       const confirmed = confirm(
         '🎤 语音输入需要访问麦克风\n\n' +
-        '首次使用需要授权麦克风权限，请在浏览器弹窗中点击"允许"。\n\n' +
-        '点击"确定"继续'
+          '首次使用需要授权麦克风权限，请在浏览器弹窗中点击"允许"。\n\n' +
+          '点击"确定"继续'
       );
 
       if (!confirmed) {
@@ -324,7 +335,7 @@ function initMobileVoiceButton() {
     }
   });
 
-  mobileVoiceBtn.addEventListener('touchend', async (e) => {
+  mobileVoiceBtn.addEventListener('touchend', async e => {
     e.preventDefault();
     console.log('touchend 事件触发');
     if (window.inputHandler && window.inputHandler.isRecording) {
@@ -333,7 +344,7 @@ function initMobileVoiceButton() {
     mobileVoiceBtn.classList.remove('recording');
   });
 
-  mobileVoiceBtn.addEventListener('touchcancel', async (e) => {
+  mobileVoiceBtn.addEventListener('touchcancel', async e => {
     e.preventDefault();
     console.log('touchcancel 事件触发');
     if (window.inputHandler && window.inputHandler.isRecording) {
@@ -343,7 +354,7 @@ function initMobileVoiceButton() {
   });
 
   // 添加点击事件作为备用（某些设备可能不支持touch事件）
-  mobileVoiceBtn.addEventListener('click', async (e) => {
+  mobileVoiceBtn.addEventListener('click', async e => {
     e.preventDefault();
     console.log('click 事件触发');
 
@@ -359,8 +370,8 @@ function initMobileVoiceButton() {
 
       const confirmed = confirm(
         '🎤 语音输入需要访问麦克风\n\n' +
-        '首次使用需要授权麦克风权限，请在浏览器弹窗中点击"允许"。\n\n' +
-        '点击"确定"继续'
+          '首次使用需要授权麦克风权限，请在浏览器弹窗中点击"允许"。\n\n' +
+          '点击"确定"继续'
       );
 
       if (!confirmed) {

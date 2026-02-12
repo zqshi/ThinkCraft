@@ -97,7 +97,9 @@
         if (u.pathname.startsWith('/api/')) {
           return true;
         }
-      } catch (_error) {}
+      } catch (_error) {
+        // fallback to apiBase comparison below
+      }
       const apiBase = String(pm?.apiUrl || window.location.origin).replace(/\/$/, '');
       if (abs.startsWith(`${apiBase}/api/`)) {
         return true;
@@ -341,15 +343,15 @@
               <div class="artifact-preview-info-item"><span class="label">文件名:</span><span class="value">${pm.escapeHtml(artifact.fileName || artifact.name || '未命名')}</span></div>
               <div class="artifact-preview-info-item"><span class="label">类型:</span><span class="value">${typeLabel}</span></div>
               ${
-  artifact.size
-    ? `<div class="artifact-preview-info-item"><span class="label">大小:</span><span class="value">${api.formatFileSize(artifact.size)}</span></div>`
-    : ''
-  }
+                artifact.size
+                  ? `<div class="artifact-preview-info-item"><span class="label">大小:</span><span class="value">${api.formatFileSize(artifact.size)}</span></div>`
+                  : ''
+              }
               ${
-  artifact.createdAt
-    ? `<div class="artifact-preview-info-item"><span class="label">创建时间:</span><span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span></div>`
-    : ''
-  }
+                artifact.createdAt
+                  ? `<div class="artifact-preview-info-item"><span class="label">创建时间:</span><span class="value">${new Date(artifact.createdAt).toLocaleString('zh-CN')}</span></div>`
+                  : ''
+              }
             </div>
           </div>`;
         }
@@ -358,20 +360,20 @@
       const actionsHTML = `
       <div class="artifact-preview-actions">
         ${
-  artifact.previewUrl || artifact.url
-    ? `<button class="btn-primary" onclick="projectManager.openArtifactPreviewInNewWindow('${artifact.id}')">🔗 新窗口打开</button>`
-    : ''
-  }
+          artifact.previewUrl || artifact.url
+            ? `<button class="btn-primary" onclick="projectManager.openArtifactPreviewInNewWindow('${artifact.id}')">🔗 新窗口打开</button>`
+            : ''
+        }
         ${
-  artifact.downloadUrl
-    ? `<button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">📥 下载</button>`
-    : ''
-  }
+          artifact.downloadUrl
+            ? `<button class="btn-secondary" onclick="projectManager.downloadArtifact('${artifact.id}')">📥 下载</button>`
+            : ''
+        }
         ${
-  artifact.content || artifact.text || artifact.code
-    ? `<button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">📋 复制内容</button>`
-    : ''
-  }
+          artifact.content || artifact.text || artifact.code
+            ? `<button class="btn-secondary" onclick="projectManager.copyArtifactContent('${artifact.id}')">📋 复制内容</button>`
+            : ''
+        }
       </div>`;
 
       pm.stageDetailPanel.innerHTML = `

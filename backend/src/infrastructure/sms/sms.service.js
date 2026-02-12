@@ -31,19 +31,19 @@ export class SmsService {
    */
   _initProvider() {
     switch (this.provider) {
-    case 'aliyun':
-      this._initAliyun();
-      break;
-    case 'tencent':
-      this._initTencent();
-      break;
-    case 'mock':
-      if (process.env.NODE_ENV !== 'test') {
-        logger.warn('SMS服务运行在模拟模式，仅用于开发/测试环境');
-      }
-      break;
-    default:
-      throw new Error(`不支持的短信服务商: ${this.provider}`);
+      case 'aliyun':
+        this._initAliyun();
+        break;
+      case 'tencent':
+        this._initTencent();
+        break;
+      case 'mock':
+        if (process.env.NODE_ENV !== 'test') {
+          logger.warn('SMS服务运行在模拟模式，仅用于开发/测试环境');
+        }
+        break;
+      default:
+        throw new Error(`不支持的短信服务商: ${this.provider}`);
     }
   }
 
@@ -51,7 +51,11 @@ export class SmsService {
    * 初始化阿里云SMS
    */
   _initAliyun() {
-    // TODO: 集成阿里云SMS SDK
+    this.aliyunConfig = {
+      accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID || this.config.accessKeyId,
+      accessKeySecret: process.env.ALIYUN_ACCESS_KEY_SECRET || this.config.accessKeySecret,
+      signName: process.env.ALIYUN_SMS_SIGN_NAME || this.config.signName
+    };
     logger.info('初始化阿里云SMS服务');
   }
 
@@ -59,7 +63,20 @@ export class SmsService {
    * 初始化腾讯云SMS
    */
   _initTencent() {
-    // TODO: 集成腾讯云SMS SDK
+    this.tencentConfig = {
+      secretId: process.env.TENCENT_SECRET_ID || this.config.secretId,
+      secretKey: process.env.TENCENT_SECRET_KEY || this.config.secretKey,
+      region: process.env.TENCENT_REGION || this.config.region || 'ap-guangzhou',
+      appId: process.env.TENCENT_SMS_APP_ID || this.config.appId,
+      sign: process.env.TENCENT_SMS_SIGN || this.config.sign,
+      templates: {
+        register:
+          process.env.TENCENT_SMS_TEMPLATE_REGISTER || this.config?.templates?.register || '',
+        login: process.env.TENCENT_SMS_TEMPLATE_LOGIN || this.config?.templates?.login || '',
+        reset: process.env.TENCENT_SMS_TEMPLATE_RESET || this.config?.templates?.reset || ''
+      }
+    };
+    this.tencentSmsClient = null;
     logger.info('初始化腾讯云SMS服务');
   }
 
@@ -87,17 +104,17 @@ export class SmsService {
       // 根据服务商发送短信
       let result;
       switch (this.provider) {
-      case 'aliyun':
-        result = await this._sendAliyunSms(phone, code, template);
-        break;
-      case 'tencent':
-        result = await this._sendTencentSms(phone, code, template);
-        break;
-      case 'mock':
-        result = await this._sendMockSms(phone, code, template);
-        break;
-      default:
-        throw new Error(`不支持的短信服务商: ${this.provider}`);
+        case 'aliyun':
+          result = await this._sendAliyunSms(phone, code, template);
+          break;
+        case 'tencent':
+          result = await this._sendTencentSms(phone, code, template);
+          break;
+        case 'mock':
+          result = await this._sendMockSms(phone, code, template);
+          break;
+        default:
+          throw new Error(`不支持的短信服务商: ${this.provider}`);
       }
 
       logger.info(`验证码发送成功: ${this._maskPhone(phone)}`);
@@ -131,11 +148,14 @@ export class SmsService {
         };
       }
 
-      // TODO: 实现真实的短信发送
-      return {
-        success: true,
-        messageId: `msg_${Date.now()}`
-      };
+      switch (this.provider) {
+        case 'aliyun':
+          return await this._sendAliyunNotification(phone, message);
+        case 'tencent':
+          return await this._sendTencentNotification(phone, message);
+        default:
+          throw new Error(`不支持的短信服务商: ${this.provider}`);
+      }
     } catch (error) {
       logger.error(`通知短信发送失败: ${error.message}`, { phone: this._maskPhone(phone), error });
       throw error;
@@ -146,16 +166,93 @@ export class SmsService {
    * 阿里云SMS发送
    */
   async _sendAliyunSms(_phone, _code, _template) {
-    // TODO: 实现阿里云SMS发送逻辑
-    throw new Error('阿里云SMS尚未实现');
+    throw new Error('阿里云SMS暂未集成，请配置SMS_PROVIDER=tencent或使用mock');
   }
 
   /**
    * 腾讯云SMS发送
    */
-  async _sendTencentSms(_phone, _code, _template) {
-    // TODO: 实现腾讯云SMS发送逻辑
-    throw new Error('腾讯云SMS尚未实现');
+  async _sendTencentSms(phone, code, template) {
+    const client = await this._getTencentSmsClient();
+    const templateId = this.tencentConfig?.templates?.[template] || '';
+    if (!templateId) {
+      throw new Error(`腾讯云短信模板未配置: ${template}`);
+    }
+    const response = await client.SendSms({
+      SmsSdkAppId: String(this.tencentConfig.appId),
+      SignName: this.tencentConfig.sign,
+      TemplateId: String(templateId),
+      PhoneNumberSet: [`+86${phone}`],
+      TemplateParamSet: [String(code)]
+    });
+    const status = response?.SendStatusSet?.[0];
+    if (!status || status.Code !== 'Ok') {
+      throw new Error(`腾讯云短信发送失败: ${status?.Message || '未知错误'}`);
+    }
+    return {
+      success: true,
+      messageId: status.SerialNo || `tencent_${Date.now()}`,
+      provider: 'tencent'
+    };
+  }
+
+  async _sendAliyunNotification(_phone, _message) {
+    throw new Error('阿里云SMS暂未集成，请配置SMS_PROVIDER=tencent或使用mock');
+  }
+
+  async _sendTencentNotification(phone, message) {
+    const client = await this._getTencentSmsClient();
+    const templateId =
+      process.env.TENCENT_SMS_TEMPLATE_NOTIFICATION || this.config?.templates?.notification;
+    if (!templateId) {
+      throw new Error('腾讯云通知短信模板未配置: TENCENT_SMS_TEMPLATE_NOTIFICATION');
+    }
+    const response = await client.SendSms({
+      SmsSdkAppId: String(this.tencentConfig.appId),
+      SignName: this.tencentConfig.sign,
+      TemplateId: String(templateId),
+      PhoneNumberSet: [`+86${phone}`],
+      TemplateParamSet: [String(message)]
+    });
+    const status = response?.SendStatusSet?.[0];
+    if (!status || status.Code !== 'Ok') {
+      throw new Error(`腾讯云通知短信发送失败: ${status?.Message || '未知错误'}`);
+    }
+    return {
+      success: true,
+      messageId: status.SerialNo || `tencent_${Date.now()}`,
+      provider: 'tencent'
+    };
+  }
+
+  async _getTencentSmsClient() {
+    if (this.tencentSmsClient) {
+      return this.tencentSmsClient;
+    }
+    const { secretId, secretKey, region, appId, sign } = this.tencentConfig || {};
+    if (!secretId || !secretKey || !appId || !sign) {
+      throw new Error('腾讯云短信配置不完整，请检查 secretId/secretKey/appId/sign');
+    }
+    let tencentcloud;
+    try {
+      tencentcloud = await import('tencentcloud-sdk-nodejs');
+    } catch (_error) {
+      throw new Error('tencentcloud-sdk-nodejs未安装，请在backend目录执行 npm install');
+    }
+    const SmsClient = tencentcloud.sms.v20210111.Client;
+    this.tencentSmsClient = new SmsClient({
+      credential: {
+        secretId,
+        secretKey
+      },
+      region,
+      profile: {
+        httpProfile: {
+          endpoint: 'sms.tencentcloudapi.com'
+        }
+      }
+    });
+    return this.tencentSmsClient;
   }
 
   /**

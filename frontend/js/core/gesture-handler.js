@@ -368,6 +368,7 @@ class GestureHandler {
     });
 
     if (cleaned) {
+      this.emit('cleanup', { element });
     }
   }
 
@@ -375,12 +376,9 @@ class GestureHandler {
    * 清理所有手势监听器
    */
   cleanupAll() {
-    let count = 0;
-
     Object.values(this.gestures).forEach(gestureMap => {
-      gestureMap.forEach((cleanupFn, element) => {
+      gestureMap.forEach(cleanupFn => {
         cleanupFn();
-        count++;
       });
       gestureMap.clear();
     });

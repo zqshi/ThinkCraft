@@ -35,7 +35,6 @@ const state = {
   }
 };
 
-
 function updateUserNameDisplay() {
   const userNameEl = document.getElementById('userName');
   const userProfileName = document.querySelector('.user-profile-name');
@@ -54,7 +53,9 @@ function updateUserNameDisplay() {
         return;
       }
     }
-  } catch (e) {}
+  } catch (_error) {
+    // ignore malformed legacy user info payloads
+  }
 
   if (userNameEl) {
     userNameEl.textContent = 'ThinkCraft 用户';

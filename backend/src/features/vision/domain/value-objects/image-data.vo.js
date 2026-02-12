@@ -36,10 +36,18 @@ export class ImageData {
    * @returns {string} 图片类型
    */
   static detectImageType(base64) {
-    if (base64.startsWith('/9j/')) return 'JPEG';
-    if (base64.startsWith('iVBORw0KGgo')) return 'PNG';
-    if (base64.startsWith('R0lGOD')) return 'GIF';
-    if (base64.startsWith('UklGR')) return 'WEBP';
+    if (base64.startsWith('/9j/')) {
+      return 'JPEG';
+    }
+    if (base64.startsWith('iVBORw0KGgo')) {
+      return 'PNG';
+    }
+    if (base64.startsWith('R0lGOD')) {
+      return 'GIF';
+    }
+    if (base64.startsWith('UklGR')) {
+      return 'WEBP';
+    }
     return 'UNKNOWN';
   }
 

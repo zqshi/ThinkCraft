@@ -14,7 +14,7 @@ export class OCRProvider {
    * @param {Object} options - 配置选项
    * @returns {Promise<OCRResult>} OCR结果
    */
-  async extractText(imageData, options = {}) {
+  async extractText(imageData, _options = {}) {
     throw new Error('Must implement extractText method');
   }
 }

@@ -1,25 +1,14 @@
 /**
  * Share 用例实现
  */
+import { Share, ShareType, SharePermission, IShareRepository } from '../domain/index.js';
 import {
-  Share,
-  ShareType,
-  SharePermission,
-  ShareStatus,
-  IShareRepository
-} from '../domain/index.js';
-import {
-  CreateShareRequestDto,
-  UpdateShareRequestDto,
   ShareResponseDto,
   ShareListItemDto,
-  AccessShareRequestDto,
-  BatchShareOperationDto,
   ShareStatsDto,
   ResourceShareStatusDto
 } from './share.dto.js';
 import { callDeepSeekAPI } from '../../../../config/deepseek.js';
-import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -246,21 +235,22 @@ export class ShareUseCase {
         }
 
         switch (requestDto.operation) {
-        case 'revoke':
-          share.revoke();
-          break;
-        case 'delete':
-          await this.shareRepository.delete(shareId);
-          results.push({ shareId, success: true, operation: 'deleted' });
-          continue;
-        case 'extend':
-          // 默认延长7天
-          const newExpiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-          share.extendExpiration(newExpiryDate);
-          break;
-        default:
-          results.push({ shareId, success: false, error: 'Invalid operation' });
-          continue;
+          case 'revoke':
+            share.revoke();
+            break;
+          case 'delete':
+            await this.shareRepository.delete(shareId);
+            results.push({ shareId, success: true, operation: 'deleted' });
+            continue;
+          case 'extend': {
+            // 默认延长7天
+            const newExpiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            share.extendExpiration(newExpiryDate);
+            break;
+          }
+          default:
+            results.push({ shareId, success: false, error: 'Invalid operation' });
+            continue;
         }
 
         await this.shareRepository.save(share);
@@ -329,16 +319,12 @@ export class ShareUseCase {
       const fullPrompt = `${SHARE_CARD_PROMPT}\n\n对话历史：\n${conversationText}`;
 
       // 调用AI生成分享卡片数据
-      const response = await callDeepSeekAPI(
-        [{ role: 'user', content: fullPrompt }],
-        null,
-        {
-          temperature: 0.7,
-          max_tokens: 1000,
-          response_format: { type: 'json_object' },
-          timeout: 30000
-        }
-      );
+      const response = await callDeepSeekAPI([{ role: 'user', content: fullPrompt }], null, {
+        temperature: 0.7,
+        max_tokens: 1000,
+        response_format: { type: 'json_object' },
+        timeout: 30000
+      });
 
       // 解析返回的JSON
       const rawContent = String(response.content || '').trim();
@@ -346,7 +332,10 @@ export class ShareUseCase {
 
       // 移除可能的代码块包装
       if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```[a-zA-Z]*\s*/i, '').replace(/```$/, '').trim();
+        jsonText = jsonText
+          .replace(/^```[a-zA-Z]*\s*/i, '')
+          .replace(/```$/, '')
+          .trim();
       }
 
       // 提取JSON部分
@@ -364,9 +353,18 @@ export class ShareUseCase {
       }
 
       // 确保评分在合理范围内
-      shareCardData.scores.feasibility = Math.max(0, Math.min(100, shareCardData.scores.feasibility || 75));
-      shareCardData.scores.innovation = Math.max(0, Math.min(100, shareCardData.scores.innovation || 75));
-      shareCardData.scores.marketPotential = Math.max(0, Math.min(100, shareCardData.scores.marketPotential || 75));
+      shareCardData.scores.feasibility = Math.max(
+        0,
+        Math.min(100, shareCardData.scores.feasibility || 75)
+      );
+      shareCardData.scores.innovation = Math.max(
+        0,
+        Math.min(100, shareCardData.scores.innovation || 75)
+      );
+      shareCardData.scores.marketPotential = Math.max(
+        0,
+        Math.min(100, shareCardData.scores.marketPotential || 75)
+      );
 
       return shareCardData;
     } catch (error) {

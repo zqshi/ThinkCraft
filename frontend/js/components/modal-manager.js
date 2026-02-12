@@ -50,6 +50,7 @@ class ModalManager {
    */
   register(id, element) {
     if (this.modals.has(id)) {
+      return;
     }
 
     // 绑定点击背景关闭
@@ -376,7 +377,7 @@ class ModalManager {
         <button class="btn btn-primary" onclick="modalManager.close(this.closest('.modal').id)">确定</button>
       `,
       className: `alert-dialog alert-${type}`,
-      onClose: callback  // 添加回调支持
+      onClose: callback // 添加回调支持
     });
   }
 
@@ -414,7 +415,6 @@ class ModalManager {
     }
 
     let isDragging = false;
-    const initialTransform = 0;
 
     window.gestureHandler.registerSwipe(modalContent, {
       onSwipeMove: (deltaX, deltaY) => {

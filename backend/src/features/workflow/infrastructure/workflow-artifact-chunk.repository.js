@@ -5,7 +5,10 @@ import path from 'path';
 import { ensureProjectWorkspace } from '../../projects/infrastructure/project-files.js';
 
 function hashText(value) {
-  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(String(value || ''))
+    .digest('hex');
 }
 
 async function resolveIndexFile(project) {
@@ -99,7 +102,8 @@ function sanitizeSession(session, includeChunkContent = true) {
     chunks: includeChunkContent
       ? chunks
       : chunks.map(item => {
-          const { content, ...rest } = item || {};
+          const rest = { ...(item || {}) };
+          delete rest.content;
           return rest;
         })
   };
@@ -156,7 +160,9 @@ export async function appendChunkRecord({
     finishReason: finishReason || null,
     createdAt: new Date().toISOString()
   };
-  const existingIndex = chunks.findIndex(item => Number(item?.round || 0) === Number(chunk.round || 0));
+  const existingIndex = chunks.findIndex(
+    item => Number(item?.round || 0) === Number(chunk.round || 0)
+  );
   if (existingIndex >= 0) {
     chunks[existingIndex] = {
       ...chunks[existingIndex],
@@ -175,13 +181,7 @@ export async function appendChunkRecord({
   return session;
 }
 
-export async function markChunkSessionStatus({
-  project,
-  projectId,
-  runId,
-  status,
-  error = null
-}) {
+export async function markChunkSessionStatus({ project, projectId, runId, status, error = null }) {
   const index = await readIndex(project, projectId);
   const session = upsertSession(index, {
     runId,
@@ -225,12 +225,7 @@ export async function markChunkSessionAssembled({
   return session;
 }
 
-export async function getChunkSession({
-  project,
-  projectId,
-  runId,
-  includeChunkContent = true
-}) {
+export async function getChunkSession({ project, projectId, runId, includeChunkContent = true }) {
   const index = await readIndex(project, projectId);
   const session = (index.sessions || []).find(item => item?.runId === runId) || null;
   return sanitizeSession(session, includeChunkContent);

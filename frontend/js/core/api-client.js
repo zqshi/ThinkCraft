@@ -45,7 +45,9 @@ class APIClient {
   decodeJwt(token) {
     try {
       const payload = token.split('.')[1];
-      if (!payload) return null;
+      if (!payload) {
+        return null;
+      }
       let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
       const padding = base64.length % 4;
       if (padding) {
@@ -60,7 +62,9 @@ class APIClient {
 
   getTokenRemainingMs(token) {
     const decoded = this.decodeJwt(token);
-    if (!decoded || !decoded.exp) return 0;
+    if (!decoded || !decoded.exp) {
+      return 0;
+    }
     const currentTime = Math.floor(Date.now() / 1000);
     const remainingSeconds = decoded.exp - currentTime;
     return Math.max(0, remainingSeconds * 1000);
@@ -68,13 +72,17 @@ class APIClient {
 
   async ensureFreshToken() {
     const authToken = this.getAccessToken();
-    if (!authToken) return false;
+    if (!authToken) {
+      return false;
+    }
     const remainingMs = this.getTokenRemainingMs(authToken);
     const now = Date.now();
     const nearExpiry = remainingMs <= this.config.refreshThresholdMs;
     const cooldownOk = now - this.lastRefreshAt >= this.config.refreshCooldownMs;
 
-    if (!nearExpiry || !cooldownOk) return false;
+    if (!nearExpiry || !cooldownOk) {
+      return false;
+    }
 
     const refreshed = await this.refreshAccessToken().catch(() => false);
     if (refreshed) {
@@ -144,7 +152,6 @@ class APIClient {
 
         const data = await response.json();
         return data;
-
       } catch (error) {
         // 最后一次重试失败，抛出错误
         if (i === retry - 1) {
@@ -399,7 +406,7 @@ class APIClient {
    */
   setBaseURL(url) {
     this.baseURL = resolveBaseURL(url);
-    }
+  }
 
   /**
    * 更新配置
@@ -407,7 +414,7 @@ class APIClient {
    */
   updateConfig(config) {
     this.config = { ...this.config, ...config };
-    }
+  }
 
   /**
    * 批量请求（并行执行，但限制并发数）
@@ -433,7 +440,10 @@ class APIClient {
       // 控制并发数
       if (executing.length >= concurrency) {
         await Promise.race(executing);
-        executing.splice(executing.findIndex(p => p === promise), 1);
+        executing.splice(
+          executing.findIndex(p => p === promise),
+          1
+        );
       }
     }
 
@@ -476,5 +486,4 @@ if (typeof window !== 'undefined') {
       cooldownMs: settings.keepAliveRefreshCooldownMs
     });
   }
-
-  }
+}

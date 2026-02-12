@@ -57,7 +57,7 @@ class WorkflowExecutor {
     if (!stageId) return stageId;
     const normalized = String(stageId).trim();
     const aliases = {
-      'strategy_requirement': 'strategy-requirement',
+      strategy_requirement: 'strategy-requirement',
       'strategy+requirement': 'strategy-requirement',
       'strategy-validation': 'strategy',
       'strategy-review': 'strategy',
@@ -122,8 +122,7 @@ class WorkflowExecutor {
       ? 2 * 60 * 1000
       : 60 * 1000;
 
-    const computed =
-      baseTimeoutMs + Math.max(0, deliverableCount - 1) * perDeliverableTimeoutMs;
+    const computed = baseTimeoutMs + Math.max(0, deliverableCount - 1) * perDeliverableTimeoutMs;
     const minTimeoutMs = 4 * 60 * 1000;
     const maxTimeoutMs = 30 * 60 * 1000;
     return Math.min(maxTimeoutMs, Math.max(minTimeoutMs, computed));
@@ -268,7 +267,9 @@ class WorkflowExecutor {
       if (!artifactType || !typeSet.has(artifactType) || runIdMap[artifactType]) {
         continue;
       }
-      const status = String(session?.status || '').trim().toLowerCase();
+      const status = String(session?.status || '')
+        .trim()
+        .toLowerCase();
       const completedRounds = Number(session?.completedRounds || 0);
       const totalRounds = Number(session?.totalRounds || 0);
       const isComplete = Boolean(session?.assembled?.isComplete);
@@ -580,7 +581,8 @@ class WorkflowExecutor {
             requestStartedAt: now,
             modelCallVerified: false,
             modelRequired: Boolean(options.executionMeta?.modelRequired),
-            requestId: options.executionMeta?.requestId || targetStage.executionProbe?.requestId || '',
+            requestId:
+              options.executionMeta?.requestId || targetStage.executionProbe?.requestId || '',
             source: options.executionMeta?.source || 'workflow-executor',
             updatedAt: now
           };
@@ -1222,10 +1224,7 @@ class WorkflowExecutor {
       // 显示成功提示
       if (!options.silent) {
         if (window.toast?.success) {
-          window.toast.success(
-            `阶段执行完成！生成了 ${result.artifacts.length} 个交付物`,
-            3000
-          );
+          window.toast.success(`阶段执行完成！生成了 ${result.artifacts.length} 个交付物`, 3000);
         } else if (window.modalManager) {
           window.modalManager.close();
           window.modalManager.alert(
@@ -1382,21 +1381,55 @@ class WorkflowExecutor {
    */
   async viewArtifactContent(artifactId) {
     try {
-      // 从当前打开的交付物列表中查找
-      // TODO [2026-01-26]: 实现更好的交付物查找机制（通过storage-manager）
-      // 显示提示（暂时使用alert，后续可以用模态框）
-      if (window.modalManager) {
-        window.modalManager.alert('正在加载交付物详情...', 'info');
-
-        // 模拟加载（实际应该从storage-manager或API获取）
-        setTimeout(() => {
-          window.modalManager.close();
-          window.modalManager.alert('交付物详情功能开发中...', 'warning');
-        }, 500);
-      } else {
-        alert('交付物详情查看功能开发中...');
+      if (!artifactId) {
+        throw new Error('交付物ID不能为空');
       }
-    } catch (error) {}
+
+      let foundArtifact = null;
+      const currentProjectId = this.projectManager?.currentProject?.id;
+      if (currentProjectId && this.storageManager?.getProject) {
+        const project = await this.storageManager.getProject(currentProjectId);
+        const stages = project?.workflow?.stages || [];
+        for (const stage of stages) {
+          const artifact = (stage?.artifacts || []).find(item => item?.id === artifactId);
+          if (artifact) {
+            foundArtifact = artifact;
+            break;
+          }
+        }
+      }
+
+      if (!foundArtifact && currentProjectId) {
+        const url = `${this.apiUrl}/api/workflow/${currentProjectId}/artifacts`;
+        const authToken = localStorage.getItem('auth_token');
+        const resp = await fetch(url, {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          }
+        });
+        if (resp.ok) {
+          const json = await resp.json().catch(() => null);
+          const artifacts = Array.isArray(json?.data?.artifacts) ? json.data.artifacts : [];
+          foundArtifact = artifacts.find(item => item?.id === artifactId) || null;
+        }
+      }
+
+      if (!foundArtifact) {
+        throw new Error('未找到交付物内容');
+      }
+
+      this.showArtifactDetail(
+        foundArtifact.id || artifactId,
+        foundArtifact.name || '交付物',
+        foundArtifact.content || foundArtifact.text || foundArtifact.code || ''
+      );
+    } catch (error) {
+      if (window.modalManager) {
+        window.modalManager.alert(`加载交付物详情失败: ${error.message}`, 'error');
+        return;
+      }
+      alert('加载交付物详情失败');
+    }
   }
 
   /**

@@ -122,7 +122,10 @@ export class UpdateChatDTO {
       throw new Error('置顶状态必须是布尔值');
     }
 
-    if (this.reportState !== null && (typeof this.reportState !== 'object' || Array.isArray(this.reportState))) {
+    if (
+      this.reportState !== null &&
+      (typeof this.reportState !== 'object' || Array.isArray(this.reportState))
+    ) {
       throw new Error('报告状态必须是对象');
     }
 
@@ -130,7 +133,12 @@ export class UpdateChatDTO {
       throw new Error('analysisCompleted必须是布尔值');
     }
 
-    if (this.conversationStep !== null && (typeof this.conversationStep !== 'number' || Number.isNaN(this.conversationStep) || this.conversationStep < 0)) {
+    if (
+      this.conversationStep !== null &&
+      (typeof this.conversationStep !== 'number' ||
+        Number.isNaN(this.conversationStep) ||
+        this.conversationStep < 0)
+    ) {
       throw new Error('conversationStep必须是非负数字');
     }
   }
@@ -143,7 +151,7 @@ export class ChatResponseDTO {
   constructor(chat) {
     this.id = chat.id;
     this.title = chat.title;
-    this.titleEdited = !!chat.titleEdited;
+    this.titleEdited = Boolean(chat.titleEdited);
     this.status = chat.status.value;
     this.messages = chat.messages.map(msg => ({
       id: msg.id,
@@ -158,17 +166,17 @@ export class ChatResponseDTO {
     this.tags = chat.tags;
     this.isPinned = chat.isPinned;
     this.reportState = chat.reportState || null;
-    this.analysisCompleted = !!chat.analysisCompleted;
+    this.analysisCompleted = Boolean(chat.analysisCompleted);
     this.conversationStep = Number.isFinite(chat.conversationStep) ? chat.conversationStep : 0;
     this.messageCount = chat.getMessageCount();
     this.lastMessage = chat.getLastMessage()
       ? {
-        id: chat.getLastMessage().id,
-        content: chat.getLastMessage().content,
-        type: chat.getLastMessage().type.value,
-        sender: chat.getLastMessage().sender,
-        createdAt: chat.getLastMessage().createdAt
-      }
+          id: chat.getLastMessage().id,
+          content: chat.getLastMessage().content,
+          type: chat.getLastMessage().type.value,
+          sender: chat.getLastMessage().sender,
+          createdAt: chat.getLastMessage().createdAt
+        }
       : null;
     this.createdAt = chat.createdAt;
     this.updatedAt = chat.updatedAt;

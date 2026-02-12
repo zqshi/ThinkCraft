@@ -31,7 +31,9 @@ window.projectManagerSync = {
         }
         pm.executionRunsUnavailableByProject[projectId] = true;
       }
-    } catch (_error) {}
+    } catch (_error) {
+      // ignore health probe errors and fall back to default unavailable status
+    }
     try {
       const chunksResp = await pm.fetchWithAuth(
         `${pm.apiUrl}/api/workflow/${projectId}/artifact-chunks?limit=1&includeContent=0`
@@ -43,7 +45,9 @@ window.projectManagerSync = {
         }
         pm.artifactChunksUnavailableByProject[projectId] = true;
       }
-    } catch (_error) {}
+    } catch (_error) {
+      // ignore health probe errors and fall back to default unavailable status
+    }
 
     if (!pm.workflowRouteHealthByProject) {
       pm.workflowRouteHealthByProject = {};
@@ -235,7 +239,8 @@ window.projectManagerSync = {
     pm.artifactPollingTimer = setInterval(() => {
       pm.pollProjectArtifacts().catch(() => {});
     }, 5000);
-    window.projectManagerSync.probeWorkflowRouteHealth(pm, projectId)
+    window.projectManagerSync
+      .probeWorkflowRouteHealth(pm, projectId)
       .then(() => {
         if (pm.currentProjectId === projectId && pm.currentProject) {
           pm.refreshProjectPanel(pm.currentProject);
@@ -276,7 +281,8 @@ window.projectManagerSync = {
               return true;
             }
             return (
-              Array.isArray(stage?.executingArtifactTypes) && stage.executingArtifactTypes.length > 0
+              Array.isArray(stage?.executingArtifactTypes) &&
+              stage.executingArtifactTypes.length > 0
             );
           })
         : false;
@@ -300,7 +306,9 @@ window.projectManagerSync = {
             }
             pm.executionRunsUnavailableByProject[projectId] = true;
           }
-        } catch (_error) {}
+        } catch (_error) {
+          // ignore temporary polling failures
+        }
       }
       if (
         pm.enableExecutionRunsPolling === true &&
@@ -314,7 +322,9 @@ window.projectManagerSync = {
           );
           if (chunkResp.ok) {
             const chunkJson = await chunkResp.json().catch(() => null);
-            const sessions = Array.isArray(chunkJson?.data?.sessions) ? chunkJson.data.sessions : [];
+            const sessions = Array.isArray(chunkJson?.data?.sessions)
+              ? chunkJson.data.sessions
+              : [];
             runRecords = sessions.map(session => ({
               runId: session?.runId,
               projectId,
@@ -339,7 +349,9 @@ window.projectManagerSync = {
             }
             pm.artifactChunksUnavailableByProject[projectId] = true;
           }
-        } catch (_error) {}
+        } catch (_error) {
+          // ignore temporary polling failures
+        }
       }
       const runByStage = new Map();
       runRecords.forEach(run => {
@@ -353,7 +365,9 @@ window.projectManagerSync = {
         }
         const stageRuns = runByStage.get(stageId);
         const existing = stageRuns[artifactType];
-        const candidateTime = Number(new Date(run?.updatedAt || run?.createdAt || 0).getTime() || 0);
+        const candidateTime = Number(
+          new Date(run?.updatedAt || run?.createdAt || 0).getTime() || 0
+        );
         const existingTime = Number(
           new Date(existing?.updatedAt || existing?.createdAt || 0).getTime() || 0
         );
@@ -393,9 +407,11 @@ window.projectManagerSync = {
         }
         const latestRuns = runByStage.get(stage.id) || null;
         if (
-          JSON.stringify((stage.executionRuns && typeof stage.executionRuns === 'object'
-            ? stage.executionRuns
-            : null) || {}) !== JSON.stringify(latestRuns || {})
+          JSON.stringify(
+            (stage.executionRuns && typeof stage.executionRuns === 'object'
+              ? stage.executionRuns
+              : null) || {}
+          ) !== JSON.stringify(latestRuns || {})
         ) {
           stage.executionRuns = latestRuns;
           changed = true;
@@ -425,7 +441,9 @@ window.projectManagerSync = {
             selectedDeliverables
           );
           const stageRuns =
-            stage.executionRuns && typeof stage.executionRuns === 'object' ? stage.executionRuns : {};
+            stage.executionRuns && typeof stage.executionRuns === 'object'
+              ? stage.executionRuns
+              : {};
           const hasRunningRun = Object.values(stageRuns).some(run => {
             const runStatus = String(run?.status || '').toLowerCase();
             return runStatus === 'running' || runStatus === 'queued';
@@ -448,7 +466,8 @@ window.projectManagerSync = {
             changed = true;
           }
 
-          const normalizedStageId = window.workflowExecutor?.normalizeStageId?.(stage.id) || stage.id;
+          const normalizedStageId =
+            window.workflowExecutor?.normalizeStageId?.(stage.id) || stage.id;
           const inferredModelRequired =
             window.workflowExecutor?.createExecutionProbeMeta?.(normalizedStageId)?.modelRequired ??
             true;
@@ -470,7 +489,9 @@ window.projectManagerSync = {
           }
           const modelCallVerified = Boolean(executionProbe.modelCallVerified);
           const modelArtifacts = (Array.isArray(merged) ? merged : []).filter(artifact => {
-            const sourceKey = String(artifact?.source || '').trim().toLowerCase();
+            const sourceKey = String(artifact?.source || '')
+              .trim()
+              .toLowerCase();
             const tokens = Number(artifact?.tokens || 0);
             return sourceKey === 'model' || tokens > 0;
           });
@@ -518,7 +539,11 @@ window.projectManagerSync = {
           }
 
           const persistedLastProgressAt = Number(
-            stage.artifactsUpdatedAt || probeStartedAt || stage.startedAt || tracker.lastUpdatedAt || 0
+            stage.artifactsUpdatedAt ||
+              probeStartedAt ||
+              stage.startedAt ||
+              tracker.lastUpdatedAt ||
+              0
           );
           const idleFor = now - persistedLastProgressAt;
           const timeoutMs = 12 * 60 * 1000;
@@ -543,51 +568,53 @@ window.projectManagerSync = {
         const workflowStageMap = new Map(
           (project.workflow.stages || []).map(stage => [stage.id, stage])
         );
-        project.collaborationSuggestion.stages = project.collaborationSuggestion.stages.map(stage => {
-          const runtime = workflowStageMap.get(stage.id);
-          if (!runtime) {
-            return stage;
+        project.collaborationSuggestion.stages = project.collaborationSuggestion.stages.map(
+          stage => {
+            const runtime = workflowStageMap.get(stage.id);
+            if (!runtime) {
+              return stage;
+            }
+            const nextStage = {
+              ...stage,
+              status: runtime.status || stage.status,
+              startedAt: runtime.startedAt ?? stage.startedAt,
+              completedAt: runtime.completedAt ?? stage.completedAt,
+              artifacts: Array.isArray(runtime.artifacts) ? runtime.artifacts : stage.artifacts,
+              artifactsUpdatedAt: runtime.artifactsUpdatedAt ?? stage.artifactsUpdatedAt,
+              executionRuns:
+                runtime.executionRuns && typeof runtime.executionRuns === 'object'
+                  ? runtime.executionRuns
+                  : stage.executionRuns,
+              executingArtifactTypes: Array.isArray(runtime.executingArtifactTypes)
+                ? runtime.executingArtifactTypes
+                : stage.executingArtifactTypes,
+              supplementingDeliverableTypes: Array.isArray(runtime.supplementingDeliverableTypes)
+                ? runtime.supplementingDeliverableTypes
+                : stage.supplementingDeliverableTypes,
+              executionProbe: runtime.executionProbe || stage.executionProbe,
+              repairNote: runtime.repairNote || stage.repairNote
+            };
+            if (
+              nextStage.status !== stage.status ||
+              nextStage.startedAt !== stage.startedAt ||
+              nextStage.completedAt !== stage.completedAt ||
+              nextStage.repairNote !== stage.repairNote ||
+              JSON.stringify(nextStage.executingArtifactTypes || []) !==
+                JSON.stringify(stage.executingArtifactTypes || []) ||
+              JSON.stringify(nextStage.supplementingDeliverableTypes || []) !==
+                JSON.stringify(stage.supplementingDeliverableTypes || []) ||
+              JSON.stringify(nextStage.executionProbe || {}) !==
+                JSON.stringify(stage.executionProbe || {}) ||
+              JSON.stringify(nextStage.executionRuns || {}) !==
+                JSON.stringify(stage.executionRuns || {}) ||
+              (Array.isArray(nextStage.artifacts) ? nextStage.artifacts.length : 0) !==
+                (Array.isArray(stage.artifacts) ? stage.artifacts.length : 0)
+            ) {
+              changed = true;
+            }
+            return nextStage;
           }
-          const nextStage = {
-            ...stage,
-            status: runtime.status || stage.status,
-            startedAt: runtime.startedAt ?? stage.startedAt,
-            completedAt: runtime.completedAt ?? stage.completedAt,
-            artifacts: Array.isArray(runtime.artifacts) ? runtime.artifacts : stage.artifacts,
-            artifactsUpdatedAt: runtime.artifactsUpdatedAt ?? stage.artifactsUpdatedAt,
-            executionRuns:
-              runtime.executionRuns && typeof runtime.executionRuns === 'object'
-                ? runtime.executionRuns
-                : stage.executionRuns,
-            executingArtifactTypes: Array.isArray(runtime.executingArtifactTypes)
-              ? runtime.executingArtifactTypes
-              : stage.executingArtifactTypes,
-            supplementingDeliverableTypes: Array.isArray(runtime.supplementingDeliverableTypes)
-              ? runtime.supplementingDeliverableTypes
-              : stage.supplementingDeliverableTypes,
-            executionProbe: runtime.executionProbe || stage.executionProbe,
-            repairNote: runtime.repairNote || stage.repairNote
-          };
-          if (
-            nextStage.status !== stage.status ||
-            nextStage.startedAt !== stage.startedAt ||
-            nextStage.completedAt !== stage.completedAt ||
-            nextStage.repairNote !== stage.repairNote ||
-            JSON.stringify(nextStage.executingArtifactTypes || []) !==
-              JSON.stringify(stage.executingArtifactTypes || []) ||
-            JSON.stringify(nextStage.supplementingDeliverableTypes || []) !==
-              JSON.stringify(stage.supplementingDeliverableTypes || []) ||
-            JSON.stringify(nextStage.executionProbe || {}) !==
-              JSON.stringify(stage.executionProbe || {}) ||
-            JSON.stringify(nextStage.executionRuns || {}) !==
-              JSON.stringify(stage.executionRuns || {}) ||
-            (Array.isArray(nextStage.artifacts) ? nextStage.artifacts.length : 0) !==
-              (Array.isArray(stage.artifacts) ? stage.artifacts.length : 0)
-          ) {
-            changed = true;
-          }
-          return nextStage;
-        });
+        );
       }
 
       if (changed) {

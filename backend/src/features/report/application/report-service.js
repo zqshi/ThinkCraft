@@ -56,7 +56,8 @@ export async function generateReport(messages) {
 
     try {
       const rawContent = response.content || '';
-      const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)```/i) || rawContent.match(/\{[\s\S]*\}/);
+      const jsonMatch =
+        rawContent.match(/```json\s*([\s\S]*?)```/i) || rawContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const jsonText = jsonMatch[1] || jsonMatch[0];
         reportData = JSON.parse(jsonText);
@@ -66,7 +67,8 @@ export async function generateReport(messages) {
     } catch (parseError) {
       try {
         const normalized = sanitizeJSONText(response.content || '');
-        const jsonMatch = normalized.match(/```json\s*([\s\S]*?)```/i) || normalized.match(/\{[\s\S]*\}/);
+        const jsonMatch =
+          normalized.match(/```json\s*([\s\S]*?)```/i) || normalized.match(/\{[\s\S]*\}/);
         const jsonText = jsonMatch ? jsonMatch[1] || jsonMatch[0] : normalized;
         reportData = JSON.parse(jsonText);
       } catch (retryError) {

@@ -91,7 +91,7 @@ export class IDomainEventPublisher {
    * 发布领域事件
    * @param {DomainEvent} event
    */
-  async publish(event) {
+  async publish(_event) {
     throw new Error('必须实现publish方法');
   }
 
@@ -99,7 +99,7 @@ export class IDomainEventPublisher {
    * 发布多个领域事件
    * @param {DomainEvent[]} events
    */
-  async publishAll(events) {
+  async publishAll(_events) {
     throw new Error('必须实现publishAll方法');
   }
 }

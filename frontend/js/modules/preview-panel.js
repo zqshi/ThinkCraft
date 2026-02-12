@@ -226,15 +226,21 @@ class PreviewPanel {
 
   setDeviceMode(mode) {
     this.deviceMode = mode;
-    if (!this.iframe) {return;}
+    if (!this.iframe) {
+      return;
+    }
     const wrap = this.iframe.parentElement;
-    if (!wrap) {return;}
+    if (!wrap) {
+      return;
+    }
     wrap.classList.remove('mode-mobile', 'mode-tablet', 'mode-desktop');
     wrap.classList.add(`mode-${mode}`);
   }
 
   handleElementPick(element) {
-    if (!element) {return;}
+    if (!element) {
+      return;
+    }
     if (this.selectedElement) {
       this.selectedElement.style.outline = '';
     }
@@ -267,9 +273,13 @@ class PreviewPanel {
 
   applyNlUpdate() {
     const input = document.getElementById('previewNlInput');
-    if (!input) {return;}
+    if (!input) {
+      return;
+    }
     const instruction = input.value.trim();
-    if (!instruction) {return;}
+    if (!instruction) {
+      return;
+    }
 
     if (this.selectedElement) {
       this.selectedElement.textContent = instruction;
@@ -280,12 +290,16 @@ class PreviewPanel {
 
   async handleImageUpload(event) {
     const file = event.target.files?.[0];
-    if (!file) {return;}
+    if (!file) {
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = String(reader.result || '').split(',')[1] || '';
-      if (!base64) {return;}
+      if (!base64) {
+        return;
+      }
       try {
         if (window.requireAuth) {
           const ok = await window.requireAuth({ redirect: true, prompt: true });
@@ -300,7 +314,11 @@ class PreviewPanel {
             'Content-Type': 'application/json',
             ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
           },
-          body: JSON.stringify({ image: base64, prompt: '请识别参考图的关键界面元素', enableOCR: true })
+          body: JSON.stringify({
+            image: base64,
+            prompt: '请识别参考图的关键界面元素',
+            enableOCR: true
+          })
         });
         if (!response.ok) {
           throw new Error('分析失败');

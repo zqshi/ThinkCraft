@@ -217,15 +217,14 @@ function buildRunId(projectId, stageId, artifactType) {
 }
 
 function hashValue(value) {
-  return crypto.createHash('sha256').update(String(value || '')).digest('hex').slice(0, 24);
+  return crypto
+    .createHash('sha256')
+    .update(String(value || ''))
+    .digest('hex')
+    .slice(0, 24);
 }
 
-async function persistCompletedArtifactAsChunkSession({
-  project,
-  projectId,
-  stageId,
-  artifact
-}) {
+async function persistCompletedArtifactAsChunkSession({ project, projectId, stageId, artifact }) {
   const artifactType = String(artifact?.type || '').trim();
   if (!artifactType) {
     return;
@@ -376,8 +375,8 @@ function buildArtifactLoopInstruction(artifactType, endMarker) {
 async function generateArtifactWithLoop({
   prompt,
   artifactType,
-  projectId,
-  stageId,
+  projectId: _projectId,
+  stageId: _stageId,
   onChunk = null,
   resumeContent = '',
   resumedRounds = 0
@@ -386,7 +385,9 @@ async function generateArtifactWithLoop({
   let tokens = 0;
   const finishReasons = [];
   const markerToken = toContextToken(artifactType) || 'ARTIFACT';
-  const isHtmlArtifact = ['prototype', 'preview', 'ui-preview'].includes(String(artifactType || ''));
+  const isHtmlArtifact = ['prototype', 'preview', 'ui-preview'].includes(
+    String(artifactType || '')
+  );
   const endMarker = isHtmlArtifact
     ? WORKFLOW_GENERATION_CONFIG.prototype.endMarker
     : `<<END_OF_${markerToken}>>`;
@@ -394,9 +395,7 @@ async function generateArtifactWithLoop({
   const maxRounds =
     artifactType === 'prototype' ? PROTOTYPE_LOOP_MAX_ROUNDS : ARTIFACT_LOOP_MAX_ROUNDS;
   const chunkMaxTokens =
-    artifactType === 'prototype'
-      ? PROTOTYPE_LOOP_CHUNK_MAX_TOKENS
-      : ARTIFACT_LOOP_CHUNK_MAX_TOKENS;
+    artifactType === 'prototype' ? PROTOTYPE_LOOP_CHUNK_MAX_TOKENS : ARTIFACT_LOOP_CHUNK_MAX_TOKENS;
 
   let nextPrompt = assembled
     ? `继续输出同一个交付物的后续内容，不要重复已经输出过的片段。
@@ -888,11 +887,7 @@ function reorderArtifactsForDependency(effectiveArtifactTypes = []) {
   return ordered;
 }
 
-function getDependencyContentsForArtifact({
-  artifactType,
-  project,
-  generatedArtifacts = []
-}) {
+function getDependencyContentsForArtifact({ artifactType, project, generatedArtifacts = [] }) {
   const dependencies = getDependenciesForArtifactType(artifactType);
   if (!dependencies.length) {
     return { missingDependencies: [], dependencyContents: [] };
@@ -937,20 +932,14 @@ function appendDependencyInputsToPrompt(prompt, dependencyContents = []) {
   return `${prompt}\n\n【依赖输入（必须作为当前交付物生成依据）】\n\n${sections.join('\n\n')}\n\n【强约束】\n- 输出内容必须显式对齐依赖输入\n- 若依赖输入存在冲突，需先说明取舍原则再输出最终结果`;
 }
 
-async function removeExistingArtifactsByNameAndCleanup({
-  project,
-  stageId,
-  artifactName
-}) {
+async function removeExistingArtifactsByNameAndCleanup({ project, stageId, artifactName }) {
   if (!project?.workflow || !stageId || !artifactName) {
     return;
   }
   const stage = project.workflow.getStage(stageId);
   const existing = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
   const targetName = String(artifactName || '').trim();
-  const matched = existing.filter(
-    item => String(item?.name || '').trim() === targetName
-  );
+  const matched = existing.filter(item => String(item?.name || '').trim() === targetName);
   if (matched.length === 0) {
     return;
   }
@@ -1566,11 +1555,7 @@ export async function executeStage(projectId, stageId, context = {}) {
     if (modelResult?.generationMeta) {
       artifact.generationMeta = modelResult.generationMeta;
     }
-    const targetStageId = resolveTargetStageIdForArtifact(
-      project,
-      normalizedStageId,
-      artifactType
-    );
+    const targetStageId = resolveTargetStageIdForArtifact(project, normalizedStageId, artifactType);
     await removeExistingArtifactsByNameAndCleanup({
       project,
       stageId: targetStageId,

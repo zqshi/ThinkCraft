@@ -50,7 +50,9 @@ export class ReportAiService {
       })
       .join('\n\n');
 
-    const promptTemplate = await promptLoader.load('scene-1-dialogue/analysis-report/full-document');
+    const promptTemplate = await promptLoader.load(
+      'scene-1-dialogue/analysis-report/full-document'
+    );
     const basePrompt = promptTemplate.replace('{CONVERSATION_HISTORY}', conversationContext);
     const systemPrompt = `${basePrompt}
 
@@ -158,7 +160,14 @@ export class ReportAiService {
         throw new Error('AI返回的报告数据缺少chapters字段');
       }
 
-      const requiredChapters = ['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'];
+      const requiredChapters = [
+        'chapter1',
+        'chapter2',
+        'chapter3',
+        'chapter4',
+        'chapter5',
+        'chapter6'
+      ];
       for (const chapter of requiredChapters) {
         if (!reportData.chapters[chapter]) {
           throw new Error(`报告缺少必需章节: ${chapter}`);
@@ -176,7 +185,7 @@ export class ReportAiService {
 
   parseJsonResponse(content) {
     const raw = String(content || '').trim();
-    let text = this.extractJsonBlock(raw);
+    const text = this.extractJsonBlock(raw);
 
     try {
       return JSON.parse(text);
@@ -185,9 +194,7 @@ export class ReportAiService {
       try {
         return JSON.parse(normalized);
       } catch (secondError) {
-        throw new Error(
-          `${firstError.message}; normalize failed: ${secondError.message}`
-        );
+        throw new Error(`${firstError.message}; normalize failed: ${secondError.message}`);
       }
     }
   }
@@ -199,7 +206,10 @@ export class ReportAiService {
     }
 
     if (text.startsWith('```')) {
-      text = text.replace(/^```[a-zA-Z]*\s*/i, '').replace(/```$/, '').trim();
+      text = text
+        .replace(/^```[a-zA-Z]*\s*/i, '')
+        .replace(/```$/, '')
+        .trim();
     }
 
     const firstBrace = text.indexOf('{');
@@ -243,9 +253,12 @@ export class ReportAiService {
   isLowQuality(data) {
     const placeholderPattern = /(待补充|暂无|空白|略|tbd|n\/a)/i;
     const hasPlaceholder = value => typeof value === 'string' && placeholderPattern.test(value);
-    const isEmptyText = value => value === undefined || value === null || String(value).trim() === '';
+    const isEmptyText = value =>
+      value === undefined || value === null || String(value).trim() === '';
     const hasInvalidArray = arr =>
-      !Array.isArray(arr) || arr.length < 3 || arr.some(item => isEmptyText(item) || hasPlaceholder(item));
+      !Array.isArray(arr) ||
+      arr.length < 3 ||
+      arr.some(item => isEmptyText(item) || hasPlaceholder(item));
     const hasInvalidMidterm = plan => {
       if (!plan || typeof plan !== 'object') {
         return true;

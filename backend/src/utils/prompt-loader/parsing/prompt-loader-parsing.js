@@ -53,11 +53,7 @@ export const promptLoaderParsingMethods = {
     }
 
     const normalized = promptName.replace(/\\/g, '/').trim();
-    if (
-      normalized.startsWith('/') ||
-      normalized.includes('..') ||
-      normalized.includes('\0')
-    ) {
+    if (normalized.startsWith('/') || normalized.includes('..') || normalized.includes('\0')) {
       throw new Error('Invalid prompt path');
     }
 

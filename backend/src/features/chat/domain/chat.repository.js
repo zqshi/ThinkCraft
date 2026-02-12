@@ -8,7 +8,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 根据ID查找聊天
    * @param {string} id
    */
-  async findById(id) {
+  async findById(_id) {
     throw new Error('必须实现findById方法');
   }
 
@@ -16,14 +16,14 @@ export class IChatRepository extends IAggregateRootRepository {
    * 保存聊天
    * @param {Chat} chat
    */
-  async save(chat) {
+  async save(_chat) {
     throw new Error('必须实现save方法');
   }
 
   /**
    * 查找所有聊天
    */
-  async findAll(userId) {
+  async findAll(_userId) {
     throw new Error('必须实现findAll方法');
   }
 
@@ -31,14 +31,14 @@ export class IChatRepository extends IAggregateRootRepository {
    * 根据用户ID查找聊天
    * @param {string} userId
    */
-  async findByUserId(userId) {
+  async findByUserId(_userId) {
     throw new Error('必须实现findByUserId方法');
   }
 
   /**
    * 查找置顶的聊天
    */
-  async findPinned(userId) {
+  async findPinned(_userId) {
     throw new Error('必须实现findPinned方法');
   }
 
@@ -46,7 +46,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 根据标签查找聊天
    * @param {string[]} tags
    */
-  async findByTags(tags, userId) {
+  async findByTags(_tags, _userId) {
     throw new Error('必须实现findByTags方法');
   }
 
@@ -54,7 +54,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 删除聊天
    * @param {string} id
    */
-  async delete(id) {
+  async delete(_id) {
     throw new Error('必须实现delete方法');
   }
 
@@ -62,7 +62,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 检查聊天是否存在
    * @param {string} id
    */
-  async exists(id) {
+  async exists(_id) {
     throw new Error('必须实现exists方法');
   }
 
@@ -77,7 +77,7 @@ export class IChatRepository extends IAggregateRootRepository {
    * 搜索聊天
    * @param {string} keyword
    */
-  async search(keyword) {
+  async search(_keyword) {
     throw new Error('必须实现search方法');
   }
 }

@@ -4,6 +4,13 @@ backend/src/features/business-plan/**
 backend/middleware/**
 backend/scripts/**
 backend/server.js
+backend/services/deep-research/venv/**
+backend/services/deep-research/logs/**
+frontend/experimental-src/**
+projects/**
+backups/**
+scripts/**
+service-worker.js
 frontend/js/modules/ui-controller.js
 frontend/js/modules/workflow-executor.js
 frontend/js/modules/agent-collaboration.js

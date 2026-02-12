@@ -12,6 +12,29 @@ import { ChatModel } from '../src/features/chat/infrastructure/chat.model.js';
 import { ChatMongoRepository } from '../src/features/chat/infrastructure/chat-mongodb.repository.js';
 import { BusinessPlanModel } from '../src/features/business-plan/infrastructure/business-plan.model.js';
 import { BusinessPlanMongoRepository } from '../src/features/business-plan/infrastructure/business-plan-mongodb.repository.js';
+import fs from 'fs/promises';
+import path from 'path';
+
+const DEFAULT_SOURCE_DIR = path.resolve(process.cwd(), 'backend/data/migration');
+
+async function loadMigrationSource(collectionName) {
+  const sourceDir = process.env.MIGRATION_SOURCE_DIR || DEFAULT_SOURCE_DIR;
+  const filePath = path.join(sourceDir, `${collectionName}.json`);
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`数据文件必须是数组: ${filePath}`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log(`[Migration] 未找到 ${collectionName}.json，跳过该类数据迁移`);
+      return [];
+    }
+    throw error;
+  }
+}
 
 /**
  * 迁移统计
@@ -74,7 +97,10 @@ async function migrateUsers() {
         console.log(`[Migration] ✓ 迁移用户: ${user.phone?.value || user.id?.value}`);
       } catch (error) {
         stats.addFailure(`用户 ${user.phone?.value || user.id?.value}: ${error.message}`);
-        console.error(`[Migration] ✗ 迁移失败: ${user.phone?.value || user.id?.value}`, error.message);
+        console.error(
+          `[Migration] ✗ 迁移失败: ${user.phone?.value || user.id?.value}`,
+          error.message
+        );
       }
     }
 
@@ -104,7 +130,6 @@ async function clearMongoDB() {
 
 /**
  * 迁移项目数据
- * 注意：由于没有内存仓库，这里提供一个示例框架
  */
 async function migrateProjects() {
   console.log('[Migration] 开始迁移项目数据...');
@@ -113,11 +138,7 @@ async function migrateProjects() {
   const mongoRepo = new ProjectMongoRepository();
 
   try {
-    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
-    // const projects = await memoryRepo.findAll();
-
-    // 示例：从JSON文件或其他数据源读取
-    const projects = []; // 替换为实际数据源
+    const projects = await loadMigrationSource('projects');
     stats.total = projects.length;
 
     console.log(`[Migration] 找到 ${projects.length} 个项目`);
@@ -150,8 +171,7 @@ async function migrateChats() {
   const mongoRepo = new ChatMongoRepository();
 
   try {
-    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
-    const chats = []; // 替换为实际数据源
+    const chats = await loadMigrationSource('chats');
     stats.total = chats.length;
 
     console.log(`[Migration] 找到 ${chats.length} 个聊天会话`);
@@ -184,8 +204,7 @@ async function migrateBusinessPlans() {
   const mongoRepo = new BusinessPlanMongoRepository();
 
   try {
-    // TODO: 如果有内存仓库或其他数据源，在这里获取数据
-    const businessPlans = []; // 替换为实际数据源
+    const businessPlans = await loadMigrationSource('business-plans');
     stats.total = businessPlans.length;
 
     console.log(`[Migration] 找到 ${businessPlans.length} 个商业计划书`);

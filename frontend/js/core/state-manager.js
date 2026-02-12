@@ -173,13 +173,19 @@ class StateManager {
   }
 
   buildReportState(chatId) {
-    if (!chatId) return null;
+    if (!chatId) {
+      return null;
+    }
     const normalizedChatId = String(chatId);
     const genState = this.state.generation?.[normalizedChatId];
-    if (!genState) return null;
+    if (!genState) {
+      return null;
+    }
 
-    const buildTypeState = (type) => {
-      if (!genState[type]) return null;
+    const buildTypeState = type => {
+      if (!genState[type]) {
+        return null;
+      }
       const { status, progress, startTime, endTime, error } = genState[type];
       return {
         status,
@@ -198,8 +204,12 @@ class StateManager {
   }
 
   scheduleChatStateSync(chatId) {
-    if (!chatId) return;
-    if (!window.apiClient?.put || !this.getAuthToken()) return;
+    if (!chatId) {
+      return;
+    }
+    if (!window.apiClient?.put || !this.getAuthToken()) {
+      return;
+    }
     if (!this._chatSyncTimers) {
       this._chatSyncTimers = new Map();
     }
@@ -218,13 +228,19 @@ class StateManager {
   }
 
   async syncChatState(chatId) {
-    if (!chatId || !window.apiClient?.put) return;
-    if (!this.getAuthToken()) return;
+    if (!chatId || !window.apiClient?.put) {
+      return;
+    }
+    if (!this.getAuthToken()) {
+      return;
+    }
 
     const payload = {
       reportState: this.buildReportState(chatId),
-      analysisCompleted: !!this.state.analysisCompleted,
-      conversationStep: Number.isFinite(this.state.conversationStep) ? this.state.conversationStep : 0
+      analysisCompleted: Boolean(this.state.analysisCompleted),
+      conversationStep: Number.isFinite(this.state.conversationStep)
+        ? this.state.conversationStep
+        : 0
     };
     try {
       await window.apiClient.put(`/api/chat/${chatId}`, payload);
@@ -245,19 +261,24 @@ class StateManager {
   }
 
   async ensureServerChat(chatId) {
-    if (!chatId || !window.apiClient?.post) return null;
-    if (!this.getAuthToken()) return null;
+    if (!chatId || !window.apiClient?.post) {
+      return null;
+    }
+    if (!this.getAuthToken()) {
+      return null;
+    }
 
     const normalizedId = String(chatId);
     const localChat =
       this.state.chats.find(c => String(c.id) === normalizedId) ||
-      (window.storageManager && await window.storageManager.getChat(chatId));
+      (window.storageManager && (await window.storageManager.getChat(chatId)));
 
     const title = localChat?.title || '新对话';
-    const titleEdited = !!localChat?.titleEdited;
+    const titleEdited = Boolean(localChat?.titleEdited);
     const tags = Array.isArray(localChat?.tags) ? localChat.tags : [];
     const initialMessage = Array.isArray(localChat?.messages)
-      ? (localChat.messages.find(m => m?.role === 'user' && typeof m.content === 'string')?.content || null)
+      ? localChat.messages.find(m => m?.role === 'user' && typeof m.content === 'string')
+          ?.content || null
       : null;
 
     const response = await window.apiClient.post('/api/chat/create', {
@@ -269,7 +290,9 @@ class StateManager {
 
     const serverChat = response?.data || null;
     const newChatId = serverChat?.id;
-    if (!newChatId) return null;
+    if (!newChatId) {
+      return null;
+    }
 
     await this.migrateLocalChatId(chatId, newChatId, serverChat);
     return newChatId;
@@ -278,7 +301,9 @@ class StateManager {
   async migrateLocalChatId(oldId, newId, serverChat = null) {
     const oldKey = String(oldId);
     const newKey = String(newId);
-    if (oldKey === newKey) return;
+    if (oldKey === newKey) {
+      return;
+    }
 
     if (String(this.state.currentChat) === oldKey) {
       this.state.currentChat = newKey;
@@ -292,7 +317,10 @@ class StateManager {
         id: newKey,
         title: existing.title || serverChat?.title || '新对话',
         titleEdited: existing.titleEdited ?? serverChat?.titleEdited ?? false,
-        tags: Array.isArray(existing.tags) && existing.tags.length ? existing.tags : (serverChat?.tags || []),
+        tags:
+          Array.isArray(existing.tags) && existing.tags.length
+            ? existing.tags
+            : serverChat?.tags || [],
         status: serverChat?.status || existing.status,
         createdAt: existing.createdAt || serverChat?.createdAt,
         updatedAt: serverChat?.updatedAt || existing.updatedAt
@@ -320,7 +348,9 @@ class StateManager {
       if (Array.isArray(savedChats)) {
         let updated = false;
         const next = savedChats.map(chat => {
-          if (String(chat?.id) !== oldKey) return chat;
+          if (String(chat?.id) !== oldKey) {
+            return chat;
+          }
           updated = true;
           return { ...chat, id: newKey };
         });
@@ -328,7 +358,9 @@ class StateManager {
           localStorage.setItem('thinkcraft_chats', JSON.stringify(next));
         }
       }
-    } catch (error) {}
+    } catch (_error) {
+      // ignore localStorage parse/update failures
+    }
 
     if (window.storageManager) {
       try {
@@ -337,7 +369,9 @@ class StateManager {
           await window.storageManager.saveChat({ ...storedChat, id: newKey });
           await window.storageManager.deleteChat(oldId);
         }
-      } catch (error) {}
+      } catch (_error) {
+        // ignore storage migration failures for missing chat payload
+      }
 
       try {
         const reports = await window.storageManager.getReportsByChatId(oldId);
@@ -345,33 +379,40 @@ class StateManager {
           report.chatId = newKey;
           await window.storageManager.saveReport(report);
         }
-      } catch (error) {}
+      } catch (_error) {
+        // ignore report sync failures during id migration
+      }
     }
 
-    if (typeof loadChats === 'function') {
-      loadChats();
+    if (window.chatList?.loadChats) {
+      window.chatList.loadChats();
     }
 
     this.notify();
   }
 
   applyReportState(chatId, reportState) {
-    if (!chatId || !reportState) return;
+    if (!chatId || !reportState) {
+      return;
+    }
     const normalizedChatId = String(chatId);
     const genState = this.getGenerationState(normalizedChatId);
     ['analysis', 'business', 'proposal'].forEach(type => {
       const incoming = reportState[type];
-      if (!incoming) return;
+      if (!incoming) {
+        return;
+      }
       genState[type] = {
         type,
         status: incoming.status || 'idle',
         selectedChapters: genState[type]?.selectedChapters || [],
-        progress: incoming.progress || genState[type]?.progress || {
-          current: 0,
-          total: 0,
-          currentAgent: null,
-          percentage: 0
-        },
+        progress: incoming.progress ||
+          genState[type]?.progress || {
+            current: 0,
+            total: 0,
+            currentAgent: null,
+            percentage: 0
+          },
         results: genState[type]?.results || {},
         error: incoming.error || null,
         startTime: incoming.startTime || null,
@@ -381,20 +422,13 @@ class StateManager {
     this.notify();
   }
 
-  setAnalysisCompleted(chatId, isCompleted) {
-    if (String(chatId) !== String(this.state.currentChat)) {
-      return;
-    }
-    this.state.analysisCompleted = !!isCompleted;
-    this.notify();
-    this.scheduleChatStateSync(chatId);
-  }
-
   setConversationStep(chatId, step) {
     if (String(chatId) !== String(this.state.currentChat)) {
       return;
     }
-    if (!Number.isFinite(step) || step < 0) return;
+    if (!Number.isFinite(step) || step < 0) {
+      return;
+    }
     this.state.conversationStep = step;
     this.notify();
     this.scheduleChatStateSync(chatId);
@@ -439,7 +473,7 @@ class StateManager {
   setAnalysisCompleted(chatIdOrCompleted, maybeCompleted) {
     const hasChatId = arguments.length >= 2;
     const targetChatId = hasChatId ? chatIdOrCompleted : this.state.currentChat;
-    const completed = hasChatId ? !!maybeCompleted : !!chatIdOrCompleted;
+    const completed = hasChatId ? Boolean(maybeCompleted) : Boolean(chatIdOrCompleted);
 
     if (
       targetChatId !== null &&
@@ -510,7 +544,7 @@ class StateManager {
     // 统一 chatId 类型为字符串
     const normalizedChatId = String(chatId);
 
-    const buildDefaultTypeState = (type) => ({
+    const buildDefaultTypeState = type => ({
       type,
       status: 'idle',
       selectedChapters: [],
@@ -554,7 +588,7 @@ class StateManager {
       if (!container[type].results || typeof container[type].results !== 'object') {
         container[type].results = {};
       }
-      if (container[type].status == null) {
+      if (container[type].status === null || container[type].status === undefined) {
         container[type].status = 'idle';
       }
       if (container[type].error === undefined) {
@@ -764,7 +798,9 @@ class StateManager {
    * @param {String} chatId - 会话ID
    */
   clearGenerationState(chatId) {
-    if (!chatId) return;
+    if (!chatId) {
+      return;
+    }
     const normalizedChatId = String(chatId);
 
     if (this.state.generation[normalizedChatId]) {
@@ -897,7 +933,7 @@ class StateManager {
   setInspirationMode(mode) {
     this.state.inspiration.mode = mode;
     this.notify();
-    }
+  }
 
   /**
    * 展开灵感为完整对话
@@ -947,7 +983,7 @@ class StateManager {
     this.state.inspiration.totalCount = this.state.inspiration.items.length;
     this.updateInspirationStats();
     this.notify();
-    }
+  }
 
   /**
    * 搜索灵感
@@ -955,12 +991,16 @@ class StateManager {
    * @returns {Array} 匹配的灵感列表
    */
   searchInspirations(keyword) {
-    if (!keyword) return this.getInspirations();
+    if (!keyword) {
+      return this.getInspirations();
+    }
 
     const lowerKeyword = keyword.toLowerCase();
     return this.state.inspiration.items.filter(item => {
-      return item.content.toLowerCase().includes(lowerKeyword) ||
-             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+      return (
+        item.content.toLowerCase().includes(lowerKeyword) ||
+        item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword))
+      );
     });
   }
 
@@ -985,7 +1025,7 @@ class StateManager {
   setKnowledgeViewMode(mode) {
     this.state.knowledge.viewMode = mode;
     this.notify();
-    }
+  }
 
   /**
    * 设置知识库组织方式
@@ -994,7 +1034,7 @@ class StateManager {
   setKnowledgeOrganization(type) {
     this.state.knowledge.organizationType = type;
     this.notify();
-    }
+  }
 
   /**
    * 设置项目过滤
@@ -1004,7 +1044,7 @@ class StateManager {
     this.state.knowledge.currentProjectId = projectId;
     this.state.knowledge.filter.projectId = projectId;
     this.notify();
-    }
+  }
 
   /**
    * 添加知识条目
@@ -1059,7 +1099,7 @@ class StateManager {
     this.state.knowledge.items = items || [];
     this.updateKnowledgeStats();
     this.notify();
-    }
+  }
 
   /**
    * 根据标签筛选知识
@@ -1082,13 +1122,17 @@ class StateManager {
    * @returns {Array} 匹配的知识列表
    */
   searchKnowledgeItems(keyword) {
-    if (!keyword) return this.state.knowledge.items;
+    if (!keyword) {
+      return this.state.knowledge.items;
+    }
 
     const lowerKeyword = keyword.toLowerCase();
     return this.state.knowledge.items.filter(item => {
-      return item.title.toLowerCase().includes(lowerKeyword) ||
-             item.content.toLowerCase().includes(lowerKeyword) ||
-             item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword));
+      return (
+        item.title.toLowerCase().includes(lowerKeyword) ||
+        item.content.toLowerCase().includes(lowerKeyword) ||
+        item.tags.some(tag => tag.toLowerCase().includes(lowerKeyword))
+      );
     });
   }
 
@@ -1186,9 +1230,11 @@ class StateManager {
     if (this.state.knowledge.searchKeyword) {
       const keyword = this.state.knowledge.searchKeyword.toLowerCase();
       items = items.filter(item => {
-        return item.title.toLowerCase().includes(keyword) ||
-               item.content.toLowerCase().includes(keyword) ||
-               item.tags.some(tag => tag.toLowerCase().includes(keyword));
+        return (
+          item.title.toLowerCase().includes(keyword) ||
+          item.content.toLowerCase().includes(keyword) ||
+          item.tags.some(tag => tag.toLowerCase().includes(keyword))
+        );
       });
     }
 
@@ -1207,7 +1253,7 @@ class StateManager {
     this.state.knowledge.searchKeyword = '';
     this.state.knowledge.selectedTags = [];
     this.notify();
-    }
+  }
 
   // ========== 设置管理 ==========
 
@@ -1243,8 +1289,9 @@ class StateManager {
         }
         this.state.settings = { ...this.state.settings, ...settings };
       }
-    } catch (error) {
-      }
+    } catch (_error) {
+      // ignore settings parsing failures
+    }
   }
 
   /**
@@ -1253,8 +1300,9 @@ class StateManager {
   saveSettings() {
     try {
       localStorage.setItem('thinkcraft_settings', JSON.stringify(this.state.settings));
-    } catch (error) {
-      }
+    } catch (_error) {
+      // ignore localStorage persistence failures
+    }
   }
 
   /**
@@ -1283,9 +1331,9 @@ class StateManager {
     this.state.inspiration.totalCount = 0;
     this.state.inspiration.lastSync = null;
     this.state.inspiration.stats = {
-        unprocessed: 0,
-        processing: 0,
-        completed: 0
+      unprocessed: 0,
+      processing: 0,
+      completed: 0
     };
 
     // 清除知识库
@@ -1294,15 +1342,15 @@ class StateManager {
     this.state.knowledge.selectedTags = [];
     this.state.knowledge.searchKeyword = '';
     this.state.knowledge.filter = {
-        type: null,
-        projectId: null,
-        tags: []
+      type: null,
+      projectId: null,
+      tags: []
     };
     this.state.knowledge.stats = {
-        total: 0,
-        byProject: {},
-        byType: {},
-        byTag: {}
+      total: 0,
+      byProject: {},
+      byType: {},
+      byTag: {}
     };
 
     // 通知所有监听器
@@ -1365,8 +1413,7 @@ class StateManager {
   /**
    * 调试：打印当前状态
    */
-  debug() {
-  }
+  debug() {}
 
   /**
    * 记录错误日志（用于调试）
@@ -1413,4 +1460,4 @@ class StateManager {
 if (typeof window !== 'undefined') {
   window.StateManager = StateManager;
   window.stateManager = new StateManager();
-  }
+}

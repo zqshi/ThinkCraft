@@ -5,42 +5,42 @@ export class IShareRepository {
   /**
    * 保存Share
    */
-  async save(share) {
+  async save(_share) {
     throw new Error('Method not implemented');
   }
 
   /**
    * 根据ID查找Share
    */
-  async findById(shareId) {
+  async findById(_shareId) {
     throw new Error('Method not implemented');
   }
 
   /**
    * 根据分享链接查找Share
    */
-  async findByShareLink(shareLink) {
+  async findByShareLink(_shareLink) {
     throw new Error('Method not implemented');
   }
 
   /**
    * 根据资源ID查找所有Share
    */
-  async findByResourceId(resourceId) {
+  async findByResourceId(_resourceId) {
     throw new Error('Method not implemented');
   }
 
   /**
    * 根据创建者查找Share
    */
-  async findByCreatedBy(createdBy) {
+  async findByCreatedBy(_createdBy) {
     throw new Error('Method not implemented');
   }
 
   /**
    * 根据状态查找Share
    */
-  async findByStatus(status) {
+  async findByStatus(_status) {
     throw new Error('Method not implemented');
   }
 
@@ -54,7 +54,7 @@ export class IShareRepository {
   /**
    * 删除Share
    */
-  async delete(shareId) {
+  async delete(_shareId) {
     throw new Error('Method not implemented');
   }
 

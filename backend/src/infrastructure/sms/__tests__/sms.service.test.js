@@ -124,12 +124,8 @@ describe('SmsService', () => {
     it('应该记录发送日志', async () => {
       await smsService.sendVerificationCode('13800138000', '123456', 'register');
 
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('发送验证码到')
-      );
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('验证码发送成功')
-      );
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('发送验证码到'));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('验证码发送成功'));
     });
 
     it('应该在发送失败时记录错误日志', async () => {
@@ -165,9 +161,7 @@ describe('SmsService', () => {
     it('应该记录发送日志', async () => {
       await smsService.sendNotification('13800138000', '测试消息');
 
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('发送通知短信到')
-      );
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('发送通知短信到'));
     });
   });
 
@@ -268,16 +262,16 @@ describe('SmsService', () => {
   });
 
   describe('阿里云和腾讯云SMS', () => {
-    it('阿里云SMS应该抛出未实现错误', async () => {
+    it('阿里云SMS在未集成时应给出明确错误', async () => {
       await expect(smsService._sendAliyunSms('13800138000', '123456', 'register')).rejects.toThrow(
-        '阿里云SMS尚未实现'
+        '阿里云SMS暂未集成'
       );
     });
 
-    it('腾讯云SMS应该抛出未实现错误', async () => {
-      await expect(
-        smsService._sendTencentSms('13800138000', '123456', 'register')
-      ).rejects.toThrow('腾讯云SMS尚未实现');
+    it('腾讯云SMS在配置缺失时应给出明确错误', async () => {
+      await expect(smsService._sendTencentSms('13800138000', '123456', 'register')).rejects.toThrow(
+        '腾讯云短信配置不完整'
+      );
     });
   });
 });

@@ -337,7 +337,7 @@ async function generateWithDeepSeek(chapterId, conversationHistory, type) {
 
 // 新增：DeepResearch生成函数（占位符，阶段三实现）
 async function generateWithDeepResearch(chapterId, conversationHistory, type) {
-  // TODO: 调用Python微服务
+  // 阶段三接入：调用 Python 微服务
   // 暂时返回模拟数据或抛出错误
   throw new Error('DeepResearch服务尚未实现，请先部署Python微服务');
 }

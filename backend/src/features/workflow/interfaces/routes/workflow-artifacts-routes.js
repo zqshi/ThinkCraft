@@ -1,7 +1,6 @@
 export function registerArtifactsRoutes(router, deps) {
   const {
     fs,
-    fsPromises,
     path,
     loadProject,
     buildFileTree,
@@ -114,9 +113,14 @@ export function registerArtifactsRoutes(router, deps) {
             );
             if (!result.ok) {
               const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
-              return res.status(500).json({ code: -1, error: `产物打包失败\n${error.message}\n${output}` });
+              return res
+                .status(500)
+                .json({ code: -1, error: `产物打包失败\n${error.message}\n${output}` });
             }
-            res.setHeader('Content-Disposition', `attachment; filename="${projectId}-artifacts.tar.gz"`);
+            res.setHeader(
+              'Content-Disposition',
+              `attachment; filename="${projectId}-artifacts.tar.gz"`
+            );
             return res.sendFile(fallbackPath);
           }
         } else {
@@ -133,7 +137,10 @@ export function registerArtifactsRoutes(router, deps) {
         }
       }
 
-      res.setHeader('Content-Disposition', `attachment; filename="${projectId}-artifacts.${bundleExt}"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${projectId}-artifacts.${bundleExt}"`
+      );
       res.sendFile(bundlePath);
     } catch (error) {
       next(error);
@@ -174,7 +181,10 @@ export function registerArtifactsRoutes(router, deps) {
       }
 
       const fileName = target.fileName || path.basename(filePath);
-      res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${fileName}"`);
+      res.setHeader(
+        'Content-Disposition',
+        `${inline ? 'inline' : 'attachment'}; filename="${fileName}"`
+      );
       res.sendFile(filePath);
     } catch (error) {
       next(error);

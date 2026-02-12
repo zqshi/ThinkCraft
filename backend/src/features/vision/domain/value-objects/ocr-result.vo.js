@@ -28,8 +28,12 @@ export class OCRResult {
    * @returns {string} 质量等级 (high/medium/low)
    */
   getQuality() {
-    if (this.confidence >= 90) return 'high';
-    if (this.confidence >= 70) return 'medium';
+    if (this.confidence >= 90) {
+      return 'high';
+    }
+    if (this.confidence >= 70) {
+      return 'medium';
+    }
     return 'low';
   }
 

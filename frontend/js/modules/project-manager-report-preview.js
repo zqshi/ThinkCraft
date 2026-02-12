@@ -19,74 +19,74 @@ window.projectManagerReportPreview = {
       return;
     }
     try {
-    let chat = null;
-    try {
-      chat = await storageManager.getChat(chatId);
-      if (!chat) {
-        const allChats = await storageManager.getAllChats().catch(() => []);
-        chat = allChats.find(
-          item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
-        );
+      let chat = null;
+      try {
+        chat = await storageManager.getChat(chatId);
+        if (!chat) {
+          const allChats = await storageManager.getAllChats().catch(() => []);
+          chat = allChats.find(
+            item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
+          );
+        }
+      } catch (error) {
+        // ignore chat preload failure, continue with reports lookup
       }
-    } catch (error) {
-      // ignore chat preload failure, continue with reports lookup
-    }
 
-    if (window.state && chat) {
-      window.state.currentChat = chat.id;
-      if (chat.userData) {
-        window.state.userData = { ...chat.userData };
+      if (window.state && chat) {
+        window.state.currentChat = chat.id;
+        if (chat.userData) {
+          window.state.userData = { ...chat.userData };
+        }
       }
-    }
 
-    const reports = await storageManager.getAllReports();
-    const report = reports.find(
-      r =>
-        pm.normalizeIdeaIdForCompare(r.chatId) === pm.normalizeIdeaIdForCompare(chatId) &&
-        r.type === type
-    );
-    const data = report?.data || {};
-    const normalizeMarkdown = text => {
-      if (
-        window.reportViewer &&
-        typeof window.reportViewer._normalizeMarkdownForRendering === 'function'
-      ) {
-        return window.reportViewer._normalizeMarkdownForRendering(text || '');
-      }
-      return text || '';
-    };
-    const renderMarkdown = text => {
-      const raw = normalizeMarkdown(text || '');
-      return window.markdownRenderer ? window.markdownRenderer.render(raw) : pm.escapeHtml(raw);
-    };
-    const tryParseReportDocument = text => {
-      if (
-        window.reportViewer &&
-        typeof window.reportViewer._tryParseReportDocument === 'function'
-      ) {
-        return window.reportViewer._tryParseReportDocument(text || '');
-      }
-      return null;
-    };
-    const renderStructuredReport = reportData => {
-      if (
-        window.reportViewer &&
-        typeof window.reportViewer.buildStructuredReportHTML === 'function'
-      ) {
-        return window.reportViewer.buildStructuredReportHTML(reportData);
-      }
-      return '';
-    };
-    const safeText = text => pm.escapeHtml(text ?? '');
-    const normalizeArray = value => (Array.isArray(value) ? value : []);
-    const normalizeObject = value => (value && typeof value === 'object' ? value : {});
-    const normalizeText = (value, fallback = '') =>
-      value === undefined || value === null || value === '' ? fallback : value;
+      const reports = await storageManager.getAllReports();
+      const report = reports.find(
+        r =>
+          pm.normalizeIdeaIdForCompare(r.chatId) === pm.normalizeIdeaIdForCompare(chatId) &&
+          r.type === type
+      );
+      const data = report?.data || {};
+      const normalizeMarkdown = text => {
+        if (
+          window.reportViewer &&
+          typeof window.reportViewer._normalizeMarkdownForRendering === 'function'
+        ) {
+          return window.reportViewer._normalizeMarkdownForRendering(text || '');
+        }
+        return text || '';
+      };
+      const renderMarkdown = text => {
+        const raw = normalizeMarkdown(text || '');
+        return window.markdownRenderer ? window.markdownRenderer.render(raw) : pm.escapeHtml(raw);
+      };
+      const tryParseReportDocument = text => {
+        if (
+          window.reportViewer &&
+          typeof window.reportViewer._tryParseReportDocument === 'function'
+        ) {
+          return window.reportViewer._tryParseReportDocument(text || '');
+        }
+        return null;
+      };
+      const renderStructuredReport = reportData => {
+        if (
+          window.reportViewer &&
+          typeof window.reportViewer.buildStructuredReportHTML === 'function'
+        ) {
+          return window.reportViewer.buildStructuredReportHTML(reportData);
+        }
+        return '';
+      };
+      const safeText = text => pm.escapeHtml(text ?? '');
+      const normalizeArray = value => (Array.isArray(value) ? value : []);
+      const normalizeObject = value => (value && typeof value === 'object' ? value : {});
+      const normalizeText = (value, fallback = '') =>
+        value === undefined || value === null || value === '' ? fallback : value;
 
-    const buildChaptersHTML = chapters =>
-      chapters
-        .map(
-          (chapter, index) => `
+      const buildChaptersHTML = chapters =>
+        chapters
+          .map(
+            (chapter, index) => `
             <div class="report-section">
                 <div class="report-section-title">${index + 1}. ${safeText(chapter.title || `章节 ${index + 1}`)}</div>
                 <div class="document-chapter">
@@ -96,69 +96,69 @@ window.projectManagerReportPreview = {
                 </div>
             </div>
         `
-        )
-        .join('');
+          )
+          .join('');
 
-    const buildAnalysisHTML = reportData => {
-      // 兼容性处理：提取嵌套的report字段
-      if (reportData && reportData.report && !reportData.chapters) {
-        reportPreviewLogger.warn('[项目面板] 检测到旧数据格式，自动提取 report 字段');
-        reportData = reportData.report;
-      }
+      const buildAnalysisHTML = reportData => {
+        // 兼容性处理：提取嵌套的report字段
+        if (reportData && reportData.report && !reportData.chapters) {
+          reportPreviewLogger.warn('[项目面板] 检测到旧数据格式，自动提取 report 字段');
+          reportData = reportData.report;
+        }
 
-      let chapters = reportData?.chapters;
-      if (!chapters) {
-        return '';
-      }
+        let chapters = reportData?.chapters;
+        if (!chapters) {
+          return '';
+        }
 
-      // 数组格式转换为对象格式
-      if (Array.isArray(chapters)) {
-        reportPreviewLogger.warn('[项目面板] chapters是数组格式，转换为对象格式');
-        const chaptersObj = {};
-        chapters.forEach((ch, idx) => {
-          chaptersObj[`chapter${idx + 1}`] = ch;
-        });
-        chapters = chaptersObj;
-        reportData.chapters = chaptersObj;
-      }
+        // 数组格式转换为对象格式
+        if (Array.isArray(chapters)) {
+          reportPreviewLogger.warn('[项目面板] chapters是数组格式，转换为对象格式');
+          const chaptersObj = {};
+          chapters.forEach((ch, idx) => {
+            chaptersObj[`chapter${idx + 1}`] = ch;
+          });
+          chapters = chaptersObj;
+          reportData.chapters = chaptersObj;
+        }
 
-      if (Array.isArray(chapters)) {
-        return buildChaptersHTML(chapters);
-      }
+        if (Array.isArray(chapters)) {
+          return buildChaptersHTML(chapters);
+        }
 
-      const fallbackText = '—';
-      const ensureList = list => (Array.isArray(list) && list.length ? list : [fallbackText]);
-      const ch1 = normalizeObject(chapters.chapter1);
-      const ch2 = normalizeObject(chapters.chapter2);
-      const ch3 = normalizeObject(chapters.chapter3);
-      const ch4 = normalizeObject(chapters.chapter4);
-      const ch5 = normalizeObject(chapters.chapter5);
-      const ch6 = normalizeObject(chapters.chapter6);
-      const ch2Assumptions = ensureList(normalizeArray(ch2.assumptions));
-      const ch3Limitations = ensureList(normalizeArray(ch3.limitations));
-      const ch4Stages = normalizeArray(ch4.stages);
-      const ch5BlindSpots = ensureList(normalizeArray(ch5.blindSpots));
-      const ch5KeyQuestions = normalizeArray(ch5.keyQuestions);
-      const ch6ImmediateActions = ensureList(normalizeArray(ch6.immediateActions));
-      const ch6ExtendedIdeas = ensureList(normalizeArray(ch6.extendedIdeas));
-      const ch6MidtermPlan = normalizeObject(ch6.midtermPlan);
-      const ch3Prerequisites = normalizeObject(ch3.prerequisites);
-      const coreDefinition = safeText(normalizeText(reportData.coreDefinition, fallbackText));
-      const problem = safeText(normalizeText(reportData.problem, fallbackText));
-      const solution = safeText(normalizeText(reportData.solution, fallbackText));
-      const targetUser = safeText(normalizeText(reportData.targetUser, fallbackText));
-      const keyQuestions =
-        Array.isArray(ch5KeyQuestions) && ch5KeyQuestions.length
-          ? ch5KeyQuestions
-          : [{ category: '关键问题', question: fallbackText, validation: fallbackText, why: '' }];
-      const stages =
-        Array.isArray(ch4Stages) && ch4Stages.length
-          ? ch4Stages
-          : [{ stage: '阶段 1', goal: fallbackText, tasks: fallbackText }];
-      const validationMethods = ensureList(normalizeArray(ch6.validationMethods));
-      const successMetrics = ensureList(normalizeArray(ch6.successMetrics));
+        const fallbackText = '—';
+        const ensureList = list => (Array.isArray(list) && list.length ? list : [fallbackText]);
+        const ch1 = normalizeObject(chapters.chapter1);
+        const ch2 = normalizeObject(chapters.chapter2);
+        const ch3 = normalizeObject(chapters.chapter3);
+        const ch4 = normalizeObject(chapters.chapter4);
+        const ch5 = normalizeObject(chapters.chapter5);
+        const ch6 = normalizeObject(chapters.chapter6);
+        const ch2Assumptions = ensureList(normalizeArray(ch2.assumptions));
+        const ch3Limitations = ensureList(normalizeArray(ch3.limitations));
+        const ch4Stages = normalizeArray(ch4.stages);
+        const ch5BlindSpots = ensureList(normalizeArray(ch5.blindSpots));
+        const ch5KeyQuestions = normalizeArray(ch5.keyQuestions);
+        const ch6ImmediateActions = ensureList(normalizeArray(ch6.immediateActions));
+        const ch6ExtendedIdeas = ensureList(normalizeArray(ch6.extendedIdeas));
+        const ch6MidtermPlan = normalizeObject(ch6.midtermPlan);
+        const ch3Prerequisites = normalizeObject(ch3.prerequisites);
+        const coreDefinition = safeText(normalizeText(reportData.coreDefinition, fallbackText));
+        const problem = safeText(normalizeText(reportData.problem, fallbackText));
+        const solution = safeText(normalizeText(reportData.solution, fallbackText));
+        const targetUser = safeText(normalizeText(reportData.targetUser, fallbackText));
+        const keyQuestions =
+          Array.isArray(ch5KeyQuestions) && ch5KeyQuestions.length
+            ? ch5KeyQuestions
+            : [{ category: '关键问题', question: fallbackText, validation: fallbackText, why: '' }];
+        const stages =
+          Array.isArray(ch4Stages) && ch4Stages.length
+            ? ch4Stages
+            : [{ stage: '阶段 1', goal: fallbackText, tasks: fallbackText }];
+        const validationMethods = ensureList(normalizeArray(ch6.validationMethods));
+        const successMetrics = ensureList(normalizeArray(ch6.successMetrics));
 
-      return `
+        return `
         <div class="report-section">
             <div class="report-section-title">${safeText(normalizeText(ch1.title, '创意定义与演化'))}</div>
             <div class="document-chapter">
@@ -245,15 +245,15 @@ window.projectManagerReportPreview = {
                     <h4>2. 核心假设清单</h4>
                     <p><strong>创意成立所依赖的关键前提（未经完全验证）：</strong></p>
                     ${ch2Assumptions
-    .map(
-      (item, idx) => `
+                      .map(
+                        (item, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">${safeText(item)}</div>
                         </div>
                     `
-    )
-    .join('')}
+                      )
+                      .join('')}
                 </div>
             </div>
         </div>
@@ -314,20 +314,20 @@ window.projectManagerReportPreview = {
                     <h4>1. 实现路径分解</h4>
                     <p><strong>将大创意拆解为关键模块/发展阶段：</strong></p>
                     ${stages
-    .map(
-      (stage, idx) => `
+                      .map(
+                        (stage, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">
                                 <strong>${safeText(normalizeText(stage?.stage, `阶段 ${idx + 1}`))}：</strong>
                                 ${safeText(normalizeText(stage?.goal, fallbackText))} · ${safeText(
-  normalizeText(stage?.tasks, fallbackText)
-)}
+                                  normalizeText(stage?.tasks, fallbackText)
+                                )}
                             </div>
                         </div>
                     `
-    )
-    .join('')}
+                      )
+                      .join('')}
 
                     <h4>2. 最大障碍预判</h4>
                     <div class="highlight-box">
@@ -354,14 +354,14 @@ window.projectManagerReportPreview = {
                     <p><strong>以下问题需通过调研、实验或原型才能回答：</strong></p>
                     <div class="analysis-grid">
                         ${keyQuestions
-    .map(
-      (item, idx) => `
+                          .map(
+                            (item, idx) => `
                             <div class="analysis-card">
                                 <div class="analysis-card-header">
                                     <div class="analysis-icon">❓</div>
                                     <div class="analysis-card-title">${safeText(
-    normalizeText(item?.category, `决定性问题 ${idx + 1}`)
-  )}</div>
+                                      normalizeText(item?.category, `决定性问题 ${idx + 1}`)
+                                    )}</div>
                                 </div>
                                 <div class="analysis-card-content">
                                     <strong>问题：</strong>${safeText(normalizeText(item?.question, fallbackText))}<br><br>
@@ -370,8 +370,8 @@ window.projectManagerReportPreview = {
                                 </div>
                             </div>
                         `
-    )
-    .join('')}
+                          )
+                          .join('')}
                     </div>
                 </div>
             </div>
@@ -433,15 +433,15 @@ window.projectManagerReportPreview = {
                     <h4>3. 概念延伸提示</h4>
                     <p><strong>对话中衍生的关联创意方向：</strong></p>
                     ${ch6ExtendedIdeas
-    .map(
-      (item, idx) => `
+                      .map(
+                        (item, idx) => `
                         <div class="insight-item">
                             <div class="insight-number">${idx + 1}</div>
                             <div class="insight-text">${safeText(item)}</div>
                         </div>
                     `
-    )
-    .join('')}
+                      )
+                      .join('')}
 
                     <h4>4. 验证方法与成功指标</h4>
                     <div class="analysis-grid">
@@ -472,20 +472,20 @@ window.projectManagerReportPreview = {
             </div>
         </div>
       `;
-    };
+      };
 
-    const buildReportHeader = ({ title, subtitle, meta }) => `
+      const buildReportHeader = ({ title, subtitle, meta }) => `
       <div class="report-hero">
         <div class="report-hero-title">${safeText(title)}</div>
         <div class="report-hero-sub">${safeText(subtitle)}</div>
         ${meta ? `<div class="report-hero-meta">${meta}</div>` : ''}
       </div>
     `;
-    const buildEmptyReportSection = ({
-      title = '报告内容缺失',
-      message = '检测到报告内容为空，建议返回对话重新生成。',
-      showChatAction = false
-    } = {}) => `
+      const buildEmptyReportSection = ({
+        title = '报告内容缺失',
+        message = '检测到报告内容为空，建议返回对话重新生成。',
+        showChatAction = false
+      } = {}) => `
       <div class="report-section">
           <div class="report-section-title">${safeText(title)}</div>
           <div class="document-chapter">
@@ -503,11 +503,11 @@ window.projectManagerReportPreview = {
           </div>
       </div>
     `;
-    let contentHTML = '';
-    if (type === 'analysis') {
-      // 检查数据是否有效
-      if (!report || !data || !data.chapters) {
-        contentHTML = `
+      let contentHTML = '';
+      if (type === 'analysis') {
+        // 检查数据是否有效
+        if (!report || !data || !data.chapters) {
+          contentHTML = `
           ${buildEmptyReportSection({
             title: '报告内容缺失',
             message: report
@@ -516,25 +516,28 @@ window.projectManagerReportPreview = {
             showChatAction: true
           })}
         `;
-      } else {
-        contentHTML = buildAnalysisHTML(data);
-      }
-    } else if (type === 'business' || type === 'proposal') {
-      const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
-      const ideaTitle = chat?.userData?.idea || chat?.title || '创意项目';
-      const headerHTML = buildReportHeader({
-        title: typeTitle,
-        subtitle: ideaTitle
-      });
-      if (data.document) {
-        const parsed = tryParseReportDocument(data.document);
-        if (parsed && parsed.chapters) {
-          contentHTML = `
+        } else {
+          contentHTML = buildAnalysisHTML(data);
+        }
+      } else if (type === 'business' || type === 'proposal') {
+        const typeTitle = type === 'business' ? '商业计划书' : '产品立项材料';
+        const ideaTitle = chat?.userData?.idea || chat?.title || '创意项目';
+        const headerHTML =
+          type === 'proposal'
+            ? ''
+            : buildReportHeader({
+                title: typeTitle,
+                subtitle: ideaTitle
+              });
+        if (data.document) {
+          const parsed = tryParseReportDocument(data.document);
+          if (parsed && parsed.chapters) {
+            contentHTML = `
             ${headerHTML}
             ${renderStructuredReport(parsed)}
           `;
-        } else {
-          contentHTML = `
+          } else {
+            contentHTML = `
             ${headerHTML}
             <div class="report-section">
                 <div class="report-section-title">报告正文</div>
@@ -543,72 +546,72 @@ window.projectManagerReportPreview = {
                 </div>
             </div>
           `;
-        }
-      } else if (data.chapters) {
-        if (!Array.isArray(data.chapters) && data.chapters.chapter1) {
-          contentHTML = `
+          }
+        } else if (data.chapters) {
+          if (!Array.isArray(data.chapters) && data.chapters.chapter1) {
+            contentHTML = `
             ${headerHTML}
             ${renderStructuredReport(data)}
           `;
-        } else {
-          const chapters = Array.isArray(data.chapters)
-            ? data.chapters
-            : Object.values(data.chapters || {});
-          contentHTML = `
+          } else {
+            const chapters = Array.isArray(data.chapters)
+              ? data.chapters
+              : Object.values(data.chapters || {});
+            contentHTML = `
             ${headerHTML}
             ${chapters
-    .map((chapter, index) => {
-      const agentIcon =
+              .map((chapter, index) => {
+                const agentIcon =
                   typeof window.getAgentIconSvg === 'function'
                     ? window.getAgentIconSvg(
-                      chapter.emoji || chapter.agent,
-                      16,
-                      'agent-inline-icon'
-                    )
+                        chapter.emoji || chapter.agent,
+                        16,
+                        'agent-inline-icon'
+                      )
                     : '';
-      const agentLine = chapter.agent ? `${agentIcon} ${safeText(chapter.agent)}` : '';
-      return `
+                const agentLine = chapter.agent ? `${agentIcon} ${safeText(chapter.agent)}` : '';
+                return `
                   <div class="report-section">
                       <div class="report-section-title">${index + 1}. ${safeText(
-  chapter.title || `章节 ${index + 1}`
-)}</div>
+                        chapter.title || `章节 ${index + 1}`
+                      )}</div>
                       ${
-  agentLine
-    ? `<div class="report-section-meta">分析师：${agentLine}</div>`
-    : ''
-}
+                        agentLine
+                          ? `<div class="report-section-meta">分析师：${agentLine}</div>`
+                          : ''
+                      }
                       <div class="report-section-body report-rich-text markdown-content">
                           ${
-  chapter.content
-    ? renderMarkdown(chapter.content)
-    : '<p class="report-empty">内容生成中...</p>'
-}
+                            chapter.content
+                              ? renderMarkdown(chapter.content)
+                              : '<p class="report-empty">内容生成中...</p>'
+                          }
                       </div>
                   </div>
                 `;
-    })
-    .join('')}
+              })
+              .join('')}
             <div class="report-footer-note">本报告由 ThinkCraft AI 自动生成 | 数据仅供参考</div>
           `;
+          }
         }
+      } else if (data.chapters) {
+        const chapters = Array.isArray(data.chapters)
+          ? data.chapters
+          : Object.values(data.chapters || {});
+        contentHTML = buildChaptersHTML(chapters);
+      } else {
+        const summary = data.coreDefinition || data.problem || data.solution || '';
+        contentHTML = `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
       }
-    } else if (data.chapters) {
-      const chapters = Array.isArray(data.chapters)
-        ? data.chapters
-        : Object.values(data.chapters || {});
-      contentHTML = buildChaptersHTML(chapters);
-    } else {
-      const summary = data.coreDefinition || data.problem || data.solution || '';
-      contentHTML = `<div class="project-panel-empty">${safeText(summary || '暂无报告内容')}</div>`;
-    }
 
-    if (!contentHTML) {
-      contentHTML = '<div class="project-panel-empty">暂无报告内容</div>';
-    }
+      if (!contentHTML) {
+        contentHTML = '<div class="project-panel-empty">暂无报告内容</div>';
+      }
 
-    const modalTitle =
-      type === 'analysis' ? '分析报告' : type === 'business' ? '商业计划书' : '产品立项材料';
-    modalManager.showCustomModal(modalTitle, contentHTML, 'projectIdeaReportModal');
+      const modalTitle =
+        type === 'analysis' ? '分析报告' : type === 'business' ? '商业计划书' : '产品立项材料';
+      modalManager.showCustomModal(modalTitle, contentHTML, 'projectIdeaReportModal');
     } catch (error) {
       reportPreviewLogger.error('[项目面板] 打开报告失败:', error);
       modalManager.alert('打开报告失败，请稍后重试', 'error');

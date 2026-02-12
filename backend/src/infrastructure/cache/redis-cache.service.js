@@ -20,12 +20,12 @@ export const CachePrefix = {
  * 缓存TTL（秒）
  */
 export const CacheTTL = {
-  USER: 3600,           // 1小时
-  SESSION: 3600,        // 1小时
-  PROJECT: 300,         // 5分钟
-  CHAT: 600,            // 10分钟
-  BUSINESS_PLAN: 3600,  // 1小时
-  RATE_LIMIT: 60        // 1分钟
+  USER: 3600, // 1小时
+  SESSION: 3600, // 1小时
+  PROJECT: 300, // 5分钟
+  CHAT: 600, // 10分钟
+  BUSINESS_PLAN: 3600, // 1小时
+  RATE_LIMIT: 60 // 1分钟
 };
 
 /**

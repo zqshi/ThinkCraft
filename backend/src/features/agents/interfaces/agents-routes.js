@@ -67,9 +67,7 @@ function buildFallbackRecommendedAgents(stageDefs = [], availableIds = [], agent
 }
 
 function buildDeterministicStages(recommendedAgents = [], stageDefs = []) {
-  const stageHints = recommendedAgents
-    .map(id => AGENT_PROMPT_MAP[id]?.stageHint)
-    .filter(Boolean);
+  const stageHints = recommendedAgents.map(id => AGENT_PROMPT_MAP[id]?.stageHint).filter(Boolean);
 
   const built = buildFullWorkflowStages(recommendedAgents, stageHints);
   if (Array.isArray(built) && built.length > 0) {
@@ -102,13 +100,15 @@ function sanitizeModelStages(modelStages, stageBlueprint = [], recommendedAgents
   return (stageBlueprint || []).map((stage, index) => {
     const modelStage = modelMap.get(stage.id) || {};
     const allowedOutputs = new Set(Array.isArray(stage.outputs) ? stage.outputs : []);
-    const nextOutputs = (Array.isArray(modelStage.outputs) ? modelStage.outputs : [])
-      .filter(type => allowedOutputs.has(type));
+    const nextOutputs = (Array.isArray(modelStage.outputs) ? modelStage.outputs : []).filter(type =>
+      allowedOutputs.has(type)
+    );
     const nextAgents = (Array.isArray(modelStage.agents) ? modelStage.agents : []).filter(id =>
       recommendedSet.has(id)
     );
-    const nextDependencies = (Array.isArray(modelStage.dependencies) ? modelStage.dependencies : [])
-      .filter(dep => validStageIds.has(dep));
+    const nextDependencies = (
+      Array.isArray(modelStage.dependencies) ? modelStage.dependencies : []
+    ).filter(dep => validStageIds.has(dep));
 
     return {
       ...stage,
@@ -119,7 +119,9 @@ function sanitizeModelStages(modelStages, stageBlueprint = [], recommendedAgents
       dependencies:
         nextDependencies.length > 0
           ? nextDependencies
-          : (index === 0 ? [] : [stageBlueprint[index - 1]?.id].filter(Boolean)),
+          : index === 0
+            ? []
+            : [stageBlueprint[index - 1]?.id].filter(Boolean),
       order: index + 1
     };
   });
@@ -152,14 +154,11 @@ function buildStageExecutionTemplates(stages = []) {
       stageName: stage.name,
       goal: stage.description || `${stage.name}阶段交付`,
       roleOwners: stageAgentNames,
-      inputs: [
-        '创意说明与上下文对话',
-        ...(prevStage ? [`${prevStage.name}阶段交付物`] : [])
-      ],
+      inputs: ['创意说明与上下文对话', ...(prevStage ? [`${prevStage.name}阶段交付物`] : [])],
       steps: [
         `明确${stage.name}阶段目标与边界`,
         `按角色分工产出：${stageAgentNames.join('、') || '待分配角色'}`,
-        `基于模板生成交付物并做一致性校验`,
+        '基于模板生成交付物并做一致性校验',
         '阶段评审通过后进入下一阶段'
       ],
       qualityChecks: [
@@ -173,7 +172,7 @@ function buildStageExecutionTemplates(stages = []) {
 }
 
 function buildFallbackPlan(
-  stages = [],
+  _stages = [],
   recommendedAgents = [],
   collaborationMode = 'sequential',
   executionTemplates = []
@@ -217,7 +216,7 @@ async function selectRecommendedAgentsDeterministically({
   const corpus = `${idea || ''}\n${instruction || ''}\n${conversation || ''}`.toLowerCase();
   const pick = [];
 
-  const pushIfAvailable = (id) => {
+  const pushIfAvailable = id => {
     if (filteredAvailableIds.includes(id) && !pick.includes(id)) {
       pick.push(id);
     }
@@ -307,7 +306,10 @@ router.get('/types-by-workflow', async (req, res) => {
   const ids = Array.from(
     new Set(stages.flatMap(stage => stage.recommendedAgents || []).filter(Boolean))
   );
-  const types = ids.length > 0 ? ids.map(toAgentTypeDto) : Object.keys(AGENT_PROMPT_MAP || {}).map(toAgentTypeDto);
+  const types =
+    ids.length > 0
+      ? ids.map(toAgentTypeDto)
+      : Object.keys(AGENT_PROMPT_MAP || {}).map(toAgentTypeDto);
   return res.json({ code: 0, data: { workflowCategory, types } });
 });
 
@@ -393,7 +395,13 @@ router.post('/assign-task', async (req, res) => {
 
 router.post('/collaboration-plan', async (req, res) => {
   try {
-    const { idea, agents = [], instruction = '', conversation = '', workflowCategory = '' } = req.body || {};
+    const {
+      idea,
+      agents = [],
+      instruction = '',
+      conversation = '',
+      workflowCategory = ''
+    } = req.body || {};
     const normalizedWorkflowCategory = String(workflowCategory || 'product-development');
     const stageDefs = resolveWorkflowStages(normalizedWorkflowCategory);
     const availableIds = Object.keys(AGENT_PROMPT_MAP || {});

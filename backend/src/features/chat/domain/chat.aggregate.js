@@ -137,7 +137,6 @@ export class Chat extends AggregateRoot {
       throw new Error('标题必须是字符串');
     }
 
-    const oldTitle = this._title;
     this._title = newTitle;
     this.updateTimestamp();
 
@@ -292,7 +291,10 @@ export class Chat extends AggregateRoot {
       throw new Error('标签列表必须是数组');
     }
 
-    if (this._reportState !== null && (typeof this._reportState !== 'object' || Array.isArray(this._reportState))) {
+    if (
+      this._reportState !== null &&
+      (typeof this._reportState !== 'object' || Array.isArray(this._reportState))
+    ) {
       throw new Error('报告状态必须是对象');
     }
 
@@ -300,7 +302,11 @@ export class Chat extends AggregateRoot {
       throw new Error('analysisCompleted必须是布尔值');
     }
 
-    if (typeof this._conversationStep !== 'number' || Number.isNaN(this._conversationStep) || this._conversationStep < 0) {
+    if (
+      typeof this._conversationStep !== 'number' ||
+      Number.isNaN(this._conversationStep) ||
+      this._conversationStep < 0
+    ) {
       throw new Error('conversationStep必须是非负数字');
     }
 

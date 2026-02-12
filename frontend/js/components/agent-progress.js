@@ -14,7 +14,7 @@ class AgentProgressManager {
     this.agentConfig = {
       'executive-summary': { name: '综合分析师', emoji: '🤖' },
       'market-analysis': { name: '市场分析师', emoji: '📊' },
-      'solution': { name: '产品专家', emoji: '💡' },
+      solution: { name: '产品专家', emoji: '💡' },
       'business-model': { name: '商业顾问', emoji: '💰' },
       'competitive-landscape': { name: '竞争分析师', emoji: '⚔️' },
       'marketing-strategy': { name: '营销专家', emoji: '📈' },
@@ -194,30 +194,15 @@ class AgentProgressManager {
       lightbulb: [
         'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'
       ],
-      chart: [
-        'M3 3v18h18',
-        'M8 17V9',
-        'M12 17V5',
-        'M16 17v-7'
-      ],
+      chart: ['M3 3v18h18', 'M8 17V9', 'M12 17V5', 'M16 17v-7'],
       cog: [
         'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
         'M15 12a3 3 0 11-6 0 3 3 0 016 0z'
       ],
-      trend: [
-        'M3 17l6-6 4 4 7-7',
-        'M14 7h7v7'
-      ],
-      users: [
-        'M16 7a4 4 0 11-8 0 4 4 0 018 0z',
-        'M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
-      ],
-      dollar: [
-        'M12 8c-2.761 0-5 1.343-5 3s2.239 3 5 3 5 1.343 5 3-2.239 3-5 3m0-12V6m0 12v2'
-      ],
-      shield: [
-        'M12 3l7 4v5c0 5-3.5 9.5-7 11-3.5-1.5-7-6-7-11V7l7-4z'
-      ],
+      trend: ['M3 17l6-6 4 4 7-7', 'M14 7h7v7'],
+      users: ['M16 7a4 4 0 11-8 0 4 4 0 018 0z', 'M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
+      dollar: ['M12 8c-2.761 0-5 1.343-5 3s2.239 3 5 3 5 1.343 5 3-2.239 3-5 3m0-12V6m0 12v2'],
+      shield: ['M12 3l7 4v5c0 5-3.5 9.5-7 11-3.5-1.5-7-6-7-11V7l7-4z'],
       clipboard: [
         'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
       ],
@@ -238,7 +223,7 @@ class AgentProgressManager {
     const titles = {
       'executive-summary': '执行摘要',
       'market-analysis': '市场与行业分析',
-      'solution': '产品与服务',
+      solution: '产品与服务',
       'business-model': '商业模式',
       'competitive-landscape': '竞争与战略',
       'marketing-strategy': '营销与销售策略',
@@ -287,7 +272,10 @@ class AgentProgressManager {
   updateProgress(chapterId, status, result = null) {
     const normalizedChapterId = this.normalizeChapterId(chapterId);
     console.log('[AgentProgress] 更新进度:', { chapterId: normalizedChapterId, status, result });
-    console.log('[AgentProgress] 当前agents列表:', this.agents.map(a => ({ id: a.id, status: a.status })));
+    console.log(
+      '[AgentProgress] 当前agents列表:',
+      this.agents.map(a => ({ id: a.id, status: a.status }))
+    );
 
     // 查找Agent
     let agent = this.agents.find(a => a.id === normalizedChapterId);
@@ -295,12 +283,15 @@ class AgentProgressManager {
       const knownChapter = Boolean(this.agentConfig[normalizedChapterId]);
       if (!knownChapter) {
         console.warn('[AgentProgress] 找不到章节:', normalizedChapterId);
-        console.log('[AgentProgress] 可用章节:', this.agents.map(a => a.id));
+        console.log(
+          '[AgentProgress] 可用章节:',
+          this.agents.map(a => a.id)
+        );
       }
 
       // 尝试模糊匹配（处理命名不一致）
-      const fuzzyMatch = this.agents.find(a =>
-        a.id.includes(normalizedChapterId) || normalizedChapterId.includes(a.id)
+      const fuzzyMatch = this.agents.find(
+        a => a.id.includes(normalizedChapterId) || normalizedChapterId.includes(a.id)
       );
 
       if (fuzzyMatch) {
@@ -312,7 +303,8 @@ class AgentProgressManager {
       agent = {
         id: normalizedChapterId,
         ...this.agentConfig[normalizedChapterId],
-        name: this.agentConfig[normalizedChapterId]?.name || this.getChapterTitle(normalizedChapterId),
+        name:
+          this.agentConfig[normalizedChapterId]?.name || this.getChapterTitle(normalizedChapterId),
         emoji: this.agentConfig[normalizedChapterId]?.emoji,
         status: 'pending',
         statusText: this.getStatusText('pending'),
@@ -378,7 +370,10 @@ class AgentProgressManager {
       console.log('[AgentProgress] DOM updated successfully:', chapterId, status);
     } else if (retryCount < maxRetries) {
       // DOM元素不存在，使用 requestAnimationFrame 重试
-      console.warn(`[AgentProgress] DOM not ready, retry ${retryCount + 1}/${maxRetries}:`, chapterId);
+      console.warn(
+        `[AgentProgress] DOM not ready, retry ${retryCount + 1}/${maxRetries}:`,
+        chapterId
+      );
       requestAnimationFrame(() => {
         this._updateDOMWithRetry(chapterId, status, agent, retryCount + 1);
       });
@@ -399,8 +394,8 @@ class AgentProgressManager {
           status,
           retryCount,
           availableElements: {
-            agentElement: !!agentElement,
-            statusElement: !!statusElement
+            agentElement: Boolean(agentElement),
+            statusElement: Boolean(statusElement)
           }
         });
       }

@@ -3,20 +3,23 @@
  * 处理用户相关的领域事件
  */
 import logger from '../../../../../middleware/logger.js';
-import { eventBus } from '../../../infrastructure/events/event-bus.js';
+import { eventBus } from '../../../../infrastructure/events/event-bus.js';
+
+function buildAuditPayload(event) {
+  return {
+    userId: event?.userId || event?.payload?.userId || null,
+    phone: event?.phone || event?.payload?.phone || null,
+    occurredOn: event?.occurredOn || event?.payload?.occurredOn || new Date().toISOString()
+  };
+}
 
 /**
  * 用户创建事件处理器
  */
 export class UserCreatedEventHandler {
   async handle(event) {
-    logger.info('[UserCreatedEventHandler] 处理用户创建事件', {
-      userId: event.userId,
-      phone: event.phone
-    });
-
-    // TODO: 实现具体的业务逻辑
-    // 例如：发送欢迎邮件、创建默认设置、记录审计日志等
+    const payload = buildAuditPayload(event);
+    logger.info('[UserCreatedEventHandler] 处理用户创建事件', payload);
   }
 }
 
@@ -25,13 +28,8 @@ export class UserCreatedEventHandler {
  */
 export class UserLoggedInEventHandler {
   async handle(event) {
-    logger.info('[UserLoggedInEventHandler] 处理用户登录事件', {
-      userId: event.userId,
-      timestamp: event.occurredOn
-    });
-
-    // TODO: 实现具体的业务逻辑
-    // 例如：更新最后登录时间、记录登录日志、检测异常登录等
+    const payload = buildAuditPayload(event);
+    logger.info('[UserLoggedInEventHandler] 处理用户登录事件', payload);
   }
 }
 
@@ -40,13 +38,8 @@ export class UserLoggedInEventHandler {
  */
 export class UserLoggedOutEventHandler {
   async handle(event) {
-    logger.info('[UserLoggedOutEventHandler] 处理用户登出事件', {
-      userId: event.userId,
-      timestamp: event.occurredOn
-    });
-
-    // TODO: 实现具体的业务逻辑
-    // 例如：清理会话、记录登出日志等
+    const payload = buildAuditPayload(event);
+    logger.info('[UserLoggedOutEventHandler] 处理用户登出事件', payload);
   }
 }
 

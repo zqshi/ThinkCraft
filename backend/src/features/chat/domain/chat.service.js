@@ -5,7 +5,6 @@
 import { DomainService } from '../../../shared/domain/index.js';
 import { Chat } from './chat.aggregate.js';
 import { Message } from './message.entity.js';
-import { MessageType } from './message-type.vo.js';
 
 export class ChatService extends DomainService {
   constructor() {
@@ -196,14 +195,14 @@ export class ChatService extends DomainService {
    */
   _createMessage(id, content, type, sender) {
     switch (type) {
-    case 'text':
-      return Message.createText(id, content, sender);
-    case 'image':
-      return Message.createImage(id, content, sender);
-    case 'code':
-      return Message.createCode(id, content, 'javascript', sender);
-    default:
-      return Message.createText(id, content, sender);
+      case 'text':
+        return Message.createText(id, content, sender);
+      case 'image':
+        return Message.createImage(id, content, sender);
+      case 'code':
+        return Message.createCode(id, content, 'javascript', sender);
+      default:
+        return Message.createText(id, content, sender);
     }
   }
 

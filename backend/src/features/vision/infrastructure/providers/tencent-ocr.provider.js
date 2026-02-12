@@ -38,7 +38,9 @@ export class TencentOCRProvider extends OCRProvider {
       try {
         tencentcloud = await import('tencentcloud-sdk-nodejs');
       } catch (error) {
-        throw new Error('tencentcloud-sdk-nodejs未安装，请运行: npm install tencentcloud-sdk-nodejs');
+        throw new Error(
+          'tencentcloud-sdk-nodejs未安装，请运行: npm install tencentcloud-sdk-nodejs'
+        );
       }
 
       const OcrClient = tencentcloud.ocr.v20181119.Client;
@@ -46,19 +48,19 @@ export class TencentOCRProvider extends OCRProvider {
       const client = new OcrClient({
         credential: {
           secretId: this.secretId,
-          secretKey: this.secretKey,
+          secretKey: this.secretKey
         },
         region: this.region,
         profile: {
           httpProfile: {
-            endpoint: 'ocr.tencentcloudapi.com',
-          },
-        },
+            endpoint: 'ocr.tencentcloudapi.com'
+          }
+        }
       });
 
       const params = {
         ImageBase64: imageData.base64,
-        LanguageType: options.language || 'zh',
+        LanguageType: options.language || 'zh'
       };
 
       logger.info('[TencentOCR] 开始OCR识别');
@@ -89,7 +91,9 @@ export class TencentOCRProvider extends OCRProvider {
    * @returns {number} 平均置信度
    */
   _calculateAverageConfidence(detections) {
-    if (!detections || detections.length === 0) return 0;
+    if (!detections || detections.length === 0) {
+      return 0;
+    }
     const sum = detections.reduce((acc, item) => acc + item.Confidence, 0);
     return Math.round(sum / detections.length);
   }

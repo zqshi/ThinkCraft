@@ -1,14 +1,8 @@
 /**
  * Report 用例实现
  */
-import { Report, ReportType, ReportStatus, IReportRepository } from '../domain/index.js';
-import {
-  CreateReportRequestDto,
-  AddReportSectionRequestDto,
-  ReportResponseDto,
-  ReportListItemDto,
-  GenerateReportRequestDto
-} from './report.dto.js';
+import { Report, ReportType, IReportRepository } from '../domain/index.js';
+import { ReportResponseDto, ReportListItemDto } from './report.dto.js';
 import { ReportGenerationService } from './report-generation.service.js';
 
 export class ReportUseCase {

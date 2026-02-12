@@ -7,6 +7,7 @@ import { Chat } from '../domain/chat.aggregate.js';
 import { ChatStatus } from '../domain/chat-status.vo.js';
 import { Message } from '../domain/message.entity.js';
 import { logger } from '../../../../middleware/logger.js';
+import { eventBus } from '../../../infrastructure/events/event-bus.js';
 
 export class ChatMongoRepository {
   /**
@@ -65,9 +66,7 @@ export class ChatMongoRepository {
       }
       query.status = { $ne: 'deleted' };
 
-      const docs = await ChatModel.find(query)
-        .sort({ updatedAt: -1 })
-        .lean();
+      const docs = await ChatModel.find(query).sort({ updatedAt: -1 }).lean();
 
       return docs.map(doc => this._toDomain(doc));
     } catch (error) {
@@ -90,9 +89,7 @@ export class ChatMongoRepository {
         query.userId = userId;
       }
 
-      const docs = await ChatModel.find(query)
-        .sort({ updatedAt: -1 })
-        .lean();
+      const docs = await ChatModel.find(query).sort({ updatedAt: -1 }).lean();
 
       return docs.map(doc => this._toDomain(doc));
     } catch (error) {
@@ -111,9 +108,7 @@ export class ChatMongoRepository {
         query.userId = userId;
       }
 
-      const docs = await ChatModel.find(query)
-        .sort({ updatedAt: -1 })
-        .lean();
+      const docs = await ChatModel.find(query).sort({ updatedAt: -1 }).lean();
 
       return docs.map(doc => this._toDomain(doc));
     } catch (error) {
@@ -171,8 +166,7 @@ export class ChatMongoRepository {
       // 发布领域事件
       const events = chat.getDomainEvents();
       for (const event of events) {
-        // TODO: 发布到事件总线
-        logger.info('[ChatMongoRepository] Domain event:', event.eventName);
+        await eventBus.publish(event);
       }
       chat.clearDomainEvents();
 
@@ -250,7 +244,9 @@ export class ChatMongoRepository {
    * 将数据库文档转换为领域对象
    */
   _toDomain(doc) {
-    const messages = (doc.messages || []).map(msg => Message.fromJSON(this._normalizeMessageDoc(msg)));
+    const messages = (doc.messages || []).map(msg =>
+      Message.fromJSON(this._normalizeMessageDoc(msg))
+    );
 
     const status = ChatStatus.create(doc.status);
 

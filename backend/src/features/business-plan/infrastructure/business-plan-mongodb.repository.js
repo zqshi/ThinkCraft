@@ -8,6 +8,7 @@ import { BusinessPlanId } from '../domain/value-objects/business-plan-id.vo.js';
 import { BusinessPlanStatus } from '../domain/value-objects/business-plan-status.vo.js';
 import { ChapterId } from '../domain/value-objects/chapter-id.vo.js';
 import { logger } from '../../../../middleware/logger.js';
+import { eventBus } from '../../../infrastructure/events/event-bus.js';
 
 export class BusinessPlanMongoRepository {
   /**
@@ -81,8 +82,7 @@ export class BusinessPlanMongoRepository {
       // 发布领域事件
       const events = businessPlan.getDomainEvents();
       for (const event of events) {
-        // TODO: 发布到事件总线
-        logger.info('[BusinessPlanMongoRepository] Domain event:', event.eventName);
+        await eventBus.publish(event);
       }
       businessPlan.clearDomainEvents();
 

@@ -149,6 +149,119 @@ function shareBusinessReport() {
   }
 }
 
+function collectReportSources() {
+  const report = window.lastGeneratedReport;
+  const collected = [];
+  const seen = new Set();
+  const pushSource = (source, chapterLabel = '') => {
+    if (!source) {
+      return;
+    }
+    const normalized = typeof source === 'string' ? { title: source } : source;
+    const title = String(
+      normalized.title || normalized.name || normalized.url || normalized.source || ''
+    ).trim();
+    const url = String(normalized.url || normalized.link || '').trim();
+    const key = `${title}::${url}::${chapterLabel}`;
+    if (!title || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    collected.push({
+      title,
+      url,
+      chapter: chapterLabel,
+      note: String(normalized.note || normalized.description || '').trim()
+    });
+  };
+
+  if (Array.isArray(report?.sources)) {
+    report.sources.forEach(item => pushSource(item, '全局'));
+  }
+
+  if (Array.isArray(report?.chapters)) {
+    report.chapters.forEach((chapter, index) => {
+      const chapterLabel = chapter?.title || `章节${index + 1}`;
+      (chapter?.sources || []).forEach(item => pushSource(item, chapterLabel));
+    });
+  } else if (report?.chapters && typeof report.chapters === 'object') {
+    Object.values(report.chapters).forEach((chapter, index) => {
+      const chapterLabel = chapter?.title || `章节${index + 1}`;
+      (chapter?.sources || []).forEach(item => pushSource(item, chapterLabel));
+    });
+  }
+
+  return collected;
+}
+
+function updateReportSourcesDownloadButton(show) {
+  const btn = document.querySelector(
+    '#businessReportModal .modal-footer button[onclick="downloadReportSources()"]'
+  );
+  if (!btn) {
+    return;
+  }
+  btn.style.display = show ? '' : 'none';
+}
+
+function toggleReportSources(show) {
+  const container = document.getElementById('businessReportContent');
+  const isShow = Boolean(show);
+  const sourceNodes = container?.querySelectorAll(
+    '.report-sources, .report-source, [data-report-source], [data-role="report-source"]'
+  );
+
+  if (sourceNodes && sourceNodes.length > 0) {
+    sourceNodes.forEach(node => {
+      node.style.display = isShow ? '' : 'none';
+    });
+  } else if (isShow) {
+    const sources = collectReportSources();
+    if (sources.length === 0 && window.modalManager) {
+      window.modalManager.alert('当前报告暂无可展示的引用来源', 'info');
+    }
+  }
+
+  updateReportSourcesDownloadButton(isShow);
+}
+
+function downloadReportSources() {
+  const sources = collectReportSources();
+  if (sources.length === 0) {
+    if (window.modalManager) {
+      window.modalManager.alert('当前报告暂无可下载的引用来源', 'info');
+    } else {
+      alert('当前报告暂无可下载的引用来源');
+    }
+    return;
+  }
+
+  const lines = ['# 报告引用来源', ''];
+  sources.forEach((item, index) => {
+    lines.push(`${index + 1}. ${item.title}`);
+    if (item.url) {
+      lines.push(`   - 链接: ${item.url}`);
+    }
+    if (item.chapter) {
+      lines.push(`   - 章节: ${item.chapter}`);
+    }
+    if (item.note) {
+      lines.push(`   - 说明: ${item.note}`);
+    }
+    lines.push('');
+  });
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `report-sources-${Date.now()}.md`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // ============================================================================
 // 团队协作相关
 // ============================================================================
@@ -261,6 +374,8 @@ window.cancelGeneration = cancelGeneration;
 window.adjustBusinessReportChapters = adjustBusinessReportChapters;
 window.regenerateBusinessReport = regenerateBusinessReport;
 window.shareBusinessReport = shareBusinessReport;
+window.toggleReportSources = toggleReportSources;
+window.downloadReportSources = downloadReportSources;
 
 // 团队协作相关
 window.showAddMember = showAddMember;

@@ -2,13 +2,11 @@
  * 提示词加载工具类
  * 从 docs/prompt 目录加载 Markdown 格式的提示词文件
  */
-import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 
 import { promptLoaderParsingMethods } from './prompt-loader/parsing/prompt-loader-parsing.js';
 import { promptLoaderLoadingMethods } from './prompt-loader/loading/prompt-loader-loading.js';
@@ -37,7 +35,8 @@ class PromptLoader {
    */
 }
 
-Object.assign(PromptLoader.prototype,
+Object.assign(
+  PromptLoader.prototype,
   promptLoaderParsingMethods,
   promptLoaderLoadingMethods,
   promptLoaderRetrievalMethods,
