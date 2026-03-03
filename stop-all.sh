@@ -5,6 +5,23 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RUN_DIR="${ROOT_DIR}/run"
 DATASTORE_MANAGER_FILE="${RUN_DIR}/datastore.manager"
 
+require_cmd() {
+  local name="$1"
+  local hint="${2:-}"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "[ERROR] 缺少命令依赖: ${name}"
+    if [[ -n "$hint" ]]; then
+      echo "[ERROR] 安装建议: ${hint}"
+    fi
+    exit 1
+  fi
+}
+
+ensure_runtime_tools() {
+  require_cmd "bash"
+  require_cmd "lsof"
+}
+
 compose_cmd() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     echo "docker compose"
@@ -49,6 +66,7 @@ kill_port() {
 }
 
 echo "[INFO] 停止 ThinkCraft 全栈服务"
+ensure_runtime_tools
 
 kill_pidfile "frontend"
 kill_pidfile "backend"

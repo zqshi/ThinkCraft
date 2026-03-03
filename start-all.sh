@@ -11,6 +11,52 @@ FRONTEND_URL="http://127.0.0.1:5173"
 DEEP_RESEARCH_URL="http://127.0.0.1:5001"
 DATASTORE_MANAGER_FILE="${RUN_DIR}/datastore.manager"
 
+require_cmd() {
+  local name="$1"
+  local hint="${2:-}"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "[ERROR] 缺少命令依赖: ${name}"
+    if [[ -n "$hint" ]]; then
+      echo "[ERROR] 安装建议: ${hint}"
+    fi
+    exit 1
+  fi
+}
+
+ensure_runtime_tools() {
+  require_cmd "bash"
+  require_cmd "curl"
+  require_cmd "lsof"
+  require_cmd "node" "请安装 Node.js 18+（建议 20+）"
+  require_cmd "npm" "请安装 npm（通常随 Node.js 提供）"
+}
+
+ensure_node_dependencies() {
+  local app_dir="$1"
+  local app_name="$2"
+  if [[ ! -f "${app_dir}/package.json" ]]; then
+    return 0
+  fi
+  if [[ -d "${app_dir}/node_modules" ]]; then
+    echo "[OK] ${app_name} 依赖已存在"
+    return 0
+  fi
+
+  echo "[INFO] ${app_name} 缺少 node_modules，开始安装依赖"
+  if [[ -f "${app_dir}/package-lock.json" ]]; then
+    (cd "$app_dir" && npm ci) || {
+      echo "[ERROR] ${app_name} 依赖安装失败（npm ci）"
+      exit 1
+    }
+  else
+    (cd "$app_dir" && npm install) || {
+      echo "[ERROR] ${app_name} 依赖安装失败（npm install）"
+      exit 1
+    }
+  fi
+  echo "[OK] ${app_name} 依赖安装完成"
+}
+
 compose_cmd() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     echo "docker compose"
@@ -178,6 +224,10 @@ start_deep_research_if_possible() {
 }
 
 echo "[INFO] 启动 ThinkCraft 全栈服务"
+
+ensure_runtime_tools
+ensure_node_dependencies "$ROOT_DIR" "前端/根项目"
+ensure_node_dependencies "${ROOT_DIR}/backend" "后端"
 
 # 统一清理旧进程（不改端口号，仅清理冲突占用）
 kill_pidfile "frontend"
