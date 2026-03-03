@@ -77,7 +77,10 @@ export class ReportController {
 
   async removeSection(req, res) {
     try {
-      const result = await this.reportUseCase.removeSection(req.params.reportId, req.params.sectionId);
+      const result = await this.reportUseCase.removeSection(
+        req.params.reportId,
+        req.params.sectionId
+      );
       ok(res, result);
     } catch (error) {
       fail(res, error.message, 400);
@@ -158,16 +161,26 @@ export class ReportController {
       return fail(res, '缓存不可用', 400);
     }
 
-    const report = await this._generateInsightsReport(messages);
-    await this._persistAnalysisArtifacts({
-      chatId,
-      reportKey,
-      report,
-      canUseMongo,
-      skipReportWrite: false
-    });
+    try {
+      const report = await this._generateInsightsReport(messages);
+      await this._persistAnalysisArtifacts({
+        chatId,
+        reportKey,
+        report,
+        canUseMongo,
+        skipReportWrite: false
+      });
 
-    return ok(res, { report, cached: false });
+      return ok(res, { report, cached: false });
+    } catch (error) {
+      await this._persistAnalysisFailure({
+        chatId,
+        reportKey,
+        canUseMongo,
+        errorMessage: error?.message || '报告生成失败'
+      });
+      throw error;
+    }
   }
 
   async _persistAnalysisArtifacts({
@@ -240,7 +253,9 @@ export class ReportController {
         const message = String(error?.message || '');
         const unsupportedTxn =
           error?.code === 20 ||
-          message.includes('Transaction numbers are only allowed on a replica set member or mongos');
+          message.includes(
+            'Transaction numbers are only allowed on a replica set member or mongos'
+          );
         if (unsupportedTxn) {
           shouldFallbackToNonTxn = true;
           console.warn('[ReportController] MongoDB 不支持事务，降级为非事务写入');
@@ -278,6 +293,49 @@ export class ReportController {
           reportKey: reportKey || null
         });
       }
+    }
+  }
+
+  async _persistAnalysisFailure({ chatId, reportKey, canUseMongo, errorMessage }) {
+    if (!canUseMongo) {
+      return;
+    }
+    const message = String(errorMessage || '报告生成失败').slice(0, 500);
+    const failureState = {
+      status: 'error',
+      progress: { current: 0, total: 1, percentage: 0 },
+      updatedAt: new Date().toISOString(),
+      generationError: message,
+      source: 'report-generate'
+    };
+
+    if (reportKey) {
+      await AnalysisReportModel.findOneAndUpdate(
+        { reportKey },
+        {
+          $set: {
+            updatedAt: new Date(),
+            metadata: {
+              generationStatus: 'error',
+              generationError: message
+            }
+          }
+        },
+        { upsert: false, new: true }
+      ).catch(() => {});
+    }
+
+    if (chatId) {
+      await ChatModel.updateOne(
+        { _id: String(chatId) },
+        {
+          $set: {
+            analysisCompleted: false,
+            'reportState.analysis': failureState,
+            updatedAt: new Date()
+          }
+        }
+      ).catch(() => {});
     }
   }
 

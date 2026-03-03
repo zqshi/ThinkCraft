@@ -150,6 +150,8 @@ function shareBusinessReport() {
 }
 
 function collectReportSources() {
+  const MIN_RELEVANCE = 0.75;
+  const MAX_SOURCES = 10;
   const report = window.lastGeneratedReport;
   const collected = [];
   const seen = new Set();
@@ -171,7 +173,8 @@ function collectReportSources() {
       title,
       url,
       chapter: chapterLabel,
-      note: String(normalized.note || normalized.description || '').trim()
+      note: String(normalized.note || normalized.description || '').trim(),
+      relevance: Number(normalized.relevance || normalized.score || 0) || 0
     });
   };
 
@@ -191,7 +194,10 @@ function collectReportSources() {
     });
   }
 
-  return collected;
+  return collected
+    .filter(item => item.relevance > MIN_RELEVANCE)
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, MAX_SOURCES);
 }
 
 function updateReportSourcesDownloadButton(show) {

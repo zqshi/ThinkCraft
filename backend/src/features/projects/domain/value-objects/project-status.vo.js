@@ -8,6 +8,7 @@ export class ProjectStatus extends ValueObject {
   static IN_PROGRESS = new ProjectStatus('in_progress');
   static TESTING = new ProjectStatus('testing');
   static COMPLETED = new ProjectStatus('completed');
+  static ARCHIVED = new ProjectStatus('archived');
   static ON_HOLD = new ProjectStatus('on_hold');
   static CANCELLED = new ProjectStatus('cancelled');
   static DELETED = new ProjectStatus('deleted');
@@ -30,6 +31,7 @@ export class ProjectStatus extends ValueObject {
       ProjectStatus.IN_PROGRESS,
       ProjectStatus.TESTING,
       ProjectStatus.COMPLETED,
+      ProjectStatus.ARCHIVED,
       ProjectStatus.ON_HOLD,
       ProjectStatus.CANCELLED,
       ProjectStatus.DELETED
@@ -56,6 +58,7 @@ export class ProjectStatus extends ValueObject {
       'in_progress',
       'testing',
       'completed',
+      'archived',
       'on_hold',
       'cancelled',
       'deleted'
@@ -91,6 +94,10 @@ export class ProjectStatus extends ValueObject {
    */
   isCompleted() {
     return this._value === 'completed';
+  }
+
+  isArchived() {
+    return this._value === 'archived';
   }
 
   /**

@@ -27,21 +27,14 @@ export default defineConfig({
     // 代码分割
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'index.html'),
-        experimental: path.resolve(__dirname, 'experimental.html')
+        main: path.resolve(__dirname, 'index.html')
       },
       output: {
         manualChunks: {
           // 将核心模块打包在一起
-          'core': [
-            './frontend/js/core/storage-manager.js',
-            './frontend/js/core/state-validator.js'
-          ],
+          core: ['./frontend/js/core/storage-manager.js', './frontend/js/core/state-validator.js'],
           // 将工具函数打包在一起
-          'utils': [
-            './frontend/js/utils/error-handler.js',
-            './frontend/js/utils/global-bridges.js'
-          ]
+          utils: ['./frontend/js/utils/error-handler.js', './frontend/js/utils/global-bridges.js']
         }
       }
     }
@@ -51,7 +44,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './frontend'),
-      '@exp': path.resolve(__dirname, './frontend/experimental-src'),
       '@modules': path.resolve(__dirname, './frontend/js/modules'),
       '@utils': path.resolve(__dirname, './frontend/js/utils'),
       '@core': path.resolve(__dirname, './frontend/js/core')

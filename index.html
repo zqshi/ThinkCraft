@@ -41,7 +41,8 @@
 
     <!-- CSS文件从public目录加载，避免FOUC -->
     <link rel="stylesheet" href="/css/variables.css">
-    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/main.css?v=20260303-tiptap-codemirror-8">
+    <!-- 编辑器样式 -->
 
     <script src="/frontend/js/core/device-detector.js"></script>
     <script src="/frontend/js/core/gesture-handler.js"></script>
@@ -1179,8 +1180,9 @@
     <script defer src="/frontend/js/modules/report/share-card.js?v=20260201-fix"></script>
 
     <!-- 项目管理（用户点击"项目"时才需要） -->
-    <script defer src="/frontend/js/modules/project-manager.js?v=20260212-fix-runs-404-1"></script>
-    <script defer src="/frontend/js/modules/project-manager-artifact-preview.js?v=20260212-previewfix5"></script>
+    <script type="module" src="/frontend/js/modules/editor-adapters.js?v=20260303-tiptap-codemirror-8"></script>
+    <script defer src="/frontend/js/modules/project-manager.js?v=20260303-tiptap-codemirror-8"></script>
+    <script defer src="/frontend/js/modules/project-manager-artifact-preview.js?v=20260303-tiptap-codemirror-8"></script>
     <script defer src="/frontend/js/modules/project-manager-deliverables.js?v=20260212-fix-selection-3"></script>
     <script defer src="/frontend/js/modules/project-manager-panel-renderer.js?v=20260212-fix-actions-2"></script>
     <script defer src="/frontend/js/modules/project-manager-members.js?v=20260211-refactor-lite24"></script>
@@ -1189,7 +1191,7 @@
     <script defer src="/frontend/js/modules/project-manager-collaboration.js?v=20260211-refactor-lite24"></script>
     <script defer src="/frontend/js/modules/project-manager-panel-content.js?v=20260211-refactor-lite24"></script>
     <script defer src="/frontend/js/modules/project-manager-report-preview.js?v=20260211-refactor-lite24"></script>
-    <script defer src="/frontend/js/modules/project-manager-panel-lifecycle.js?v=20260211-refactor-lite24"></script>
+    <script defer src="/frontend/js/modules/project-manager-panel-lifecycle.js?v=20260303-artifact-editor-1"></script>
     <script defer src="/frontend/js/modules/project-manager-sync.js?v=20260212-statusfix2"></script>
     <script defer src="/frontend/js/modules/project-manager-entrypoints.js?v=20260211-refactor-lite24"></script>
     <script defer src="/frontend/js/modules/project-manager-project-list.js?v=20260211-refactor-lite24"></script>

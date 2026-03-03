@@ -87,19 +87,8 @@ export async function executeTestingStage({ projectId, stageId, effectiveArtifac
   }
 
   if (effectiveArtifactTypes.includes('performance-report')) {
-    const perfScript = path.join(repoRoot, 'scripts', 'performance-test-simple.sh');
-    let perfContent = '# 性能测试报告（真实执行）\n\n未执行性能测试。';
-    if (fs.existsSync(perfScript)) {
-      const perfResult = await runCommand('bash scripts/performance-test-simple.sh', {
-        cwd: repoRoot,
-        timeoutMs: 15 * 60 * 1000
-      });
-      perfContent = [
-        '# 性能测试报告（真实执行）',
-        '',
-        formatCommandSection('Performance test (simple)', perfResult)
-      ].join('\n');
-    }
+    const perfContent =
+      '# 性能测试报告（真实执行）\n\n当前仓库未配置独立性能冒烟脚本，已跳过性能阶段自动执行。';
 
     artifacts.push(
       buildExecutionArtifact({

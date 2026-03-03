@@ -237,20 +237,20 @@ window.projectManagerPanelLifecycle = {
     const listHTML = `
             <div style="display: grid; gap: 10px;">
                 ${artifacts
-    .map(
-      artifact => `
+                  .map(
+                    artifact => `
                     <div class="project-panel-item">
                         <div class="project-panel-item-main">
                             <div class="project-panel-item-title">${pm.escapeHtml(artifact.name || '未命名交付物')}</div>
                             <div class="project-panel-item-sub">${pm.escapeHtml(artifact.type || 'deliverable')}</div>
                         </div>
-                        <button class="btn-secondary" onclick="projectManager.openKnowledgeFromArtifact('${projectId}', '${artifact.id}')" style="padding: 4px 10px; font-size: 12px;">
-                            查看
+                        <button class="btn-secondary" onclick="projectManager.openArtifactPreviewPanel('${projectId}', '${stageId}', '${artifact.id}')" style="padding: 4px 10px; font-size: 12px;">
+                            查看/编辑
                         </button>
                     </div>
                 `
-    )
-    .join('')}
+                  )
+                  .join('')}
             </div>
         `;
 

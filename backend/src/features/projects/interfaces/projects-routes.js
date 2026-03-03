@@ -75,8 +75,6 @@ router.get('/eligible-ideas', projectController.getEligibleIdeas);
  * 获取项目详情
  * 响应: { code: number, message: string, data: { project: object, stages: array, artifacts: array } }
  */
-router.get('/:id', projectController.getProject);
-
 /**
  * GET /api/projects
  * 获取所有项目
@@ -258,5 +256,12 @@ function buildOutputsDetailed(outputs = [], agentIds = []) {
     };
   });
 }
+
+/**
+ * GET /api/projects/:id
+ * 获取项目详情
+ * 注意：动态路由应放在静态路由之后，避免吞掉 /health、/search 等路径
+ */
+router.get('/:id', projectController.getProject);
 
 export default router;

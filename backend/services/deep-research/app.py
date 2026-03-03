@@ -9,10 +9,12 @@ from flask_cors import CORS
 from openai import OpenAI
 from deep_research_client import DeepResearchClient
 from pathlib import Path
+from urllib.parse import urlparse
 import os
 from dotenv import load_dotenv
 import time
 import logging
+import re
 
 # 加载环境变量
 load_dotenv()
@@ -213,6 +215,8 @@ PROPOSAL_SIX_CHAPTERS = {
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_ROOT = PROJECT_ROOT / 'prompts' / 'scene-1-dialogue' / 'deep-research'
 _PROMPT_CACHE = {}
+SOURCE_MIN_RELEVANCE = 0.75
+SOURCE_MAX_ITEMS = 10
 
 
 def _strip_frontmatter(content: str) -> str:
@@ -327,6 +331,166 @@ def build_synthesis_prompt(chapter_id, conversation_history, sources):
         sources=(sources_text if sources_text else '（无来源）')
     )
 
+
+def _chapter_keywords(chapter_id: str):
+    chapter_map = {
+        'project-summary': ['立项', '机会', '场景', '痛点', '需求', '市场'],
+        'problem-insight': ['用户', '问题', '痛点', '价值主张', '画像'],
+        'product-solution': ['产品', '功能', '方案', '架构', 'MVP'],
+        'implementation-path': ['路线图', '里程碑', '实施', '资源', '计划'],
+        'budget-planning': ['预算', '成本', '收益', 'ROI', '投入产出'],
+        'risk-control': ['风险', '合规', '控制', '预案', '决策'],
+        'market-analysis': ['市场', '规模', '增长', '用户', '趋势'],
+        'competitive-landscape': ['竞品', '竞争', '差异化', '市场份额'],
+        'business-model': ['商业模式', '收入', '成本', '定价'],
+        'financial-projection': ['财务', '收入', '利润', '成本', '预测'],
+        'marketing-strategy': ['营销', '渠道', '获客', '品牌', '转化'],
+        'team-structure': ['团队', '组织', '人才', '岗位']
+    }
+    return chapter_map.get(chapter_id, [chapter_id.replace('-', ' ')])
+
+
+def _extract_intent_keywords(conversation_history, chapter_id):
+    stopwords = {
+        '的', '了', '和', '与', '及', '或', '以及', '对于', '关于', '基于', '进行', '分析', '如何',
+        '哪些', '什么', '是否', '我们', '你们', '他们', '这个', '那个', '一个', '需要', '可以', '项目',
+        '产品', '市场', '行业', '用户', '公司', '企业', '计划', '报告', '策略', '模式', '核心', '关键'
+    }
+    text = format_conversation(conversation_history)
+    raw = re.split(r'[\s,，。.;；:：/\\\-\(\)\[\]{}"\'\n\r\t]+', text.lower())
+    keywords = []
+    seen = set()
+    for token in raw:
+        token = token.strip()
+        if len(token) < 2 or token in stopwords:
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        keywords.append(token)
+        if len(keywords) >= 20:
+            break
+    chapter_keys = [str(k).lower() for k in _chapter_keywords(chapter_id)]
+    return chapter_keys + keywords
+
+
+def _domain_quality_score(url: str) -> float:
+    domain = (urlparse(url).netloc or '').lower()
+    if not domain:
+        return -0.5
+
+    preferred = [
+        '.gov', '.edu', 'who.int', 'worldbank.org', 'oecd.org', 'imf.org', 'un.org',
+        'reuters.com', 'bloomberg.com', 'statista.com', 'mckinsey.com', 'gartner.com',
+        'forrester.com', 'sciencedirect.com', 'nature.com', 'ieee.org'
+    ]
+    deprioritized = [
+        'zhihu.com', 'baike.baidu.com', 'csdn.net', 'sohu.com', 'toutiao.com',
+        'forum', 'bbs', 'blog'
+    ]
+    for item in preferred:
+        if item in domain:
+            return 0.22
+    for item in deprioritized:
+        if item in domain:
+            return -0.18
+    return 0.0
+
+
+def _source_text(source):
+    return ' '.join([
+        str(source.get('title') or ''),
+        str(source.get('snippet') or ''),
+        str(source.get('content') or '')
+    ]).lower()
+
+
+def _lexical_relevance(source, intent_keywords):
+    if not intent_keywords:
+        return 0.0
+    text = _source_text(source)
+    if not text:
+        return 0.0
+
+    weighted_hits = 0.0
+    matched = 0
+    for idx, keyword in enumerate(intent_keywords):
+        if not keyword:
+            continue
+        if keyword in text:
+            matched += 1
+            weighted_hits += 1.2 if idx < 6 else 1.0
+    coverage = matched / max(1, min(len(intent_keywords), 12))
+    return min(1.0, (weighted_hits / 10.0) + coverage * 0.6)
+
+
+def _normalize_source(raw_source):
+    title = str(raw_source.get('title') or '').strip()
+    url = str(raw_source.get('url') or '').strip()
+    snippet = str(raw_source.get('snippet') or raw_source.get('content') or '').strip()
+
+    if not title or not url:
+        return None
+    if not (url.startswith('http://') or url.startswith('https://')):
+        return None
+    if title.lower() in {'首页', 'home', 'index', 'untitled', '未知来源'}:
+        return None
+
+    return {
+        'title': title[:200],
+        'url': url[:600],
+        'snippet': snippet[:400],
+        'relevance': float(raw_source.get('relevance') or raw_source.get('score') or 0)
+    }
+
+
+def rank_and_filter_sources(raw_sources, conversation_history, chapter_id, max_items=SOURCE_MAX_ITEMS):
+    """来源归一化、去重、相关性重排，返回高相关 TopN。"""
+    if not raw_sources:
+        return []
+
+    intent_keywords = _extract_intent_keywords(conversation_history, chapter_id)
+    normalized = []
+    seen_urls = set()
+    for raw in raw_sources:
+        source = _normalize_source(raw or {})
+        if not source:
+            continue
+        if source['url'] in seen_urls:
+            continue
+        seen_urls.add(source['url'])
+        normalized.append(source)
+
+    if not normalized:
+        return []
+
+    rescored = []
+    for source in normalized:
+        lexical = _lexical_relevance(source, intent_keywords)
+        prior = float(source.get('relevance') or 0)
+        prior = max(0.0, min(1.0, prior))
+        domain = _domain_quality_score(source.get('url', ''))
+        final_score = lexical * 0.70 + prior * 0.25 + domain
+        source['relevance'] = round(max(0.0, min(1.0, final_score)), 3)
+        rescored.append(source)
+
+    rescored.sort(key=lambda item: item.get('relevance', 0), reverse=True)
+    strong = [item for item in rescored if item.get('relevance', 0) >= SOURCE_MIN_RELEVANCE]
+    return strong[:max_items]
+
+
+def append_canonical_source_list(content, sources):
+    """统一输出来源清单，覆盖模型可能生成的无关来源列表。"""
+    base = str(content or '').strip()
+    base = re.sub(r'\n{0,2}#{1,3}\s*来源清单[\s\S]*$', '', base, flags=re.IGNORECASE).strip()
+    lines = ['## 来源清单', '']
+    if not sources:
+        lines.append('（无有效来源）')
+    else:
+        for idx, source in enumerate(sources, start=1):
+            lines.append(f"{idx}. {source.get('title', '未知来源')} - {source.get('url', '')}")
+    return f"{base}\n\n" + '\n'.join(lines)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """健康检查"""
@@ -429,19 +593,12 @@ def research_chapter():
                 summary_text=summary_text
             )
             raw_sources = research_result.get('sources', [])
-            # 过滤无效来源并去重
-            sources = []
-            seen_urls = set()
-            for s in raw_sources:
-                url = (s.get('url') or '').strip()
-                title = (s.get('title') or '').strip()
-                if not url or not title:
-                    continue
-                if url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                sources.append(s)
-            sources = sources[:8]
+            sources = rank_and_filter_sources(
+                raw_sources,
+                conversation_history,
+                chapter_id,
+                max_items=SOURCE_MAX_ITEMS
+            )
 
             # 二次合成（可选），确保结构化输出与引用
             if OPENROUTER_API_KEY:
@@ -495,6 +652,9 @@ def research_chapter():
             content = response.choices[0].message.content
             usage = response.usage
             total_tokens = usage.total_tokens if usage else 0
+
+        # 始终以后端 canonical 来源清单为准，避免模型返回无关来源
+        content = append_canonical_source_list(content, sources)
 
         elapsed_time = time.time() - start_time
         

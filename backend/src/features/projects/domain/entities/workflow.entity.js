@@ -34,7 +34,8 @@ export class Workflow extends Entity {
       );
     });
 
-    return new Workflow(workflowId, stages, 'strategy-requirement', false);
+    const defaultCurrentStageId = stages[0]?.id || null;
+    return new Workflow(workflowId, stages, defaultCurrentStageId, false);
   }
 
   /**
@@ -379,7 +380,7 @@ class WorkflowStage extends Entity {
 
     this._artifacts.push({
       ...artifact,
-      createdAt: new Date()
+      createdAt: artifact.createdAt ? new Date(artifact.createdAt) : new Date()
     });
   }
 

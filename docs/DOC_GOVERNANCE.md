@@ -6,9 +6,9 @@
 
 - `L0` 权威运行文档：`docs/STARTUP_RUNBOOK.md`
 - `L1` 项目总览：根目录 `README.md`
-- `L2` 开发与模块文档：`docs/README.md`、`docs/guides/`、`docs/modules/`、`docs/api/`
-- `L3` 规划/草稿：`docs/loading/`（不作为当前行为依据）
-- `L4` 归档：历史文档与复盘（应明确 `archive` 标识）
+- `L2` 当前开发文档：`docs/README.md`、`docs/guides/`
+- `L3` 规划/历史归档：`docs/archive/`（不作为当前行为依据）
+- `L4` 归档索引与复盘：历史文档应明确 `archive` 标识
 
 ## 2. 必填元信息（建议）
 

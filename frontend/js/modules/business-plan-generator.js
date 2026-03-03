@@ -153,10 +153,7 @@ class BusinessPlanGenerator {
     const reportModalChatId = document.getElementById('reportModal')?.dataset?.chatId;
     const activeChatId = document.querySelector('.chat-item.active')?.dataset?.chatId;
     const chatId =
-      window.state?.currentChat ||
-      btn?.dataset?.chatId ||
-      reportModalChatId ||
-      activeChatId;
+      window.state?.currentChat || btn?.dataset?.chatId || reportModalChatId || activeChatId;
     console.log('[按钮点击] 会话ID:', chatId);
 
     // 添加 chatId 有效性验证
@@ -893,7 +890,9 @@ class BusinessPlanGenerator {
         const stateManagerConversation = this.state.getConversationHistory();
         if (stateManagerConversation && stateManagerConversation.length > 0) {
           conversation = stateManagerConversation;
-          businessLogger.debug('[生成] 从 stateManager 获取对话历史', { count: conversation.length });
+          businessLogger.debug('[生成] 从 stateManager 获取对话历史', {
+            count: conversation.length
+          });
         }
       }
 
@@ -937,7 +936,7 @@ class BusinessPlanGenerator {
           this.progressManager.updateProgress(chapterId, 'working');
 
           // 调用API生成章节
-          const chapterTimeout = useDeepResearch ? 11 * 60 * 1000 : 180000;
+          const chapterTimeout = useDeepResearch ? 11 * 60 * 1000 : 8 * 60 * 1000;
           const response = await this.api.request('/api/business-plan/generate-chapter', {
             method: 'POST',
             body: {
@@ -1268,7 +1267,14 @@ class BusinessPlanGenerator {
         console.warn('[持久化状态] storageManager 未定义');
         return;
       }
-      businessLogger.debug('[持久化状态] chatId:', chatId, 'type:', type, 'status:', updates.status);
+      businessLogger.debug(
+        '[持久化状态] chatId:',
+        chatId,
+        'type:',
+        type,
+        'status:',
+        updates.status
+      );
 
       if (!chatId) {
         console.warn('[持久化状态] chatId 为空');
@@ -1277,7 +1283,10 @@ class BusinessPlanGenerator {
       const normalizedChatId = normalizeChatId(chatId);
       const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
       const existing = reports.find(r => r.type === type);
-      businessLogger.debug('[持久化状态] 现有报告:', existing ? `存在(id: ${existing.id})` : '不存在');
+      businessLogger.debug(
+        '[持久化状态] 现有报告:',
+        existing ? `存在(id: ${existing.id})` : '不存在'
+      );
 
       // 如果没有现有报告，生成新ID；否则使用现有ID
       const reportId = existing?.id || `${type}-${Date.now()}`;
@@ -1582,7 +1591,10 @@ class BusinessPlanGenerator {
     if (window.storageManager) {
       try {
         await this.clearReportsByType(chatId, reportType);
-        businessLogger.debug('[重新生成-已选章节] 已清除IndexedDB中的旧报告数据', { chatId, reportType });
+        businessLogger.debug('[重新生成-已选章节] 已清除IndexedDB中的旧报告数据', {
+          chatId,
+          reportType
+        });
       } catch (error) {
         console.error('[重新生成-已选章节] 清除旧报告数据失败:', error);
       }
@@ -1713,51 +1725,51 @@ class BusinessPlanGenerator {
 
     // 根据状态更新按钮
     switch (status) {
-    case 'idle':
-      btn.classList.add('btn-idle');
-      btn.dataset.status = 'idle';
-      if (iconSpan) {
-        iconSpan.textContent = type === 'business' ? '📊' : '📋';
-      }
-      if (textSpan) {
-        textSpan.textContent = type === 'business' ? '商业计划书' : '产品立项材料';
-      }
-      break;
+      case 'idle':
+        btn.classList.add('btn-idle');
+        btn.dataset.status = 'idle';
+        if (iconSpan) {
+          iconSpan.textContent = type === 'business' ? '📊' : '📋';
+        }
+        if (textSpan) {
+          textSpan.textContent = type === 'business' ? '商业计划书' : '产品立项材料';
+        }
+        break;
 
-    case 'generating':
-      btn.classList.add('btn-generating');
-      btn.dataset.status = 'generating';
-      btn.disabled = false; // 不禁用按钮，允许点击查看进度
-      if (iconSpan) {
-        iconSpan.textContent = '⏳';
-      }
-      if (textSpan) {
-        textSpan.textContent = '生成中...';
-      }
-      break;
+      case 'generating':
+        btn.classList.add('btn-generating');
+        btn.dataset.status = 'generating';
+        btn.disabled = false; // 不禁用按钮，允许点击查看进度
+        if (iconSpan) {
+          iconSpan.textContent = '⏳';
+        }
+        if (textSpan) {
+          textSpan.textContent = '生成中...';
+        }
+        break;
 
-    case 'completed':
-      btn.classList.add('btn-completed');
-      btn.dataset.status = 'completed';
-      if (iconSpan) {
-        iconSpan.textContent = '✅';
-      }
-      if (textSpan) {
-        textSpan.textContent =
+      case 'completed':
+        btn.classList.add('btn-completed');
+        btn.dataset.status = 'completed';
+        if (iconSpan) {
+          iconSpan.textContent = '✅';
+        }
+        if (textSpan) {
+          textSpan.textContent =
             type === 'business' ? '商业计划书（查看）' : '产品立项材料（查看）';
-      }
-      break;
+        }
+        break;
 
-    case 'error':
-      btn.classList.add('btn-error');
-      btn.dataset.status = 'error';
-      if (iconSpan) {
-        iconSpan.textContent = '❌';
-      }
-      if (textSpan) {
-        textSpan.textContent = '生成失败（重试）';
-      }
-      break;
+      case 'error':
+        btn.classList.add('btn-error');
+        btn.dataset.status = 'error';
+        if (iconSpan) {
+          iconSpan.textContent = '❌';
+        }
+        if (textSpan) {
+          textSpan.textContent = '生成失败（重试）';
+        }
+        break;
     }
 
     businessLogger.debug('[updateButtonUI] 按钮状态已更新:', { type, status, btnId });

@@ -2,6 +2,8 @@ import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import promptLoader from '../../../utils/prompt-loader.js';
 
 export class ReportAiService {
+  static REPORT_MAX_ATTEMPTS = 4;
+
   async generateChatTitle(messages = []) {
     const list = Array.isArray(messages) ? messages : [];
     const normalized = list
@@ -129,32 +131,11 @@ export class ReportAiService {
 2. 所有数组至少 3 条，stages 至少 2 个阶段
 3. 中期探索方向必须具体到目标/方法/对象或样本/周期/产出
 4. 概念延伸提示必须给出关联理由与验证切入点（写入 extendedIdeas 句子中）
-5. 必须输出 JSON，禁止附加说明文本`;
+5. 必须输出 JSON，禁止附加说明文本
+6. 每个字符串字段尽量简洁（建议<=120字），避免冗长描述导致输出截断`;
 
     try {
-      const response = await callDeepSeekAPI([{ role: 'user', content: systemPrompt }], null, {
-        temperature: 0.7,
-        max_tokens: 4000,
-        timeout: 120000
-      });
-
-      let reportData = this.parseJsonResponse(response?.content);
-      if (this.isLowQuality(reportData)) {
-        const repairPrompt = `${systemPrompt}
-
-你的上一次输出包含占位语或空内容，请重新生成完整JSON，确保所有字段充实且可执行。禁止占位语。仅输出JSON。`;
-
-        const repairResponse = await callDeepSeekAPI(
-          [{ role: 'user', content: repairPrompt }],
-          null,
-          {
-            temperature: 0.6,
-            max_tokens: 4000,
-            timeout: 120000
-          }
-        );
-        reportData = this.parseJsonResponse(repairResponse?.content);
-      }
+      const reportData = await this.generateStructuredReportJson(systemPrompt);
 
       if (!reportData || !reportData.chapters) {
         throw new Error('AI返回的报告数据缺少chapters字段');
@@ -183,6 +164,77 @@ export class ReportAiService {
     }
   }
 
+  async generateStructuredReportJson(basePrompt) {
+    let lastError = null;
+    let prompt = basePrompt;
+    let tokenBudget = 4000;
+
+    for (let attempt = 1; attempt <= ReportAiService.REPORT_MAX_ATTEMPTS; attempt++) {
+      const response = await callDeepSeekAPI([{ role: 'user', content: prompt }], null, {
+        temperature: attempt === 1 ? 0.7 : 0.35,
+        max_tokens: tokenBudget,
+        timeout: 120000,
+        response_format: { type: 'json_object' }
+      });
+
+      const finishReason = String(response?.finish_reason || '').toLowerCase();
+      const rawContent = String(response?.content || '');
+
+      if (finishReason === 'length') {
+        lastError = new Error(`模型输出被截断（attempt=${attempt}, finish_reason=length）`);
+        prompt = this.buildRegenerationPrompt(basePrompt, rawContent, lastError.message);
+        tokenBudget = 5000;
+        continue;
+      }
+
+      try {
+        const parsed = this.parseJsonResponse(rawContent);
+        if (!this.isLowQuality(parsed)) {
+          return parsed;
+        }
+        lastError = new Error(`模型输出质量不足（attempt=${attempt}）`);
+      } catch (parseError) {
+        lastError = parseError;
+      }
+
+      try {
+        const repaired = await this.repairJsonWithModel(rawContent, lastError);
+        if (!this.isLowQuality(repaired)) {
+          return repaired;
+        }
+        lastError = new Error(`修复后JSON质量不足（attempt=${attempt}）`);
+      } catch (repairError) {
+        lastError = repairError;
+      }
+
+      prompt = this.buildRegenerationPrompt(
+        basePrompt,
+        rawContent,
+        lastError?.message || 'unknown'
+      );
+      tokenBudget = 5000;
+    }
+
+    throw new Error(lastError?.message || '结构化JSON生成失败');
+  }
+
+  buildRegenerationPrompt(basePrompt, previousContent, reason) {
+    const snippet = String(previousContent || '').slice(0, 8000);
+    return `${basePrompt}
+
+上一次输出未通过校验，原因：${reason}
+
+请重新生成完整 JSON，强约束如下：
+1) 只输出 JSON 对象，不要解释
+2) 严格遵循既定字段结构，不得缺字段
+3) 文本精炼：每个字符串建议不超过 80-120 字
+4) 数组控制在 3-5 条，避免冗长
+5) 禁止 markdown 代码块标记
+
+以下是上一次输出片段（仅供参考，勿原样复制）：
+${snippet}`;
+  }
+
   parseJsonResponse(content) {
     const raw = String(content || '').trim();
     const text = this.extractJsonBlock(raw);
@@ -197,6 +249,31 @@ export class ReportAiService {
         throw new Error(`${firstError.message}; normalize failed: ${secondError.message}`);
       }
     }
+  }
+
+  async repairJsonWithModel(rawContent, reason) {
+    const rawText = String(rawContent || '').slice(0, 18000);
+    const repairPrompt = [
+      '你是 JSON 修复器。',
+      '将下面文本修复为严格 JSON：',
+      '- 只能输出 JSON 对象，不要解释',
+      '- 保留原字段语义和层级',
+      '- 补全缺失逗号/引号/括号',
+      '',
+      '待修复内容：',
+      rawText,
+      '',
+      `解析错误参考：${String(reason?.message || reason || 'unknown parse error')}`
+    ].join('\n');
+
+    const repaired = await callDeepSeekAPI([{ role: 'user', content: repairPrompt }], null, {
+      temperature: 0.0,
+      max_tokens: 4000,
+      timeout: 90000,
+      response_format: { type: 'json_object' }
+    });
+
+    return this.parseJsonResponse(repaired?.content);
   }
 
   extractJsonBlock(rawText) {

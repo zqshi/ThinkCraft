@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * CSS自动同步脚本
- * 监听 css/ 目录的变化，自动同步到 public/css/
+ * CSS 同步脚本
+ * --once: 仅执行一次同步并退出（用于构建）
+ * --watch: 持续监听并同步（用于本地开发）
+ * 默认行为: watch
  */
 
 import fs from 'fs';
@@ -16,10 +18,11 @@ const rootDir = path.resolve(__dirname, '..');
 const sourceDir = path.join(rootDir, 'css');
 const targetDir = path.join(rootDir, 'public', 'css');
 
-// 确保目标目录存在
-if (!fs.existsSync(targetDir)) {
-  fs.mkdirSync(targetDir, { recursive: true });
-  console.log('✅ 创建目录:', targetDir);
+function ensureTargetDir() {
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+    console.log('✅ 创建目录:', targetDir);
+  }
 }
 
 // 复制单个文件
@@ -36,9 +39,14 @@ function copyFile(filename) {
   }
 }
 
-// 初始同步所有CSS文件
-function initialSync() {
+// 初始同步所有 CSS 文件
+function initialSync({ logWatchHint = false } = {}) {
   console.log('🔄 开始初始同步...\n');
+
+  if (!fs.existsSync(sourceDir)) {
+    console.error(`❌ 源目录不存在: ${sourceDir}`);
+    process.exit(1);
+  }
 
   const files = fs.readdirSync(sourceDir);
   const cssFiles = files.filter(file => file.endsWith('.css'));
@@ -46,7 +54,9 @@ function initialSync() {
   cssFiles.forEach(file => copyFile(file));
 
   console.log(`\n✅ 初始同步完成，共 ${cssFiles.length} 个文件`);
-  console.log('👀 正在监听 css/ 目录的变化...\n');
+  if (logWatchHint) {
+    console.log('👀 正在监听 css/ 目录的变化...\n');
+  }
 }
 
 // 监听文件变化
@@ -62,11 +72,27 @@ function watchFiles() {
   });
 }
 
+function getMode() {
+  if (process.argv.includes('--once')) {
+    return 'once';
+  }
+  if (process.argv.includes('--watch')) {
+    return 'watch';
+  }
+  return 'watch';
+}
+
 // 启动
-initialSync();
+ensureTargetDir();
+const mode = getMode();
+if (mode === 'once') {
+  initialSync({ logWatchHint: false });
+  process.exit(0);
+}
+
+initialSync({ logWatchHint: true });
 watchFiles();
 
-// 保持进程运行
 process.on('SIGINT', () => {
   console.log('\n\n👋 停止监听');
   process.exit(0);

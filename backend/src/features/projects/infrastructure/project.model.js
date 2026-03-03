@@ -82,7 +82,16 @@ const ProjectSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ['planning', 'in_progress', 'completed', 'archived', 'deleted'],
+      enum: [
+        'planning',
+        'in_progress',
+        'testing',
+        'completed',
+        'archived',
+        'on_hold',
+        'cancelled',
+        'deleted'
+      ],
       default: 'planning'
     },
     workflow: WorkflowSchema,

@@ -53,7 +53,10 @@ class ReportGenerator {
         const status = String(chat?.reportState?.analysis?.status || '').toLowerCase();
         const persisted =
           chat?.analysisCompleted === true &&
-          (status === 'completed' || status === 'success' || status === 'done' || status === 'finished');
+          (status === 'completed' ||
+            status === 'success' ||
+            status === 'done' ||
+            status === 'finished');
         if (persisted) {
           return;
         }
@@ -330,11 +333,12 @@ class ReportGenerator {
 
     // 取消之前的请求（如果存在）
     if (this.currentController) {
-      this.currentController.abort();
+      this.currentController.abort('replaced_by_new_request');
       this.currentController = null;
     }
 
     this.isGenerating = true;
+    let timeoutId = null;
 
     try {
       // 开始生成流程 - 更新StateManager状态
@@ -343,13 +347,13 @@ class ReportGenerator {
         window.stateManager.startGeneration(chatId, 'analysis', ['full-report']);
       }
 
-      // 使用标准超时API，3分钟
-      this.currentController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        if (this.currentController) {
-          this.currentController.abort();
-        }
-      }, 180000);
+      // 使用更稳妥的超时控制：10分钟，并确保仅中断本次请求
+      const REPORT_TIMEOUT_MS = 10 * 60 * 1000;
+      const currentRequestController = new AbortController();
+      this.currentController = currentRequestController;
+      timeoutId = setTimeout(() => {
+        currentRequestController.abort('report_generation_timeout');
+      }, REPORT_TIMEOUT_MS);
 
       if (window.requireAuth) {
         const ok = await window.requireAuth({ redirect: true, prompt: true });
@@ -373,11 +377,10 @@ class ReportGenerator {
           reportKey: this.getAnalysisReportKey(),
           force: forceRegenerate || false
         }),
-        signal: this.currentController.signal
+        signal: currentRequestController.signal
       });
-
       clearTimeout(timeoutId);
-      this.currentController = null;
+      timeoutId = null;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -430,7 +433,6 @@ class ReportGenerator {
 
       // 重置生成状态
       this.isGenerating = false;
-      this.currentController = null;
 
       // 生成失败 - 更新StateManager状态
       if (window.stateManager) {
@@ -441,6 +443,23 @@ class ReportGenerator {
       if (window.reportStatusManager) {
         window.reportStatusManager.onReportStatusChange(chatId, 'analysis', 'error');
       }
+      if (window.storageManager) {
+        window.storageManager
+          .saveReport({
+            type: 'analysis',
+            chatId,
+            data: null,
+            status: 'error',
+            progress: { current: 0, total: 1, percentage: 0 },
+            startTime: Date.now(),
+            endTime: Date.now(),
+            error: {
+              message: error?.message || '报告生成失败',
+              timestamp: Date.now()
+            }
+          })
+          .catch(() => {});
+      }
 
       let errorMessage = error.message;
       let actionButton =
@@ -448,7 +467,7 @@ class ReportGenerator {
 
       // 根据错误类型提供不同的建议
       if (error.name === 'AbortError' || error.message.includes('timeout')) {
-        errorMessage = '报告生成超时（超过3分钟）';
+        errorMessage = '报告生成超时（超过10分钟）';
         actionButton = `
                     <div style="display: flex; gap: 12px; justify-content: center;">
                         <button class="btn-secondary" onclick="closeReport()">关闭</button>
@@ -475,6 +494,11 @@ class ReportGenerator {
                     ${actionButton}
                 </div>
             `;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      this.currentController = null;
     }
   }
 

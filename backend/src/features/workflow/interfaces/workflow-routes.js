@@ -6,10 +6,13 @@ import { callDeepSeekAPI } from '../../../../config/deepseek.js';
 import { ARTIFACT_TYPES, normalizeStageId } from '../../../../config/workflow-stages.js';
 import { projectRepository } from '../../../features/projects/infrastructure/index.js';
 import {
+  buildArtifactFileUrl,
   deleteArtifactPhysicalFile,
   ensureProjectWorkspace,
+  materializeArtifactFile,
   removeArtifactsIndex,
-  resolveRepoRoot
+  resolveRepoRoot,
+  updateArtifactsIndex
 } from '../../../features/projects/infrastructure/project-files.js';
 import {
   buildRoleTemplateMapping,
@@ -19,7 +22,8 @@ import {
   normalizeOutputToTypeId,
   parseJsonPayload,
   resolveProjectStageIds,
-  resolveStageOutputsForProject
+  resolveStageOutputsForProject,
+  shouldInlinePreview
 } from './helpers/workflow-helpers.js';
 import { registerArtifactsRoutes } from './routes/workflow-artifacts-routes.js';
 import { registerDeployRoutes } from './routes/workflow-deploy-routes.js';
@@ -58,9 +62,13 @@ registerArtifactsRoutes(router, {
   runCommand,
   projectRepository,
   ensureProjectWorkspace,
+  materializeArtifactFile,
+  updateArtifactsIndex,
+  buildArtifactFileUrl,
   deleteArtifactPhysicalFile,
   removeArtifactsIndex,
   resolveRepoRoot,
+  shouldInlinePreview,
   normalizeStageId,
   resolveProjectStageIds,
   getStageArtifactsFromProject,

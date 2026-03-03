@@ -29,7 +29,6 @@
 | `scripts/auth-agent-check.sh`         | root/scripts | Agent 鉴权自检                           | active |
 | `scripts/check-artifact-templates.js` | root/scripts | 检查 workflow 交付物模板声明与文件一致性 | active |
 | `scripts/sync-css.js`                 | root/scripts | 同步 `css/` 到 `public/css/`             | active |
-| `scripts/performance-test-simple.sh`  | root/scripts | 轻量性能冒烟                             | active |
 
 ## Tier-3（迁移/数据维护）
 

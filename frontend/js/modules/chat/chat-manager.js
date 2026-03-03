@@ -22,6 +22,26 @@ class ChatManager {
     this.defaultChatTitles = new Set(['新对话', '新会话', '未命名对话']);
     this.missingChatIds = this.loadMissingChatIds();
     this.incompleteReportWarningKeys = new Set();
+    this.handleReportStatusChanged = this.handleReportStatusChanged.bind(this);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('tc:report-status-changed', this.handleReportStatusChanged);
+    }
+  }
+
+  async handleReportStatusChanged(event) {
+    try {
+      const detail = event?.detail || {};
+      if (String(detail.type || '') !== 'analysis') {
+        return;
+      }
+      const chatId = String(detail.chatId || '');
+      if (!chatId || String(this.state.currentChat || '') !== chatId) {
+        return;
+      }
+      await this.ensureReportActionForChat(chatId);
+    } catch (error) {
+      console.error('[ChatManager] 报告状态事件处理失败:', error);
+    }
   }
 
   loadMissingChatIds() {
@@ -610,29 +630,47 @@ class ChatManager {
     if (!lastAssistant) return;
 
     const existingAction = lastAssistant.querySelector('.message-actions .view-report-btn');
-    if (existingAction) return;
 
-    const renderButton = buttonState => {
+    const buildButtonHtml = buttonState => {
       const state = buttonState?.buttonState || 'completed';
       const text = buttonState?.buttonText || '查看完整报告';
-      const actionElement = document.createElement('div');
-      actionElement.className = 'message-actions';
-      actionElement.style.display = 'flex';
-      actionElement.innerHTML = `
+      return `
                 <button class="view-report-btn ${state}"
                         onclick="viewReport()"
                         data-state="${state}">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    ${text}
+                        ${text}
                 </button>
             `;
+    };
+
+    const renderButton = buttonState => {
+      const actionElement = document.createElement('div');
+      actionElement.className = 'message-actions';
+      actionElement.style.display = 'flex';
+      actionElement.innerHTML = buildButtonHtml(buttonState);
       const targetContent =
         resolveTargetMessageContent() || lastAssistant.querySelector('.message-content');
       if (!targetContent) return;
       if (targetContent.querySelector('.message-actions .view-report-btn')) return;
       targetContent.appendChild(actionElement);
+    };
+
+    const updateExistingButton = buttonState => {
+      if (!existingAction) return false;
+      const state = buttonState?.buttonState || 'completed';
+      const text = buttonState?.buttonText || '查看完整报告';
+      existingAction.className = `view-report-btn ${state}`;
+      existingAction.setAttribute('data-state', state);
+      existingAction.innerHTML = `
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                ${text}
+            `;
+      return true;
     };
 
     const resolveTargetMessageContent = () => {
@@ -670,6 +708,9 @@ class ChatManager {
           'analysis'
         );
         if (buttonState.shouldShow) {
+          if (updateExistingButton(buttonState)) {
+            return;
+          }
           renderButton(buttonState);
           return;
         }
@@ -700,6 +741,9 @@ class ChatManager {
         this.isReportCompletionHint(msg.content)
     );
     if (this.state.analysisCompleted || hasMarker || hasReportLike || hasCompletionHint) {
+      if (updateExistingButton()) {
+        return;
+      }
       renderButton();
     }
   }

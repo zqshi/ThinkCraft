@@ -235,7 +235,10 @@ class ProjectManager {
 
 function registerPmDelegates(moduleName, defs) {
   defs.forEach(def => {
-    const config = typeof def === 'string' ? { method: def, delegate: def } : { ...def, delegate: def.delegate || def.method };
+    const config =
+      typeof def === 'string'
+        ? { method: def, delegate: def }
+        : { ...def, delegate: def.delegate || def.method };
     ProjectManager.prototype[config.method] = function (...args) {
       const module = window[moduleName];
       const resolveFallback = () =>
@@ -474,6 +477,9 @@ registerPmDelegates('projectManagerArtifactPreview', [
   'closeArtifactPreviewPanel',
   'renderArtifactPreviewPanel',
   'openArtifactPreviewInNewWindow',
+  'openArtifactEditor',
+  'cancelArtifactEdits',
+  'saveArtifactEdits',
   'copyArtifactContent',
   'downloadArtifact',
   { method: 'formatFileSize', passCtx: false, fallback: '0 B' }

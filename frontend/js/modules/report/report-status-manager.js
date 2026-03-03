@@ -26,7 +26,7 @@ class ReportStatusManager {
     /**
      * 报告生成超时时间（毫秒）
      */
-    this.TIMEOUT_MS = 30 * 60 * 1000; // 30分钟
+    this.TIMEOUT_MS = 8 * 60 * 1000; // 8分钟，避免长时间卡在“生成中”
   }
 
   /**
@@ -308,7 +308,12 @@ class ReportStatusManager {
     }
 
     // 已完成
-    if (status === 'completed' || status === 'success' || status === 'done' || status === 'finished') {
+    if (
+      status === 'completed' ||
+      status === 'success' ||
+      status === 'done' ||
+      status === 'finished'
+    ) {
       // 验证报告数据完整性
       if (!this.validateReportData(report)) {
         return {
@@ -398,6 +403,17 @@ class ReportStatusManager {
   onReportStatusChange(chatId, type, newStatus) {
     console.warn(`[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`);
     this.clearCache(chatId, type);
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(
+        new CustomEvent('tc:report-status-changed', {
+          detail: {
+            chatId: String(chatId || ''),
+            type: String(type || ''),
+            status: String(newStatus || '')
+          }
+        })
+      );
+    }
   }
 
   /**

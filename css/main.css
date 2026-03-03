@@ -1045,18 +1045,18 @@ body {
 }
 
 /* 项目空间引导升级样式（方向A） */
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-backdrop {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-backdrop {
   background: radial-gradient(circle at center, rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.72));
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-highlight {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-highlight {
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow:
     0 0 0 6px rgba(255, 255, 255, 0.08),
     0 0 24px rgba(59, 130, 246, 0.35);
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-tooltip {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-tooltip {
   border-radius: 16px;
   padding: 16px 18px;
   box-shadow:
@@ -1064,28 +1064,28 @@ body {
     0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-title {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-title {
   font-size: 17px;
   margin-bottom: 8px;
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-desc {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-desc {
   font-size: 13px;
   color: #475569;
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-actions {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-actions {
   gap: 10px;
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-actions .btn-secondary {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-actions .btn-secondary {
   background: transparent;
   border: none;
   color: #64748b;
   padding: 6px 6px;
 }
 
-.onboarding-overlay[data-onboarding-section="项目空间"] .onboarding-actions .btn-primary {
+.onboarding-overlay[data-onboarding-section='项目空间'] .onboarding-actions .btn-primary {
   background: linear-gradient(135deg, #2563eb, #4f46e5);
   border: none;
   color: #fff;
@@ -2054,8 +2054,13 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .share-btn {
@@ -2499,7 +2504,9 @@ body {
 }
 
 #projectIdeaReportModal .markdown-body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 13px;
   padding: 2px 6px;
   border-radius: 6px;
@@ -5226,7 +5233,6 @@ body {
   animation: slideOutToRight 0.25s ease;
 }
 
-
 @keyframes slideInFromRight {
   from {
     transform: translateX(100%);
@@ -5902,7 +5908,8 @@ body {
 }
 
 @keyframes pulse-blue {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
   }
   50% {
@@ -6240,7 +6247,10 @@ body {
   visibility: hidden;
   pointer-events: none;
   transform: translateX(4px);
-  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s,
+    visibility 0.2s;
 }
 
 .workflow-stage-artifact-card:hover .workflow-artifact-delete,
@@ -6979,7 +6989,8 @@ body {
 
 /* 可执行阶段的脉冲动画 */
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
   }
   50% {
@@ -6992,11 +7003,11 @@ body {
 }
 
 /* 交付物卡片悬停效果 */
-.stage-card [style*="background: white"][style*="border: 1px solid #e5e7eb"] {
+.stage-card [style*='background: white'][style*='border: 1px solid #e5e7eb'] {
   transition: all 0.2s ease;
 }
 
-.stage-card [style*="background: white"][style*="border: 1px solid #e5e7eb"]:hover {
+.stage-card [style*='background: white'][style*='border: 1px solid #e5e7eb']:hover {
   background: #f9fafb !important;
   border-color: #d1d5db !important;
   transform: translateX(4px);
@@ -7014,7 +7025,7 @@ body {
 }
 
 /* 状态标签动画 */
-.stage-card [style*="border-radius: 20px"] {
+.stage-card [style*='border-radius: 20px'] {
   transition: all 0.2s ease;
 }
 
@@ -7030,7 +7041,8 @@ body {
 
 /* 依赖提示闪烁效果 */
 @keyframes warning-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -7038,7 +7050,7 @@ body {
   }
 }
 
-.stage-card [style*="background: #fef3c7"] {
+.stage-card [style*='background: #fef3c7'] {
   animation: warning-pulse 2s ease-in-out infinite;
 }
 
@@ -7094,6 +7106,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 12px;
 }
 
 .stage-detail-title {
@@ -7103,6 +7116,68 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.stage-detail-title span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-detail-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.stage-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stage-detail-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: all 0.2s ease;
+}
+
+.stage-detail-action-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  display: block;
+}
+
+.stage-detail-action-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: #d1d5db;
+}
+
+.stage-detail-action-btn-primary {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.stage-detail-action-btn-primary:hover {
+  border-color: #a5b4fc;
+  background: #e0e7ff;
+  color: #3730a3;
 }
 
 .stage-detail-close {
@@ -7345,6 +7420,14 @@ body {
 
   .stage-detail-body {
     padding: 20px;
+  }
+
+  .stage-detail-header-top {
+    align-items: flex-start;
+  }
+
+  .stage-detail-header-right {
+    flex-shrink: 0;
   }
 }
 
@@ -7589,6 +7672,113 @@ body {
 
 .artifact-preview-actions button {
   flex: 1;
+}
+
+.artifact-editor-tip {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.artifact-editor-wrap {
+  min-height: 58vh;
+}
+
+.artifact-editor-textarea {
+  width: 100%;
+  min-height: 46vh;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.artifact-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.artifact-editor-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.artifact-editor-toolbar-btn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.artifact-editor-toolbar-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.artifact-editor-toolbar-select,
+.artifact-editor-toolbar-color {
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.artifact-editor-tiptap {
+  min-height: 46vh;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.artifact-editor-tiptap .ProseMirror {
+  min-height: 44vh;
+  outline: none;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+
+.artifact-editor-tiptap .ProseMirror p {
+  margin: 0 0 10px;
+}
+
+.artifact-editor-cm-host {
+  min-height: 46vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.artifact-editor-cm-host .cm-editor {
+  min-height: 46vh;
+}
+
+.artifact-editor-cm-host .cm-scroller {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 /* iframe预览容器 */

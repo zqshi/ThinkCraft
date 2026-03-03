@@ -140,8 +140,7 @@ npm install
 ├── docs/
 ├── frontend/
 │   ├── js/
-│   ├── css/
-│   └── experimental-src/
+│   └── css/
 ├── backend/
 │   ├── server.js
 │   ├── routes/
@@ -156,7 +155,7 @@ npm install
 
 ## 技术栈
 
-- 前端：原生 JavaScript（主应用）+ React（实验区 `frontend/experimental-src`）
+- 前端：原生 JavaScript（主应用）
 - 后端：Node.js + Express
 - 存储：MongoDB（主）+ Redis（缓存，可降级）
 - 测试：Jest

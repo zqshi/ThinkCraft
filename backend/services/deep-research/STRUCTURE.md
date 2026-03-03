@@ -82,7 +82,7 @@ Python 依赖列表：
 
 - [完整集成指南](../../../docs/DEEPRESEARCH_INTEGRATION.md)
 - [设置总结](../../../DEEPRESEARCH_SETUP.md)
-- [原始集成计划](../../../docs/loading/deepresearch-integration-plan.md)
+- [原始集成计划（归档）](../../../docs/archive/legacy-frontend/loading/deepresearch-integration-plan.md)
 
 ## 工作流程
 

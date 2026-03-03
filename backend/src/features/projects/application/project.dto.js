@@ -96,8 +96,10 @@ export class UpdateProjectRequestDTO {
         'in_progress',
         'testing',
         'completed',
+        'archived',
         'on_hold',
-        'cancelled'
+        'cancelled',
+        'deleted'
       ];
       if (!validStatuses.includes(this.updates.status)) {
         throw new Error(`无效的项目状态: ${this.updates.status}`);
