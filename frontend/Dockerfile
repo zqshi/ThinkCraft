@@ -8,7 +8,7 @@ WORKDIR /usr/share/nginx/html
 COPY index.html OS.html login.html ./
 COPY css/ ./css/
 COPY icons/ ./icons/
-COPY manifest.json service-worker.json* ./
+COPY manifest.json service-worker.js offline.html ./
 
 # 从frontend目录复制
 COPY frontend/ ./frontend/

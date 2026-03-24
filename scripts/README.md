@@ -17,6 +17,9 @@ Project startup entrypoint is maintained at repository root:
 - `cleanup-node-modules.js`: cleanup oversized/redundant `node_modules` trees.
 - `refactor/bootstrap-governance-loop.mjs`: bootstrap governance/refactor loop.
 
+Generated assets such as `public/css/*` are not committed. They are recreated by
+`sync-css.js` during local startup and build.
+
 ## Removed legacy scripts (2026-02-11)
 
 The following scripts were removed because they were not referenced anywhere and

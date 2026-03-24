@@ -28,7 +28,7 @@
 | `scripts/rotate-logs.sh`              | root/scripts | 日志轮转                                 | active |
 | `scripts/auth-agent-check.sh`         | root/scripts | Agent 鉴权自检                           | active |
 | `scripts/check-artifact-templates.js` | root/scripts | 检查 workflow 交付物模板声明与文件一致性 | active |
-| `scripts/sync-css.js`                 | root/scripts | 同步 `css/` 到 `public/css/`             | active |
+| `scripts/sync-css.js`                 | root/scripts | 同步 `css/` 到构建所需的 `public/css/`   | active |
 
 ## Tier-3（迁移/数据维护）
 
@@ -40,14 +40,6 @@
 | `backend/scripts/verify-migration.js`            | backend | 迁移结果验证         | active-maintenance |
 | `backend/scripts/clear-project-space.js`         | backend | 清理项目空间数据     | active-maintenance |
 | `backend/scripts/backfill-workflow-artifacts.js` | backend | 回填 workflow 交付物 | active-maintenance |
-
-## 历史/兼容脚本
-
-| Script               | Scope   | Purpose              | Status |
-| -------------------- | ------- | -------------------- | ------ |
-| `backend/service.sh` | backend | 旧后端单服务启停脚本 | legacy |
-
-> 约定：`legacy` 脚本不作为标准流程文档入口展示。
 
 ## 变更流程
 

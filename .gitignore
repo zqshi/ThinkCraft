@@ -38,11 +38,14 @@ Thumbs.db
 # Build output
 dist/
 build/
+public/css/
+backups/
 
 # Project artifacts
 projects/
 DeepResearch/
 backend/services/DeepResearch-repo/
+backend/services/deep-research/venv/
 
 # Temporary files
 tmp/

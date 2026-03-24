@@ -2,7 +2,7 @@
 
 基于 OpenRouter API 调用 Alibaba Tongyi-DeepResearch-30B-A3B 模型，为 ThinkCraft 提供深度研究能力。
 
-> 项目级启动与依赖管理以 `/Users/zqs/Downloads/project/ThinkCraft/docs/STARTUP_RUNBOOK.md` 为准。
+> 项目级启动与依赖管理以 `docs/STARTUP_RUNBOOK.md` 为准。
 > 本文档仅描述 DeepResearch 服务本身。
 
 ## 功能特性
