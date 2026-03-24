@@ -102,6 +102,7 @@ class ChatList {
    */
   async loadChats(options = {}) {
     const { preferLocal = false } = options;
+    let loadedFromServer = false;
     // 1. 先清理所有已经portal到body的菜单
     document.querySelectorAll('.chat-item-menu').forEach(menu => {
       if (menu.parentElement === document.body) {
@@ -116,6 +117,7 @@ class ChatList {
       try {
         const response = await window.apiClient.get('/api/chat', { page: 1, pageSize: 100 });
         if (response?.code === 0 && Array.isArray(response?.data?.chats)) {
+          loadedFromServer = true;
           state.chats = response.data.chats.map(chat => ({
             id: chat.id,
             title: chat.title,
@@ -147,8 +149,8 @@ class ChatList {
       }
     }
 
-    // 从 IndexedDB 加载对话（后端失败时）
-    if (!state.chats || state.chats.length === 0) {
+    // 从 IndexedDB 加载对话（仅在后端未成功返回时）
+    if ((!state.chats || state.chats.length === 0) && !loadedFromServer) {
       if (window.storageManager) {
         try {
           state.chats = await window.storageManager.getAllChats();

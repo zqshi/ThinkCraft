@@ -27,8 +27,27 @@ ensure_runtime_tools() {
   require_cmd "bash"
   require_cmd "curl"
   require_cmd "lsof"
-  require_cmd "node" "请安装 Node.js 18+（建议 20+）"
+  require_cmd "node" "请安装 Node.js 20.19+ 或 22.12+"
   require_cmd "npm" "请安装 npm（通常随 Node.js 提供）"
+}
+
+ensure_supported_node_version() {
+  local version
+  version="$(node -p "process.versions.node" 2>/dev/null || true)"
+  if [[ -z "$version" ]]; then
+    echo "[ERROR] 无法检测 Node.js 版本"
+    exit 1
+  fi
+
+  if ! node -e "
+const [major, minor, patch] = process.versions.node.split('.').map(Number);
+const ok = (major === 20 && (minor > 19 || (minor === 19 && patch >= 0))) || major >= 22;
+process.exit(ok ? 0 : 1);
+" >/dev/null 2>&1; then
+    echo "[ERROR] 当前 Node.js 版本不受支持: ${version}"
+    echo "[ERROR] 请使用 Node.js 20.19+ 或 22.12+ 后重试"
+    exit 1
+  fi
 }
 
 ensure_node_dependencies() {
@@ -65,6 +84,31 @@ compose_cmd() {
   else
     echo ""
   fi
+}
+
+read_env_value() {
+  local key="$1"
+  local env_file="$2"
+  local default_value="${3:-}"
+
+  if [[ ! -f "$env_file" ]]; then
+    echo "$default_value"
+    return 0
+  fi
+
+  local line
+  line="$(grep -E "^${key}=" "$env_file" | tail -n 1 || true)"
+  if [[ -z "$line" ]]; then
+    echo "$default_value"
+    return 0
+  fi
+
+  local value="${line#*=}"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  echo "$value"
 }
 
 wait_for_http() {
@@ -107,6 +151,14 @@ kill_port() {
   fi
 }
 
+kill_by_pattern() {
+  local pattern="$1"
+  if [[ -z "$pattern" ]]; then
+    return 0
+  fi
+  pkill -f "$pattern" 2>/dev/null || true
+}
+
 kill_pidfile() {
   local name="$1"
   local file="${RUN_DIR}/${name}.pid"
@@ -145,6 +197,17 @@ ensure_env_file() {
 }
 
 ensure_datastore_services() {
+  local env_file="${ROOT_DIR}/backend/.env"
+  local db_type
+  db_type="$(read_env_value "DB_TYPE" "$env_file" "memory")"
+  db_type="$(printf '%s' "$db_type" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ "$db_type" != "mongodb" ]]; then
+    rm -f "$DATASTORE_MANAGER_FILE"
+    echo "[INFO] DB_TYPE=${db_type:-memory}，跳过 MongoDB/Redis 自动拉起"
+    return 0
+  fi
+
   local compose
   compose="$(compose_cmd)"
   local manager=""
@@ -165,15 +228,30 @@ ensure_datastore_services() {
     return 0
   fi
 
+  local missing_required=()
+  local missing_optional=()
+
+  if [[ "$mongo_ready" != "true" ]]; then
+    missing_required+=("mongodb")
+  fi
+  if [[ "$redis_ready" != "true" ]]; then
+    missing_optional+=("redis")
+  fi
+
   if [[ -n "$compose" ]]; then
-    echo "[INFO] MongoDB/Redis 未完全就绪，尝试使用 Docker Compose 启动依赖"
-    if (cd "$ROOT_DIR" && $compose up -d mongodb redis); then
+    local services_to_start=("${missing_required[@]}" "${missing_optional[@]}")
+    if [[ "${#services_to_start[@]}" -gt 0 ]]; then
+      echo "[INFO] 数据存储未完全就绪，尝试使用 Docker Compose 启动: ${services_to_start[*]}"
+    fi
+    if [[ "${#services_to_start[@]}" -gt 0 ]] && (cd "$ROOT_DIR" && $compose up -d "${services_to_start[@]}"); then
       manager="docker-compose"
+    elif [[ "${#services_to_start[@]}" -gt 0 ]]; then
+      echo "[WARN] Docker Compose 启动依赖失败，将尝试其他方式或继续降级启动"
     fi
   fi
 
   if [[ -z "$manager" ]] && command -v brew >/dev/null 2>&1; then
-    echo "[INFO] Docker Compose 不可用，尝试使用 brew services 启动依赖"
+    echo "[INFO] 尝试使用 brew services 启动缺失依赖"
     if [[ "$mongo_ready" != "true" ]]; then
       brew services start mongodb-community@7 >/dev/null 2>&1 || \
         brew services start mongodb-community >/dev/null 2>&1 || true
@@ -188,11 +266,11 @@ ensure_datastore_services() {
     echo "$manager" >"$DATASTORE_MANAGER_FILE"
   else
     rm -f "$DATASTORE_MANAGER_FILE"
-    echo "[WARN] 未检测到可用依赖管理器（Docker Compose / brew），请手动启动 MongoDB/Redis"
+    echo "[WARN] 未能自动拉起 MongoDB/Redis，请确认本机服务状态"
   fi
 
   wait_for_port 27017 30 "MongoDB" || true
-  wait_for_port 6379 20 "Redis" || true
+  wait_for_port 6379 20 "Redis（可选）" || true
 }
 
 start_deep_research_if_possible() {
@@ -226,6 +304,7 @@ start_deep_research_if_possible() {
 echo "[INFO] 启动 ThinkCraft 全栈服务"
 
 ensure_runtime_tools
+ensure_supported_node_version
 ensure_node_dependencies "$ROOT_DIR" "前端/根项目"
 ensure_node_dependencies "${ROOT_DIR}/backend" "后端"
 
@@ -234,10 +313,19 @@ kill_pidfile "frontend"
 kill_pidfile "backend"
 kill_pidfile "css-sync"
 kill_pidfile "deep-research"
+
+# 兜底清理：处理非 pidfile 管理的残留进程
+kill_by_pattern "npm run dev:frontend"
+kill_by_pattern "node .*node_modules/.bin/vite"
+kill_by_pattern "npm run dev:css"
+kill_by_pattern "node scripts/sync-css.js"
+kill_by_pattern "NODE_ENV=development node server.js"
+kill_by_pattern "backend/services/deep-research/start.sh"
+kill_by_pattern "backend/services/deep-research/app.py"
+
 kill_port 5173
 kill_port 3000
 kill_port 5001
-pkill -f "sync-css.js" 2>/dev/null || true
 
 if [[ -x "${ROOT_DIR}/scripts/rotate-logs.sh" ]]; then
   LOG_DIR="$LOG_DIR" "${ROOT_DIR}/scripts/rotate-logs.sh" 5242880 3 || true

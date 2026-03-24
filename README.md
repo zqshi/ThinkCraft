@@ -1,83 +1,153 @@
 # ThinkCraft
 
-ThinkCraft 是一款面向创新团队的 AI 项目化引擎，定位不是“再一个聊天工具”，而是“把创意变成交付”的执行系统。
-它覆盖从想法澄清、策略成稿、原型生成到阶段推进的完整链路，帮助团队把不确定的灵感，转化为可验证、可追踪、可复用的项目资产。
+> 让灵感不再停留在聊天框，而是一路推进到可验证、可交付、可复用的项目资产。
 
-## 首页摘要
+ThinkCraft 是一套面向创新团队的 AI 创意验证工作台。  
+它不只是“帮你写点东西”，而是把**想法澄清、策略成稿、原型生成、阶段推进、结果沉淀**串成一条真正能落地的链路。
 
-**认知平权时代的创新基础设施。**
-ThinkCraft 不只是“帮你写”，而是“帮你把创意推进到可交付”。
+很多团队卡住，不是因为没有创意，而是因为创意一旦离开会议、群聊和白板，就很难继续推进。  
+ThinkCraft 要解决的正是这条断裂链路：
 
-**传统困境 → ThinkCraft 方案**
+- 想法很多，但没人把它收敛成明确的问题、目标和边界
+- 文档写了一堆，但离真正验证和交付还有很长距离
+- 原型、分析、对话和决策散落在不同工具里，难追踪、难复用、难接手
 
-- 创意容易停留在聊天记录 → 通过结构化流程沉淀为可执行项目资产
-- 从想法到原型周期长、成本高 → 文档与原型一体产出，加速验证闭环
-- 长任务输出不稳定、结果难复用 → 分轮生成、断点恢复、分块追踪保障持续交付
+## 一句话理解
 
-**你将获得的结果**
+ThinkCraft 把“创意讨论”升级为“项目推进系统”，让团队从一次灵感对话，走到一套可执行的验证流程。
 
-- 更快：从讨论到可验证成果的链路显著缩短
-- 更稳：复杂工件可追踪、可恢复、可持续迭代
-- 更省：减少跨工具切换与重复沟通的人力损耗
+![ThinkCraft 官网首屏](./docs/images/thinkcraft-home.png)
 
-## 产品定位
+## 它为什么值得看
 
-ThinkCraft 聚焦“创意验证”这段最容易失控、也最影响成败的流程，解决三个关键断层：
+- 它不是另一个聊天工具，而是把对话直接推进成项目流程
+- 它不是只生成一份内容，而是同时生成策略、结构、验证和原型
+- 它不是一次性输出，而是支持分轮生成、去重拼接、断点恢复和过程追踪
+- 它不是黑盒 AI 演示，而是能进入团队日常工作的工程化系统
 
-- 从讨论到执行：聊天很多，决策很少，难进入真正交付
-- 从内容到原型：文档与页面割裂，验证周期长、试错成本高
-- 从一次产出到持续复用：长任务不稳定、结果难追踪、经验难沉淀
+## 你会立刻感受到什么
 
-## 核心卖点（对外）
+- 从“有个想法”到“有套验证方案”明显更快
+- 从“内容很多”到“决策清楚、阶段明确”明显更稳
+- 从“每次都重来”到“项目资产持续沉淀”明显更省
+- 从“看起来像 AI”到“真正可纳入团队流程”明显更实用
 
-1. **不是生成一份内容，而是推进一个项目**
-   ThinkCraft 以阶段化工作流驱动协作，围绕“状态、责任、产物”推进，而不是停留在一次性内容生成。
+## 产品价值
 
-2. **不是单点提效，而是端到端缩短验证周期**
-   从策略文档到可预览原型可连续产出，减少跨工具切换与信息折损，让“想法验证”从周级压缩到天级。
+### 1. 对话即项目，不再停留在一次聊天
 
-3. **不是演示级 AI，而是可持续交付的工程能力**
-   针对长内容与复杂工件，支持分轮生成、重叠去重、结束标记与断点恢复，降低截断与返工风险。
+ThinkCraft 用阶段化工作流承接对话，把用户输入逐步转化为目标、问题、交付物和推进状态，而不是让高价值讨论沉没在聊天记录里。
 
-4. **不是黑盒输出，而是可运维、可治理的生产系统**
-   提供健康检查、就绪检查、配置化工作流、脚本注册与架构 ADR，兼顾业务速度与工程可控性。
+### 2. 文档与原型一起推进，缩短验证周期
 
-## 为什么是 ThinkCraft
+从策略分析到可预览原型，ThinkCraft 支持连续产出。  
+团队不用在“先写文档”还是“先做界面”之间来回切换，而是让验证闭环尽早形成。
 
-- **前置价值**：聚焦“创意到立项”前链路，补齐多数开发工具覆盖不足的验证阶段
-- **流程价值**：把方法论固化为阶段流程，降低团队对个人经验的依赖
-- **资产价值**：沉淀为可追踪的项目工件，而非一次性聊天记录
-- **系统价值**：在可运行、可恢复、可维护的基础上放大 AI 产能，而不是牺牲稳定性换速度
+### 3. 长任务更稳定，不怕中断和返工
 
-## 典型场景
+针对长内容和复杂交付物，系统支持分轮生成、重叠去重、结束标记和断点恢复，避免一次输出失败就全部重来。
 
-- 方案共创：将讨论快速沉淀为结构化文档与执行路径
+### 4. 结果会沉淀，而不是生成后即蒸发
+
+ThinkCraft 不把价值留在临时会话里，而是把过程中的结构、产物和状态逐步沉淀成项目资产，便于复盘、协作和二次利用。
+
+## 典型使用场景
+
+- 创意澄清：把模糊想法快速收敛为结构化问题
+- 方案共创：把讨论沉淀为策略文档与执行路径
 - 产品孵化：文档与原型同步产出，缩短验证周期
-- 团队协同：跨角色按阶段推进，过程透明、责任清晰
-- 长任务交付：大体量内容稳定生成，支持恢复与追踪
+- 团队推进：按阶段追踪状态、责任和产物
+- 长任务交付：稳定生成大体量内容，并支持恢复
 
-## 关键能力
+## 产品界面示意
 
-1. **对话即项目**
-   一次高质量讨论，可直接进入项目化流程，减少从“聊完”到“开工”的空档。
+这些截图用于帮助新用户快速理解 ThinkCraft 当前的产品表达与核心界面。
 
-2. **阶段化协同推进**
-   以阶段为单位管理状态、责任与产物，团队协作节奏更可控。
+### 1. 官网与产品定位页
 
-3. **稳定生成与断点恢复**
-   长文档与原型支持分块生成、重叠去重与续写恢复，降低中断风险。
+![ThinkCraft 官网与产品定位页](./docs/images/thinkcraft-home.png)
 
-4. **文档 + 原型一体交付**
-   策略内容与可视化验证同步输出，减少多工具切换与信息损耗。
+### 2. 登录入口
 
-## 一句话总结
+![ThinkCraft 登录入口](./docs/images/thinkcraft-login.png)
 
-ThinkCraft 的核心竞争力，不是“会生成”，而是“能把生成结果稳定地推进为可交付项目”。
+### 3. 主工作台
+
+![ThinkCraft 主工作台](./docs/images/thinkcraft-workspace.png)
+
+## ThinkCraft 的工作方式
+
+```text
+想法输入
+   ↓
+问题澄清与结构化分析
+   ↓
+阶段化推进与交付物生成
+   ↓
+原型 / 文档 / 报告同步产出
+   ↓
+分轮续写、去重拼接、断点恢复
+   ↓
+项目资产沉淀与持续迭代
+```
+
+## 适合谁
+
+- 创始人 / 业务负责人：快速把创意推到可验证阶段
+- 产品经理：把讨论收敛为结构化方案和推进路径
+- 创新团队：减少跨工具切换，让协作链路更短
+- AI 产品团队：把模型能力纳入真实项目流程，而不是停留在 demo
+
+## 当前已落地能力
+
+- 官网入口、登录页、主应用工作台
+- 对话式创意澄清与思维引导
+- 阶段化交付流程与结果沉淀
+- 原型 / 方案类工件生成
+- 长任务分轮生成、拼接与恢复
+- 后端健康检查、就绪检查、脚本化启停
+- 可选 MongoDB / Redis / DeepResearch 集成
 
 ## 快速开始
 
+环境要求：
+
+- Node.js `20.19+` 或 `22.12+`
+- npm `10+`
+- 默认开发配置为 `DB_TYPE=memory` 且 `REDIS_ENABLED=false`
+
+### 1. 克隆项目
+
+```bash
+git clone git@github.com:zqshi/ThinkCraft.git
+cd ThinkCraft
+```
+
+### 2. 安装依赖
+
 ```bash
 npm install
+```
+
+### 3. 准备开发环境配置
+
+如果本地还没有后端环境文件：
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+默认示例配置可以直接用于本地体验：
+
+- `DB_TYPE=memory`
+- `REDIS_ENABLED=false`
+- `SMS_PROVIDER=mock`
+
+这意味着新同学首次拉取项目时，不需要先安装 MongoDB / Redis，也能先把项目跑起来。
+
+### 4. 启动项目
+
+```bash
 ./start-all.sh
 ```
 
@@ -87,45 +157,148 @@ npm install
 ./stop-all.sh
 ```
 
-兼容说明：
+兼容命令：
 
-- `./dev.sh` 为历史兼容命令，内部转发到 `./start-all.sh`
-- `./stop.sh` 为历史兼容命令，内部转发到 `./stop-all.sh`
+- `npm run start:all`
+- `npm run dev`
+- `./dev.sh`
 
-## 运行入口
+## 本地运行入口
 
-- 前端应用：`http://127.0.0.1:5173/index.html?app=1`
-- 产品介绍页：`http://127.0.0.1:5173/OS.html`
+- 主应用：`http://127.0.0.1:5173/index.html?app=1`
+- 官网页：`http://127.0.0.1:5173/OS.html`
+- 登录页：`http://127.0.0.1:5173/login.html`
 - 后端健康检查：`http://127.0.0.1:3000/health`
 - 后端就绪检查：`http://127.0.0.1:3000/ready`
-- DeepResearch（可选）：`http://127.0.0.1:5001/health`
+- DeepResearch 可选服务：`http://127.0.0.1:5001/health`
 
-## 生成工作流配置
+## 开发配置说明
 
-- 核心配置文件：`backend/config/workflow-generation.js`
-- 环境变量示例：`backend/.env.example`
+核心环境文件：
 
-当前默认策略：
+- 开发示例：`backend/.env.example`
+- 生产示例：`backend/.env.production.example`
+- 工作流配置：`backend/config/workflow-generation.js`
 
-- `prototype` 多轮续写默认 `10` 轮（`WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`）
-- `prototype/preview/ui-preview` 结束标记默认 `<!--END_HTML-->`
-- 非 HTML 交付物默认 `4` 轮（`WORKFLOW_ARTIFACT_LOOP_MAX_ROUNDS=4`）
-- 原型支持分轮拼接与重叠去重，完成后写入分块会话（`artifact-chunks`）用于追踪与断点恢复
+当前默认开发策略：
+
+- `WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`
+- `WORKFLOW_PROTOTYPE_END_MARKER=<!--END_HTML-->`
+- `WORKFLOW_ARTIFACT_LOOP_MAX_ROUNDS=4`
+
+## 上线前必须修改的配置
+
+本项目默认示例配置是为了让新用户快速跑起来，不适合直接用于生产环境。  
+上线前至少要完成下面这些修改。
+
+### 1. 复制生产环境文件
+
+```bash
+cp backend/.env.production.example backend/.env.production
+```
+
+### 2. 切换为生产模式
+
+你需要确认：
+
+- `NODE_ENV=production`
+- `FRONTEND_URL=https://你的正式域名`
+- `DB_TYPE=mongodb`
+
+### 3. 配置生产数据库与缓存
+
+必须替换：
+
+- `MONGODB_URI`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_PASSWORD`（如有）
+
+建议：
+
+- 生产环境使用独立 MongoDB 实例
+- Redis 不要继续使用开发默认值
+- 不要把生产数据库直接指向本地地址
+
+### 4. 替换认证与密钥配置
+
+必须替换：
+
+- `DEEPSEEK_API_KEY`
+- `ACCESS_TOKEN_SECRET`
+- `REFRESH_TOKEN_SECRET`
+
+如启用 DeepResearch，还要配置：
+
+- `DEEPRESEARCH_SERVICE_URL`
+- `backend/services/deep-research/.env` 中的 `OPENROUTER_API_KEY`
+
+### 5. 启用真实短信服务
+
+生产环境不要使用：
+
+- `SMS_PROVIDER=mock`
+
+你需要在以下两种方案里选择一种并填入完整配置：
+
+- 阿里云短信：`ALIYUN_ACCESS_KEY_ID`、`ALIYUN_ACCESS_KEY_SECRET`、`ALIYUN_SMS_SIGN_NAME`
+- 腾讯云短信：`TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`、`TENCENT_SMS_APP_ID`、`TENCENT_SMS_SIGN`
+
+### 6. 检查 OCR / 视觉分析配置
+
+如果生产环境需要视觉分析，请补齐：
+
+- `VISION_OCR_PROVIDER`
+- `TENCENT_SECRET_ID`
+- `TENCENT_SECRET_KEY`
+- `TENCENT_REGION`
+
+### 7. 运行生产配置校验
+
+```bash
+node backend/scripts/validate-prod-env.js backend/.env.production
+```
+
+如果这里还有缺项或警告，不要直接上线。
+
+## 生产部署建议
+
+- 前端域名与后端 API 域名要明确区分，并正确设置 `FRONTEND_URL`
+- 生产必须使用 MongoDB，不要沿用 `memory` 模式
+- DeepResearch 是可选服务，未配置时主流程仍可运行，但深度研究能力不可用
+- 上线前至少完成一次健康检查、就绪检查和核心流程冒烟验证
+
+## 常用命令
+
+```bash
+# 全栈启动
+./start-all.sh
+
+# 全栈停止
+./stop-all.sh
+
+# 前端开发
+npm run dev:frontend
+
+# 代码检查
+npm run lint
+
+# 测试
+npm test
+
+# 工作流冒烟验证
+npm run test:smoke:workflow
+```
 
 ## 文档导航
 
-- 启停权威文档：`docs/STARTUP_RUNBOOK.md`
-- 文档治理规范：`docs/DOC_GOVERNANCE.md`
-- 脚本注册表：`docs/SCRIPT_REGISTRY.md`
-- 架构决策 ADR：`docs/architecture/ADR-001-modular-refactor.md`
-- 开发文档索引：`docs/README.md`
+- 启停运行手册：[docs/STARTUP_RUNBOOK.md](./docs/STARTUP_RUNBOOK.md)
+- 文档治理规范：[docs/DOC_GOVERNANCE.md](./docs/DOC_GOVERNANCE.md)
+- 脚本注册表：[docs/SCRIPT_REGISTRY.md](./docs/SCRIPT_REGISTRY.md)
+- 架构 ADR：[docs/architecture/ADR-001-modular-refactor.md](./docs/architecture/ADR-001-modular-refactor.md)
+- 开发文档索引：[docs/README.md](./docs/README.md)
 
-## 架构说明
-
-- 前端主入口采用 `frontend/js/modules/*` 分层加载
-- 重构背景与决策依据见：`docs/architecture/ADR-001-modular-refactor.md`
-
-## 项目结构（当前有效）
+## 项目结构
 
 ```text
 .
@@ -134,8 +307,6 @@ npm install
 ├── login.html
 ├── start-all.sh
 ├── stop-all.sh
-├── dev.sh
-├── stop.sh
 ├── scripts/
 ├── docs/
 ├── frontend/
@@ -153,26 +324,6 @@ npm install
 └── run/
 ```
 
-## 技术栈
+## 许可
 
-- 前端：原生 JavaScript（主应用）
-- 后端：Node.js + Express
-- 存储：MongoDB（主）+ Redis（缓存，可降级）
-- 测试：Jest
-- 构建：Vite
-
-## 开发命令
-
-```bash
-# 全栈启动（推荐）
-./start-all.sh
-
-# 前端开发服务器
-npm run dev:frontend
-
-# 代码检查
-npm run lint
-
-# 测试
-npm test
-```
+[MIT](https://opensource.org/licenses/MIT)

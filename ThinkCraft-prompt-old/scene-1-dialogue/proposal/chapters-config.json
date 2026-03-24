@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "document_type": "proposal",
+  "full_document_prompt": "full-document.md",
+  "chapters": [
+    {
+      "id": "project-summary",
+      "name": "项目概述",
+      "required": true,
+      "template_file": "chapters/project-summary.md",
+      "agent": { "name": "产品经理", "emoji": "📋", "estimated_time": 25 }
+    },
+    {
+      "id": "problem-insight",
+      "name": "问题洞察",
+      "required": false,
+      "template_file": "chapters/problem-insight.md",
+      "agent": { "name": "用户研究专家", "emoji": "🔍", "estimated_time": 35 }
+    },
+    {
+      "id": "product-solution",
+      "name": "产品方案",
+      "required": false,
+      "template_file": "chapters/product-solution.md",
+      "agent": { "name": "产品设计专家", "emoji": "💡", "estimated_time": 40 }
+    },
+    {
+      "id": "implementation-path",
+      "name": "实施路径",
+      "required": false,
+      "template_file": "chapters/implementation-path.md",
+      "agent": { "name": "项目管理专家", "emoji": "🛤️", "estimated_time": 35 }
+    },
+    {
+      "id": "competitive-analysis",
+      "name": "竞品分析",
+      "required": false,
+      "template_file": "chapters/competitive-analysis.md",
+      "agent": { "name": "竞品分析专家", "emoji": "⚔️", "estimated_time": 30 }
+    },
+    {
+      "id": "budget-planning",
+      "name": "预算规划",
+      "required": false,
+      "template_file": "chapters/budget-planning.md",
+      "agent": { "name": "财务规划专家", "emoji": "💰", "estimated_time": 30 }
+    },
+    {
+      "id": "risk-control",
+      "name": "风险控制",
+      "required": false,
+      "template_file": "chapters/risk-control.md",
+      "agent": { "name": "风险管理专家", "emoji": "⚠️", "estimated_time": 25 }
+    }
+  ]
+}

@@ -450,7 +450,18 @@ class ChatManager {
       }
     }
 
-    if (!chat) return;
+    if (!chat) {
+      console.warn('[ChatManager] 会话数据缺失，清理不可用会话', { chatId });
+      this.missingChatIds.add(targetId);
+      this.persistMissingChatIds();
+      await this.pruneMissingChat(chatId);
+      if (window.chatList?.loadChats) {
+        await window.chatList.loadChats({ preferLocal: false });
+      } else if (typeof loadChats === 'function') {
+        await loadChats({ preferLocal: false });
+      }
+      return;
+    }
 
     const currentChatId = this.state.currentChat;
     if (currentChatId && String(currentChatId) !== String(chatId)) {
@@ -494,36 +505,43 @@ class ChatManager {
 
     // 将报告状态写入 IndexedDB，便于按钮恢复
     if (window.storageManager && chat.reportState) {
-      const reportTypes = ['analysis', 'business', 'proposal'];
-      for (const type of reportTypes) {
-        const stateEntry = chat.reportState?.[type];
-        if (!stateEntry) continue;
-        const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
-        const nextData = stateEntry.data ?? existing?.data ?? null;
-        const nextStatus = stateEntry.status ?? existing?.status;
-        if (nextStatus === 'completed' && !nextData) {
-          const warningKey = `${chat.id}:${type}`;
-          if (!this.incompleteReportWarningKeys.has(warningKey)) {
-            this.incompleteReportWarningKeys.add(warningKey);
-            console.warn('[ChatManager] 跳过写入完成状态但缺少数据的报告', {
-              chatId: chat.id,
-              type,
-              status: nextStatus
-            });
+      try {
+        const reportTypes = ['analysis', 'business', 'proposal'];
+        for (const type of reportTypes) {
+          const stateEntry = chat.reportState?.[type];
+          if (!stateEntry) continue;
+          const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
+          const nextData = stateEntry.data ?? existing?.data ?? null;
+          const nextStatus = stateEntry.status ?? existing?.status;
+          if (nextStatus === 'completed' && !nextData) {
+            const warningKey = `${chat.id}:${type}`;
+            if (!this.incompleteReportWarningKeys.has(warningKey)) {
+              this.incompleteReportWarningKeys.add(warningKey);
+              console.warn('[ChatManager] 跳过写入完成状态但缺少数据的报告', {
+                chatId: chat.id,
+                type,
+                status: nextStatus
+              });
+            }
+            continue;
           }
-          continue;
+          await window.storageManager.saveReport({
+            id: existing?.id,
+            type,
+            chatId: chat.id,
+            data: nextData,
+            status: nextStatus,
+            progress: stateEntry.progress ?? existing?.progress,
+            startTime: stateEntry.startTime ?? existing?.startTime,
+            endTime: stateEntry.endTime ?? existing?.endTime,
+            error: stateEntry.error ?? existing?.error ?? null,
+            selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
+          });
         }
-        await window.storageManager.saveReport({
-          id: existing?.id,
-          type,
+      } catch (error) {
+        console.error('[ChatManager] 恢复报告状态失败，继续加载会话', {
           chatId: chat.id,
-          data: nextData,
-          status: nextStatus,
-          progress: stateEntry.progress ?? existing?.progress,
-          startTime: stateEntry.startTime ?? existing?.startTime,
-          endTime: stateEntry.endTime ?? existing?.endTime,
-          error: stateEntry.error ?? existing?.error ?? null,
-          selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
+          error
         });
       }
     }

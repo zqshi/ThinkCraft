@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "ThinkCraft AI思维助手项目配置",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10"
+  },
   "scripts": {
     "start:all": "./start-all.sh",
     "stop:all": "./stop-all.sh",
@@ -21,7 +25,7 @@
     "lint:fix": "eslint . --ext .js --fix --max-warnings 0",
     "format": "prettier --write \"**/*.{js,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,css,md}\"",
-    "postinstall": "cd backend && npm install",
+    "postinstall": "npm install --prefix backend",
     "prepare": "husky",
     "cleanup": "node backend/scripts/clear-project-space.js",
     "cleanup:verify": "node -e \"const mongoose = require('mongoose'); mongoose.connect('mongodb://localhost:27017/thinkcraft').then(async () => { const db = mongoose.connection.db; const collections = ['projects', 'chats', 'business_plans', 'analysis_reports', 'users']; for (const col of collections) { const count = await db.collection(col).countDocuments(); console.log(col + ': ' + count); } process.exit(0); });\"",

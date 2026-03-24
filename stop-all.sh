@@ -65,6 +65,14 @@ kill_port() {
   fi
 }
 
+kill_by_pattern() {
+  local pattern="$1"
+  if [[ -z "$pattern" ]]; then
+    return 0
+  fi
+  pkill -f "$pattern" 2>/dev/null || true
+}
+
 echo "[INFO] 停止 ThinkCraft 全栈服务"
 ensure_runtime_tools
 
@@ -73,10 +81,18 @@ kill_pidfile "backend"
 kill_pidfile "css-sync"
 kill_pidfile "deep-research"
 
+# 兜底清理：处理非 pidfile 管理的残留进程
+kill_by_pattern "npm run dev:frontend"
+kill_by_pattern "node .*node_modules/.bin/vite"
+kill_by_pattern "npm run dev:css"
+kill_by_pattern "node scripts/sync-css.js"
+kill_by_pattern "NODE_ENV=development node server.js"
+kill_by_pattern "backend/services/deep-research/start.sh"
+kill_by_pattern "backend/services/deep-research/app.py"
+
 kill_port 5173
 kill_port 3000
 kill_port 5001
-pkill -f "sync-css.js" 2>/dev/null || true
 
 if [[ -f "$DATASTORE_MANAGER_FILE" ]]; then
   manager="$(cat "$DATASTORE_MANAGER_FILE" 2>/dev/null || true)"

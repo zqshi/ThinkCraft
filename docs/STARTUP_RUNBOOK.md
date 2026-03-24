@@ -10,7 +10,7 @@
 
 ## 2. 一次性准备
 
-1. 安装 Node.js 18+ 与 npm
+1. 安装 Node.js `20.19+` 或 `22.12+`，以及 npm `10+`
 2. 安装项目依赖：
 
 ```bash
@@ -22,6 +22,8 @@ npm install
 ```bash
 cp backend/.env.example backend/.env
 ```
+
+默认示例配置使用 `DB_TYPE=memory` 与 `REDIS_ENABLED=false`，新环境可直接启动；只有在需要持久化或缓存时，才改为启用 MongoDB / Redis。
 
 4. 如需调整交互原型分轮生成策略，修改 `backend/.env` 中的工作流参数（默认 `WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`，结束标记 `WORKFLOW_PROTOTYPE_END_MARKER=<!--END_HTML-->`）。
 
@@ -42,7 +44,7 @@ npm run dev
 ### 启动脚本会做什么
 
 1. 清理旧 PID 与冲突端口（`3000/5173/5001`）
-2. 检查 MongoDB/Redis，若未就绪则尝试通过 Docker Compose 拉起
+2. 当 `backend/.env` 中 `DB_TYPE=mongodb` 时，检查 MongoDB/Redis；MongoDB 未就绪则尝试通过 Docker Compose 或 brew 拉起，Redis 为可选
 3. 启动 CSS 同步、后端、前端
 4. 检查 Agent 协作接口可用性（`/api/agents/types`）
 5. 检测 DeepResearch 条件满足时自动启动（需要 `backend/services/deep-research/.env` 且配置 `OPENROUTER_API_KEY`）
@@ -78,7 +80,7 @@ npm run stop:all
 
 ## 7. 外部依赖说明
 
-- MongoDB：后端优先使用 `DB_TYPE=mongodb`；连接失败会重试，开发环境会自动降级到 `memory`，避免服务直接退出
+- MongoDB：默认示例配置为 `DB_TYPE=memory`；仅当显式设置 `DB_TYPE=mongodb` 时才需要本地 MongoDB，连接失败会重试，开发环境会自动降级到 `memory`
 - Redis：可选依赖，初始化失败时后端继续运行
 - AgentScope：当前为后端内置能力，无需独立进程
 - DeepResearch：独立 Python 微服务；未配置 Key 时不会自动拉起，主流程仍可使用（仅深度研究模式不可用）

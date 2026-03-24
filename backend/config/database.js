@@ -33,7 +33,7 @@ export const redisConfig = {
   db: parseInt(process.env.REDIS_DB || '0'),
   // 连接配置
   socket: {
-    reconnectStrategy: (retries) => {
+    reconnectStrategy: retries => {
       if (retries > 10) {
         return new Error('Redis连接重试次数过多');
       }
@@ -41,6 +41,20 @@ export const redisConfig = {
     }
   }
 };
+
+function isTruthy(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function shouldConnectRedis() {
+  if (process.env.REDIS_ENABLED !== undefined) {
+    return isTruthy(process.env.REDIS_ENABLED);
+  }
+  return (process.env.DB_TYPE || 'memory') === 'mongodb';
+}
 
 /**
  * MongoDB连接管理器
@@ -71,7 +85,7 @@ class MongoDBManager {
         console.log('[MongoDB] 连接成功');
       });
 
-      this.connection.on('error', (err) => {
+      this.connection.on('error', err => {
         console.error('[MongoDB] 连接错误:', err);
       });
 
@@ -141,7 +155,7 @@ class RedisManager {
         console.log('[Redis] 连接成功');
       });
 
-      this.client.on('error', (err) => {
+      this.client.on('error', err => {
         console.error('[Redis] 连接错误:', err);
       });
 
@@ -214,10 +228,14 @@ export async function initDatabases() {
     }
 
     // 连接Redis（可选）
-    try {
-      await redisManager.connect();
-    } catch (error) {
-      console.warn('[Database] Redis连接失败，将继续运行:', error.message);
+    if (shouldConnectRedis()) {
+      try {
+        await redisManager.connect();
+      } catch (error) {
+        console.warn('[Database] Redis连接失败，将继续运行:', error.message);
+      }
+    } else {
+      console.log('[Database] Redis 未启用，跳过连接');
     }
 
     console.log('[Database] 数据库连接初始化完成');
