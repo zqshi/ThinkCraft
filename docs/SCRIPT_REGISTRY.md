@@ -11,12 +11,12 @@
 
 ## Tier-1（统一入口）
 
-| Script         | Scope | Purpose                              | Status        |
-| -------------- | ----- | ------------------------------------ | ------------- |
-| `start-all.sh` | root  | 启动前后端、CSS 同步、依赖检查与拉起 | active        |
-| `stop-all.sh`  | root  | 停止前后端与相关进程并清理端口       | active        |
-| `dev.sh`       | root  | 历史兼容入口，转发到 `start-all.sh`  | active-compat |
-| `stop.sh`      | root  | 历史兼容入口，转发到 `stop-all.sh`   | active-compat |
+| Script         | Scope | Purpose                                             | Status        |
+| -------------- | ----- | --------------------------------------------------- | ------------- |
+| `start-all.sh` | root  | 启动前后端、一次性同步 CSS、检查依赖，可选 PM2 托管 | active        |
+| `stop-all.sh`  | root  | 停止前后端并清理核心端口                            | active        |
+| `dev.sh`       | root  | 历史兼容入口，转发到 `start-all.sh`                 | active-compat |
+| `stop.sh`      | root  | 历史兼容入口，转发到 `stop-all.sh`                  | active-compat |
 
 ## Tier-2（运维与质量）
 

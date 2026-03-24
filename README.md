@@ -106,7 +106,7 @@ ThinkCraft 不把价值留在临时会话里，而是把过程中的结构、产
 - 原型 / 方案类工件生成
 - 长任务分轮生成、拼接与恢复
 - 后端健康检查、就绪检查、脚本化启停
-- 可选 MongoDB / Redis / DeepResearch 集成
+- 可选 MongoDB / Redis / DeepResearch 集成（默认开发启动不依赖）
 
 ## 快速开始
 
@@ -128,6 +128,8 @@ cd ThinkCraft
 ```bash
 npm install
 ```
+
+首次启动时如果发现 `backend/node_modules` 缺失，`./start-all.sh` 会自动补装后端依赖，不需要再记额外安装命令。
 
 ### 3. 准备开发环境配置
 
@@ -157,9 +159,33 @@ cp backend/.env.example backend/.env
 ./stop-all.sh
 ```
 
+默认启动只拉起两个核心服务：
+
+- 前端（Vite）
+- 后端（Express API）
+
+不会在首次开发启动时自动拉起：
+
+- MongoDB
+- Redis
+- DeepResearch Python 服务
+
+如果你希望服务以更稳定的常驻方式运行，并且本机已经安装了 `pm2`，可以执行：
+
+```bash
+./start-all.sh --pm2
+```
+
+或：
+
+```bash
+npm run start:all:pm2
+```
+
 兼容命令：
 
 - `npm run start:all`
+- `npm run start:all:pm2`（可选，需要本机已安装 `pm2`）
 - `npm run dev`
 - `./dev.sh`
 
@@ -170,7 +196,6 @@ cp backend/.env.example backend/.env
 - 登录页：`http://127.0.0.1:5173/login.html`
 - 后端健康检查：`http://127.0.0.1:3000/health`
 - 后端就绪检查：`http://127.0.0.1:3000/ready`
-- DeepResearch 可选服务：`http://127.0.0.1:5001/health`
 
 ## 开发配置说明
 
@@ -182,6 +207,8 @@ cp backend/.env.example backend/.env
 
 当前默认开发策略：
 
+- 默认走内存存储，不要求本机先装 MongoDB / Redis
+- 启动前只做一次 CSS 资源同步，不再常驻额外 watcher
 - `WORKFLOW_PROTOTYPE_LOOP_MAX_ROUNDS=10`
 - `WORKFLOW_PROTOTYPE_END_MARKER=<!--END_HTML-->`
 - `WORKFLOW_ARTIFACT_LOOP_MAX_ROUNDS=4`
@@ -228,7 +255,7 @@ cp backend/.env.production.example backend/.env.production
 - `ACCESS_TOKEN_SECRET`
 - `REFRESH_TOKEN_SECRET`
 
-如启用 DeepResearch，还要配置：
+如启用 DeepResearch，还要单独部署并配置：
 
 - `DEEPRESEARCH_SERVICE_URL`
 - `backend/services/deep-research/.env` 中的 `OPENROUTER_API_KEY`
@@ -266,6 +293,7 @@ node backend/scripts/validate-prod-env.js backend/.env.production
 - 前端域名与后端 API 域名要明确区分，并正确设置 `FRONTEND_URL`
 - 生产必须使用 MongoDB，不要沿用 `memory` 模式
 - DeepResearch 是可选服务，未配置时主流程仍可运行，但深度研究能力不可用
+- 标准开发启动脚本不会代替你管理 Docker、brew services 或其他本机守护进程
 - 上线前至少完成一次健康检查、就绪检查和核心流程冒烟验证
 
 ## 常用命令

@@ -6,11 +6,63 @@ import { getSmsService, SmsService } from '../../../infrastructure/sms/sms.servi
 import { cacheService } from '../../../infrastructure/cache/redis-cache.service.js';
 import { logger } from '../../../../middleware/logger.js';
 
+class InMemoryVerificationStore {
+  constructor() {
+    this.store = new Map();
+  }
+
+  isEnabled() {
+    return true;
+  }
+
+  async get(key) {
+    const record = this.store.get(key);
+    if (!record) {
+      return null;
+    }
+    if (record.expiresAt <= Date.now()) {
+      this.store.delete(key);
+      return null;
+    }
+    return record.value;
+  }
+
+  async set(key, value, ttlSeconds = 0) {
+    const ttlMs = Math.max(0, Number(ttlSeconds) || 0) * 1000;
+    this.store.set(key, {
+      value,
+      expiresAt: Date.now() + ttlMs
+    });
+    return true;
+  }
+
+  async del(key) {
+    this.store.delete(key);
+    return true;
+  }
+}
+
+const devVerificationStore = new InMemoryVerificationStore();
+
 export class PhoneVerificationUseCase {
   constructor(userRepository, smsService = null, cacheServiceInstance = null) {
     this.userRepository = userRepository;
     this.smsService = smsService || getSmsService();
-    this.cacheService = cacheServiceInstance || cacheService;
+    this.cacheService = this._resolveCacheService(cacheServiceInstance || cacheService);
+  }
+
+  _resolveCacheService(candidate) {
+    const cacheEnabled = typeof candidate?.isEnabled === 'function' ? candidate.isEnabled() : false;
+    if (cacheEnabled) {
+      return candidate;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      logger.warn('验证码缓存降级为内存模式，仅用于开发/测试环境');
+      return devVerificationStore;
+    }
+
+    return candidate;
   }
 
   /**
@@ -80,7 +132,8 @@ export class PhoneVerificationUseCase {
 
       return {
         success: true,
-        message: '验证码已发送'
+        message: '验证码已发送',
+        ...(process.env.NODE_ENV !== 'production' ? { code } : {})
       };
     } catch (error) {
       logger.error(`验证码发送失败: ${error.message}`, { phone: this._maskPhone(phone), type });
@@ -162,39 +215,39 @@ export class PhoneVerificationUseCase {
    */
   async _validateBusinessLogic(phone, type) {
     switch (type) {
-    case 'register': {
-      // 注册时检查手机号是否已存在
-      const existingUser = await this.userRepository.findByPhone(phone);
-      if (existingUser) {
-        throw new Error('该手机号已注册');
+      case 'register': {
+        // 注册时检查手机号是否已存在
+        const existingUser = await this.userRepository.findByPhone(phone);
+        if (existingUser) {
+          throw new Error('该手机号已注册');
+        }
+        break;
       }
-      break;
-    }
 
-    case 'reset': {
-      // 重置密码时检查手机号是否存在
-      const user = await this.userRepository.findByPhone(phone);
-      if (!user) {
-        throw new Error('该手机号未注册');
+      case 'reset': {
+        // 重置密码时检查手机号是否存在
+        const user = await this.userRepository.findByPhone(phone);
+        if (!user) {
+          throw new Error('该手机号未注册');
+        }
+        break;
       }
-      break;
-    }
 
-    case 'bind': {
-      // 绑定手机号时检查是否已被其他用户使用
-      const boundUser = await this.userRepository.findByPhone(phone);
-      if (boundUser) {
-        throw new Error('该手机号已被其他用户绑定');
+      case 'bind': {
+        // 绑定手机号时检查是否已被其他用户使用
+        const boundUser = await this.userRepository.findByPhone(phone);
+        if (boundUser) {
+          throw new Error('该手机号已被其他用户绑定');
+        }
+        break;
       }
-      break;
-    }
 
-    case 'login':
-      // 登录验证码，不需要额外检查
-      break;
+      case 'login':
+        // 登录验证码，不需要额外检查
+        break;
 
-    default:
-      throw new Error(`不支持的验证类型: ${type}`);
+      default:
+        throw new Error(`不支持的验证类型: ${type}`);
     }
   }
 

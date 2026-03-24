@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RUN_DIR="${ROOT_DIR}/run"
-DATASTORE_MANAGER_FILE="${RUN_DIR}/datastore.manager"
 
 require_cmd() {
   local name="$1"
@@ -22,14 +21,14 @@ ensure_runtime_tools() {
   require_cmd "lsof"
 }
 
-compose_cmd() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    echo "docker compose"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    echo "docker-compose"
-  else
-    echo ""
+pm2_stop_if_exists() {
+  local name="$1"
+  if ! command -v pm2 >/dev/null 2>&1; then
+    return 0
   fi
+  pm2 describe "$name" >/dev/null 2>&1 || return 0
+  pm2 delete "$name" >/dev/null 2>&1 || true
+  echo "[OK] 已停止 ${name}（PM2）"
 }
 
 kill_pidfile() {
@@ -76,39 +75,17 @@ kill_by_pattern() {
 echo "[INFO] 停止 ThinkCraft 全栈服务"
 ensure_runtime_tools
 
+pm2_stop_if_exists "thinkcraft-frontend"
+pm2_stop_if_exists "thinkcraft-backend"
+
 kill_pidfile "frontend"
 kill_pidfile "backend"
-kill_pidfile "css-sync"
-kill_pidfile "deep-research"
 
-# 兜底清理：处理非 pidfile 管理的残留进程
 kill_by_pattern "npm run dev:frontend"
 kill_by_pattern "node .*node_modules/.bin/vite"
-kill_by_pattern "npm run dev:css"
-kill_by_pattern "node scripts/sync-css.js"
 kill_by_pattern "NODE_ENV=development node server.js"
-kill_by_pattern "backend/services/deep-research/start.sh"
-kill_by_pattern "backend/services/deep-research/app.py"
 
 kill_port 5173
 kill_port 3000
-kill_port 5001
-
-if [[ -f "$DATASTORE_MANAGER_FILE" ]]; then
-  manager="$(cat "$DATASTORE_MANAGER_FILE" 2>/dev/null || true)"
-  if [[ "$manager" == "docker-compose" ]]; then
-    compose="$(compose_cmd)"
-    if [[ -n "$compose" ]]; then
-      (cd "$ROOT_DIR" && $compose stop mongodb redis) >/dev/null 2>&1 || true
-      echo "[OK] 已停止 MongoDB/Redis（docker compose）"
-    fi
-  elif [[ "$manager" == "brew" ]] && command -v brew >/dev/null 2>&1; then
-    brew services stop mongodb-community@7 >/dev/null 2>&1 || \
-      brew services stop mongodb-community >/dev/null 2>&1 || true
-    brew services stop redis >/dev/null 2>&1 || true
-    echo "[OK] 已停止 MongoDB/Redis（brew services）"
-  fi
-  rm -f "$DATASTORE_MANAGER_FILE"
-fi
 
 echo "[INFO] 已完成停止"

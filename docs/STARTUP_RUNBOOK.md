@@ -4,9 +4,9 @@
 
 ## 1. 目标
 
-- 不修改端口：前端 `5173`，后端 `3000`，DeepResearch `5001`，MongoDB `27017`，Redis `6379`
-- 启动时自动清理冲突进程（`3000/5173/5001`）
-- 保证前后端稳定拉起，并尽可能自动处理外部依赖
+- 不修改端口：前端 `5173`，后端 `3000`
+- 启动时自动清理冲突进程（`3000/5173`）
+- 默认开发路径仅拉起前后端，避免额外依赖提高首启成本
 
 ## 2. 一次性准备
 
@@ -33,21 +33,29 @@ cp backend/.env.example backend/.env
 ./start-all.sh
 ```
 
+如需以常驻托管方式启动，并且本机已安装 `pm2`：
+
+```bash
+./start-all.sh --pm2
+```
+
 等价命令：
 
 ```bash
 npm run start:all
+npm run start:all:pm2
 npm run dev
 ./dev.sh
 ```
 
 ### 启动脚本会做什么
 
-1. 清理旧 PID 与冲突端口（`3000/5173/5001`）
-2. 当 `backend/.env` 中 `DB_TYPE=mongodb` 时，检查 MongoDB/Redis；MongoDB 未就绪则尝试通过 Docker Compose 或 brew 拉起，Redis 为可选
-3. 启动 CSS 同步、后端、前端
-4. 检查 Agent 协作接口可用性（`/api/agents/types`）
-5. 检测 DeepResearch 条件满足时自动启动（需要 `backend/services/deep-research/.env` 且配置 `OPENROUTER_API_KEY`）
+1. 清理旧 PID 与冲突端口（`3000/5173`）
+2. 当 `backend/.env` 中 `DB_TYPE=mongodb` 时，仅提示你自行确认 MongoDB/Redis 状态，不再代管 Docker 或 brew
+3. 执行一次 CSS 资源同步
+4. 启动后端、前端
+5. 若使用 `--pm2`，则改由 PM2 托管前后端
+6. 检查 Agent 协作接口可用性（`/api/agents/types`）
 
 ## 4. 标准停止（唯一入口）
 
@@ -67,7 +75,6 @@ npm run stop:all
 - 前端：`http://127.0.0.1:5173`
 - 后端健康检查：`http://127.0.0.1:3000/health`
 - 后端就绪检查：`http://127.0.0.1:3000/ready`
-- DeepResearch（可选）：`http://127.0.0.1:5001/health`
 
 ## 6. 日志与 PID
 
@@ -75,15 +82,14 @@ npm run stop:all
   - `logs/frontend.log`
   - `logs/backend.log`
   - `logs/css-sync.log`
-  - `logs/deep-research.log`（若启用）
 - PID 目录：`run/`
 
 ## 7. 外部依赖说明
 
-- MongoDB：默认示例配置为 `DB_TYPE=memory`；仅当显式设置 `DB_TYPE=mongodb` 时才需要本地 MongoDB，连接失败会重试，开发环境会自动降级到 `memory`
+- MongoDB：默认示例配置为 `DB_TYPE=memory`；仅当显式设置 `DB_TYPE=mongodb` 时才需要本地 MongoDB
 - Redis：可选依赖，初始化失败时后端继续运行
 - AgentScope：当前为后端内置能力，无需独立进程
-- DeepResearch：独立 Python 微服务；未配置 Key 时不会自动拉起，主流程仍可使用（仅深度研究模式不可用）
+- DeepResearch：独立 Python 微服务；需手动部署，主流程默认不依赖
 
 ## 8. 常见问题
 
@@ -101,21 +107,13 @@ npm run stop:all
 
 ### 8.2 MongoDB 不可达
 
-启动脚本会尝试 Docker 拉起 `mongodb/redis`。若本机禁用 Docker，请自行启动本地 MongoDB 并确认：
+标准启动脚本不会代替你启动数据库。若你主动把 `DB_TYPE` 改成 `mongodb`，请先自行启动本地 MongoDB 并确认：
 
 ```bash
 lsof -iTCP:27017 -sTCP:LISTEN
 ```
 
-### 8.3 DeepResearch 没有启动
-
-检查：
-
-1. `backend/services/deep-research/.env` 是否存在
-2. 是否配置了 `OPENROUTER_API_KEY=sk-...`
-3. 查看 `logs/deep-research.log`
-
-### 8.4 AgentScope 鉴权自检
+### 8.3 AgentScope 鉴权自检
 
 可执行一键鉴权脚本（开发环境）：
 

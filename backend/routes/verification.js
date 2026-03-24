@@ -37,7 +37,7 @@ router.post('/send', smsLimiter, async (req, res) => {
     const useCase = new PhoneVerificationUseCase(userRepository);
     const result = await useCase.sendVerificationCode(phone, type);
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== 'production' && !result.code) {
       const { cacheService } = await import('../src/infrastructure/cache/redis-cache.service.js');
       const codeKey = `sms:code:${phone}:${type}`;
       const code = await cacheService.get(codeKey);

@@ -10,7 +10,7 @@ Project startup entrypoint is maintained at repository root:
 ## Active scripts
 
 - `check-artifact-templates.js`: validate artifact template declarations and files.
-- `sync-css.js`: sync CSS assets for local development/build.
+- `sync-css.js`: sync CSS assets before local startup/build.
 - `start-prod.sh`: start docker compose stack with an env file.
 - `stop-prod.sh`: stop docker compose stack.
 - `rotate-logs.sh`: rotate runtime logs.
@@ -18,7 +18,7 @@ Project startup entrypoint is maintained at repository root:
 - `refactor/bootstrap-governance-loop.mjs`: bootstrap governance/refactor loop.
 
 Generated assets such as `public/css/*` are not committed. They are recreated by
-`sync-css.js` during local startup and build.
+`sync-css.js` once during local startup and during build.
 
 ## Removed legacy scripts (2026-02-11)
 

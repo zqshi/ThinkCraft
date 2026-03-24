@@ -8,8 +8,31 @@ mkdir -p "$LOG_DIR" "$RUN_DIR"
 
 BACKEND_URL="http://127.0.0.1:3000"
 FRONTEND_URL="http://127.0.0.1:5173"
-DEEP_RESEARCH_URL="http://127.0.0.1:5001"
-DATASTORE_MANAGER_FILE="${RUN_DIR}/datastore.manager"
+START_MODE="${START_MODE:-background}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --pm2|--daemon)
+    START_MODE="pm2"
+    shift
+    ;;
+  --background)
+    START_MODE="background"
+    shift
+    ;;
+  -h|--help)
+    echo "用法: ./start-all.sh [--background|--pm2]"
+    echo "  --background  默认模式，启动后返回终端"
+    echo "  --pm2         使用 PM2 托管前后端（需本机已安装 pm2）"
+    exit 0
+    ;;
+  *)
+    echo "[ERROR] 不支持的参数: $1"
+    echo "使用 ./start-all.sh --help 查看可用参数"
+    exit 1
+    ;;
+  esac
+done
 
 require_cmd() {
   local name="$1"
@@ -76,16 +99,6 @@ ensure_node_dependencies() {
   echo "[OK] ${app_name} 依赖安装完成"
 }
 
-compose_cmd() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    echo "docker compose"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    echo "docker-compose"
-  else
-    echo ""
-  fi
-}
-
 read_env_value() {
   local key="$1"
   local env_file="$2"
@@ -141,6 +154,84 @@ wait_for_port() {
   return 1
 }
 
+pidfile_path() {
+  local name="$1"
+  echo "${RUN_DIR}/${name}.pid"
+}
+
+read_pidfile() {
+  local name="$1"
+  local file
+  file="$(pidfile_path "$name")"
+  if [[ -f "$file" ]]; then
+    cat "$file" 2>/dev/null || true
+  fi
+}
+
+is_pid_alive() {
+  local pid="$1"
+  [[ -n "$pid" ]] && ps -p "$pid" >/dev/null 2>&1
+}
+
+show_log_tail() {
+  local name="$1"
+  local logfile="${LOG_DIR}/${name}.log"
+  if [[ -f "$logfile" ]]; then
+    echo "[INFO] ${name} 最近日志（${logfile}）:"
+    tail -n 40 "$logfile" || true
+  else
+    echo "[INFO] 未找到 ${name} 日志文件: ${logfile}"
+  fi
+}
+
+fail_service_start() {
+  local name="$1"
+  local reason="$2"
+  local pid
+  pid="$(read_pidfile "$name")"
+  echo "[ERROR] ${name} 启动失败: ${reason}"
+  if [[ -n "$pid" ]]; then
+    echo "[ERROR] ${name} PID: ${pid}"
+  fi
+  show_log_tail "$name"
+  exit 1
+}
+
+assert_pid_running() {
+  local name="$1"
+  local pid
+  pid="$(read_pidfile "$name")"
+  if ! is_pid_alive "$pid"; then
+    fail_service_start "$name" "进程已退出"
+  fi
+}
+
+assert_http_service() {
+  local name="$1"
+  local url="$2"
+  local seconds="$3"
+  local label="${4:-$name}"
+  assert_pid_running "$name"
+  if ! wait_for_http "$url" "$seconds" "$label"; then
+    assert_pid_running "$name"
+    fail_service_start "$name" "HTTP 探活失败: ${url}"
+  fi
+  assert_pid_running "$name"
+}
+
+assert_port_service() {
+  local name="$1"
+  local port="$2"
+  local seconds="$3"
+  local label="${4:-$name}"
+  assert_pid_running "$name"
+  if ! wait_for_port "$port" "$seconds" "$label"; then
+    assert_pid_running "$name"
+    fail_service_start "$name" "端口未监听: ${port}"
+  fi
+  assert_pid_running "$name"
+}
+
 kill_port() {
   local port="$1"
   local pids
@@ -161,7 +252,8 @@ kill_by_pattern() {
 
 kill_pidfile() {
   local name="$1"
-  local file="${RUN_DIR}/${name}.pid"
+  local file
+  file="$(pidfile_path "$name")"
   if [[ -f "$file" ]]; then
     local pid
     pid="$(cat "$file" 2>/dev/null || true)"
@@ -181,8 +273,13 @@ start_bg() {
   local command="$2"
   local logfile="${LOG_DIR}/${name}.log"
 
-  nohup /bin/bash -lc "$command" >"$logfile" 2>&1 &
+  if command -v setsid >/dev/null 2>&1; then
+    nohup setsid /bin/bash -lc "$command" >"$logfile" 2>&1 < /dev/null &
+  else
+    nohup /bin/bash -lc "$command" >"$logfile" 2>&1 < /dev/null &
+  fi
   local pid=$!
+  disown "$pid" 2>/dev/null || true
   echo "$pid" >"${RUN_DIR}/${name}.pid"
   echo "[INFO] ${name} 已启动，PID=${pid}，日志=${logfile}"
 }
@@ -203,102 +300,70 @@ ensure_datastore_services() {
   db_type="$(printf '%s' "$db_type" | tr '[:upper:]' '[:lower:]')"
 
   if [[ "$db_type" != "mongodb" ]]; then
-    rm -f "$DATASTORE_MANAGER_FILE"
     echo "[INFO] DB_TYPE=${db_type:-memory}，跳过 MongoDB/Redis 自动拉起"
     return 0
   fi
 
-  local compose
-  compose="$(compose_cmd)"
-  local manager=""
-  local mongo_ready redis_ready
-  mongo_ready="false"
-  redis_ready="false"
-
-  if lsof -tiTCP:27017 -sTCP:LISTEN >/dev/null 2>&1; then
-    mongo_ready="true"
-  fi
-  if lsof -tiTCP:6379 -sTCP:LISTEN >/dev/null 2>&1; then
-    redis_ready="true"
-  fi
-
-  if [[ "$mongo_ready" == "true" && "$redis_ready" == "true" ]]; then
-    rm -f "$DATASTORE_MANAGER_FILE"
-    echo "[OK] MongoDB/Redis 已在运行"
+  if ! lsof -tiTCP:27017 -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "[WARN] DB_TYPE=mongodb，但未检测到 MongoDB 监听 27017"
+    echo "[WARN] 开发环境建议先改回 DB_TYPE=memory；如需持久化，请先手动启动 MongoDB"
     return 0
   fi
 
-  local missing_required=()
-  local missing_optional=()
+  echo "[OK] 已检测到 MongoDB 运行在 127.0.0.1:27017"
 
-  if [[ "$mongo_ready" != "true" ]]; then
-    missing_required+=("mongodb")
-  fi
-  if [[ "$redis_ready" != "true" ]]; then
-    missing_optional+=("redis")
-  fi
-
-  if [[ -n "$compose" ]]; then
-    local services_to_start=("${missing_required[@]}" "${missing_optional[@]}")
-    if [[ "${#services_to_start[@]}" -gt 0 ]]; then
-      echo "[INFO] 数据存储未完全就绪，尝试使用 Docker Compose 启动: ${services_to_start[*]}"
-    fi
-    if [[ "${#services_to_start[@]}" -gt 0 ]] && (cd "$ROOT_DIR" && $compose up -d "${services_to_start[@]}"); then
-      manager="docker-compose"
-    elif [[ "${#services_to_start[@]}" -gt 0 ]]; then
-      echo "[WARN] Docker Compose 启动依赖失败，将尝试其他方式或继续降级启动"
-    fi
-  fi
-
-  if [[ -z "$manager" ]] && command -v brew >/dev/null 2>&1; then
-    echo "[INFO] 尝试使用 brew services 启动缺失依赖"
-    if [[ "$mongo_ready" != "true" ]]; then
-      brew services start mongodb-community@7 >/dev/null 2>&1 || \
-        brew services start mongodb-community >/dev/null 2>&1 || true
-    fi
-    if [[ "$redis_ready" != "true" ]]; then
-      brew services start redis >/dev/null 2>&1 || true
-    fi
-    manager="brew"
-  fi
-
-  if [[ -n "$manager" ]]; then
-    echo "$manager" >"$DATASTORE_MANAGER_FILE"
+  if lsof -tiTCP:6379 -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "[OK] 已检测到 Redis 运行在 127.0.0.1:6379"
   else
-    rm -f "$DATASTORE_MANAGER_FILE"
-    echo "[WARN] 未能自动拉起 MongoDB/Redis，请确认本机服务状态"
+    echo "[INFO] Redis 未监听 6379；当前将继续以无缓存模式启动"
   fi
-
-  wait_for_port 27017 30 "MongoDB" || true
-  wait_for_port 6379 20 "Redis（可选）" || true
 }
 
-start_deep_research_if_possible() {
-  if lsof -tiTCP:5001 -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "[OK] DeepResearch 已在运行 (${DEEP_RESEARCH_URL})"
+sync_css_assets() {
+  local logfile="${LOG_DIR}/css-sync.log"
+  echo "[INFO] 同步前端 CSS 资源"
+  if ! (cd "${ROOT_DIR}" && node scripts/sync-css.js --once >"$logfile" 2>&1); then
+    echo "[ERROR] CSS 资源同步失败"
+    show_log_tail "css-sync"
+    exit 1
+  fi
+  echo "[OK] CSS 资源同步完成"
+}
+
+pm2_delete_if_exists() {
+  local name="$1"
+  if ! command -v pm2 >/dev/null 2>&1; then
     return 0
   fi
+  pm2 describe "$name" >/dev/null 2>&1 || return 0
+  pm2 delete "$name" >/dev/null 2>&1 || true
+}
 
-  local dr_dir="${ROOT_DIR}/backend/services/deep-research"
-  local dr_env="${dr_dir}/.env"
+start_with_pm2() {
+  require_cmd "pm2" "如不想安装 PM2，请直接执行 ./start-all.sh"
 
-  if [[ ! -d "$dr_dir" ]]; then
-    echo "[WARN] 未找到 DeepResearch 服务目录，跳过"
-    return 0
+  echo "[INFO] 使用 PM2 托管前后端服务"
+  pm2_delete_if_exists "thinkcraft-backend"
+  pm2_delete_if_exists "thinkcraft-frontend"
+
+  pm2 start npm --name thinkcraft-backend --cwd "${ROOT_DIR}/backend" -- run start >/dev/null
+  if ! wait_for_http "${BACKEND_URL}/health" 45 "后端"; then
+    echo "[ERROR] PM2 后端启动失败"
+    pm2 logs thinkcraft-backend --lines 40 --nostream || true
+    exit 1
+  fi
+  if ! wait_for_http "${BACKEND_URL}/ready" 30 "后端就绪"; then
+    echo "[ERROR] PM2 后端就绪检查失败"
+    pm2 logs thinkcraft-backend --lines 40 --nostream || true
+    exit 1
   fi
 
-  if [[ ! -f "$dr_env" ]]; then
-    echo "[WARN] 缺少 ${dr_env}，跳过自动启动 DeepResearch"
-    return 0
+  pm2 start npm --name thinkcraft-frontend --cwd "${ROOT_DIR}" -- run dev:frontend -- --host 127.0.0.1 --port 5173 >/dev/null
+  if ! wait_for_port 5173 30 "前端"; then
+    echo "[ERROR] PM2 前端启动失败"
+    pm2 logs thinkcraft-frontend --lines 40 --nostream || true
+    exit 1
   fi
-
-  if ! grep -Eq "^OPENROUTER_API_KEY=sk-" "$dr_env"; then
-    echo "[WARN] DeepResearch API Key 未配置，跳过自动启动 DeepResearch"
-    return 0
-  fi
-
-  start_bg "deep-research" "cd '${dr_dir}' && exec ./start.sh"
-  wait_for_http "${DEEP_RESEARCH_URL}/health" 45 "DeepResearch" || true
 }
 
 echo "[INFO] 启动 ThinkCraft 全栈服务"
@@ -311,21 +376,12 @@ ensure_node_dependencies "${ROOT_DIR}/backend" "后端"
 # 统一清理旧进程（不改端口号，仅清理冲突占用）
 kill_pidfile "frontend"
 kill_pidfile "backend"
-kill_pidfile "css-sync"
-kill_pidfile "deep-research"
-
-# 兜底清理：处理非 pidfile 管理的残留进程
 kill_by_pattern "npm run dev:frontend"
 kill_by_pattern "node .*node_modules/.bin/vite"
-kill_by_pattern "npm run dev:css"
-kill_by_pattern "node scripts/sync-css.js"
 kill_by_pattern "NODE_ENV=development node server.js"
-kill_by_pattern "backend/services/deep-research/start.sh"
-kill_by_pattern "backend/services/deep-research/app.py"
 
 kill_port 5173
 kill_port 3000
-kill_port 5001
 
 if [[ -x "${ROOT_DIR}/scripts/rotate-logs.sh" ]]; then
   LOG_DIR="$LOG_DIR" "${ROOT_DIR}/scripts/rotate-logs.sh" 5242880 3 || true
@@ -334,15 +390,19 @@ fi
 ensure_env_file
 ensure_datastore_services
 
-start_bg "css-sync" "cd '${ROOT_DIR}' && exec node scripts/sync-css.js"
-start_bg "backend" "cd '${ROOT_DIR}/backend' && exec npm run start"
-wait_for_http "${BACKEND_URL}/health" 45 "后端" || true
-wait_for_http "${BACKEND_URL}/ready" 30 "后端就绪" || true
+sync_css_assets
+if [[ "$START_MODE" == "pm2" ]]; then
+  start_with_pm2
+else
+  start_bg "backend" "cd '${ROOT_DIR}/backend' && exec npm run start"
+  assert_http_service "backend" "${BACKEND_URL}/health" 45 "后端"
+  assert_http_service "backend" "${BACKEND_URL}/ready" 30 "后端就绪"
 
-start_bg "frontend" "cd '${ROOT_DIR}' && exec npm run dev:frontend"
-wait_for_port 5173 30 "前端" || true
+  start_bg "frontend" "cd '${ROOT_DIR}' && exec npm run dev:frontend"
+  assert_port_service "frontend" 5173 30 "前端"
+fi
 
-# AgentScope 当前为后端内置能力，无独立进程，仅做接口可达性检查
+# AgentScope 当前为后端内置能力，仅做接口可达性检查
 agent_status="$(curl -s -o /dev/null -w "%{http_code}" "${BACKEND_URL}/api/agents/types" || true)"
 if [[ "$agent_status" == "200" || "$agent_status" == "401" || "$agent_status" == "403" ]]; then
   echo "[OK] AgentScope 接口可达（HTTP ${agent_status}）"
@@ -350,13 +410,13 @@ else
   echo "[WARN] AgentScope 接口暂不可达（HTTP ${agent_status}）"
 fi
 
-start_deep_research_if_possible
-
 echo "[INFO] 启动完成"
 echo "[INFO] 前端: ${FRONTEND_URL}"
 echo "[INFO] 后端: ${BACKEND_URL}"
-echo "[INFO] MongoDB: 127.0.0.1:27017"
-echo "[INFO] Redis: 127.0.0.1:6379"
-echo "[INFO] DeepResearch: ${DEEP_RESEARCH_URL}（可选）"
+if [[ "$START_MODE" == "pm2" ]]; then
+  echo "[INFO] 运行模式: PM2 托管"
+else
+  echo "[INFO] 运行模式: 本地后台进程"
+fi
 echo "[INFO] 后端日志: ${LOG_DIR}/backend.log"
 echo "[INFO] 前端日志: ${LOG_DIR}/frontend.log"
