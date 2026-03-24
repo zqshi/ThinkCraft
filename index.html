@@ -306,20 +306,7 @@
             <!-- 知识库面板（右侧切换面板）-->
             <div class="knowledge-panel" id="knowledgePanel" style="display: none;">
                 <div class="knowledge-panel-content">
-                    <!-- 左侧：组织树 -->
-                    <div class="knowledge-sidebar">
-                        <div class="knowledge-org-switcher">
-                            <button data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
-                            <button class="active" data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
-                            <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
-                            <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
-                        </div>
-                        <div id="knowledgeOrgTree" class="knowledge-org-tree"></div>
-                        <div id="fileTree" class="knowledge-org-tree" style="display: none;"></div>
-                    </div>
-
-                    <!-- 右侧：知识列表 -->
-                    <div class="knowledge-main">
+                    <div class="knowledge-global-header">
                         <div class="knowledge-panel-top">
                             <div class="knowledge-panel-title">知识库</div>
                             <button class="icon-btn" onclick="closeKnowledgePanel({ showProjectPanel: true })" title="关闭知识库">
@@ -328,47 +315,71 @@
                                 </svg>
                             </button>
                         </div>
-                        <div class="knowledge-tabs">
-                            <button data-tab="files" onclick="switchKnowledgeTab('files')">文件树</button>
-                        </div>
-                        <div class="knowledge-toolbar" id="knowledgeToolbar">
-                            <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
-                            <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
-                                <option value="">所有类型</option>
-                                <option value="prd">PRD</option>
-                                <option value="tech">技术方案</option>
-                                <option value="analysis">市场分析</option>
-                                <option value="research">调研报告</option>
-                                <option value="design">设计文档</option>
-                                <option value="other">其他</option>
-                            </select>
-                            <button class="btn-primary" onclick="createKnowledge()">
-                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                                </svg>
-                                新建
-                            </button>
-                        </div>
-                        <div id="knowledgeList" class="knowledge-grid"></div>
-                        <div id="knowledgeEmpty" class="empty-state" style="display: none;">
-                            <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                            </svg>
-                            <div class="empty-title">暂无知识沉淀</div>
-                            <div class="empty-subtitle">创建第一个知识条目</div>
-                            <button class="btn-primary" onclick="createKnowledge()" style="margin-top: 16px;">新建知识</button>
-                        </div>
-                        <div id="filePanel" style="display: none;">
-                            <div class="knowledge-toolbar" id="fileToolbar">
-                                <input type="text" id="fileSearch" placeholder="搜索文件..." oninput="onFileSearch(this.value)">
-                                <button class="btn-secondary" onclick="refreshFileTree()">刷新</button>
+                        <div id="fileContextBar" class="file-context-bar" style="display: none;"></div>
+                    </div>
+
+                    <div class="knowledge-workspace">
+                        <!-- 左侧：组织树 -->
+                        <div class="knowledge-sidebar">
+                            <div class="knowledge-org-switcher">
+                                <button data-org="byProject" onclick="switchKnowledgeOrg('byProject')">按项目</button>
+                                <button class="active" data-org="byType" onclick="switchKnowledgeOrg('byType')">按类型</button>
+                                <button data-org="byTimeline" onclick="switchKnowledgeOrg('byTimeline')">时间线</button>
+                                <button data-org="byTags" onclick="switchKnowledgeOrg('byTags')">标签</button>
                             </div>
-                            <div class="file-view file-view-preview-only">
-                                <div id="filePreview" class="file-preview">
-                                    <div class="empty-state">
-                                        <div class="empty-title">选择一个文件预览</div>
-                                        <div class="empty-subtitle">支持 Markdown、代码、图片、HTML</div>
+                            <div class="knowledge-toolbar file-tree-toolbar" id="fileToolbar">
+                                <input type="text" id="fileSearch" placeholder="搜索当前文档..." oninput="onFileSearch(this.value)">
+                            </div>
+                            <div id="knowledgeOrgTree" class="knowledge-org-tree"></div>
+                            <div id="fileTree" class="knowledge-org-tree" style="display: none;"></div>
+                        </div>
+
+                        <!-- 右侧：知识列表 -->
+                        <div class="knowledge-main">
+                            <div class="knowledge-tabs">
+                                <button data-tab="files" onclick="switchKnowledgeTab('files')">文件树</button>
+                            </div>
+                            <div class="knowledge-toolbar" id="knowledgeToolbar">
+                                <input type="text" id="knowledgeSearch" placeholder="搜索知识..." oninput="onKnowledgeSearch(this.value)">
+                                <select id="knowledgeTypeFilter" onchange="onKnowledgeTypeFilter(this.value)">
+                                    <option value="">所有类型</option>
+                                    <option value="prd">PRD</option>
+                                    <option value="tech">技术方案</option>
+                                    <option value="analysis">市场分析</option>
+                                    <option value="research">调研报告</option>
+                                    <option value="design">设计文档</option>
+                                    <option value="other">其他</option>
+                                </select>
+                                <button class="btn-primary" onclick="createKnowledge()">
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    新建
+                                </button>
+                            </div>
+                            <div id="knowledgeList" class="knowledge-grid"></div>
+                            <div id="knowledgeEmpty" class="empty-state" style="display: none;">
+                                <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                </svg>
+                                <div class="empty-title">暂无知识沉淀</div>
+                                <div class="empty-subtitle">创建第一个知识条目</div>
+                                <button class="btn-primary" onclick="createKnowledge()" style="margin-top: 16px;">新建知识</button>
+                            </div>
+                            <div id="filePanel" style="display: none;">
+                                <div class="file-view file-view-browser">
+                                    <div class="file-preview-column">
+                                        <div id="filePreviewModeBar" class="file-preview-mode-bar"></div>
+                                        <div id="filePreview" class="file-preview">
+                                            <div class="empty-state">
+                                                <div class="empty-title">选择一个文件预览</div>
+                                                <div class="empty-subtitle">支持 Markdown、代码、图片、HTML</div>
+                                            </div>
+                                        </div>
                                     </div>
+                                    <aside id="fileMetaPanel" class="file-meta-panel">
+                                        <div class="file-meta-empty">选择一个文件后查看元信息</div>
+                                    </aside>
                                 </div>
                             </div>
                         </div>
@@ -1155,6 +1166,7 @@
 
     <!-- 报告状态管理器（必须在聊天模块之前加载） -->
     <script src="/frontend/js/modules/report/report-status-manager.js?v=20260212-statusfix1"></script>
+    <script src="/frontend/js/modules/chat-report-bundle.js?v=20260324-read-model-2"></script>
 
     <!-- 聊天模块 -->
     <script src="/frontend/js/modules/chat/typing-effect.js"></script>
@@ -1182,6 +1194,7 @@
     <!-- 项目管理（用户点击"项目"时才需要） -->
     <script type="module" src="/frontend/js/modules/editor-adapters.js?v=20260303-tiptap-codemirror-8"></script>
     <script defer src="/frontend/js/modules/project-manager.js?v=20260303-tiptap-codemirror-8"></script>
+    <script defer src="/frontend/js/modules/project-manager-bundle.js?v=20260324-read-model-1"></script>
     <script defer src="/frontend/js/modules/project-manager-artifact-preview.js?v=20260303-tiptap-codemirror-8"></script>
     <script defer src="/frontend/js/modules/project-manager-deliverables.js?v=20260212-fix-selection-3"></script>
     <script defer src="/frontend/js/modules/project-manager-panel-renderer.js?v=20260212-fix-actions-2"></script>

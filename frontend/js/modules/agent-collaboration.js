@@ -104,9 +104,7 @@ class AgentCollaboration {
   isInvalidIdeaLabel(text = '') {
     const raw = String(text || '').trim();
     if (!raw) return true;
-    return /(创意收集器|你想解决的根本问题是什么|你想解决的“?创意收集器”?具体指什么)/i.test(
-      raw
-    );
+    return /(创意收集器|你想解决的根本问题是什么|你想解决的“?创意收集器”?具体指什么)/i.test(raw);
   }
 
   generateIdeaNameFromConversation(messages = []) {
@@ -118,12 +116,14 @@ class AgentCollaboration {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const combined = (userCombined || messages
-      .filter(m => m && typeof m.content === 'string')
-      .map(m => this.sanitizeIdeaCandidate(m.content))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim());
+    const combined =
+      userCombined ||
+      messages
+        .filter(m => m && typeof m.content === 'string')
+        .map(m => this.sanitizeIdeaCandidate(m.content))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     if (!combined) {
       return '未命名创意';
@@ -139,7 +139,11 @@ class AgentCollaboration {
   }
 
   generateIdeaNameFromText(text = '') {
-    const combined = this.sanitizeIdeaCandidate(String(text || '').replace(/\s+/g, ' ').trim());
+    const combined = this.sanitizeIdeaCandidate(
+      String(text || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
     if (!combined) {
       return '';
     }
@@ -158,12 +162,16 @@ class AgentCollaboration {
       this.generateIdeaNameFromConversation(chat?.messages || []) ||
       this.generateIdeaNameFromText(conversation || '');
     const explicitProjectName = this.sanitizeIdeaCandidate(projectName || '');
-    const usableProjectName = this.isInvalidIdeaLabel(explicitProjectName) ? '' : explicitProjectName;
+    const usableProjectName = this.isInvalidIdeaLabel(explicitProjectName)
+      ? ''
+      : explicitProjectName;
     const explicitIdea = this.sanitizeIdeaCandidate(idea || '');
     const usableIdea = this.isInvalidIdeaLabel(explicitIdea) ? '' : explicitIdea;
-    const displayName = usableProjectName || (hasManualTitle
-      ? chat?.title || usableIdea || autoName || '未命名创意'
-      : autoName || usableIdea || '未命名创意');
+    const displayName =
+      usableProjectName ||
+      (hasManualTitle
+        ? chat?.title || usableIdea || autoName || '未命名创意'
+        : autoName || usableIdea || '未命名创意');
     const isAuto = !usableProjectName && !hasManualTitle;
     const conversationText =
       conversation ||
@@ -272,14 +280,15 @@ class AgentCollaboration {
       : this.escapeHtml(text).replace(/\n/g, '<br>');
 
     suggestionBox.classList.add('markdown-content');
-    suggestionBox.innerHTML =
-      text
-        ? rendered
-        : '<div style="color: var(--text-secondary); font-size: 13px;">暂无协作建议</div>';
+    suggestionBox.innerHTML = text
+      ? rendered
+      : '<div style="color: var(--text-secondary); font-size: 13px;">暂无协作建议</div>';
 
     if (metaBox) {
       const updatedText = updatedAt ? `上次更新：${this.formatUpdatedAt(updatedAt)}` : '等待生成';
-      metaBox.textContent = collaborationMode ? `协作模式：${collaborationMode} · ${updatedText}` : updatedText;
+      metaBox.textContent = collaborationMode
+        ? `协作模式：${collaborationMode} · ${updatedText}`
+        : updatedText;
     }
   }
 
@@ -301,7 +310,8 @@ class AgentCollaboration {
     if (!box) return;
     const list = Array.isArray(templates) ? templates : [];
     if (list.length === 0) {
-      box.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">暂无阶段执行模板</div>';
+      box.innerHTML =
+        '<div style="color: var(--text-secondary); font-size: 13px;">暂无阶段执行模板</div>';
       return;
     }
     box.innerHTML = list
@@ -326,7 +336,8 @@ class AgentCollaboration {
   renderStageTemplatesLoading() {
     const box = document.getElementById('collaborationStageTemplates');
     if (!box) return;
-    box.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">正在生成阶段执行模板...</div>';
+    box.innerHTML =
+      '<div style="color: var(--text-secondary); font-size: 13px;">正在生成阶段执行模板...</div>';
   }
 
   getWorkflowCatalog() {
@@ -345,7 +356,15 @@ class AgentCollaboration {
     );
   }
 
-  async open({ idea, agents = [], projectId, chat, conversation, workflowCategory, collaborationExecuted = false }) {
+  async open({
+    idea,
+    agents = [],
+    projectId,
+    chat,
+    conversation,
+    workflowCategory,
+    collaborationExecuted = false
+  }) {
     if (!window.modalManager) {
       return;
     }
@@ -396,9 +415,13 @@ class AgentCollaboration {
     });
     const cached = project?.collaborationSuggestion || this.loadSuggestion(storageKey);
     const initialAgents = cached?.recommendedAgents?.length > 0 ? cached.recommendedAgents : [];
-    const agentCards = initialAgents.length > 0
-      ? this.renderMemberCards(await this.resolveMemberList(initialAgents, agents), true)
-      : '<div style="color: var(--text-secondary); font-size: 13px;">正在生成雇佣建议...</div>';
+    const agentCards =
+      initialAgents.length > 0
+        ? this.renderMemberCards(
+            initialAgents.map(id => ({ id, name: id, type: id })),
+            true
+          )
+        : '<div style="color: var(--text-secondary); font-size: 13px;">正在生成雇佣建议...</div>';
 
     const contentHTML = `
       <div style="display: grid; gap: 16px; max-height: 70vh; overflow-y: auto;">
@@ -431,9 +454,10 @@ class AgentCollaboration {
           </div>
         </div>
         <div style="display: flex; gap: 12px; position: sticky; bottom: -24px; background: white; padding: 16px 0; margin: 0 -24px; padding-left: 24px; padding-right: 24px; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.08);">
-          ${collaborationExecuted
-            ? '<button class="btn-primary" id="collaborationClose" style="flex: 1;">关闭</button>'
-            : `
+          ${
+            collaborationExecuted
+              ? '<button class="btn-primary" id="collaborationClose" style="flex: 1;">关闭</button>'
+              : `
           <button class="btn-secondary" id="collaborationCancel" style="flex: 1;">取消</button>
           <button class="btn-primary" id="collaborationConfirm" style="flex: 1;">确认进入执行</button>
             `
@@ -458,14 +482,15 @@ class AgentCollaboration {
       const fallbackList =
         cachedList.length > 0 ? cachedList : this.getDefaultRecommendedAgentIds(workflowCategory);
       const memberList = fallbackList.length ? fallbackList : agents;
-      const resolved = await this.resolveMemberList(memberList, agents);
-      this.renderMemberList(resolved, fallbackList.length > 0);
+      this.resolveMemberList(memberList, agents).then(resolved => {
+        this.renderMemberList(resolved, fallbackList.length > 0);
+      });
     }
 
     if (!cacheUsable) {
       this.renderSuggestionLoading();
       this.renderStageTemplatesLoading();
-      await this.requestSuggestion(
+      this.requestSuggestion(
         ideaContext.displayName,
         agents,
         '',
@@ -536,7 +561,11 @@ class AgentCollaboration {
         headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           idea,
-          agents: agents.map(a => ({ id: a.id, name: a.nickname || a.name, type: a.type || a.name })),
+          agents: agents.map(a => ({
+            id: a.id,
+            name: a.nickname || a.name,
+            type: a.type || a.name
+          })),
           instruction,
           conversation,
           workflowCategory
@@ -599,7 +628,9 @@ class AgentCollaboration {
       const metaBox = document.getElementById('collaborationSuggestionMeta');
       if (suggestionBox) {
         suggestionBox.classList.remove('markdown-content');
-        suggestionBox.textContent = error?.message ? `生成失败：${error.message}` : '生成失败，请稍后重试';
+        suggestionBox.textContent = error?.message
+          ? `生成失败：${error.message}`
+          : '生成失败，请稍后重试';
       }
       if (metaBox) {
         metaBox.textContent = '生成失败';
@@ -702,9 +733,7 @@ class AgentCollaboration {
 
     try {
       // 获取当前项目
-      const project = await window.storageManager?.getProject(
-        this.currentContext.projectId
-      );
+      const project = await window.storageManager?.getProject(this.currentContext.projectId);
       const suggestion = project?.collaborationSuggestion;
 
       // 检查并自动雇佣推荐成员
@@ -712,12 +741,17 @@ class AgentCollaboration {
         console.log('[协作模式] 推荐的Agent类型:', suggestion.recommendedAgents);
 
         const hiredAgents = (await window.projectManager?.getUserHiredAgents?.()) || [];
-        console.log('[协作模式] 已雇佣的Agent:', hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name })));
+        console.log(
+          '[协作模式] 已雇佣的Agent:',
+          hiredAgents.map(a => ({ id: a.id, type: a.type, name: a.name }))
+        );
 
         // 注意：suggestion.recommendedAgents 是 Agent 类型ID（如 'product-manager'）
         // 而 hiredAgents 中的 id 是实例ID，type 才是类型ID
         const hiredTypes = hiredAgents.map(a => a.type);
-        const unhiredTypes = suggestion.recommendedAgents.filter(type => !hiredTypes.includes(type));
+        const unhiredTypes = suggestion.recommendedAgents.filter(
+          type => !hiredTypes.includes(type)
+        );
 
         console.log('[协作模式] 未雇佣的Agent类型:', unhiredTypes);
 
@@ -728,12 +762,15 @@ class AgentCollaboration {
 
           // 并行雇佣所有未雇佣的Agent
           for (const agentType of unhiredTypes) {
-            const hirePromise = this.fetchWithAuth(`${window.projectManager.apiUrl}/api/agents/hire`, {
-              method: 'POST',
-              headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ userId, agentType })
-            })
-              .then(response => response.ok ? response.json() : Promise.reject())
+            const hirePromise = this.fetchWithAuth(
+              `${window.projectManager.apiUrl}/api/agents/hire`,
+              {
+                method: 'POST',
+                headers: this.buildAuthHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ userId, agentType })
+              }
+            )
+              .then(response => (response.ok ? response.json() : Promise.reject()))
               .then(result => {
                 console.log('[协作模式] 雇佣成功:', result.data);
                 return result.data;
@@ -863,7 +900,9 @@ class AgentCollaboration {
    */
   async loadMyAgents() {
     try {
-      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/my/${this.getAgentUserId()}`);
+      const response = await this.fetchWithAuth(
+        `${this.apiUrl}/api/agents/my/${this.getAgentUserId()}`
+      );
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0) {
@@ -952,10 +991,13 @@ class AgentCollaboration {
     }
 
     try {
-      const response = await this.fetchWithAuth(`${this.apiUrl}/api/agents/${this.getAgentUserId()}/${agentId}`, {
-        method: 'DELETE',
-        headers: this.buildAuthHeaders()
-      });
+      const response = await this.fetchWithAuth(
+        `${this.apiUrl}/api/agents/${this.getAgentUserId()}/${agentId}`,
+        {
+          method: 'DELETE',
+          headers: this.buildAuthHeaders()
+        }
+      );
 
       if (!response.ok) {
         throw new Error('解雇失败');
@@ -1242,12 +1284,13 @@ class AgentCollaboration {
       return;
     }
 
-    const agentsHTML = this.myAgents.map(agent => {
-      const skillsHTML = (agent.skills || []).map(skill =>
-        `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`
-      ).join('');
+    const agentsHTML = this.myAgents
+      .map(agent => {
+        const skillsHTML = (agent.skills || [])
+          .map(skill => `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`)
+          .join('');
 
-      return `
+        return `
         <div class="agent-card">
           <div style="display: flex; align-items: center; margin-bottom: 12px;">
             <div style="font-size: 32px; margin-right: 12px;">${agent.emoji || '🧠'}</div>
@@ -1272,7 +1315,8 @@ class AgentCollaboration {
           </div>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
 
     container.innerHTML = `
       <h3 style="margin-bottom: 20px;">我的团队 (${this.myAgents.length})</h3>
@@ -1298,13 +1342,14 @@ class AgentCollaboration {
       return;
     }
 
-    const agentsHTML = availableAgents.map(agent => {
-      const isHired = hiredIds.includes(agent.id);
-      const skillsHTML = (agent.skills || []).map(skill =>
-        `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`
-      ).join('');
+    const agentsHTML = availableAgents
+      .map(agent => {
+        const isHired = hiredIds.includes(agent.id);
+        const skillsHTML = (agent.skills || [])
+          .map(skill => `<span class="agent-skill-tag">${this.escapeHtml(skill)}</span>`)
+          .join('');
 
-      return `
+        return `
         <div class="agent-card ${isHired ? 'hired' : ''}">
           <div style="display: flex; align-items: center; margin-bottom: 12px;">
             <div style="font-size: 32px; margin-right: 12px;">${agent.emoji || '🧠'}</div>
@@ -1326,7 +1371,8 @@ class AgentCollaboration {
           </button>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
 
     container.innerHTML = `
       <h3 style="margin-bottom: 20px;">招聘大厅</h3>
@@ -1371,7 +1417,8 @@ class AgentCollaboration {
    * @param {String} agentId - Agent ID
    */
   hireTeamAgent(agentId) {
-    const AVAILABLE_AGENTS = typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
+    const AVAILABLE_AGENTS =
+      typeof window.getAgentMarket === 'function' ? window.getAgentMarket() : [];
     const agent = AVAILABLE_AGENTS.find(a => a.id === agentId);
     if (!agent) return;
 
@@ -1480,7 +1527,8 @@ class AgentCollaboration {
 
       const memberCountEl = document.getElementById('projectMemberCount');
       if (memberCountEl) {
-        memberCountEl.textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+        memberCountEl.textContent =
+          (project.members?.length || 0) + (project.assignedAgents?.length || 0);
       }
     }
   }
@@ -1531,7 +1579,8 @@ class AgentCollaboration {
 
     const memberCountEl = document.getElementById('projectMemberCount');
     if (memberCountEl) {
-      memberCountEl.textContent = (project.members?.length || 0) + (project.assignedAgents?.length || 0);
+      memberCountEl.textContent =
+        (project.members?.length || 0) + (project.assignedAgents?.length || 0);
     }
   }
 }
@@ -1545,6 +1594,6 @@ if (typeof window !== 'undefined') {
   window.updateAgentTeamSummary = () => window.agentCollaboration?.updateAgentTeamSummary();
   window.showAgentManagement = () => window.agentCollaboration?.showAgentManagement();
   window.closeAgentManagement = () => window.agentCollaboration?.closeAgentManagement();
-  window.switchAgentTab = (tab) => window.agentCollaboration?.switchAgentTab(tab);
+  window.switchAgentTab = tab => window.agentCollaboration?.switchAgentTab(tab);
   window.getAgentUserId = () => window.agentCollaboration?.getAgentUserId();
 }

@@ -151,6 +151,10 @@ function initApp() {
         await window.storageManager.migrateFromLocalStorage();
       }
 
+      if (window.storageManager?.repairCoreData) {
+        await window.storageManager.repairCoreData();
+      }
+
       // 在 apiClient/storage 就绪后再加载会话，避免先渲染本地残留导致点击后 404
       if (window.chatList?.loadChats) {
         await window.chatList.loadChats({ preferLocal: false });

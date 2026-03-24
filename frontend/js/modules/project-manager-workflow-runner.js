@@ -133,7 +133,12 @@ window.projectManagerWorkflowRunner = {
   },
 
   async syncWorkflowArtifactsFromServer(pm, project) {
-    if (!project || !project.workflow || !window.workflowExecutor) {
+    if (
+      !project ||
+      !project.workflow ||
+      !window.workflowExecutor ||
+      !pm.isRemoteProjectId(project.id)
+    ) {
       return;
     }
     const artifacts = await window.workflowExecutor.getAllArtifacts(project.id);

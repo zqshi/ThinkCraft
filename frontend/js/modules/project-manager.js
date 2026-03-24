@@ -93,6 +93,9 @@ class ProjectManager {
     this.enableExecutionRunsPolling = true;
     this.workflowRouteHealthByProject = {};
     this.stageProgressTracker = {};
+    this.projectArtifactsCache = {};
+    this.projectBundleCache = {};
+    this.currentProjectBundle = null;
     this.agentMarket = [];
     this.agentMarketCategory = null;
     this.cachedHiredAgents = [];
@@ -199,6 +202,23 @@ class ProjectManager {
     return STAGE_ID_ALIASES[normalized] || normalized;
   }
 
+  isRemoteProjectId(projectId) {
+    const value = String(projectId || '').trim();
+    if (!value) {
+      return false;
+    }
+    if (/^[a-f0-9]{24}$/i.test(value)) {
+      return true;
+    }
+    if (/^project_[a-z0-9]+$/i.test(value)) {
+      return false;
+    }
+    if (/^project-\d+-[a-z0-9]+$/i.test(value)) {
+      return false;
+    }
+    return false;
+  }
+
   resolveCatalogStageIdByAgents(agentIds = []) {
     const agents = Array.isArray(agentIds) ? agentIds : [];
     if (agents.includes('ui-ux-designer')) return 'design';
@@ -289,6 +309,10 @@ registerPmDelegates('projectManagerData', [
   'getProject',
   'getProjectByIdeaId',
   { method: 'updateProject', promise: true }
+]);
+registerPmDelegates('projectManagerBundle', [
+  { method: 'resolveProjectBundle', promise: true },
+  { method: 'resolveIdeaChat', promise: true, fallback: null }
 ]);
 
 registerPmDelegates('projectManagerSync', [

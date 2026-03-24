@@ -70,7 +70,7 @@ class ReportGenerator {
   }
 
   async persistAnalysisReport(reportData, status = 'completed') {
-    if (!window.storageManager || !reportData) {
+    if (!reportData) {
       return;
     }
     const chatId = normalizeChatId(this.state.currentChat);
@@ -81,19 +81,22 @@ class ReportGenerator {
       status === 'completed'
         ? { current: 1, total: 1, percentage: 100 }
         : { current: 0, total: 1, percentage: 0 };
-    await window.storageManager.saveReport({
-      type: 'analysis',
+    await window.chatReportBundle?.persistReport?.(
       chatId,
-      data: reportData,
-      status,
-      progress,
-      startTime: Date.now(),
-      endTime: status === 'completed' ? Date.now() : null,
-      error: null
-    });
-    if (window.reportStatusManager) {
-      window.reportStatusManager.onReportStatusChange(chatId, 'analysis', status);
-    }
+      'analysis',
+      {
+        data: reportData,
+        status,
+        progress,
+        startTime: Date.now(),
+        endTime: status === 'completed' ? Date.now() : null,
+        error: null
+      },
+      {
+        setActive: true,
+        reportKey: this.getAnalysisReportKey()
+      }
+    );
   }
 
   /**
@@ -159,8 +162,11 @@ class ReportGenerator {
         return;
       }
 
-      window.lastGeneratedReport = reportData;
-      window.lastGeneratedReportKey = this.getAnalysisReportKey();
+      window.chatReportBundle?.setActiveReport?.(reportData, {
+        chatId,
+        type: 'analysis',
+        reportKey: this.getAnalysisReportKey()
+      });
       await this.persistAnalysisReport(reportData, 'completed');
       if (typeof updateShareLinkButtonVisibility === 'function') {
         updateShareLinkButtonVisibility();
@@ -229,8 +235,11 @@ class ReportGenerator {
         return false;
       }
 
-      window.lastGeneratedReport = reportData;
-      window.lastGeneratedReportKey = this.getAnalysisReportKey();
+      window.chatReportBundle?.setActiveReport?.(reportData, {
+        chatId,
+        type: 'analysis',
+        reportKey: this.getAnalysisReportKey()
+      });
       await this.persistAnalysisReport(reportData, 'completed');
       if (typeof updateShareLinkButtonVisibility === 'function') {
         updateShareLinkButtonVisibility();
@@ -399,7 +408,11 @@ class ReportGenerator {
       // 需要提取 data.data.report 作为实际报告数据
       const responseData = data.data;
       const report = responseData.report || responseData; // 兼容旧格式
-      window.lastGeneratedReport = report;
+      window.chatReportBundle?.setActiveReport?.(report, {
+        chatId,
+        type: 'analysis',
+        reportKey: this.getAnalysisReportKey()
+      });
 
       // 保存到数据库
       await this.persistAnalysisReport(report, 'completed');
@@ -414,11 +427,6 @@ class ReportGenerator {
       this.state.analysisCompleted = true;
       if (window.stateManager?.setAnalysisCompleted) {
         window.stateManager.setAnalysisCompleted(chatId, true);
-      }
-
-      // 通知状态管理器清除缓存
-      if (window.reportStatusManager) {
-        window.reportStatusManager.onReportStatusChange(chatId, 'analysis', 'completed');
       }
 
       // 渲染报告
@@ -439,15 +447,15 @@ class ReportGenerator {
         window.stateManager.errorGeneration(chatId, 'analysis', error);
       }
 
-      // 通知状态管理器清除缓存
-      if (window.reportStatusManager) {
-        window.reportStatusManager.onReportStatusChange(chatId, 'analysis', 'error');
-      }
-      if (window.storageManager) {
-        window.storageManager
-          .saveReport({
-            type: 'analysis',
-            chatId,
+      window.chatReportBundle?.clearActiveReport?.({
+        chatId,
+        type: 'analysis'
+      });
+      window.chatReportBundle
+        ?.persistReport?.(
+          chatId,
+          'analysis',
+          {
             data: null,
             status: 'error',
             progress: { current: 0, total: 1, percentage: 0 },
@@ -457,9 +465,12 @@ class ReportGenerator {
               message: error?.message || '报告生成失败',
               timestamp: Date.now()
             }
-          })
-          .catch(() => {});
-      }
+          },
+          {
+            setActive: false
+          }
+        )
+        .catch(() => {});
 
       let errorMessage = error.message;
       let actionButton =
@@ -523,8 +534,10 @@ class ReportGenerator {
 
     const chatId = normalizeChatId(this.state.currentChat);
 
-    window.lastGeneratedReport = null;
-    window.lastGeneratedReportKey = null;
+    window.chatReportBundle?.clearActiveReport?.({
+      chatId,
+      type: 'analysis'
+    });
     window.analysisReportGenerationInFlight = false;
 
     // 重置StateManager状态
@@ -532,18 +545,23 @@ class ReportGenerator {
       window.stateManager.resetGeneration(chatId, 'analysis', false);
     }
 
-    if (window.storageManager && this.state.currentChat) {
+    if (this.state.currentChat) {
       try {
-        await window.storageManager.saveReport({
-          type: 'analysis',
-          chatId: chatId,
-          data: null,
-          status: 'generating',
-          progress: { current: 0, total: 1, percentage: 0 },
-          startTime: Date.now(),
-          endTime: null,
-          error: null
-        });
+        await window.chatReportBundle?.persistReport?.(
+          chatId,
+          'analysis',
+          {
+            data: null,
+            status: 'generating',
+            progress: { current: 0, total: 1, percentage: 0 },
+            startTime: Date.now(),
+            endTime: null,
+            error: null
+          },
+          {
+            setActive: false
+          }
+        );
       } catch (error) {
         console.error('[重新生成] 保存状态失败:', error);
       }
@@ -1350,7 +1368,7 @@ function loadGenerationStates() {
 }
 
 function canShareReport() {
-  return Boolean(window.lastGeneratedReport && window.lastGeneratedReport.chapters);
+  return Boolean(window.chatReportBundle?.hasShareableActiveReport?.('analysis'));
 }
 
 function updateShareLinkButtonVisibility() {

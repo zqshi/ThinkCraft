@@ -121,7 +121,7 @@ window.projectManagerData = {
   },
 
   async getProject(pm, projectId, options = {}) {
-    const requireRemote = Boolean(options.requireRemote);
+    const requireRemote = Boolean(options.requireRemote) && pm.isRemoteProjectId(projectId);
     const localProject = pm.storageManager?.getProject
       ? await pm.storageManager.getProject(projectId).catch(() => null)
       : null;
@@ -179,11 +179,11 @@ window.projectManagerData = {
         normalizedIdeaUpdate &&
         Object.prototype.hasOwnProperty.call(normalizedIdeaUpdate, 'assignedAgents')
           ? {
-            ...normalizedIdeaUpdate,
-            assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
-              ? normalizedIdeaUpdate.assignedAgents.filter(Boolean).map(String)
-              : []
-          }
+              ...normalizedIdeaUpdate,
+              assignedAgents: Array.isArray(normalizedIdeaUpdate.assignedAgents)
+                ? normalizedIdeaUpdate.assignedAgents.filter(Boolean).map(String)
+                : []
+            }
           : normalizedIdeaUpdate;
 
       if (options.localOnly) {
@@ -194,6 +194,10 @@ window.projectManagerData = {
           updatedAt: Date.now()
         };
         await pm.storageManager.saveProject(project);
+        delete pm.projectBundleCache?.[projectId];
+        if (pm.currentProjectBundle?.project?.id === projectId) {
+          pm.currentProjectBundle = null;
+        }
         const index = pm.projects.findIndex(p => p.id === projectId);
         if (index !== -1) {
           pm.projects[index] = project;
@@ -224,6 +228,10 @@ window.projectManagerData = {
       const project = result.data.project;
 
       await pm.storageManager.saveProject(project);
+      delete pm.projectBundleCache?.[projectId];
+      if (pm.currentProjectBundle?.project?.id === projectId) {
+        pm.currentProjectBundle = null;
+      }
 
       const index = pm.projects.findIndex(p => p.id === projectId);
       if (index !== -1) {

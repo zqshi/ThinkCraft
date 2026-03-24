@@ -44,21 +44,22 @@ class ReportViewer {
     reportContent.innerHTML =
       '<div style="text-align: center; padding: 60px 20px;"><div class="loading-spinner"></div><div style="margin-top: 20px;">正在加载报告...</div></div>';
 
-    // 尝试从缓存或数据库加载报告
-    if (window.storageManager && this.state.currentChat) {
+    // 尝试从统一 read model 加载报告
+    if (this.state.currentChat) {
       try {
         const chatId = normalizeChatId(this.state.currentChat);
-        // 使用 getReportByChatIdAndType 而不是 getReport
-        const reportEntry = await window.storageManager.getReportByChatIdAndType(
-          chatId,
-          'analysis'
-        );
+        const resolution = await window.chatReportBundle?.resolveReportEntry?.(chatId, 'analysis', {
+          stateChats: this.state.chats
+        });
+        const reportEntry = resolution?.report || null;
+        const buttonState = resolution?.buttonState || null;
 
         if (reportEntry && reportEntry.status === 'completed' && reportEntry.data) {
-          window.lastGeneratedReport = reportEntry.data;
-          if (window.reportGenerator?.getAnalysisReportKey) {
-            window.lastGeneratedReportKey = window.reportGenerator.getAnalysisReportKey();
-          }
+          window.chatReportBundle?.setActiveReport?.(reportEntry.data, {
+            chatId,
+            type: 'analysis',
+            reportKey: window.reportGenerator?.getAnalysisReportKey?.()
+          });
           this.renderAIReport(reportEntry.data);
           if (typeof setAnalysisActionsEnabled === 'function') {
             setAnalysisActionsEnabled(true);
@@ -68,6 +69,40 @@ class ReportViewer {
           }
           return;
         }
+
+        if (buttonState?.buttonState === 'generating') {
+          const progress = reportEntry?.progress || { percentage: 0 };
+          reportContent.innerHTML = `
+                        <div style="text-align: center; padding: 60px 20px;">
+                            <div class="loading-spinner"></div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-top: 20px;">
+                                报告生成中
+                            </div>
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-top: 12px;">
+                                已完成 ${progress.percentage}%
+                            </div>
+                            <button class="btn-secondary" style="margin-top: 20px;" onclick="closeReport()">关闭</button>
+                        </div>
+                    `;
+          return;
+        }
+
+        if (buttonState?.buttonState === 'error') {
+          reportContent.innerHTML = `
+                        <div style="text-align: center; padding: 60px 20px;">
+                            <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                                报告状态异常
+                            </div>
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                                ${buttonState.buttonText || '报告暂不可用，请重新生成。'}
+                            </div>
+                            <button class="btn-primary" onclick="regenerateInsightsReport()">重新生成</button>
+                        </div>
+                    `;
+          return;
+        }
+
         if (reportEntry && reportEntry.status === 'completed' && !reportEntry.data) {
           reportContent.innerHTML = `
                         <div style="text-align: center; padding: 60px 20px;">
@@ -118,7 +153,7 @@ class ReportViewer {
           return;
         }
       } catch (error) {
-        console.error('[查看报告] 数据库查询失败:', error);
+        console.error('[查看报告] 报告读取失败:', error);
       }
     }
 
@@ -194,10 +229,11 @@ class ReportViewer {
     }
 
     // 🔧 同步到全局，确保分享按钮可用
-    window.lastGeneratedReport = reportData;
-    if (window.reportGenerator?.getAnalysisReportKey) {
-      window.lastGeneratedReportKey = window.reportGenerator.getAnalysisReportKey();
-    }
+    window.chatReportBundle?.setActiveReport?.(reportData, {
+      chatId: normalizeChatId(this.state?.currentChat),
+      type: 'analysis',
+      reportKey: window.reportGenerator?.getAnalysisReportKey?.()
+    });
     if (typeof updateShareLinkButtonVisibility === 'function') {
       updateShareLinkButtonVisibility();
     }
@@ -267,7 +303,8 @@ class ReportViewer {
   _tryParseReportDocument(document) {
     if (!document || typeof document !== 'string') return null;
     const trimmed = document.trim();
-    const fencedMatch = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
+    const fencedMatch =
+      trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
     const jsonText = (fencedMatch ? fencedMatch[1] : trimmed).trim();
     if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) return null;
     try {
@@ -307,7 +344,10 @@ class ReportViewer {
       if (headerIndex === -1) return source;
 
       const headerLine = lines[headerIndex];
-      const headerCells = headerLine.split('|').map(cell => cell.trim()).filter(Boolean);
+      const headerCells = headerLine
+        .split('|')
+        .map(cell => cell.trim())
+        .filter(Boolean);
       const colCount = headerCells.length;
       if (colCount < 2) return source;
 
@@ -318,9 +358,12 @@ class ReportViewer {
         return -1;
       })();
 
-      const hasSeparator = nextNonEmptyIndex !== -1
-        && /^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(lines[nextNonEmptyIndex]);
-      const looksBroken = lines.slice(headerIndex + 1, headerIndex + 6).some(line => /\|/.test(line) && !/^\s*\|/.test(line));
+      const hasSeparator =
+        nextNonEmptyIndex !== -1 &&
+        /^\s*\|?\s*[-:]+(\s*\|\s*[-:]+)+\s*\|?\s*$/.test(lines[nextNonEmptyIndex]);
+      const looksBroken = lines
+        .slice(headerIndex + 1, headerIndex + 6)
+        .some(line => /\|/.test(line) && !/^\s*\|/.test(line));
       if (hasSeparator && !looksBroken) return source;
 
       const rowLines = [];

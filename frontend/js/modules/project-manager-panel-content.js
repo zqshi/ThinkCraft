@@ -7,13 +7,100 @@ const panelLogger = window.createLogger
   : console;
 
 window.projectManagerPanelContent = {
+  isViewableReport(pm, report, type = '') {
+    if (!report) {
+      return false;
+    }
+    const normalizedType = String(type || report.type || '').toLowerCase();
+    if (
+      normalizedType === 'analysis' ||
+      normalizedType === 'analysis-report' ||
+      normalizedType === 'analysis_report'
+    ) {
+      return pm.hasCompletedAnalysisReport ? pm.hasCompletedAnalysisReport(report) : false;
+    }
+
+    const normalizedStatus = String(report.status || '').toLowerCase();
+    const statusCompleted =
+      !normalizedStatus ||
+      normalizedStatus === 'completed' ||
+      normalizedStatus === 'success' ||
+      normalizedStatus === 'done' ||
+      normalizedStatus === 'finished';
+    if (!statusCompleted) {
+      return false;
+    }
+
+    const data = report.data || {};
+    const hasDocument = typeof data.document === 'string' && data.document.trim().length > 0;
+    const chapters = data.chapters;
+    const hasChapters = Array.isArray(chapters)
+      ? chapters.length > 0
+      : chapters && typeof chapters === 'object'
+        ? Object.keys(chapters).length > 0
+        : false;
+    return hasDocument || hasChapters;
+  },
+
+  collectProjectRoleKeys(pm, project) {
+    const roleKeys = [];
+
+    const suggested = Array.isArray(project?.collaborationSuggestion?.recommendedAgents)
+      ? project.collaborationSuggestion.recommendedAgents
+      : [];
+    suggested.forEach(roleId => {
+      if (roleId) {
+        roleKeys.push(String(roleId));
+      }
+    });
+
+    const workflowStages = Array.isArray(project?.workflow?.stages) ? project.workflow.stages : [];
+    workflowStages.forEach(stage => {
+      const stageRoles = Array.isArray(stage?.agentRoles) ? stage.agentRoles : [];
+      stageRoles.forEach(role => {
+        if (typeof role === 'string') {
+          roleKeys.push(role);
+        } else if (role?.id) {
+          roleKeys.push(role.id);
+        }
+      });
+
+      const agents = Array.isArray(stage?.agents) ? stage.agents : [];
+      agents.forEach(roleId => {
+        if (roleId) {
+          roleKeys.push(String(roleId));
+        }
+      });
+    });
+
+    return roleKeys.filter(Boolean);
+  },
+
+  buildFallbackMembers(pm, project, assignedIds = []) {
+    const roleKeys = this.collectProjectRoleKeys(pm, project);
+    return assignedIds.map((agentId, index) => {
+      const roleKey = roleKeys[index] || roleKeys[0] || '';
+      const roleProfile = this.resolveMemberRoleProfile(pm, {
+        id: roleKey || agentId,
+        type: roleKey,
+        name: roleKey
+      });
+
+      return {
+        id: agentId,
+        type: roleKey || agentId,
+        name: roleProfile?.name || '项目成员',
+        nickname: roleProfile?.name || '项目成员',
+        emoji: roleProfile?.icon || roleProfile?.emoji || '👤',
+        desc: roleProfile?.persona || '负责当前项目相关工作',
+        role: roleProfile?.roleTag || '协作成员',
+        skills: []
+      };
+    });
+  },
+
   resolveMemberRoleProfile(pm, agent) {
-    const roleCandidates = [
-      agent?.type,
-      agent?.agentType,
-      agent?.id,
-      agent?.role
-    ]
+    const roleCandidates = [agent?.type, agent?.agentType, agent?.id, agent?.role]
       .map(value => (value === undefined || value === null ? '' : String(value).trim()))
       .filter(Boolean);
 
@@ -28,18 +115,20 @@ window.projectManagerPanelContent = {
       .trim()
       .toLowerCase();
     const aliases = {
-      '产品经理': 'product-manager',
+      产品经理: 'product-manager',
       'ui/ux设计师': 'ui-ux-designer',
-      '前端开发': 'frontend-developer',
-      '后端开发': 'backend-developer',
-      '测试工程师': 'qa-engineer',
-      '运维工程师': 'devops',
-      '市场营销': 'marketing',
-      '运营专员': 'operations',
-      '战略设计师': 'strategy-design',
-      '技术负责人': 'tech-lead'
+      前端开发: 'frontend-developer',
+      后端开发: 'backend-developer',
+      测试工程师: 'qa-engineer',
+      运维工程师: 'devops',
+      市场营销: 'marketing',
+      运营专员: 'operations',
+      战略设计师: 'strategy-design',
+      技术负责人: 'tech-lead'
     };
-    const aliasKey = Object.entries(aliases).find(([name]) => name.toLowerCase() === normalizedName);
+    const aliasKey = Object.entries(aliases).find(
+      ([name]) => name.toLowerCase() === normalizedName
+    );
     return aliasKey ? pm.getAgentDefinition(aliasKey[1]) : null;
   },
 
@@ -74,18 +163,7 @@ window.projectManagerPanelContent = {
 
     if (members.length === 0) {
       panelLogger.info('[项目成员面板] 使用成员类型生成虚拟成员卡片');
-      members = assignedIds.map(agentType => {
-        const agentDef = pm.getAgentDefinition(agentType);
-        return {
-          id: agentType,
-          type: agentType,
-          name: agentDef?.name || agentType,
-          nickname: agentDef?.name || agentType,
-          emoji: agentDef?.icon || agentDef?.emoji || '👤',
-          desc: agentDef?.persona || `负责${agentDef?.name || agentType}相关工作`,
-          skills: []
-        };
-      });
+      members = this.buildFallbackMembers(pm, project, assignedIds);
     }
 
     container.classList.remove('is-empty');
@@ -130,25 +208,23 @@ window.projectManagerPanelContent = {
     }
 
     try {
-      const ideaId = pm.normalizeIdeaId(rawIdeaId);
-      let chat = await pm.storageManager.getChat(ideaId);
-      if (!chat && ideaId !== rawIdeaId) {
-        chat = await pm.storageManager.getChat(rawIdeaId);
-      }
-      if (!chat) {
-        const chats = await pm.storageManager.getAllChats().catch(() => []);
-        const rawKey = pm.normalizeIdeaIdForCompare(rawIdeaId);
-        chat = chats.find(item => pm.normalizeIdeaIdForCompare(item.id) === rawKey);
-      }
+      const bundle =
+        (pm.currentProjectBundle?.project?.id === project.id
+          ? pm.currentProjectBundle
+          : await pm.resolveProjectBundle(project.id).catch(() => null)) || null;
+      const chat = bundle?.ideaChat || null;
       if (!chat) {
         container.innerHTML = '<div class="project-panel-empty">创意信息缺失</div>';
         return;
       }
 
-      const reports = await pm.getReportsByChatId(chat.id ?? ideaId ?? rawIdeaId);
+      const reports = bundle?.reports || (await pm.getReportsByChatId(chat.id ?? rawIdeaId));
       const analysis = reports.analysis;
       const business = reports.business;
       const proposal = reports.proposal;
+      const hasAnalysis = this.isViewableReport(pm, analysis, 'analysis');
+      const hasBusiness = this.isViewableReport(pm, business, 'business');
+      const hasProposal = this.isViewableReport(pm, proposal, 'proposal');
 
       const analysisSummary = analysis?.data?.coreDefinition || analysis?.data?.problem || '';
 
@@ -159,9 +235,9 @@ window.projectManagerPanelContent = {
                 <div class="project-idea-summary">${pm.escapeHtml(analysisSummary || '暂无分析报告摘要')}</div>
                 <div class="project-idea-actions">
                     <button class="btn-secondary" onclick="projectManager.openIdeaChat('${chat.id}')">查看对话</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'analysis')" title="${analysis ? '查看分析报告' : '暂无分析报告，先在对话中生成'}">分析报告</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'business')" title="${business ? '查看商业计划书' : '暂无商业计划书，先在对话中生成'}">商业计划书</button>
-                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')" title="${proposal ? '查看立项材料' : '暂无立项材料，先在对话中生成'}">立项材料</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'analysis')" title="${hasAnalysis ? '查看分析报告' : '暂无分析报告，先在对话中生成'}">分析报告</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'business')" title="${hasBusiness ? '查看商业计划书' : '暂无商业计划书，先在对话中生成'}">商业计划书</button>
+                    <button class="btn-secondary" onclick="projectManager.viewIdeaReport('${chat.id}', 'proposal')" title="${hasProposal ? '查看立项材料' : '暂无立项材料，先在对话中生成'}">立项材料</button>
                 </div>
             </div>
         `;
@@ -177,7 +253,11 @@ window.projectManagerPanelContent = {
     }
 
     try {
-      const items = await pm.storageManager.getKnowledgeByProject(project.id);
+      const bundle =
+        (pm.currentProjectBundle?.project?.id === project.id
+          ? pm.currentProjectBundle
+          : await pm.resolveProjectBundle(project.id).catch(() => null)) || null;
+      const items = bundle?.knowledgeItems || [];
       if (!items || items.length === 0) {
         container.innerHTML = '<div class="project-panel-empty">暂无知识沉淀</div>';
         return;

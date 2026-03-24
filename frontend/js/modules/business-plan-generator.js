@@ -216,9 +216,26 @@ class BusinessPlanGenerator {
    */
   async checkReportStatus(type, chatId) {
     try {
+      const normalizedChatId = normalizeChatId(chatId);
+      if (window.chatReportBundle?.resolveReportEntry) {
+        const resolved = await window.chatReportBundle.resolveReportEntry(normalizedChatId, type, {
+          stateChats: window.state?.chats
+        });
+        const report = resolved?.report || null;
+        if (report) {
+          businessLogger.debug('[状态检查] 从统一 read model 获取状态', {
+            type: report.type,
+            status: report.status,
+            hasData: Boolean(report.data),
+            hasChapters: Boolean(report.data?.chapters),
+            chaptersCount: report.data?.chapters?.length || 0
+          });
+          return report;
+        }
+      }
+
       // 🔧 1. 优先从IndexedDB加载（更可靠，硬刷新后仍然存在）
       if (window.storageManager?.getReportByChatIdAndType) {
-        const normalizedChatId = normalizeChatId(chatId);
         const report = await window.storageManager.getReportByChatIdAndType(normalizedChatId, type);
 
         if (report) {
@@ -241,18 +258,21 @@ class BusinessPlanGenerator {
                 total: totalCount,
                 percentage: totalCount > 0 ? 100 : 0
               };
-              await window.storageManager.saveReport({
-                id: report.id,
-                type: report.type,
-                chatId: report.chatId,
-                data: report.data ?? null,
-                status: report.status,
-                progress: report.progress,
-                selectedChapters: report.selectedChapters,
-                startTime: report.startTime,
-                endTime: report.endTime,
-                error: report.error ?? null
-              });
+              await window.chatReportBundle?.persistReport?.(
+                report.chatId,
+                report.type,
+                {
+                  id: report.id,
+                  data: report.data ?? null,
+                  status: report.status,
+                  progress: report.progress,
+                  selectedChapters: report.selectedChapters,
+                  startTime: report.startTime,
+                  endTime: report.endTime,
+                  error: report.error ?? null
+                },
+                { setActive: false }
+              );
             }
           }
 
@@ -272,18 +292,21 @@ class BusinessPlanGenerator {
                 total: totalCount,
                 percentage: 100
               };
-              await window.storageManager.saveReport({
-                id: report.id,
-                type: report.type,
-                chatId: report.chatId,
-                data: report.data ?? null,
-                status: report.status,
-                progress: report.progress,
-                selectedChapters: report.selectedChapters,
-                startTime: report.startTime,
-                endTime: report.endTime,
-                error: null
-              });
+              await window.chatReportBundle?.persistReport?.(
+                report.chatId,
+                report.type,
+                {
+                  id: report.id,
+                  data: report.data ?? null,
+                  status: report.status,
+                  progress: report.progress,
+                  selectedChapters: report.selectedChapters,
+                  startTime: report.startTime,
+                  endTime: report.endTime,
+                  error: null
+                },
+                { setActive: false }
+              );
             }
           }
 
@@ -303,18 +326,21 @@ class BusinessPlanGenerator {
                 total: totalCount,
                 percentage: 100
               };
-              await window.storageManager.saveReport({
-                id: report.id,
-                type: report.type,
-                chatId: report.chatId,
-                data: report.data ?? null,
-                status: report.status,
-                progress: report.progress,
-                selectedChapters: report.selectedChapters,
-                startTime: report.startTime,
-                endTime: report.endTime,
-                error: null
-              });
+              await window.chatReportBundle?.persistReport?.(
+                report.chatId,
+                report.type,
+                {
+                  id: report.id,
+                  data: report.data ?? null,
+                  status: report.status,
+                  progress: report.progress,
+                  selectedChapters: report.selectedChapters,
+                  startTime: report.startTime,
+                  endTime: report.endTime,
+                  error: null
+                },
+                { setActive: false }
+              );
             }
           }
 
@@ -360,18 +386,21 @@ class BusinessPlanGenerator {
                 message: errorMessage,
                 timestamp: Date.now()
               };
-              await window.storageManager.saveReport({
-                id: report.id,
-                type: report.type,
-                chatId: report.chatId,
-                data: report.data ?? null,
-                status: report.status,
-                progress: report.progress,
-                selectedChapters: report.selectedChapters,
-                startTime: report.startTime,
-                endTime: report.endTime,
-                error: report.error
-              });
+              await window.chatReportBundle?.persistReport?.(
+                report.chatId,
+                report.type,
+                {
+                  id: report.id,
+                  data: report.data ?? null,
+                  status: report.status,
+                  progress: report.progress,
+                  selectedChapters: report.selectedChapters,
+                  startTime: report.startTime,
+                  endTime: report.endTime,
+                  error: report.error
+                },
+                { setActive: false }
+              );
               if (window.businessPlanGenerator?.updateButtonUI) {
                 window.businessPlanGenerator.updateButtonUI(type, 'error');
               }
@@ -1223,37 +1252,29 @@ class BusinessPlanGenerator {
         hasData: Boolean(data)
       });
 
-      // 查找现有报告，使用相同的ID（避免创建重复记录）
-      const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
-      const existing = reports.find(r => r.type === type);
-      const reportId = existing?.id || `${type}-${Date.now()}`;
-
-      businessLogger.debug('[保存报告] 报告ID:', reportId, existing ? '(更新现有)' : '(创建新)');
-
       const genState = this.state.getGenerationState(normalizedChatId);
       const startTime = genState?.[type]?.startTime || Date.now();
-      await window.storageManager.saveReport({
-        id: reportId,
+      await window.chatReportBundle?.persistReport?.(
+        normalizedChatId,
         type,
-        data,
-        chatId: normalizedChatId,
-        status: 'completed',
-        progress: {
-          current: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
-          total: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
-          currentAgent: null,
-          percentage: 100
+        {
+          data,
+          status: 'completed',
+          progress: {
+            current: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
+            total: Array.isArray(data.selectedChapters) ? data.selectedChapters.length : 0,
+            currentAgent: null,
+            percentage: 100
+          },
+          selectedChapters: data.selectedChapters || [],
+          startTime,
+          endTime: Date.now(),
+          error: null
         },
-        selectedChapters: data.selectedChapters || [],
-        startTime,
-        endTime: Date.now(),
-        error: null
-      });
-
-      // 清除报告状态缓存，确保UI显示最新状态
-      if (window.reportStatusManager) {
-        window.reportStatusManager.clearCache(normalizedChatId, type);
-      }
+        {
+          setActive: false
+        }
+      );
 
       businessLogger.debug('[保存报告] 保存成功');
     } catch (error) {
@@ -1281,8 +1302,11 @@ class BusinessPlanGenerator {
         return;
       }
       const normalizedChatId = normalizeChatId(chatId);
-      const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
-      const existing = reports.find(r => r.type === type);
+      const existing = window.storageManager?.getReportByChatIdAndType
+        ? await window.storageManager
+            .getReportByChatIdAndType(normalizedChatId, type)
+            .catch(() => null)
+        : null;
       businessLogger.debug(
         '[持久化状态] 现有报告:',
         existing ? `存在(id: ${existing.id})` : '不存在'
@@ -1330,15 +1354,9 @@ class BusinessPlanGenerator {
         status: payload.status
       });
 
-      await window.storageManager.saveReport(payload);
-
-      // 清除报告状态缓存，确保UI显示最新状态
-      if (
-        window.reportStatusManager &&
-        (updates.status === 'completed' || updates.status === 'error')
-      ) {
-        window.reportStatusManager.clearCache(normalizedChatId, type);
-      }
+      await window.chatReportBundle?.persistReport?.(normalizedChatId, type, payload, {
+        setActive: false
+      });
 
       businessLogger.debug('[持久化状态] 保存成功');
     } catch (error) {
@@ -1612,12 +1630,9 @@ class BusinessPlanGenerator {
       return;
     }
     const normalizedChatId = normalizeChatId(chatId);
-    const reports = await window.storageManager.getReportsByChatId(normalizedChatId);
-    const matches = (reports || []).filter(report => report.type === type);
-    await Promise.all(matches.map(report => window.storageManager.deleteReport(report.id)));
-    if (window.reportStatusManager) {
-      window.reportStatusManager.clearCache(normalizedChatId, type);
-    }
+    await window.chatReportBundle?.deleteReport?.(normalizedChatId, type, {
+      clearActive: false
+    });
     if (this.updateButtonUI) {
       this.updateButtonUI(type, 'idle');
     }
@@ -1634,22 +1649,19 @@ class BusinessPlanGenerator {
 
     if (window.storageManager && chatId) {
       try {
-        const reportEntry = await window.storageManager.getReport(type, chatId);
+        const reportEntry = await window.chatReportBundle?.resolveReportEntry?.(chatId, type, {
+          stateChats: window.state?.chats
+        });
+        const report = reportEntry?.report || null;
         if (
-          Array.isArray(reportEntry?.data?.selectedChapters) &&
-          reportEntry.data.selectedChapters.length > 0
+          Array.isArray(report?.data?.selectedChapters) &&
+          report.data.selectedChapters.length > 0
         ) {
-          selected = reportEntry.data.selectedChapters;
-        } else if (
-          Array.isArray(reportEntry?.selectedChapters) &&
-          reportEntry.selectedChapters.length > 0
-        ) {
-          selected = reportEntry.selectedChapters;
-        } else if (
-          Array.isArray(reportEntry?.data?.chapters) &&
-          reportEntry.data.chapters.length > 0
-        ) {
-          selected = reportEntry.data.chapters.map(ch => ch.chapterId).filter(Boolean);
+          selected = report.data.selectedChapters;
+        } else if (Array.isArray(report?.selectedChapters) && report.selectedChapters.length > 0) {
+          selected = report.selectedChapters;
+        } else if (Array.isArray(report?.data?.chapters) && report.data.chapters.length > 0) {
+          selected = report.data.chapters.map(ch => ch.chapterId).filter(Boolean);
         }
       } catch (error) {
         console.warn('[重新生成-已选章节] 读取报告数据失败:', error);
@@ -1810,14 +1822,9 @@ class BusinessPlanGenerator {
       const modal = document.getElementById('businessReportModal');
       const reportType = modal?.dataset?.reportType || 'business';
 
-      // 从 IndexedDB 获取报告数据
-      let reportData = null;
-      if (window.storageManager) {
-        const reportEntry = await window.storageManager.getReport(reportType, chatId);
-        if (reportEntry && reportEntry.data) {
-          reportData = reportEntry.data;
-        }
-      }
+      const reportData = await window.chatReportBundle?.resolveReportData?.(chatId, reportType, {
+        stateChats: window.state?.chats
+      });
 
       if (!reportData) {
         alert('未找到报告数据，请先生成报告');

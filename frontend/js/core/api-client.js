@@ -222,8 +222,11 @@ class APIClient {
    */
   handleUnauthorized() {
     sessionStorage.removeItem('thinkcraft_access_token');
+    localStorage.removeItem('thinkcraft_access_token');
     localStorage.removeItem('thinkcraft_refresh_token');
     localStorage.removeItem('accessToken');
+    sessionStorage.removeItem('thinkcraft_logged_in');
+    sessionStorage.removeItem('thinkcraft_user');
 
     if (typeof window !== 'undefined') {
       alert('登录已过期，请重新登录');

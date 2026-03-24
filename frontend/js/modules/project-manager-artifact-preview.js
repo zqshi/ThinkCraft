@@ -7,13 +7,24 @@
     ? window.createLogger('ProjectArtifactPreview')
     : console;
 
-  const findArtifactById = (project, artifactId) => {
+  const findArtifactById = (pm, project, artifactId) => {
     const stages = project?.workflow?.stages || [];
     for (const stage of stages) {
-      const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+      const artifacts =
+        pm?.getDisplayArtifacts && typeof pm.getDisplayArtifacts === 'function'
+          ? pm.getDisplayArtifacts(stage)
+          : Array.isArray(stage.artifacts)
+            ? stage.artifacts
+            : [];
       const artifact = artifacts.find(a => a.id === artifactId);
       if (artifact) {
-        return { stage, artifact };
+        return {
+          stage: {
+            ...stage,
+            artifacts
+          },
+          artifact
+        };
       }
     }
     return null;
@@ -116,17 +127,83 @@
     },
 
     normalizeHtmlForPreview(html) {
-      const source = String(html || '');
-      if (!source.trim()) {
+      const source = String(html || '').trim();
+      if (!source) {
         return '';
       }
-      const hasHtmlTag = /<html[\s>]/i.test(source);
-      const hasBodyTag = /<body[\s>]/i.test(source);
-      const hasClosingHtml = /<\/html>/i.test(source);
-      const hasDoctype = /<!doctype html>/i.test(source);
+
+      const stripFence = text =>
+        String(text || '')
+          .replace(/^```html\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+
+      const withClosers = text => {
+        let fixed = String(text || '').trim();
+        if (!fixed) {
+          return '';
+        }
+
+        const hasDoctype = /<!doctype html>/i.test(fixed);
+        const hasHtmlTag = /<html[\s>]/i.test(fixed);
+        const hasHeadTag = /<head[\s>]/i.test(fixed);
+        const hasBodyTag = /<body[\s>]/i.test(fixed);
+        const hasClosingBody = /<\/body>/i.test(fixed);
+        const hasClosingHtml = /<\/html>/i.test(fixed);
+
+        if (!hasHtmlTag && /<(main|section|div|header|nav|article|footer)[\s>]/i.test(fixed)) {
+          fixed = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>交互原型预览</title>
+</head>
+<body>
+${fixed}
+</body>
+</html>`;
+          return fixed;
+        }
+
+        if (hasHtmlTag && !hasHeadTag) {
+          fixed = fixed.replace(
+            /<html([^>]*)>/i,
+            '<html$1>\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>交互原型预览</title>\n</head>'
+          );
+        }
+
+        if (hasHtmlTag && !hasBodyTag) {
+          fixed = fixed.replace(/<\/head>/i, '</head>\n<body>');
+          if (!/<body[\s>]/i.test(fixed)) {
+            fixed = fixed.replace(/<html([^>]*)>/i, '<html$1>\n<body>');
+          }
+        }
+
+        if (!hasDoctype && /<html[\s>]/i.test(fixed)) {
+          fixed = '<!doctype html>\n' + fixed;
+        }
+
+        if (!hasClosingBody && /<body[\s>]/i.test(fixed)) {
+          fixed += '\n</body>';
+        }
+        if (!hasClosingHtml && /<html[\s>]/i.test(fixed)) {
+          fixed += '\n</html>';
+        }
+
+        return fixed;
+      };
+
+      const normalized = withClosers(stripFence(source));
+      const hasHtmlTag = /<html[\s>]/i.test(normalized);
+      const hasBodyTag = /<body[\s>]/i.test(normalized);
+      const hasClosingHtml = /<\/html>/i.test(normalized);
+      const hasDoctype = /<!doctype html>/i.test(normalized);
       if ((hasHtmlTag || hasDoctype) && hasBodyTag && hasClosingHtml) {
-        return source;
+        return normalized;
       }
+
       const escaped = api.escapeHtml(source).slice(0, 12000);
       return `<!doctype html>
 <html lang="zh-CN">
@@ -341,7 +418,12 @@
           throw new Error('阶段不存在');
         }
 
-        const artifacts = Array.isArray(stage.artifacts) ? stage.artifacts : [];
+        const artifacts =
+          pm.getDisplayArtifacts && typeof pm.getDisplayArtifacts === 'function'
+            ? pm.getDisplayArtifacts(stage)
+            : Array.isArray(stage.artifacts)
+              ? stage.artifacts
+              : [];
         const artifact = artifacts.find(a => a.id === artifactId);
         if (!artifact) {
           previewLogger.error('[交付物预览] 未找到交付物:', {
@@ -523,10 +605,11 @@
 
       const useRichEditor = isEditing && api.isRichTextArtifact(artifact);
       const useCodeEditor = isEditing && api.isCodeArtifact(artifact);
+      const isSyntheticArtifact = artifact?.source === 'assembled-display';
       const headerActionsHTML = `
       <div class="stage-detail-header-actions">
         ${
-          api.isEditableTextArtifact(artifact)
+          !isSyntheticArtifact && api.isEditableTextArtifact(artifact)
             ? isEditing
               ? `<button class="stage-detail-action-btn" title="取消编辑" aria-label="取消编辑" onclick="projectManager.cancelArtifactEdits('${artifact.id}')">${api.icon('cancel')}</button>
                  <button class="stage-detail-action-btn stage-detail-action-btn-primary" title="保存修改" aria-label="保存修改" onclick="projectManager.saveArtifactEdits('${artifact.id}', '${editorTextareaId}')">${api.icon('save')}</button>`
@@ -534,7 +617,7 @@
             : ''
         }
         ${
-          artifact.downloadUrl || artifact.url || artifact.previewUrl
+          !isSyntheticArtifact && (artifact.downloadUrl || artifact.url || artifact.previewUrl)
             ? `<button class="stage-detail-action-btn" title="下载" aria-label="下载" onclick="projectManager.downloadArtifact('${artifact.id}')">${api.icon('download')}</button>`
             : ''
         }
@@ -544,7 +627,7 @@
             : ''
         }
         ${
-          artifact.previewUrl || artifact.url
+          !isSyntheticArtifact && (artifact.previewUrl || artifact.url)
             ? `<button class="stage-detail-action-btn" title="新窗口打开" aria-label="新窗口打开" onclick="projectManager.openArtifactPreviewInNewWindow('${artifact.id}')">${api.icon('open')}</button>`
             : ''
         }
@@ -670,7 +753,7 @@
         if (!pm.currentProject) {
           throw new Error('未选择项目');
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         const artifact = found?.artifact;
         if (!artifact) {
           throw new Error('交付物不存在');
@@ -697,7 +780,7 @@
         if (!pm.currentProject) {
           return;
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         if (!found?.artifact || !found?.stage) {
           return;
         }
@@ -712,7 +795,7 @@
         if (!pm.currentProject?.id) {
           throw new Error('未选择项目');
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         const artifact = found?.artifact;
         const stage = found?.stage;
         if (!artifact || !stage) {
@@ -732,23 +815,31 @@
         if (api.isRichTextArtifact(artifact)) {
           content = api.normalizeMarkdownEscapes(content);
         }
-
-        const response = await pm.fetchWithAuth(
-          `${pm.apiUrl}/api/workflow/${encodeURIComponent(pm.currentProject.id)}/artifacts/${encodeURIComponent(artifactId)}`,
-          {
-            method: 'PUT',
-            headers: pm.buildAuthHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ content })
-          }
-        );
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.code !== 0) {
-          throw new Error(
-            result?.error || result?.message || `保存失败（HTTP ${response.status}）`
+        let updated = null;
+        if (!pm.isRemoteProjectId(pm.currentProject.id)) {
+          updated = {
+            ...artifact,
+            content,
+            updatedAt: Date.now()
+          };
+        } else {
+          const response = await pm.fetchWithAuth(
+            `${pm.apiUrl}/api/workflow/${encodeURIComponent(pm.currentProject.id)}/artifacts/${encodeURIComponent(artifactId)}`,
+            {
+              method: 'PUT',
+              headers: pm.buildAuthHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ content })
+            }
           );
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result?.code !== 0) {
+            throw new Error(
+              result?.error || result?.message || `保存失败（HTTP ${response.status}）`
+            );
+          }
+          updated = result?.data?.artifact || { ...artifact, content };
         }
 
-        const updated = result?.data?.artifact || { ...artifact, content };
         const targetStage = (pm.currentProject.workflow?.stages || []).find(s => s.id === stage.id);
         if (targetStage) {
           targetStage.artifacts = (targetStage.artifacts || []).map(item =>
@@ -759,6 +850,15 @@
 
         await pm.storageManager?.saveProject?.(pm.currentProject).catch(() => {});
         await pm.storageManager?.saveArtifact?.(updated).catch(() => {});
+        if (pm.projectArtifactsCache?.[pm.currentProject.id]) {
+          pm.projectArtifactsCache[pm.currentProject.id] = (
+            pm.projectArtifactsCache[pm.currentProject.id] || []
+          ).map(item => (item?.id === artifactId ? { ...item, ...updated } : item));
+        }
+        delete pm.projectBundleCache?.[pm.currentProject.id];
+        if (pm.currentProjectBundle?.project?.id === pm.currentProject.id) {
+          pm.currentProjectBundle = null;
+        }
 
         pm.artifactEditorState = null;
         api.destroyArtifactEditor(pm);
@@ -774,7 +874,7 @@
         if (!pm.currentProject) {
           throw new Error('未选择项目');
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         const artifact = found?.artifact;
         if (!artifact) {
           throw new Error('交付物不存在');
@@ -796,7 +896,7 @@
         if (!pm.currentProject) {
           throw new Error('未选择项目');
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         const artifact = found?.artifact;
         if (!artifact) {
           throw new Error('交付物不存在');
@@ -818,7 +918,7 @@
         if (!pm.currentProject) {
           throw new Error('未选择项目');
         }
-        const found = findArtifactById(pm.currentProject, artifactId);
+        const found = findArtifactById(pm, pm.currentProject, artifactId);
         const artifact = found?.artifact;
         if (!artifact) {
           throw new Error('交付物不存在');

@@ -210,6 +210,10 @@ class StateManager {
     if (!window.apiClient?.put || !this.getAuthToken()) {
       return;
     }
+    const localChat = this.getLocalChatForSync(chatId);
+    if (!this.shouldSyncChatToServer(localChat)) {
+      return;
+    }
     if (!this._chatSyncTimers) {
       this._chatSyncTimers = new Map();
     }
@@ -232,6 +236,10 @@ class StateManager {
       return;
     }
     if (!this.getAuthToken()) {
+      return;
+    }
+    const localChat = this.getLocalChatForSync(chatId);
+    if (!this.shouldSyncChatToServer(localChat)) {
       return;
     }
 
@@ -269,9 +277,10 @@ class StateManager {
     }
 
     const normalizedId = String(chatId);
-    const localChat =
-      this.state.chats.find(c => String(c.id) === normalizedId) ||
-      (window.storageManager && (await window.storageManager.getChat(chatId)));
+    const localChat = this.getLocalChatForSync(normalizedId);
+    if (!this.shouldSyncChatToServer(localChat)) {
+      return null;
+    }
 
     const title = localChat?.title || '新对话';
     const titleEdited = Boolean(localChat?.titleEdited);
@@ -323,7 +332,9 @@ class StateManager {
             : serverChat?.tags || [],
         status: serverChat?.status || existing.status,
         createdAt: existing.createdAt || serverChat?.createdAt,
-        updatedAt: serverChat?.updatedAt || existing.updatedAt
+        updatedAt: serverChat?.updatedAt || existing.updatedAt,
+        remoteBacked: true,
+        localOnly: false
       };
     }
 
@@ -389,6 +400,24 @@ class StateManager {
     }
 
     this.notify();
+  }
+
+  getLocalChatForSync(chatId) {
+    const normalizedId = String(chatId);
+    return this.state.chats.find(c => String(c.id) === normalizedId) || null;
+  }
+
+  shouldSyncChatToServer(chat) {
+    if (!chat) {
+      return true;
+    }
+    if (chat.remoteBacked === false) {
+      return false;
+    }
+    if (chat.localOnly || chat.recoveredFromProject) {
+      return false;
+    }
+    return true;
   }
 
   applyReportState(chatId, reportState) {

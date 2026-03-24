@@ -7,6 +7,41 @@ const reportPreviewLogger = window.createLogger
   : console;
 
 window.projectManagerReportPreview = {
+  hasViewableReportData(report, type, pm) {
+    if (!report) {
+      return false;
+    }
+    const normalizedType = String(type || report.type || '').toLowerCase();
+    if (
+      normalizedType === 'analysis' ||
+      normalizedType === 'analysis-report' ||
+      normalizedType === 'analysis_report'
+    ) {
+      return pm.hasCompletedAnalysisReport ? pm.hasCompletedAnalysisReport(report) : false;
+    }
+
+    const normalizedStatus = String(report.status || '').toLowerCase();
+    const statusCompleted =
+      !normalizedStatus ||
+      normalizedStatus === 'completed' ||
+      normalizedStatus === 'success' ||
+      normalizedStatus === 'done' ||
+      normalizedStatus === 'finished';
+    if (!statusCompleted) {
+      return false;
+    }
+
+    const data = report.data || {};
+    const hasDocument = typeof data.document === 'string' && data.document.trim().length > 0;
+    const chapters = data.chapters;
+    const hasChapters = Array.isArray(chapters)
+      ? chapters.length > 0
+      : chapters && typeof chapters === 'object'
+        ? Object.keys(chapters).length > 0
+        : false;
+    return hasDocument || hasChapters;
+  },
+
   async viewIdeaReport(pm, chatId, type) {
     const modalManager = window.modalManager;
     const storageManager = pm.storageManager || window.storageManager;
@@ -19,17 +54,25 @@ window.projectManagerReportPreview = {
       return;
     }
     try {
-      let chat = null;
-      try {
-        chat = await storageManager.getChat(chatId);
-        if (!chat) {
-          const allChats = await storageManager.getAllChats().catch(() => []);
-          chat = allChats.find(
-            item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
-          );
+      const currentBundle = pm.currentProjectBundle;
+      const bundleMatchesCurrent =
+        pm.normalizeIdeaIdForCompare(currentBundle?.ideaChat?.id) ===
+        pm.normalizeIdeaIdForCompare(chatId);
+      let chat = bundleMatchesCurrent ? currentBundle?.ideaChat || null : null;
+      let report = bundleMatchesCurrent ? currentBundle?.reports?.[type] || null : null;
+
+      if (!chat) {
+        try {
+          chat = await storageManager.getChat(chatId);
+          if (!chat) {
+            const allChats = await storageManager.getAllChats().catch(() => []);
+            chat = allChats.find(
+              item => pm.normalizeIdeaIdForCompare(item.id) === pm.normalizeIdeaIdForCompare(chatId)
+            );
+          }
+        } catch (error) {
+          // ignore chat preload failure, continue with reports lookup
         }
-      } catch (error) {
-        // ignore chat preload failure, continue with reports lookup
       }
 
       if (window.state && chat) {
@@ -39,12 +82,20 @@ window.projectManagerReportPreview = {
         }
       }
 
-      const reports = await storageManager.getAllReports();
-      const report = reports.find(
-        r =>
-          pm.normalizeIdeaIdForCompare(r.chatId) === pm.normalizeIdeaIdForCompare(chatId) &&
-          r.type === type
-      );
+      if (!report) {
+        const reports = await storageManager.getAllReports();
+        report = reports.find(
+          r =>
+            pm.normalizeIdeaIdForCompare(r.chatId) === pm.normalizeIdeaIdForCompare(chatId) &&
+            r.type === type
+        );
+      }
+      if (!this.hasViewableReportData(report, type, pm)) {
+        const typeTitle =
+          type === 'analysis' ? '分析报告' : type === 'business' ? '商业计划书' : '产品立项材料';
+        modalManager.alert(`当前尚未生成${typeTitle}，请先在对话中生成`, 'info');
+        return;
+      }
       const data = report?.data || {};
       const normalizeMarkdown = text => {
         if (

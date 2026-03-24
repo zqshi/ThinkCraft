@@ -7,6 +7,19 @@ window.projectManagerSync = {
     if (!projectId || !pm?.fetchWithAuth) {
       return null;
     }
+    if (!pm.isRemoteProjectId(projectId)) {
+      const health = {
+        projectId,
+        checkedAt: Date.now(),
+        executionRuns: { available: false, status: 0 },
+        artifactChunks: { available: false, status: 0 }
+      };
+      if (!pm.workflowRouteHealthByProject) {
+        pm.workflowRouteHealthByProject = {};
+      }
+      pm.workflowRouteHealthByProject[projectId] = health;
+      return health;
+    }
     const toHealth = response => {
       const status = Number(response?.status || 0);
       if (status === 404) {
@@ -269,6 +282,9 @@ window.projectManagerSync = {
     pm.artifactPollingInFlight = true;
     try {
       const projectId = pm.currentProjectId;
+      if (!pm.isRemoteProjectId(projectId)) {
+        return;
+      }
       const artifacts = await window.workflowExecutor.getAllArtifacts(projectId);
       if (!Array.isArray(artifacts)) {
         return;

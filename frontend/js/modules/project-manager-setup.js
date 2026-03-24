@@ -5,6 +5,65 @@
 const setupLogger = window.createLogger ? window.createLogger('ProjectManagerSetup') : console;
 
 window.projectManagerSetup = {
+  getProjectIdeaKey(pm, project) {
+    const rawIdeaId = project?.ideaId ?? project?.linkedIdeas?.[0];
+    return pm.normalizeIdeaIdForCompare(rawIdeaId);
+  },
+
+  async reconcileProjectIntegrity(pm, projects = []) {
+    const list = Array.isArray(projects) ? projects : [];
+    if (list.length === 0) {
+      return { visibleProjects: [], orphanedProjects: [] };
+    }
+
+    if (window.chatList?.recoverChatsFromProjectsAndReports) {
+      const currentChats = (await pm.storageManager?.getAllChats?.().catch(() => [])) || [];
+      await window.chatList.recoverChatsFromProjectsAndReports(currentChats).catch(() => []);
+    }
+
+    let completedChats = [];
+    if (typeof pm.getChatsWithCompletedAnalysis === 'function') {
+      completedChats = await pm.getChatsWithCompletedAnalysis().catch(() => []);
+    }
+
+    const completedIdeaKeys = new Set(
+      (Array.isArray(completedChats) ? completedChats : [])
+        .map(chat => pm.normalizeIdeaIdForCompare(chat?.id))
+        .filter(Boolean)
+    );
+
+    const visibleProjects = [];
+    const orphanedProjects = [];
+
+    for (const project of list) {
+      if (!project || project.status === 'deleted') {
+        continue;
+      }
+
+      const ideaKey = this.getProjectIdeaKey(pm, project);
+      if (ideaKey && completedIdeaKeys.has(ideaKey)) {
+        if (project.status === 'orphaned') {
+          const restored = { ...project, status: 'active', orphanedReason: null };
+          await pm.storageManager.saveProject(restored);
+          visibleProjects.push(restored);
+        } else {
+          visibleProjects.push(project);
+        }
+        continue;
+      }
+
+      const orphaned = {
+        ...project,
+        status: 'orphaned',
+        orphanedReason: 'missing_completed_analysis_chat'
+      };
+      await pm.storageManager.saveProject(orphaned);
+      orphanedProjects.push(orphaned);
+    }
+
+    return { visibleProjects, orphanedProjects };
+  },
+
   async hydrateProjectStageOutputs(pm, project) {
     if (!project?.workflow?.stages?.length) {
       return project;
@@ -129,8 +188,9 @@ window.projectManagerSetup = {
     pm.projectsLoadPromise = (async () => {
       try {
         const allProjects = await pm.storageManager.getAllProjects();
+        const { visibleProjects } = await this.reconcileProjectIntegrity(pm, allProjects);
 
-        pm.projects = allProjects.filter(project => project.status !== 'deleted');
+        pm.projects = visibleProjects;
         pm.projectsLoaded = true;
 
         if (window.setProjects) {

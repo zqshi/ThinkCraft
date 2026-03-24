@@ -21,7 +21,7 @@ window.projectManagerIdeaFlow = {
 
     const analyzedChats = await pm.getChatsWithCompletedAnalysis();
     const projects = await pm.storageManager.getAllProjects().catch(() => []);
-    const activeProjects = projects.filter(p => p.status !== 'deleted');
+    const activeProjects = projects.filter(p => p.status !== 'deleted' && p.status !== 'orphaned');
     const chatIdToProjectName = new Map(
       activeProjects.map(p => [pm.normalizeIdeaIdForCompare(p.ideaId), p.name || '未命名项目'])
     );
@@ -136,7 +136,9 @@ window.projectManagerIdeaFlow = {
       const chats = await pm.getChatsWithCompletedAnalysis();
 
       const projects = await pm.storageManager.getAllProjects().catch(() => []);
-      const activeProjects = projects.filter(p => p.status !== 'deleted');
+      const activeProjects = projects.filter(
+        p => p.status !== 'deleted' && p.status !== 'orphaned'
+      );
       const chatIdToProjectName = new Map(
         activeProjects.map(p => [pm.normalizeIdeaIdForCompare(p.ideaId), p.name || '未命名项目'])
       );
@@ -432,6 +434,20 @@ window.projectManagerIdeaFlow = {
   },
 
   async createProjectFromIdea(pm, ideaId, name) {
+    const normalizedIdeaId = pm.normalizeIdeaId(ideaId);
+    let chat = await pm.storageManager.getChat(normalizedIdeaId).catch(() => null);
+    if (!chat && normalizedIdeaId !== ideaId) {
+      chat = await pm.storageManager.getChat(ideaId).catch(() => null);
+    }
+    if (!chat) {
+      const chats = await pm.getChatsWithCompletedAnalysis().catch(() => []);
+      const targetKey = pm.normalizeIdeaIdForCompare(normalizedIdeaId || ideaId);
+      chat = chats.find(item => pm.normalizeIdeaIdForCompare(item?.id) === targetKey) || null;
+    }
+    if (!chat) {
+      throw new Error('未找到已完成结构化分析的关联对话，无法创建项目');
+    }
+
     const project = await pm.createProject(ideaId, name);
     const workflowCategory = project.workflowCategory || 'product-development';
 

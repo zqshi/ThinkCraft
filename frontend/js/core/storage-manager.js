@@ -14,6 +14,78 @@ class StorageManager {
     this.init();
   }
 
+  normalizeRelationKey(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+      return '';
+    }
+    const dePrefixed = raw.replace(/^(idea-|chat-)/i, '');
+    if (/^\d+$/.test(dePrefixed)) {
+      return String(Number(dePrefixed));
+    }
+    return dePrefixed;
+  }
+
+  buildRecoveredChatFromProject(project, analysisReport) {
+    const rawChatId = project?.ideaId ?? project?.linkedIdeas?.[0] ?? analysisReport?.chatId;
+    if (rawChatId === null || rawChatId === undefined || rawChatId === '') {
+      return null;
+    }
+
+    const projectName = String(project?.name || '').trim();
+    const derivedTitle = projectName.replace(/\s*-\s*项目$/, '').trim();
+    const reportData = analysisReport?.data || {};
+    const summary =
+      reportData.coreDefinition ||
+      reportData.problem ||
+      reportData.summary ||
+      reportData.document ||
+      '已根据项目与分析报告自动修复对话索引。';
+
+    return {
+      id: String(rawChatId).trim(),
+      title: derivedTitle || '恢复的创意对话',
+      titleEdited: false,
+      messages: [
+        { role: 'user', content: derivedTitle || projectName || '恢复的创意对话' },
+        {
+          role: 'assistant',
+          content:
+            typeof summary === 'string' && summary.trim()
+              ? summary.trim().slice(0, 2000)
+              : '已根据项目与分析报告自动修复对话索引。'
+        }
+      ],
+      userData: {},
+      conversationStep: 0,
+      analysisCompleted: true,
+      reportState: {
+        analysis: {
+          status: String(analysisReport?.status || 'completed'),
+          progress: { current: 1, total: 1, percentage: 100 },
+          updatedAt: analysisReport?.endTime || analysisReport?.timestamp || Date.now(),
+          source: 'storage-repair'
+        }
+      },
+      createdAt:
+        analysisReport?.startTime ||
+        project?.createdAt ||
+        analysisReport?.timestamp ||
+        new Date().toISOString(),
+      updatedAt:
+        analysisReport?.endTime ||
+        project?.updatedAt ||
+        analysisReport?.timestamp ||
+        new Date().toISOString(),
+      recoveredFromProject: true,
+      localOnly: true,
+      remoteBacked: false
+    };
+  }
+
   /**
    * 初始化IndexedDB
    * @returns {Promise<void>}
@@ -576,6 +648,62 @@ class StorageManager {
    */
   needsMigration() {
     return !localStorage.getItem('thinkcraft_migrated');
+  }
+
+  async repairCoreData() {
+    await this.ensureReady();
+
+    const chats = await this.getAllChats().catch(() => []);
+    const projects = await this.getAllProjects().catch(() => []);
+    const reports = await this.getAllReports().catch(() => []);
+
+    const analysisReports = (Array.isArray(reports) ? reports : []).filter(report => {
+      const type = String(report?.type || '').toLowerCase();
+      return type === 'analysis' || type === 'analysis-report' || type === 'analysis_report';
+    });
+
+    const knownChatKeys = new Set(
+      (Array.isArray(chats) ? chats : [])
+        .map(chat => this.normalizeRelationKey(chat?.id))
+        .filter(Boolean)
+    );
+
+    for (const project of Array.isArray(projects) ? projects : []) {
+      if (!project || project.status === 'deleted') {
+        continue;
+      }
+
+      const rawIdeaId = project.ideaId ?? project.linkedIdeas?.[0];
+      const ideaKey = this.normalizeRelationKey(rawIdeaId);
+      if (!ideaKey) {
+        continue;
+      }
+
+      if (!knownChatKeys.has(ideaKey)) {
+        const analysisReport =
+          analysisReports.find(report => this.normalizeRelationKey(report?.chatId) === ideaKey) ||
+          null;
+        if (analysisReport) {
+          const recoveredChat = this.buildRecoveredChatFromProject(project, analysisReport);
+          if (recoveredChat) {
+            await this.saveChat(recoveredChat);
+            knownChatKeys.add(ideaKey);
+          }
+        }
+      }
+
+      const normalizedIdeaId = String(rawIdeaId).trim();
+      if (project.ideaId !== normalizedIdeaId) {
+        await this.saveProject({ ...project, ideaId: normalizedIdeaId });
+      }
+    }
+
+    const repairedChats = await this.getAllChats().catch(() => []);
+    try {
+      localStorage.setItem('thinkcraft_chats', JSON.stringify(repairedChats));
+    } catch (_error) {
+      // ignore local cache sync failures
+    }
   }
 
   // ========== 工具方法 ==========

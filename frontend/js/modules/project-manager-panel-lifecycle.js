@@ -3,6 +3,55 @@
  */
 
 window.projectManagerPanelLifecycle = {
+  async buildLocalArtifactBundle(pm, projectId) {
+    const currentProjectMatches =
+      pm.currentProject && String(pm.currentProject.id) === String(projectId);
+    const project =
+      (currentProjectMatches ? pm.currentProject : null) ||
+      (await pm.storageManager?.getProject?.(projectId).catch(() => null));
+    if (!project) {
+      throw new Error('项目不存在');
+    }
+
+    const indexedArtifacts = await pm.storageManager
+      ?.getArtifactsByProject?.(projectId)
+      .catch(() => []);
+    const workflowArtifacts = Array.isArray(project?.workflow?.stages)
+      ? project.workflow.stages.flatMap(stage =>
+          (Array.isArray(stage?.artifacts) ? stage.artifacts : []).map(artifact => ({
+            ...artifact,
+            stageId: artifact?.stageId || stage.id,
+            projectId
+          }))
+        )
+      : [];
+
+    const artifactMap = new Map();
+    [...indexedArtifacts, ...workflowArtifacts].forEach(artifact => {
+      if (artifact?.id) {
+        artifactMap.set(String(artifact.id), artifact);
+      }
+    });
+
+    return {
+      exportedAt: new Date().toISOString(),
+      source: 'local-project-bundle',
+      project,
+      artifacts: [...artifactMap.values()]
+    };
+  },
+
+  downloadBlobFile(_pm, blob, fileName) {
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+  },
+
   refreshProjectPanel(pm, project) {
     if (!project || !pm.currentProjectId || project.id !== pm.currentProjectId) {
       return;
@@ -265,12 +314,34 @@ window.projectManagerPanelLifecycle = {
     }
 
     try {
+      if (!pm.isRemoteProjectId(targetProjectId)) {
+        window.ErrorHandler?.showToast?.('正在导出本地项目产物，请稍候...', 'info');
+        const bundle = await this.buildLocalArtifactBundle(pm, targetProjectId);
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+          type: 'application/json;charset=utf-8'
+        });
+        this.downloadBlobFile(pm, blob, `${targetProjectId}-artifacts.json`);
+        window.ErrorHandler?.showToast?.('本地产物包下载已开始', 'success');
+        return;
+      }
+
       window.ErrorHandler?.showToast?.('正在打包项目产物，请稍候...', 'info');
       const baseApiUrl = String(pm.apiUrl || window.location.origin).replace(/\/$/, '');
       const downloadUrl = `${baseApiUrl}/api/workflow/${encodeURIComponent(targetProjectId)}/artifacts/bundle?fresh=1&format=zip`;
       const response = await pm.fetchWithAuth(downloadUrl, { method: 'GET' });
 
       if (!response.ok) {
+        const localBundle = await this.buildLocalArtifactBundle(pm, targetProjectId).catch(
+          () => null
+        );
+        if (response.status === 404 && localBundle) {
+          const blob = new Blob([JSON.stringify(localBundle, null, 2)], {
+            type: 'application/json;charset=utf-8'
+          });
+          this.downloadBlobFile(pm, blob, `${targetProjectId}-artifacts.json`);
+          window.ErrorHandler?.showToast?.('远端产物不存在，已切换为本地产物导出', 'success');
+          return;
+        }
         const message = await response.text().catch(() => '');
         throw new Error(message || `下载失败（HTTP ${response.status}）`);
       }
@@ -279,15 +350,7 @@ window.projectManagerPanelLifecycle = {
       const contentDisposition = response.headers.get('content-disposition') || '';
       const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
       const fileName = fileNameMatch?.[1] || `${targetProjectId}-artifacts.zip`;
-
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = objectUrl;
-      anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(objectUrl);
+      this.downloadBlobFile(pm, blob, fileName);
 
       window.ErrorHandler?.showToast?.('产物包下载已开始', 'success');
     } catch (error) {
@@ -317,6 +380,7 @@ window.projectManagerPanelLifecycle = {
 
     pm.currentProjectId = null;
     pm.currentProject = null;
+    pm.currentProjectBundle = null;
     pm.stopArtifactPolling();
     pm.updateProjectSelection(null);
   }

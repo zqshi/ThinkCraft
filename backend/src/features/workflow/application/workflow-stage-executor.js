@@ -1525,6 +1525,39 @@ export async function executeStage(projectId, stageId, context = {}) {
           });
         }
       }
+      const repairedHtml = String(modelResult?.content || '').trim();
+      const htmlComplete = isLikelyCompleteHtml(repairedHtml);
+      modelResult.generationMeta = {
+        ...(modelResult?.generationMeta || {}),
+        isComplete: htmlComplete
+      };
+      if (!htmlComplete) {
+        const incompleteError = new Error('交互原型 HTML 未通过完整性校验，已阻止进入最终交付物');
+        await updateRunRecord(runId, {
+          status: 'failed',
+          completedAt: new Date(),
+          error: {
+            code: 'INCOMPLETE_PROTOTYPE_HTML',
+            message: incompleteError.message
+          },
+          reactTrace: modelResult?.reactTrace || null
+        }).catch(() => {});
+        await markChunkSessionAssembled({
+          project,
+          projectId,
+          runId,
+          content: repairedHtml,
+          artifact: null,
+          isComplete: false
+        }).catch(() => {});
+        await markChunkSessionStatus({
+          project,
+          projectId,
+          runId,
+          status: 'failed'
+        }).catch(() => {});
+        throw incompleteError;
+      }
     }
     await markChunkSessionAssembled({
       project,

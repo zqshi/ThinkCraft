@@ -48,10 +48,18 @@ class ReportStatusManager {
       return this.determineButtonState(cached);
     }
 
-    // 2. 从 IndexedDB 查询报告
-    let report = await this.queryReport(normalizedChatId, type);
+    // 2. 通过统一 read model 解析报告
+    let report = null;
+    if (window.chatReportBundle?.resolveReportEntry) {
+      const resolved = await window.chatReportBundle.resolveReportEntry(normalizedChatId, type, {
+        stateChats: window.state?.chats
+      });
+      report = resolved?.report || null;
+      this.updateCache(normalizedChatId, type, report);
+      return resolved?.buttonState || this.determineButtonState(report);
+    }
 
-    // 2.1 状态归一：修复历史/异常状态与数据不一致
+    report = await this.queryReport(normalizedChatId, type);
     report = await this.reconcileReportState(normalizedChatId, type, report);
 
     // 3. 更新缓存
@@ -226,6 +234,13 @@ class ReportStatusManager {
    * @returns {Promise<Object|null>} 报告对象或null
    */
   async queryReport(chatId, type) {
+    if (window.chatReportBundle?.resolveReportEntry) {
+      const resolved = await window.chatReportBundle.resolveReportEntry(chatId, type, {
+        stateChats: window.state?.chats
+      });
+      return resolved?.report || null;
+    }
+
     if (!window.storageManager) {
       console.warn('[ReportStatusManager] storageManager 未初始化');
       return null;
@@ -248,6 +263,12 @@ class ReportStatusManager {
    * @returns {Object} { shouldShow, buttonText, buttonState, reason }
    */
   determineButtonState(report) {
+    if (window.chatReportBundle?.determineReportButtonState) {
+      return window.chatReportBundle.determineReportButtonState(report, {
+        timeoutMs: this.TIMEOUT_MS
+      });
+    }
+
     // 没有报告
     if (!report) {
       return {
@@ -356,6 +377,10 @@ class ReportStatusManager {
    * @returns {Boolean} 数据是否完整
    */
   validateReportData(report) {
+    if (window.chatReportBundle?.validateReportData) {
+      return window.chatReportBundle.validateReportData(report);
+    }
+
     if (!report || !report.data) {
       return false;
     }
@@ -403,6 +428,7 @@ class ReportStatusManager {
   onReportStatusChange(chatId, type, newStatus) {
     console.warn(`[ReportStatusManager] 报告状态变化: ${chatId}:${type} -> ${newStatus}`);
     this.clearCache(chatId, type);
+    window.chatReportBundle?.clearCache?.(chatId);
     if (typeof window !== 'undefined' && window.dispatchEvent) {
       window.dispatchEvent(
         new CustomEvent('tc:report-status-changed', {

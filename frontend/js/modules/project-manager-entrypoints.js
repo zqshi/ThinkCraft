@@ -5,28 +5,12 @@
 window.projectManagerEntrypoints = {
   async openProject(pm, projectId) {
     try {
-      const backendHealthy = await pm.checkBackendHealth();
-      if (!backendHealthy) {
-        const msg = pm.lastHealthError === 'unauthorized' ? '请先登录后再试' : '服务异常，稍候再试';
-        if (window.modalManager) {
-          window.modalManager.alert(msg, 'warning');
-        } else {
-          alert(msg);
-        }
-        return;
-      }
-
-      const project = await pm.getProject(projectId, { requireRemote: true });
-      if (!project) {
-        throw new Error('项目不存在');
-      }
-
-      await pm.hydrateProjectStageOutputs(project);
-      await pm.syncWorkflowArtifactsFromServer(project);
-
-      pm.currentProjectId = projectId;
+      const bundle = await pm.resolveProjectBundle(projectId);
+      const project = bundle.project;
+      pm.currentProjectId = project.id;
       pm.currentProject = project;
-      pm.stageDeliverableSelection = pm.stageDeliverableSelectionByProject[projectId] || {};
+      pm.currentProjectBundle = bundle;
+      pm.stageDeliverableSelection = pm.stageDeliverableSelectionByProject[project.id] || {};
 
       if (window.setCurrentProject) {
         window.setCurrentProject(project);
@@ -34,8 +18,8 @@ window.projectManagerEntrypoints = {
 
       pm.ensureProjectPanelStyles();
       pm.renderProjectPanel(project);
-      pm.updateProjectSelection(projectId);
-      pm.startArtifactPolling(projectId);
+      pm.updateProjectSelection(project.id);
+      pm.startArtifactPolling(project.id);
     } catch (error) {
       if (window.modalManager) {
         window.modalManager.alert('打开项目失败: ' + error.message, 'error');
@@ -51,28 +35,18 @@ window.projectManagerEntrypoints = {
       return;
     }
 
-    const project = await pm.getProject(projectId, { requireRemote: true });
+    const bundle = await pm.resolveProjectBundle(projectId).catch(() => null);
+    const project = bundle?.project || null;
     if (!project) {
       return;
     }
 
-    const hiredAgents = await pm.getUserHiredAgents().catch(() => []);
+    const hiredAgents = Array.isArray(pm.cachedHiredAgents) ? pm.cachedHiredAgents : [];
+    pm.getUserHiredAgents?.().catch(() => []);
     const assignedIds = project.assignedAgents || [];
     const agents = hiredAgents.filter(agent => assignedIds.includes(agent.id));
 
-    const rawIdeaId = project.ideaId ?? project.linkedIdeas?.[0];
-    let chat = null;
-    if (rawIdeaId !== undefined) {
-      const normalizedIdeaId = pm.normalizeIdeaId(rawIdeaId);
-      chat =
-        (await pm.storageManager.getChat(normalizedIdeaId)) ||
-        (await pm.storageManager.getChat(rawIdeaId));
-      if (!chat) {
-        const chats = await pm.storageManager.getAllChats().catch(() => []);
-        const rawKey = pm.normalizeIdeaIdForCompare(rawIdeaId);
-        chat = chats.find(item => pm.normalizeIdeaIdForCompare(item.id) === rawKey);
-      }
-    }
+    const chat = bundle?.ideaChat || null;
 
     const idea = chat?.title || project.name || '未命名创意';
 
@@ -86,11 +60,18 @@ window.projectManagerEntrypoints = {
     });
   },
 
-  openProjectKnowledgePanel(pm, projectId = null) {
+  async openProjectKnowledgePanel(pm, projectId = null) {
     const targetProjectId = projectId || pm.currentProjectId || pm.currentProject?.id;
     if (!targetProjectId) {
       window.modalManager?.alert('请先选择项目', 'info');
       return;
+    }
+
+    const bundle = await pm.resolveProjectBundle(targetProjectId).catch(() => null);
+    if (bundle?.project) {
+      pm.currentProjectId = bundle.project.id;
+      pm.currentProject = bundle.project;
+      pm.currentProjectBundle = bundle;
     }
 
     if (typeof window.showKnowledgeBase === 'function') {

@@ -205,7 +205,11 @@
     },
 
     getDeliverableStatusItems(pm, stage, expectedDeliverables = [], selectedDeliverables = []) {
-      const artifacts = Array.isArray(stage?.artifacts) ? stage.artifacts : [];
+      const artifacts = Array.isArray(pm.getDisplayArtifacts?.(stage))
+        ? pm.getDisplayArtifacts(stage)
+        : Array.isArray(stage?.artifacts)
+          ? stage.artifacts
+          : [];
       const hasArtifacts = artifacts.length > 0;
       const selectedSet = new Set((selectedDeliverables || []).filter(Boolean));
       const selectedNormalizedSet = new Set(
@@ -350,17 +354,17 @@
         </div>
         <div class="project-deliverable-status-list">
           ${visibleItems
-    .map(item => {
-      const statusLabel = statusMap[item.status] || statusMap.pending;
-      const runHint =
+            .map(item => {
+              const statusLabel = statusMap[item.status] || statusMap.pending;
+              const runHint =
                 item.runMessage && (item.status === 'failed' || item.status === 'blocked')
                   ? `<div class="project-deliverable-status-meta" style="color:#b45309;">${pm.escapeHtml(item.runMessage)}</div>`
                   : '';
-      const retryBtn =
+              const retryBtn =
                 item.status === 'missing' || item.status === 'failed' || item.status === 'blocked'
                   ? `<button class="btn-secondary" onclick="event.stopPropagation(); projectManager.retryStageDeliverable('${projectId}', '${stage.id}', '${pm.escapeHtml(item.id)}')" style="padding: 4px 8px; font-size: 11px;">重试</button>`
                   : '';
-      return `
+              return `
               <div class="project-deliverable-status-item status-${item.status}">
                 <div class="project-deliverable-status-info">
                   <div class="project-deliverable-status-name">${pm.escapeHtml(item.label)}</div>
@@ -372,8 +376,8 @@
                   ${retryBtn}
                 </div>
               </div>`;
-    })
-    .join('')}
+            })
+            .join('')}
         </div>
       </div>`;
     },
@@ -472,7 +476,11 @@
           pm.persistStageDeliverableSelectionStore();
         }
         try {
-          await pm.updateProject(projectId, { workflow: project.workflow }, { allowFallback: true });
+          await pm.updateProject(
+            projectId,
+            { workflow: project.workflow },
+            { allowFallback: true }
+          );
           pm.refreshProjectPanel(project);
         } catch (error) {
           deliverablesLogger.warn('[ProjectManager] 保存交付物选择失败，继续追加生成', error);
@@ -725,12 +733,7 @@
       return Array.isArray(dependencyMap[key]) ? dependencyMap[key] : [];
     },
 
-    async resolveDependenciesWithConfirm(
-      pm,
-      stage,
-      expectedDeliverables = [],
-      selectedIds = []
-    ) {
+    async resolveDependenciesWithConfirm(pm, stage, expectedDeliverables = [], selectedIds = []) {
       const selected = Array.isArray(selectedIds) ? [...selectedIds] : [];
       if (!stage || selected.length === 0) {
         return { confirmed: true, selectedIds: selected };
@@ -765,7 +768,11 @@
           if (!depItem) {
             continue;
           }
-          const existingArtifact = api.findArtifactForDeliverable(pm, stage.artifacts || [], depItem);
+          const existingArtifact = api.findArtifactForDeliverable(
+            pm,
+            stage.artifacts || [],
+            depItem
+          );
           if (existingArtifact) {
             continue;
           }
@@ -1055,9 +1062,11 @@
           pm.persistStageDeliverableSelectionStore();
         }
         pm.refreshProjectPanel(pm.currentProject);
-        pm
-          .updateProject(projectId, { workflow: pm.currentProject?.workflow }, { allowFallback: true })
-          .catch(() => {});
+        pm.updateProject(
+          projectId,
+          { workflow: pm.currentProject?.workflow },
+          { allowFallback: true }
+        ).catch(() => {});
       }
       await window.workflowExecutor.startStage(projectId, stageId, {
         selectedArtifactTypes: resolvedArtifactTypes.length > 0 ? resolvedArtifactTypes : selected,

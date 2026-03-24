@@ -15,6 +15,7 @@
 class ChatManager {
   constructor() {
     this.state = window.state;
+    this.currentChatBundle = null;
     this.autoTitleCooldownMs = 30000;
     this.autoTitleInFlight = new Set();
     this.autoTitleLastAt = new Map();
@@ -66,6 +67,7 @@ class ChatManager {
   async pruneMissingChat(chatId) {
     const targetId = String(chatId);
     this.state.chats = this.state.chats.filter(c => String(c.id) !== targetId);
+    window.chatReportBundle?.clearCache?.(targetId);
 
     if (window.storageManager?.deleteChat) {
       await window.storageManager.deleteChat(targetId).catch(() => {});
@@ -361,6 +363,7 @@ class ChatManager {
     if (window.storageManager) {
       await window.storageManager.saveChat(chat);
     }
+    window.chatReportBundle?.clearCache?.(chat.id);
 
     // 刷新对话列表
     if (typeof loadChats === 'function') {
@@ -381,80 +384,27 @@ class ChatManager {
    */
   async loadChat(chatId) {
     const targetId = String(chatId);
-    if (this.missingChatIds.has(targetId)) {
-      await this.pruneMissingChat(targetId);
-      if (window.chatList?.loadChats) {
-        await window.chatList.loadChats({ preferLocal: false });
-      } else if (typeof loadChats === 'function') {
-        await loadChats({ preferLocal: false });
+    const bundle = await window.chatReportBundle?.resolveChatBundle?.(targetId, {
+      stateChats: this.state.chats
+    });
+    const chat = bundle?.chat || null;
+
+    if (chat) {
+      this.currentChatBundle = bundle;
+      this.missingChatIds.delete(targetId);
+      this.persistMissingChatIds();
+      const existingIndex = this.state.chats.findIndex(c => String(c.id) === String(chat.id));
+      if (existingIndex !== -1) {
+        this.state.chats[existingIndex] = chat;
+      } else {
+        this.state.chats.unshift(chat);
       }
-      return;
-    }
-
-    let chat = this.state.chats.find(c => String(c.id) === String(chatId));
-
-    // 如果已登录，优先从后端拉取最新状态
-    const authToken = window.getAuthToken ? window.getAuthToken() : null;
-    if (authToken && window.apiClient?.get) {
-      try {
-        const response = await window.apiClient.get(`/api/chat/${chatId}`);
-        if (response?.code === 0 && response?.data?.id) {
-          const serverChat = response.data;
-          const normalizedChat = {
-            id: serverChat.id,
-            title: serverChat.title,
-            titleEdited: Boolean(serverChat.titleEdited),
-            messages: Array.isArray(serverChat.messages)
-              ? serverChat.messages.map(msg => ({
-                  role: msg.sender === 'user' ? 'user' : 'assistant',
-                  content: msg.content
-                }))
-              : [],
-            userData: serverChat.userData || {},
-            conversationStep: serverChat.conversationStep || 0,
-            analysisCompleted: serverChat.analysisCompleted || false,
-            reportState: serverChat.reportState || null,
-            createdAt: serverChat.createdAt,
-            updatedAt: serverChat.updatedAt,
-            status: serverChat.status,
-            tags: serverChat.tags || [],
-            isPinned: serverChat.isPinned || false
-          };
-
-          chat = normalizedChat;
-          const existingIndex = this.state.chats.findIndex(c => String(c.id) === String(chatId));
-          if (existingIndex !== -1) {
-            this.state.chats[existingIndex] = normalizedChat;
-          } else {
-            this.state.chats.unshift(normalizedChat);
-          }
-          if (window.storageManager) {
-            await window.storageManager.saveChat(normalizedChat);
-          }
-        }
-      } catch (error) {
-        if (this.isNotFoundError(error)) {
-          console.warn('[ChatManager] 会话在后端不存在，清理本地残留会话', { chatId, error });
-          this.missingChatIds.add(String(chatId));
-          this.persistMissingChatIds();
-          await this.pruneMissingChat(chatId);
-          if (window.chatList?.loadChats) {
-            await window.chatList.loadChats({ preferLocal: false });
-          } else if (typeof loadChats === 'function') {
-            await loadChats({ preferLocal: false });
-          }
-          return;
-        }
-
-        console.warn('[ChatManager] 拉取后端会话失败，使用本地缓存', error);
-      }
-    }
-
-    if (!chat) {
+    } else {
       console.warn('[ChatManager] 会话数据缺失，清理不可用会话', { chatId });
       this.missingChatIds.add(targetId);
       this.persistMissingChatIds();
       await this.pruneMissingChat(chatId);
+      this.currentChatBundle = null;
       if (window.chatList?.loadChats) {
         await window.chatList.loadChats({ preferLocal: false });
       } else if (typeof loadChats === 'function') {
@@ -504,15 +454,19 @@ class ChatManager {
     }
 
     // 将报告状态写入 IndexedDB，便于按钮恢复
-    if (window.storageManager && chat.reportState) {
+    const resolvedReports = bundle?.reports || {};
+    if (
+      window.storageManager &&
+      (chat.reportState || Object.values(resolvedReports).some(Boolean))
+    ) {
       try {
         const reportTypes = ['analysis', 'business', 'proposal'];
         for (const type of reportTypes) {
-          const stateEntry = chat.reportState?.[type];
-          if (!stateEntry) continue;
+          const resolvedEntry = resolvedReports[type] || null;
+          const stateEntry = chat.reportState?.[type] || null;
           const existing = await window.storageManager.getReportByChatIdAndType(chat.id, type);
-          const nextData = stateEntry.data ?? existing?.data ?? null;
-          const nextStatus = stateEntry.status ?? existing?.status;
+          const nextData = resolvedEntry?.data ?? stateEntry?.data ?? existing?.data ?? null;
+          const nextStatus = resolvedEntry?.status ?? stateEntry?.status ?? existing?.status;
           if (nextStatus === 'completed' && !nextData) {
             const warningKey = `${chat.id}:${type}`;
             if (!this.incompleteReportWarningKeys.has(warningKey)) {
@@ -526,16 +480,20 @@ class ChatManager {
             continue;
           }
           await window.storageManager.saveReport({
-            id: existing?.id,
+            id: resolvedEntry?.id || existing?.id,
             type,
             chatId: chat.id,
             data: nextData,
             status: nextStatus,
-            progress: stateEntry.progress ?? existing?.progress,
-            startTime: stateEntry.startTime ?? existing?.startTime,
-            endTime: stateEntry.endTime ?? existing?.endTime,
-            error: stateEntry.error ?? existing?.error ?? null,
-            selectedChapters: stateEntry.selectedChapters ?? existing?.selectedChapters ?? []
+            progress: resolvedEntry?.progress ?? stateEntry?.progress ?? existing?.progress,
+            startTime: resolvedEntry?.startTime ?? stateEntry?.startTime ?? existing?.startTime,
+            endTime: resolvedEntry?.endTime ?? stateEntry?.endTime ?? existing?.endTime,
+            error: resolvedEntry?.error ?? stateEntry?.error ?? existing?.error ?? null,
+            selectedChapters:
+              resolvedEntry?.selectedChapters ??
+              stateEntry?.selectedChapters ??
+              existing?.selectedChapters ??
+              []
           });
         }
       } catch (error) {

@@ -10,6 +10,170 @@ class ChatList {
     this.state = window.state;
   }
 
+  async recoverChatsFromLocalStorage() {
+    const saved = localStorage.getItem('thinkcraft_chats');
+    if (!saved) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      const normalizedChats = parsed
+        .filter(chat => chat && chat.id !== undefined && chat.id !== null)
+        .map(chat => ({
+          ...chat,
+          messages: Array.isArray(chat.messages) ? chat.messages : [],
+          updatedAt: chat.updatedAt || chat.createdAt || new Date().toISOString(),
+          remoteBacked: Boolean(chat?.remoteBacked)
+        }));
+
+      if (window.storageManager) {
+        for (const chat of normalizedChats) {
+          await window.storageManager.saveChat(chat).catch(() => {});
+        }
+      }
+
+      return normalizedChats;
+    } catch (error) {
+      console.warn('[ChatList] 解析本地对话缓存失败:', error);
+      return [];
+    }
+  }
+
+  normalizeIdeaKey(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+      return '';
+    }
+    const dePrefixed = raw.replace(/^(idea-|chat-)/i, '');
+    if (/^\d+$/.test(dePrefixed)) {
+      return String(Number(dePrefixed));
+    }
+    return dePrefixed;
+  }
+
+  buildRecoveredChat(project, analysisReport) {
+    const rawChatId = project?.ideaId ?? project?.linkedIdeas?.[0] ?? analysisReport?.chatId;
+    if (rawChatId === null || rawChatId === undefined || rawChatId === '') {
+      return null;
+    }
+
+    const projectName = String(project?.name || '').trim();
+    const derivedTitle = projectName.replace(/\s*-\s*项目$/, '').trim();
+    const reportData = analysisReport?.data || {};
+    const summary =
+      reportData.coreDefinition ||
+      reportData.problem ||
+      reportData.summary ||
+      reportData.document ||
+      '已根据项目空间与分析报告恢复对话索引，原始消息记录缺失。';
+
+    return {
+      id: String(rawChatId).trim(),
+      title: derivedTitle || '恢复的创意对话',
+      titleEdited: false,
+      messages: [
+        {
+          role: 'user',
+          content: derivedTitle || projectName || '恢复的创意对话'
+        },
+        {
+          role: 'assistant',
+          content:
+            typeof summary === 'string' && summary.trim()
+              ? summary.trim().slice(0, 2000)
+              : '已根据项目空间与分析报告恢复对话索引，原始消息记录缺失。'
+        }
+      ],
+      userData: {},
+      conversationStep: 0,
+      analysisCompleted: true,
+      reportState: {
+        analysis: {
+          status: String(analysisReport?.status || 'completed'),
+          progress: { current: 1, total: 1, percentage: 100 },
+          updatedAt: analysisReport?.endTime || analysisReport?.timestamp || Date.now(),
+          source: 'recovered-from-project'
+        }
+      },
+      createdAt:
+        analysisReport?.startTime ||
+        project?.createdAt ||
+        analysisReport?.timestamp ||
+        new Date().toISOString(),
+      updatedAt:
+        analysisReport?.endTime ||
+        project?.updatedAt ||
+        analysisReport?.timestamp ||
+        new Date().toISOString(),
+      recoveredFromProject: true,
+      localOnly: true,
+      remoteBacked: false
+    };
+  }
+
+  async recoverChatsFromProjectsAndReports(existingChats = []) {
+    if (!window.storageManager?.getAllProjects || !window.storageManager?.getAllReports) {
+      return [];
+    }
+
+    const existing = Array.isArray(existingChats) ? existingChats : [];
+    const knownIds = new Set(existing.map(chat => this.normalizeIdeaKey(chat?.id)).filter(Boolean));
+    const projects = await window.storageManager.getAllProjects().catch(() => []);
+    const reports = await window.storageManager.getAllReports().catch(() => []);
+    const analysisReports = (Array.isArray(reports) ? reports : []).filter(report => {
+      const type = String(report?.type || '').toLowerCase();
+      return type === 'analysis' || type === 'analysis-report' || type === 'analysis_report';
+    });
+
+    const recovered = [];
+    for (const project of Array.isArray(projects) ? projects : []) {
+      if (!project || project.status === 'deleted') {
+        continue;
+      }
+
+      const ideaKey = this.normalizeIdeaKey(project.ideaId ?? project.linkedIdeas?.[0]);
+      if (!ideaKey || knownIds.has(ideaKey)) {
+        continue;
+      }
+
+      const analysisReport =
+        analysisReports.find(report => this.normalizeIdeaKey(report?.chatId) === ideaKey) || null;
+      if (!analysisReport) {
+        continue;
+      }
+
+      const recoveredChat = this.buildRecoveredChat(project, analysisReport);
+      if (!recoveredChat) {
+        continue;
+      }
+
+      knownIds.add(ideaKey);
+      recovered.push(recoveredChat);
+      if (window.storageManager?.saveChat) {
+        await window.storageManager.saveChat(recoveredChat).catch(() => {});
+      }
+    }
+
+    if (recovered.length > 0) {
+      try {
+        const merged = [...recovered, ...existing];
+        localStorage.setItem('thinkcraft_chats', JSON.stringify(merged));
+      } catch (_error) {
+        // ignore local cache write failures
+      }
+    }
+
+    return recovered;
+  }
+
   /**
    * 开始新对话
    */
@@ -102,7 +266,6 @@ class ChatList {
    */
   async loadChats(options = {}) {
     const { preferLocal = false } = options;
-    let loadedFromServer = false;
     // 1. 先清理所有已经portal到body的菜单
     document.querySelectorAll('.chat-item-menu').forEach(menu => {
       if (menu.parentElement === document.body) {
@@ -110,70 +273,14 @@ class ChatList {
       }
     });
 
-    const authToken = window.getAuthToken ? window.getAuthToken() : null;
-
-    // 优先从后端加载对话列表
-    if (!preferLocal && authToken && window.apiClient?.get) {
-      try {
-        const response = await window.apiClient.get('/api/chat', { page: 1, pageSize: 100 });
-        if (response?.code === 0 && Array.isArray(response?.data?.chats)) {
-          loadedFromServer = true;
-          state.chats = response.data.chats.map(chat => ({
-            id: chat.id,
-            title: chat.title,
-            titleEdited: Boolean(chat.titleEdited),
-            messages: Array.isArray(chat.messages)
-              ? chat.messages.map(msg => ({
-                  role: msg.sender === 'user' ? 'user' : 'assistant',
-                  content: msg.content
-                }))
-              : [],
-            userData: chat.userData || {},
-            conversationStep: chat.conversationStep || 0,
-            analysisCompleted: chat.analysisCompleted || false,
-            reportState: chat.reportState || null,
-            createdAt: chat.createdAt,
-            updatedAt: chat.updatedAt,
-            status: chat.status,
-            tags: chat.tags || [],
-            isPinned: chat.isPinned || false
-          }));
-          if (window.storageManager) {
-            for (const chat of state.chats) {
-              await window.storageManager.saveChat(chat);
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('[ChatList] 后端加载失败，回退本地缓存', error);
-      }
+    if (window.chatReportBundle?.resolveChatList) {
+      const resolution = await window.chatReportBundle.resolveChatList({
+        preferLocal
+      });
+      state.chats = Array.isArray(resolution?.chats) ? resolution.chats : [];
+    } else {
+      state.chats = [];
     }
-
-    // 从 IndexedDB 加载对话（仅在后端未成功返回时）
-    if ((!state.chats || state.chats.length === 0) && !loadedFromServer) {
-      if (window.storageManager) {
-        try {
-          state.chats = await window.storageManager.getAllChats();
-        } catch (error) {
-          console.error('[ChatList] 加载对话失败:', error);
-          state.chats = [];
-        }
-      } else {
-        state.chats = [];
-      }
-    }
-
-    // 排序：置顶优先，其次按 chat ID + requestID 倒序
-    state.chats.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      const aId = Number(a.id) || 0;
-      const bId = Number(b.id) || 0;
-      if (aId !== bId) return bId - aId;
-      const aRequestId = Number(a.requestId ?? a.requestID ?? 0) || 0;
-      const bRequestId = Number(b.requestId ?? b.requestID ?? 0) || 0;
-      return bRequestId - aRequestId;
-    });
 
     const historyDiv = document.getElementById('chatHistory');
     historyDiv.innerHTML = '';
@@ -271,6 +378,7 @@ class ChatList {
       if (window.storageManager) {
         await window.storageManager.saveChat(chat);
       }
+      window.chatReportBundle?.clearCache?.(chatId);
 
       if (window.apiClient?.put) {
         try {
@@ -303,6 +411,7 @@ class ChatList {
     if (window.storageManager) {
       await window.storageManager.saveChat(chat);
     }
+    window.chatReportBundle?.clearCache?.(chatId);
 
     if (window.apiClient?.put) {
       try {
@@ -398,6 +507,7 @@ class ChatList {
     if (window.storageManager) {
       await window.storageManager.deleteChat(chatId);
     }
+    window.chatReportBundle?.clearCache?.(chatId);
     // 同步更新 localStorage 缓存，避免删除后仍被旧缓存读取
     try {
       localStorage.setItem('thinkcraft_chats', JSON.stringify(state.chats));
